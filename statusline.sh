@@ -9,10 +9,10 @@ rate_5h_raw=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // e
 rate_7d_raw=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty' 2>/dev/null)
 
 # ANSI color codes: colored background
-BLUE=$'\033[44;97m'    # blue bg, white text
-GREEN=$'\033[42;30m'   # green bg, black text
-YELLOW=$'\033[43;30m'  # yellow bg, black text
-RED=$'\033[41;97m'     # red bg, white text
+BLUE=$'\033[44;97m'      # blue bg, white text
+GREEN=$'\033[42;30m'     # green bg, black text
+YELLOW=$'\033[43;30m'    # yellow bg, black text
+RED=$'\033[41;97m'       # red bg, white text
 RESET=$'\033[0m'
 
 # colorize label raw_pct — prints "label: XX%" with background color
@@ -99,5 +99,36 @@ context_str=$(colorize "Context" "$context_raw")
 rate_5h_str=$(colorize "5h" "$rate_5h_raw")
 rate_7d_str=$(colorize "7d" "$rate_7d_raw")
 
-printf "🕐 %s  %s  📊 %s  ⚡ %s  📅 %s\n" \
-    "$current_time" "$weather" "$context_str" "$rate_5h_str" "$rate_7d_str"
+# Focus timer
+POMODORO_STATE="/tmp/.claude_pomodoro_state"
+POMODORO_NOTIFIED="/tmp/.claude_pomodoro_notified"
+focus_str="⏱ /focus"
+
+if [ -f "$POMODORO_STATE" ]; then
+    # shellcheck disable=SC1090
+    source "$POMODORO_STATE"
+    now=$(date +%s)
+    remaining=$(( DURATION - (now - START_TIME) ))
+
+    if [ "$remaining" -le 0 ]; then
+        focus_str="${RED} ⏱ -- ${RESET}"
+        if [ ! -f "$POMODORO_NOTIFIED" ]; then
+            touch "$POMODORO_NOTIFIED"
+            if [ "$TYPE" = "work" ]; then
+                osascript -e 'display notification "Focus session complete. Time for a break." with title "⏱ Focus Timer"' 2>/dev/null &
+            else
+                osascript -e 'display notification "Break over. Ready to focus?" with title "⏱ Focus Timer"' 2>/dev/null &
+            fi
+        fi
+    else
+        mins=$(( remaining / 60 ))
+        if [ "$TYPE" = "work" ]; then
+            focus_str="${BLUE} ⏱ ${mins}m ${RESET}"
+        else
+            focus_str="${GREEN} ⏸ ${mins}m ${RESET}"
+        fi
+    fi
+fi
+
+printf "🕐 %s  %s  %s  📊 %s  ⚡ %s  📅 %s\n" \
+    "$current_time" "$weather" "$focus_str" "$context_str" "$rate_5h_str" "$rate_7d_str"
