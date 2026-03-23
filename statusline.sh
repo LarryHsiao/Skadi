@@ -84,7 +84,7 @@ if [ "$weather" = "Weather N/A" ]; then
         weather=$(echo "$fetched" | awk -F': ' '{
             n=split($1,w," "); loc=""
             for(i=1;i<=n;i++) loc=loc (i>1?" ":"") toupper(substr(w[i],1,1)) substr(w[i],2)
-            print loc ": " $2
+            print "📍 " loc " " $2
         }')
         echo "$weather" > "$WEATHER_CACHE"
     elif [ -f "$WEATHER_CACHE" ]; then
