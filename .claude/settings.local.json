@@ -14,7 +14,11 @@
       "Bash(ln -sf /Users/larryhsiao/skadi/skills/working.md /Users/larryhsiao/.claude/skills/working.md)",
       "Read(//Users/larryhsiao/.claude/skills/**)",
       "Bash(bash install.sh)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(python3 -m json.tool)",
+      "Bash(chmod +x /Users/larryhsiao/skadi/statusline.sh)",
+      "Bash(bash /Users/larryhsiao/skadi/statusline.sh)",
+      "Bash(curl:*)"
     ]
   }
 }

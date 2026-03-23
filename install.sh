@@ -29,6 +29,9 @@ link "$REPO/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
 # Global settings
 link "$REPO/settings.json" "$CLAUDE_DIR/settings.json"
 
+# Status line script
+link "$REPO/statusline.sh" "$CLAUDE_DIR/statusline.sh"
+
 # Skills — create a directory per skill, link as SKILL.md
 mkdir -p "$CLAUDE_DIR/skills"
 for skill in "$REPO/skills/"*; do
