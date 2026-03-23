@@ -5,8 +5,8 @@ description: Manage a Pomodoro focus timer. Use /focus start, /focus break, /foc
 
 # Focus Timer
 
-State file: `/tmp/.claude_pomodoro_state`
-Notified flag: `/tmp/.claude_pomodoro_notified`
+State file: `~/.claude/.pomodoro_state`
+Notified flag: `~/.claude/.pomodoro_notified`
 
 ## Parse the argument
 
@@ -21,9 +21,9 @@ Notified flag: `/tmp/.claude_pomodoro_notified`
 Delete the notified flag, then write the state file:
 
 ```bash
-rm -f /tmp/.claude_pomodoro_notified
+rm -f ~/.claude/.pomodoro_notified
 printf 'START_TIME=%s\nDURATION=%s\nTYPE=%s\n' "$(date +%s)" "<seconds>" "<type>" \
-  > /tmp/.claude_pomodoro_state
+  > ~/.claude/.pomodoro_state
 ```
 
 Durations and types:
@@ -38,7 +38,7 @@ Confirm to the user: "Focus timer started — 25 min" (or appropriate label).
 ## Stopping
 
 ```bash
-rm -f /tmp/.claude_pomodoro_state /tmp/.claude_pomodoro_notified
+rm -f ~/.claude/.pomodoro_state ~/.claude/.pomodoro_notified
 ```
 
 Confirm: "Focus timer stopped."
@@ -48,7 +48,7 @@ Confirm: "Focus timer stopped."
 Read the state file, source it, compute remaining:
 
 ```bash
-source /tmp/.claude_pomodoro_state
+source ~/.claude/.pomodoro_state
 remaining=$(( DURATION - ($(date +%s) - START_TIME) ))
 ```
 

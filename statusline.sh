@@ -100,8 +100,8 @@ rate_5h_str=$(colorize "5h" "$rate_5h_raw")
 rate_7d_str=$(colorize "7d" "$rate_7d_raw")
 
 # Focus timer
-POMODORO_STATE="/tmp/.claude_pomodoro_state"
-POMODORO_NOTIFIED="/tmp/.claude_pomodoro_notified"
+POMODORO_STATE="$HOME/.claude/.pomodoro_state"
+POMODORO_NOTIFIED="$HOME/.claude/.pomodoro_notified"
 focus_str="⏱ /focus"
 
 if [ -f "$POMODORO_STATE" ]; then
