@@ -10,7 +10,11 @@
       "Bash(git -C /Users/larryhsiao/skadi status)",
       "Bash(git -C /Users/larryhsiao/skadi diff HEAD)",
       "Bash(git -C /Users/larryhsiao/skadi add skills/commit.md .claude/settings.local.json)",
-      "Bash(git -C:*)"
+      "Bash(git -C:*)",
+      "Bash(ln -sf /Users/larryhsiao/skadi/skills/working.md /Users/larryhsiao/.claude/skills/working.md)",
+      "Read(//Users/larryhsiao/.claude/skills/**)",
+      "Bash(bash install.sh)",
+      "Bash(git add:*)"
     ]
   }
 }

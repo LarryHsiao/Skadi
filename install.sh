@@ -29,11 +29,19 @@ link "$REPO/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
 # Global settings
 link "$REPO/settings.json" "$CLAUDE_DIR/settings.json"
 
-# Skills — link each file individually
+# Skills — create a directory per skill, link as SKILL.md
 mkdir -p "$CLAUDE_DIR/skills"
 for skill in "$REPO/skills/"*; do
   [[ "$(basename "$skill")" == ".gitkeep" ]] && continue
-  [ -f "$skill" ] && link "$skill" "$CLAUDE_DIR/skills/$(basename "$skill")"
+  if [ -d "$skill" ]; then
+    skill_name="$(basename "$skill")"
+    mkdir -p "$CLAUDE_DIR/skills/$skill_name"
+    [ -f "$skill/SKILL.md" ] && link "$skill/SKILL.md" "$CLAUDE_DIR/skills/$skill_name/SKILL.md"
+  elif [ -f "$skill" ]; then
+    skill_name="$(basename "${skill%.*}")"
+    mkdir -p "$CLAUDE_DIR/skills/$skill_name"
+    link "$skill" "$CLAUDE_DIR/skills/$skill_name/SKILL.md"
+  fi
 done
 
 echo ""
