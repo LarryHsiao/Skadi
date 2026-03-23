@@ -5,7 +5,12 @@
       "Bash(find /Users/larryhsiao/skadi -type f -name * ! -path */.*)",
       "Bash(git config:*)",
       "Bash(bash /Users/larryhsiao/skadi/install.sh)",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "Bash(git commit:*)",
+      "Bash(git -C /Users/larryhsiao/skadi status)",
+      "Bash(git -C /Users/larryhsiao/skadi diff HEAD)",
+      "Bash(git -C /Users/larryhsiao/skadi add skills/commit.md .claude/settings.local.json)",
+      "Bash(git -C:*)"
     ]
   }
 }
