@@ -1,1 +1,0 @@
-/Users/larryhsiao/skadi/skills/commit-push/SKILL.md
