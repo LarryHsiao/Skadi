@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(mkdir -p /Users/larryhsiao/.claude/skills/git-reset)",
+      "Bash(ln -s /Users/larryhsiao/skadi/skills/git-reset/SKILL.md /Users/larryhsiao/.claude/skills/git-reset/SKILL.md)",
+      "Bash(rmdir /Users/larryhsiao/.claude/skills/git-reset)",
+      "Bash(mkdir -p /Users/larryhsiao/.claude/skills/reset)",
+      "Bash(ln -s /Users/larryhsiao/skadi/skills/reset/SKILL.md /Users/larryhsiao/.claude/skills/reset/SKILL.md)",
+      "Bash(git add:*)"
+    ]
+  }
+}
