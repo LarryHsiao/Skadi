@@ -119,5 +119,7 @@ case "$model_lower" in
     *)        model_emoji="🤖" ;;
 esac
 
-printf "🌿%s  ✏️%s  %s  📊%s  ⚡%s  📅%s  💰%s  %s%s\n" \
-    "${git_branch:-N/A}" "$lines_str" "$weather" "$context_str" "$rate_5h_str" "$rate_7d_str" "$cost_str" "$model_emoji" "${model_name:-N/A}"
+printf "🌿%s  ✏️%s\n" \
+    "${git_branch:-N/A}" "$lines_str"
+printf "%s  📊%s  ⚡%s  📅%s  💰%s  %s%s\n" \
+    "$weather" "$context_str" "$rate_5h_str" "$rate_7d_str" "$cost_str" "$model_emoji" "${model_name:-N/A}"
