@@ -7,6 +7,7 @@ input=$(cat)
 context_raw=$(echo "$input" | jq -r '.context_window.used_percentage // empty' 2>/dev/null)
 rate_5h_raw=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty' 2>/dev/null)
 rate_7d_raw=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty' 2>/dev/null)
+model_name=$(echo "$input" | jq -r '.model.display_name // empty' 2>/dev/null)
 
 # ANSI color codes: colored background
 BLUE=$'\033[44;97m'      # blue bg, white text
@@ -63,9 +64,6 @@ colorize_temp() {
     echo "${str/${temp_match}/${color}${temp_match}${RESET}}"
 }
 
-# Current time
-current_time=$(date +"%H:%M")
-
 # Weather with 30-minute cache
 WEATHER_CACHE="/tmp/.claude_weather_cache"
 weather="Weather N/A"
@@ -99,36 +97,5 @@ context_str=$(colorize "Context" "$context_raw")
 rate_5h_str=$(colorize "5h" "$rate_5h_raw")
 rate_7d_str=$(colorize "7d" "$rate_7d_raw")
 
-# Focus timer
-POMODORO_STATE="$HOME/.claude/.pomodoro_state"
-POMODORO_NOTIFIED="$HOME/.claude/.pomodoro_notified"
-focus_str="⏱ /focus"
-
-if [ -f "$POMODORO_STATE" ]; then
-    # shellcheck disable=SC1090
-    source "$POMODORO_STATE"
-    now=$(date +%s)
-    remaining=$(( DURATION - (now - START_TIME) ))
-
-    if [ "$remaining" -le 0 ]; then
-        focus_str="${RED} ⏱ -- ${RESET}"
-        if [ ! -f "$POMODORO_NOTIFIED" ]; then
-            touch "$POMODORO_NOTIFIED"
-            if [ "$TYPE" = "work" ]; then
-                osascript -e 'display notification "Focus session complete. Time for a break." with title "⏱ Focus Timer"' 2>/dev/null &
-            else
-                osascript -e 'display notification "Break over. Ready to focus?" with title "⏱ Focus Timer"' 2>/dev/null &
-            fi
-        fi
-    else
-        mins=$(( remaining / 60 ))
-        if [ "$TYPE" = "work" ]; then
-            focus_str="${BLUE} ⏱ ${mins}m ${RESET}"
-        else
-            focus_str="${GREEN} ⏸ ${mins}m ${RESET}"
-        fi
-    fi
-fi
-
-printf "🕐 %s  %s  %s  📊 %s  ⚡ %s  📅 %s\n" \
-    "$current_time" "$weather" "$focus_str" "$context_str" "$rate_5h_str" "$rate_7d_str"
+printf "%s  %s  📊 %s  ⚡ %s  📅 %s\n" \
+    "$weather" "${model_name:-N/A}" "$context_str" "$rate_5h_str" "$rate_7d_str"
