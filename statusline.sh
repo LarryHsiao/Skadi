@@ -8,9 +8,14 @@ context_raw=$(echo "$input" | jq -r '.context_window.used_percentage // empty' 2
 rate_5h_raw=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty' 2>/dev/null)
 rate_7d_raw=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty' 2>/dev/null)
 model_name=$(echo "$input" | jq -r '.model.display_name // empty' 2>/dev/null)
-lines_added=$(echo "$input" | jq -r '.cost.total_lines_added // 0' 2>/dev/null)
-lines_removed=$(echo "$input" | jq -r '.cost.total_lines_removed // 0' 2>/dev/null)
-git_branch=$(git -C "$(echo "$input" | jq -r '.cwd // "."' 2>/dev/null)" rev-parse --abbrev-ref HEAD 2>/dev/null)
+cwd=$(echo "$input" | jq -r '.cwd // "."' 2>/dev/null)
+git_branch=$(git -C "$cwd" rev-parse --abbrev-ref HEAD 2>/dev/null)
+diff_stat=$(git -C "$cwd" diff --cached --shortstat 2>/dev/null)
+lines_added=$(echo "$diff_stat" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+')
+lines_removed=$(echo "$diff_stat" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+')
+lines_added=${lines_added:-0}
+lines_removed=${lines_removed:-0}
+changed_count=$(git -C "$cwd" status --porcelain 2>/dev/null | grep -cE '^\?\?|^.[MDRC]' )
 
 # ANSI color codes: colored background
 BLUE=$'\033[44;97m'      # blue bg, white text
@@ -100,8 +105,9 @@ context_str=$(colorize "Context" "$context_raw")
 rate_5h_str=$(colorize "5h" "$rate_5h_raw")
 rate_7d_str=$(colorize "7d" "$rate_7d_raw")
 
-# Format lines changed
+# Format lines changed and unstaged/untracked counts
 lines_str="+${lines_added}/-${lines_removed}"
+changed_str="📄${changed_count}"
 
 # Model short name + emoji
 model_lower=$(echo "$model_name" | tr '[:upper:]' '[:lower:]')
@@ -112,8 +118,8 @@ case "$model_lower" in
     *)        model_emoji="🤖"; model_short="${model_name:-N/A}" ;;
 esac
 
-printf "🌿%s  ✏️%s\n" \
-    "${git_branch:-N/A}" "$lines_str"
+printf "%s\n" "$weather"
+printf "🌿%s  ✏️%s  %s\n" \
+    "${git_branch:-N/A}" "$lines_str" "$changed_str"
 printf "%s%s  📊%s  ⚡%s  📅%s\n" \
     "$model_emoji" "$model_short" "$context_str" "$rate_5h_str" "$rate_7d_str"
-printf "%s\n" "$weather"
