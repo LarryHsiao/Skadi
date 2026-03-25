@@ -77,7 +77,25 @@ Use AskUserQuestion:
 - Trim leading/trailing `-`
 - Truncate to ~50 characters at a word boundary
 
-### 6. Checkout the branch
+### 6. Checkout from the dev branch
+
+Before creating the feature branch, ensure it branches off the project's dev branch.
+
+**a. Load dev branch from memory** (`dev_branch.md`):
+- If found, use it silently — do NOT ask again
+- If not saved, ask once: "What is the default dev branch for this project? (e.g. `dev`, `develop`, `main`)"
+  - Save the answer to `/Users/larryhsiao/.claude/projects/-Users-larryhsiao-skadi/memory/dev_branch.md`
+  - Add pointer to `MEMORY.md`
+- Only re-ask if the user explicitly says to change it
+
+**b. Checkout and pull the dev branch:**
+
+```bash
+git checkout <dev-branch>
+git pull
+```
+
+**c. Create the feature branch:**
 
 ```bash
 git checkout -b JIRA-NUMBER/type/name/description-slug
