@@ -10,7 +10,8 @@
       "Bash(ln -s /Users/larryhsiao/skadi/skills/reset/SKILL.md /Users/larryhsiao/.claude/skills/reset/SKILL.md)",
       "Bash(git add:*)",
       "Bash(grep -r \"weather\\\\|statusLine\\\\|statusline\" /Users/larryhsiao/skadi --include=*.json --include=*.sh --include=*.md)",
-      "Bash(bash /Users/larryhsiao/skadi/statusline.sh)"
+      "Bash(bash /Users/larryhsiao/skadi/statusline.sh)",
+      "Bash(find /Users/larryhsiao/skadi -type f -name *.md)"
     ]
   }
 }
