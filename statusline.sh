@@ -118,16 +118,19 @@ case "$model_lower" in
     *)        model_emoji="🤖"; model_short="${model_name:-N/A}" ;;
 esac
 
-# Line 1: project + branch info
+# Line 1: project name
 project_name=$(basename "$cwd")
-printf "📁%s  🌿%s  ✏️%s  %s\n" "$project_name" "${git_branch:-N/A}" "$lines_str" "$changed_str"
+printf "📁%s\n" "$project_name"
 
-# Line 2: model + context + rate limits
+# Line 2: branch info
+printf "🌿%s  ✏️%s  %s\n" "${git_branch:-N/A}" "$lines_str" "$changed_str"
+
+# Line 3: model + context + rate limits
 printf "%s%s  📊%s  ⚡%s  📅%s\n" \
     "$model_emoji" "$model_short" "$context_str" "$rate_5h_str" "$rate_7d_str"
 
-# Line 3: divider
+# Line 4: divider
 printf "%s\n" "──────────────────────────────────────────────────"
 
-# Line 4: weather
+# Line 5: weather
 printf "%s\n" "$weather"
