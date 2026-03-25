@@ -1,10 +1,12 @@
 {
+  "model": "opus[1m]",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh"
   },
   "enabledPlugins": {
-    "superpowers@claude-plugins-official": true
+    "superpowers@claude-plugins-official": true,
+    "figma@claude-plugins-official": true
   },
   "voiceEnabled": true
 }

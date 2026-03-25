@@ -8,6 +8,10 @@ context_raw=$(echo "$input" | jq -r '.context_window.used_percentage // empty' 2
 rate_5h_raw=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty' 2>/dev/null)
 rate_7d_raw=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty' 2>/dev/null)
 model_name=$(echo "$input" | jq -r '.model.display_name // empty' 2>/dev/null)
+session_cost=$(echo "$input" | jq -r '.cost.total_cost_usd // empty' 2>/dev/null)
+lines_added=$(echo "$input" | jq -r '.cost.total_lines_added // 0' 2>/dev/null)
+lines_removed=$(echo "$input" | jq -r '.cost.total_lines_removed // 0' 2>/dev/null)
+git_branch=$(git -C "$(echo "$input" | jq -r '.cwd // "."' 2>/dev/null)" rev-parse --abbrev-ref HEAD 2>/dev/null)
 
 # ANSI color codes: colored background
 BLUE=$'\033[44;97m'      # blue bg, white text
@@ -38,7 +42,7 @@ colorize() {
         color="$GREEN"
     fi
 
-    printf "%s %s: %s%% %s" "$color" "$label" "$pct_num" "$RESET"
+    printf "%s%s: %s%%%s" "$color" "$label" "$pct_num" "$RESET"
 }
 
 # colorize_temp weather_str — replaces the temperature value with a colored version
@@ -97,5 +101,23 @@ context_str=$(colorize "Context" "$context_raw")
 rate_5h_str=$(colorize "5h" "$rate_5h_raw")
 rate_7d_str=$(colorize "7d" "$rate_7d_raw")
 
-printf "%s  %s  📊 %s  ⚡ %s  📅 %s\n" \
-    "$weather" "${model_name:-N/A}" "$context_str" "$rate_5h_str" "$rate_7d_str"
+# Format session cost
+if [ -n "$session_cost" ]; then
+    cost_str=$(printf "\$%.2f" "$session_cost")
+else
+    cost_str="N/A"
+fi
+
+# Format lines changed
+lines_str="+${lines_added}/-${lines_removed}"
+
+# Model emoji
+model_lower=$(echo "$model_name" | tr '[:upper:]' '[:lower:]')
+case "$model_lower" in
+    *opus*)   model_emoji="🎵" ;;
+    *sonnet*) model_emoji="📝" ;;
+    *)        model_emoji="🤖" ;;
+esac
+
+printf "🌿%s  ✏️%s  %s  📊%s  ⚡%s  📅%s  💰%s  %s%s\n" \
+    "${git_branch:-N/A}" "$lines_str" "$weather" "$context_str" "$rate_5h_str" "$rate_7d_str" "$cost_str" "$model_emoji" "${model_name:-N/A}"
