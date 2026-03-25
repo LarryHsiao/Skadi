@@ -8,7 +8,9 @@
       "Bash(rmdir /Users/larryhsiao/.claude/skills/git-reset)",
       "Bash(mkdir -p /Users/larryhsiao/.claude/skills/reset)",
       "Bash(ln -s /Users/larryhsiao/skadi/skills/reset/SKILL.md /Users/larryhsiao/.claude/skills/reset/SKILL.md)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(grep -r \"weather\\\\|statusLine\\\\|statusline\" /Users/larryhsiao/skadi --include=*.json --include=*.sh --include=*.md)",
+      "Bash(bash /Users/larryhsiao/skadi/statusline.sh)"
     ]
   }
 }

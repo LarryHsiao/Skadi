@@ -118,8 +118,21 @@ case "$model_lower" in
     *)        model_emoji="🤖"; model_short="${model_name:-N/A}" ;;
 esac
 
-printf "%s\n" "$weather"
-printf "🌿%s  ✏️%s  %s\n" \
-    "${git_branch:-N/A}" "$lines_str" "$changed_str"
+# Strip ANSI codes for length calculation
+strip_ansi() { sed $'s/\033\\[[0-9;]*m//g' <<< "$1"; }
+
+# Line 1: branch info (left) + weather (right)
+left=$(printf "🌿%s  ✏️%s  %s" "${git_branch:-N/A}" "$lines_str" "$changed_str")
+right="$weather"
+
+cols=$(tput cols 2>/dev/null || echo 80)
+left_plain=$(strip_ansi "$left")
+right_plain=$(strip_ansi "$right")
+pad=$(( cols - ${#left_plain} - ${#right_plain} ))
+[ "$pad" -lt 1 ] && pad=1
+
+printf "%s%*s%s\n" "$left" "$pad" "" "$right"
+
+# Line 2: model + context + rate limits
 printf "%s%s  📊%s  ⚡%s  📅%s\n" \
     "$model_emoji" "$model_short" "$context_str" "$rate_5h_str" "$rate_7d_str"
