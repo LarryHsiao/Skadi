@@ -34,5 +34,5 @@ A markdown list with each changed file and a short description:
 ## Rules
 
 - Only look at staged changes (exclude unstaged files)
-- If there are no staged changes, just say "No staged changes."
+- If there are no staged changes, invoke the `/stage` skill to let the user stage files first
 - Keep the natural language summary concise — no more than 3 sentences
