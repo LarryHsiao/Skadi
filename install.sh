@@ -32,6 +32,12 @@ link "$REPO/settings.json" "$CLAUDE_DIR/settings.json"
 # Status line script
 link "$REPO/statusline.sh" "$CLAUDE_DIR/statusline.sh"
 
+# Hooks — link each hook script
+mkdir -p "$CLAUDE_DIR/hooks"
+for hook in "$REPO/hooks/"*.sh; do
+  [ -f "$hook" ] && link "$hook" "$CLAUDE_DIR/hooks/$(basename "$hook")"
+done
+
 # Skills — create a directory per skill, link as SKILL.md
 mkdir -p "$CLAUDE_DIR/skills"
 for skill in "$REPO/skills/"*; do

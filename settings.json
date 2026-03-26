@@ -8,5 +8,97 @@
     "superpowers@claude-plugins-official": true,
     "figma@claude-plugins-official": true
   },
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "permissions": {
+    "allow": [
+      "Bash(fvm flutter:*)",
+      "Bash(fvm dart:*)",
+      "Bash(fvm:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git branch:*)",
+      "Bash(git show:*)",
+      "Bash(git blame:*)",
+      "Bash(git stash list:*)",
+      "Bash(git tag:*)",
+      "Bash(git remote:*)",
+      "Bash(git fetch:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(which:*)",
+      "Bash(echo:*)",
+      "Bash(curl:*)",
+      "Bash(jq:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(node:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(nvm:*)",
+      "Bash(tsc:*)",
+      "Bash(eslint:*)",
+      "Bash(prettier:*)",
+      "Bash(jest:*)",
+      "Bash(vitest:*)",
+      "Bash(vite:*)",
+      "Bash(next:*)",
+      "Bash(playwright:*)",
+      "Bash(cypress:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/flutter-analyze.sh",
+            "statusMessage": "Analyzing Dart file..."
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/prettier-format.sh",
+            "statusMessage": "Running Prettier..."
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/eslint-check.sh",
+            "statusMessage": "Running ESLint..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/destructive-warn.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/pre-commit-guard.sh"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Before compacting, identify and preserve: 1) Current task and progress 2) Key decisions made 3) Files being modified and why 4) Any blockers or pending questions. Output this as additionalContext."
+          }
+        ]
+      }
+    ]
+  }
 }

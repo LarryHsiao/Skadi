@@ -11,7 +11,9 @@
       "Bash(git add:*)",
       "Bash(grep -r \"weather\\\\|statusLine\\\\|statusline\" /Users/larryhsiao/skadi --include=*.json --include=*.sh --include=*.md)",
       "Bash(bash /Users/larryhsiao/skadi/statusline.sh)",
-      "Bash(find /Users/larryhsiao/skadi -type f -name *.md)"
+      "Bash(find /Users/larryhsiao/skadi -type f -name *.md)",
+      "Skill(update-config)",
+      "Bash(chmod:*)"
     ]
   }
 }
