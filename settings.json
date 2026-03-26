@@ -86,6 +86,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "~/.claude/hooks/dir-guard.sh",
+            "statusMessage": "Checking directory..."
+          },
+          {
+            "type": "command",
             "command": "~/.claude/hooks/pre-commit-guard.sh"
           }
         ]
