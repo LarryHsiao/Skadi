@@ -77,7 +77,28 @@ Use AskUserQuestion:
 - Trim leading/trailing `-`
 - Truncate to ~50 characters at a word boundary
 
-### 6. Choose base branch and create feature branch
+### 6. Check for existing branches with the same Jira ticket
+
+Before creating a new branch, check if any local or remote branches already contain the Jira number:
+
+```bash
+git branch -a | grep -i "JIRA-NUMBER"
+```
+
+- **No matches** → proceed to step 7 (create a new branch)
+- **Exactly one match** → ask the user: "Found existing branch `<branch>`. Switch to it, or create a new one?"
+- **Multiple matches** → list all matches and use AskUserQuestion to let the user pick which branch to check out, or choose to create a new one
+
+If the user picks an existing branch:
+```bash
+git checkout <chosen-branch>
+git pull
+```
+Then stop — the workflow is done.
+
+If the user chooses to create a new branch, continue to step 7.
+
+### 7. Choose base branch and create feature branch
 
 **a. Load default dev branch from memory** (`dev_branch.md`):
 - If not saved, ask: "What is the default dev branch for this project? (e.g. `dev`, `develop`, `main`)"
@@ -85,7 +106,7 @@ Use AskUserQuestion:
   - Add pointer to `MEMORY.md`
 - Only re-ask if the user explicitly says to change it
 
-**b. Ask which branch to start from** using AskUserQuestion:
+**b. Ask which branch to start from** using AskUserQuestion (skip if user is switching to an existing branch):
 - Default option: the remembered dev branch (from memory)
 - Let the user pick a different branch or type a custom one
 
