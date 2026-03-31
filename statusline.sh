@@ -16,6 +16,7 @@ lines_removed=$(echo "$diff_stat" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]
 lines_added=${lines_added:-0}
 lines_removed=${lines_removed:-0}
 changed_count=$(git -C "$cwd" status --porcelain 2>/dev/null | grep -cE '^\?\?|^.[MDRC]' )
+unpushed_count=$(git -C "$cwd" rev-list --count @{upstream}..HEAD 2>/dev/null || echo 0)
 
 # ANSI color codes: colored background
 BLUE=$'\033[44;97m'      # blue bg, white text
@@ -108,6 +109,7 @@ rate_7d_str=$(colorize "7d" "$rate_7d_raw")
 # Format lines changed and unstaged/untracked counts
 lines_str="+${lines_added}/-${lines_removed}"
 changed_str="📄${changed_count}"
+unpushed_str="⬆${unpushed_count}"
 
 # Model short name + emoji
 model_lower=$(echo "$model_name" | tr '[:upper:]' '[:lower:]')
@@ -140,7 +142,7 @@ ellipsize_middle() {
 branch_label=$(ellipsize_middle "${git_branch:-N/A}" 35)
 
 # Line 2: branch info
-printf "🌿%s  ✏️%s  %s\n" "$branch_label" "$lines_str" "$changed_str"
+printf "🌿%s  ✏️%s  %s  %s\n" "$branch_label" "$lines_str" "$changed_str" "$unpushed_str"
 
 # Line 3: model + context + rate limits
 printf "%s%s  📊%s  ⚡%s  📅%s\n" \
