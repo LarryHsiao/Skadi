@@ -122,8 +122,25 @@ esac
 project_name=$(basename "$cwd")
 printf "📁%s\n" "$project_name"
 
+# Ellipsize middle of a string if longer than max_len
+ellipsize_middle() {
+    local str="$1"
+    local max_len="${2:-25}"
+    local len=${#str}
+    if [ "$len" -le "$max_len" ]; then
+        echo "$str"
+        return
+    fi
+    local keep=$(( max_len - 3 ))
+    local left=$(( keep / 2 ))
+    local right=$(( keep - left ))
+    echo "${str:0:$left}...${str: -$right}"
+}
+
+branch_label=$(ellipsize_middle "${git_branch:-N/A}" 35)
+
 # Line 2: branch info
-printf "🌿%s  ✏️%s  %s\n" "${git_branch:-N/A}" "$lines_str" "$changed_str"
+printf "🌿%s  ✏️%s  %s\n" "$branch_label" "$lines_str" "$changed_str"
 
 # Line 3: model + context + rate limits
 printf "%s%s  📊%s  ⚡%s  📅%s\n" \
