@@ -191,7 +191,7 @@ elif [ "$disk_free_int" -ge 20 ]; then
 else
     disk_color="$RED"
 fi
-disk_str="${disk_color}💾 ${disk_free_num}GB${RESET}"
+disk_str="💾 ${disk_color}${disk_free_num}GB${RESET}"
 printf "%s  %s\n" "$weather" "$disk_str"
 
 # Line 6: John Wick quote
