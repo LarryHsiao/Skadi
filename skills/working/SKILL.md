@@ -202,6 +202,61 @@ git pull
 git checkout -b JIRA-NUMBER/type/name/description-slug
 ```
 
+**e. Push the branch and open a draft MR on GitLab:**
+
+First run these preflight checks. If any fail, skip the push and MR creation and tell the user why:
+
+```bash
+# 1. glab is installed
+which glab
+
+# 2. remote URL contains "gitlab"
+git remote get-url origin | grep -qi gitlab
+
+# 3. glab is authenticated
+glab auth status
+```
+
+If all checks pass, push the branch and create the draft MR:
+
+```bash
+git push -u origin JIRA-NUMBER/type/name/description-slug
+```
+
+Look up the current user's GitLab username — first by email, then by name if email returns no results:
+
+```bash
+git_email=$(git config user.email)
+git_name=$(git config user.name)
+
+# Try email first
+gitlab_users=$(glab api "users?search=$git_email" | python3 -c "import sys,json; [print(u['username']) for u in json.load(sys.stdin)]")
+
+# Fall back to name if email found nothing
+if [ -z "$gitlab_users" ]; then
+  gitlab_users=$(glab api "users?search=$git_name" | python3 -c "import sys,json; [print(u['username']) for u in json.load(sys.stdin)]")
+fi
+```
+
+- If exactly one result: use it as `gitlab_user` silently.
+- If multiple results: present them via AskUserQuestion and let the user pick which one is them. Use the picked username as `gitlab_user`.
+- If no results: omit `--assignee`.
+
+Then create the MR assigned to that user (use `--assignee` if a username was found, omit if not):
+
+```bash
+glab mr create \
+  --draft \
+  --title "[JIRA-NUMBER] type: Ticket summary" \
+  --target-branch BASE_BRANCH \
+  --assignee USERNAME \
+  --yes
+```
+
+- Title format: `[JIRA-NUMBER] type: <ticket summary>` — use the original ticket summary (not the slug), sentence-case
+- `--target-branch` is the base branch chosen in step 8b
+- `--yes` skips interactive prompts
+
 ## Rules
 
 - Jira number: preserve case as given (e.g., `PROJ-123`, not `proj-123`)
