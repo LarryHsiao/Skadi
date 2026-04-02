@@ -185,4 +185,4 @@ printf "%s\n" "─────────────────────�
 printf "%s\n" "$weather"
 
 # Line 6: John Wick quote
-printf "🗡️  \"%s\"\n" "$wick_quote"
+printf "🔫  \"%s\"\n" "$wick_quote"
