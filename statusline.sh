@@ -181,8 +181,18 @@ wick_quote="${wick_quotes[$RANDOM % ${#wick_quotes[@]}]}"
 # Line 4: divider
 printf "%s\n" "──────────────────────────────────────────────────"
 
-# Line 5: weather
-printf "%s\n" "$weather"
+# Line 5: weather + disk free
+disk_free_num=$(df / | awk 'NR==2 {printf "%.2f", $4/1024/1024}')
+disk_free_int=$(df / | awk 'NR==2 {print int($4/1024/1024)}')
+if [ "$disk_free_int" -ge 50 ]; then
+    disk_color="$GREEN"
+elif [ "$disk_free_int" -ge 20 ]; then
+    disk_color="$YELLOW"
+else
+    disk_color="$RED"
+fi
+disk_str="${disk_color}💾 ${disk_free_num}GB${RESET}"
+printf "%s  %s\n" "$weather" "$disk_str"
 
 # Line 6: John Wick quote
 printf "🔫  \"%s\"\n" "$wick_quote"
