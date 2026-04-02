@@ -59,7 +59,25 @@ Present the results via AskUserQuestion (up to 4 options; if more than 4, show t
 
 Set the chosen ticket as `JIRA-NUMBER` and continue.
 
-### 2. Get Jira ticket description
+### 2. Check for existing branch
+
+Before fetching any Jira data, check if a branch for this ticket already exists:
+
+```bash
+git branch -a | grep -i "JIRA-NUMBER"
+```
+
+- **No matches** → continue to step 3.
+- **Exactly one match** → check it out and stop:
+  ```bash
+  git checkout <branch>
+  git pull
+  ```
+- **Multiple matches** → present them via AskUserQuestion, let the user pick one, check it out with `git pull`, then stop.
+
+If the user picks an existing branch, the workflow ends here — no Jira API calls, no new branch.
+
+### 3. Get Jira ticket description
 
 Fetch the ticket summary from the Jira REST API:
 
@@ -92,12 +110,12 @@ If `JIRA_API_TOKEN` is not set, tell the user:
 If the API call fails (non-zero exit or error in response), fall back to asking:
 > "What is the Jira ticket title/description for [JIRA-NUMBER]?"
 
-### 3. Transition ticket to "in progress"
+### 4. Transition ticket to "in progress"
 
 Skip this step if the current status already contains "progress", "doing", "active", or "started" (case-insensitive).
 
 **a. Check memory for a saved transition** (`jira_transition_PROJECTKEY.md`, where PROJECTKEY is the project part of the ticket number, e.g. `ELROND`):
-- If a transition ID is saved, use it directly — go to step 3c.
+- If a transition ID is saved, use it directly — go to step 4c.
 
 **b. Fetch available transitions:**
 
@@ -132,14 +150,14 @@ curl -s -X POST \
 
 Confirm success silently (no output to user unless it fails).
 
-### 4. Ask for type (if not provided)
+### 5. Ask for type (if not provided)
 
 Use AskUserQuestion:
 - `feat` — new feature or user-facing change
 - `fix` — bug fix
 - `chore` — maintenance, dependency update, refactor, CI, etc.
 
-### 5. Get the user's name/handle
+### 6. Get the user's name/handle
 
 - Check memory file `user_jira_name.md` for a saved name — if found, use it silently, do NOT ask
 - If not saved, ask once: "What name/handle should appear in branch names?" then save it:
@@ -147,7 +165,7 @@ Use AskUserQuestion:
   - Add pointer to `MEMORY.md`
 - Only re-ask if the user explicitly says to change it (e.g. "change my name", "use a different handle")
 
-### 6. Slugify the description
+### 7. Slugify the description
 
 - If not in English, translate to English first
 - Lowercase everything
@@ -155,27 +173,6 @@ Use AskUserQuestion:
 - Remove characters that aren't alphanumeric or `-`
 - Trim leading/trailing `-`
 - Truncate to ~50 characters at a word boundary
-
-### 7. Check for existing branches with the same Jira ticket
-
-Before creating a new branch, check if any local or remote branches already contain the Jira number:
-
-```bash
-git branch -a | grep -i "JIRA-NUMBER"
-```
-
-- **No matches** → proceed to step 8 (create a new branch)
-- **Exactly one match** → ask the user: "Found existing branch `<branch>`. Switch to it, or create a new one?"
-- **Multiple matches** → list all matches and use AskUserQuestion to let the user pick which branch to check out, or choose to create a new one
-
-If the user picks an existing branch:
-```bash
-git checkout <chosen-branch>
-git pull
-```
-Then stop — the workflow is done.
-
-If the user chooses to create a new branch, continue to step 8.
 
 ### 8. Choose base branch and create feature branch
 
