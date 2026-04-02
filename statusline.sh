@@ -193,8 +193,20 @@ else
 fi
 disk_str="💾 ${disk_color}${disk_free_num}GB${RESET}"
 
-# CPU load
-cpu_load=$(top -l 1 -n 0 | awk '/CPU usage/{gsub(/%,?/,""); idle=$(NF-1); printf "%.0f", 100-idle}')
+# CPU load (cross-platform)
+os_type=$(uname -s 2>/dev/null)
+case "$os_type" in
+    Darwin*)
+        cpu_load=$(top -l 1 -n 0 | awk '/CPU usage/{gsub(/%,?/,""); idle=$(NF-1); printf "%.0f", 100-idle}')
+        ;;
+    Linux*)
+        cpu_load=$(top -bn1 | awk '/^%Cpu/{for(i=1;i<=NF;i++) if($i~/^[0-9]/ && $(i+1)~/id/) {printf "%.0f", 100-$i; break}}')
+        ;;
+    MINGW*|MSYS*|CYGWIN*)
+        cpu_load=$(powershell.exe -NoProfile -Command "(Get-CimInstance -ClassName Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average" 2>/dev/null | tr -d '[:space:]')
+        ;;
+esac
+cpu_load=${cpu_load:-0}
 if [ "$cpu_load" -le 40 ]; then
     cpu_color="$GREEN"
 elif [ "$cpu_load" -le 70 ]; then
