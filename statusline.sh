@@ -192,7 +192,19 @@ else
     disk_color="$RED"
 fi
 disk_str="💾 ${disk_color}${disk_free_num}GB${RESET}"
-printf "%s  %s\n" "$weather" "$disk_str"
+
+# CPU load
+cpu_load=$(top -l 1 -n 0 | awk '/CPU usage/{gsub(/%,?/,""); idle=$(NF-1); printf "%.0f", 100-idle}')
+if [ "$cpu_load" -le 40 ]; then
+    cpu_color="$GREEN"
+elif [ "$cpu_load" -le 70 ]; then
+    cpu_color="$YELLOW"
+else
+    cpu_color="$RED"
+fi
+cpu_str="📈 ${cpu_color}Load: ${cpu_load}%${RESET}"
+
+printf "%s  %s  %s\n" "$weather" "$cpu_str" "$disk_str"
 
 # Line 6: John Wick quote
 printf "🔫  \"%s\"\n" "$wick_quote"
