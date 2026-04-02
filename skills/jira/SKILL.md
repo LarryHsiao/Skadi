@@ -1,13 +1,26 @@
 ---
-name: jira-create
-description: Use when the user runs /jira-create or /jira-create [type] or /jira-create [type] [title] to create a new Jira issue. Type can be task (default), bug, or epic. Title is optional.
+name: jira
+description: Use when the user runs /jira [verb] [...args]. Supported verbs: create. Example: /jira create, /jira create bug, /jira create bug Fix login crash.
 ---
 
-# Create a New Jira Issue
+# Jira Skill
+
+Dispatches to a Jira action based on the verb argument.
+
+## Argument Parsing
+
+Arguments: `/jira [verb] [...rest]`
+
+- `verb`: the action to perform. Supported values: `create`
+- If no verb is provided or the verb is unrecognized, tell the user the supported verbs and stop.
+
+---
+
+## Verb: create
 
 Creates a Jira issue for the current project, auto-detecting the project key from git history.
 
-## Workflow
+Arguments after `create`: `/jira create [type] [title]`
 
 ### 1. Load Jira config from memory
 
@@ -23,8 +36,6 @@ Require `JIRA_API_TOKEN` env var. If not set, tell the user:
 > Set `JIRA_API_TOKEN` in your environment (e.g. in `~/.zshrc`) with an Atlassian API token from https://id.atlassian.com/manage-profile/security/api-tokens
 
 ### 2. Parse arguments
-
-Arguments: `/jira-create [type] [title]`
 
 - `type`: `task`, `bug`, or `epic` — default to `task` if not provided or not one of those values
 - `title`: everything after the type (if the second word is not a valid type, treat the entire argument as the title with type defaulting to `task`)
