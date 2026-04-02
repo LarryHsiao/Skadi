@@ -1,14 +1,4 @@
 {
-  "model": "opus[1m]",
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/statusline.sh"
-  },
-  "enabledPlugins": {
-    "superpowers@claude-plugins-official": true,
-    "figma@claude-plugins-official": true
-  },
-  "voiceEnabled": true,
   "permissions": {
     "allow": [
       "Bash(fvm flutter:*)",
@@ -48,6 +38,7 @@
       "Bash(cypress:*)"
     ]
   },
+  "model": "opusplan",
   "hooks": {
     "PostToolUse": [
       {
@@ -106,5 +97,14 @@
         ]
       }
     ]
-  }
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh"
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "figma@claude-plugins-official": true
+  },
+  "voiceEnabled": true
 }

@@ -43,8 +43,13 @@ If not saved, ask the user for their Jira domain and email, then save to memory:
 
 ```bash
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  "$JIRA_BASE_URL/rest/api/3/issue/JIRA-NUMBER?fields=summary" \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['fields']['summary'])"
+  "$JIRA_BASE_URL/rest/api/3/issue/JIRA-NUMBER?fields=summary,status" \
+  | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+print('SUMMARY:', d['fields']['summary'])
+print('STATUS:', d['fields']['status']['name'])
+"
 ```
 
 If `JIRA_API_TOKEN` is not set, tell the user:
@@ -53,14 +58,54 @@ If `JIRA_API_TOKEN` is not set, tell the user:
 If the API call fails (non-zero exit or error in response), fall back to asking:
 > "What is the Jira ticket title/description for [JIRA-NUMBER]?"
 
-### 3. Ask for type (if not provided)
+### 3. Transition ticket to "in progress"
+
+Skip this step if the current status already contains "progress", "doing", "active", or "started" (case-insensitive).
+
+**a. Check memory for a saved transition** (`jira_transition_PROJECTKEY.md`, where PROJECTKEY is the project part of the ticket number, e.g. `ELROND`):
+- If a transition ID is saved, use it directly — go to step 3c.
+
+**b. Fetch available transitions:**
+
+```bash
+curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+  "$JIRA_BASE_URL/rest/api/3/issue/JIRA-NUMBER/transitions" \
+  | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+for t in d.get('transitions',[]):
+    print(t['id'], t['name'])
+"
+```
+
+- Identify candidates whose name contains "progress", "doing", "active", "start", or "working" (case-insensitive).
+- If exactly one candidate is found, use it automatically.
+- If multiple candidates are found, present them via AskUserQuestion and let the user pick.
+- If no candidates are found, present all available transitions via AskUserQuestion.
+- After the user picks, save the chosen transition ID to memory:
+  - Write to `/Users/larryhsiao/.claude/projects/-Users-larryhsiao-skadi/memory/jira_transition_PROJECTKEY.md`
+  - Add pointer to `MEMORY.md` (only if not already listed)
+
+**c. Apply the transition:**
+
+```bash
+curl -s -X POST \
+  -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"transition\": {\"id\": \"TRANSITION_ID\"}}" \
+  "$JIRA_BASE_URL/rest/api/3/issue/JIRA-NUMBER/transitions"
+```
+
+Confirm success silently (no output to user unless it fails).
+
+### 4. Ask for type (if not provided)
 
 Use AskUserQuestion:
 - `feat` — new feature or user-facing change
 - `fix` — bug fix
 - `chore` — maintenance, dependency update, refactor, CI, etc.
 
-### 4. Get the user's name/handle
+### 5. Get the user's name/handle
 
 - Check memory file `user_jira_name.md` for a saved name — if found, use it silently, do NOT ask
 - If not saved, ask once: "What name/handle should appear in branch names?" then save it:
@@ -68,7 +113,7 @@ Use AskUserQuestion:
   - Add pointer to `MEMORY.md`
 - Only re-ask if the user explicitly says to change it (e.g. "change my name", "use a different handle")
 
-### 5. Slugify the description
+### 6. Slugify the description
 
 - If not in English, translate to English first
 - Lowercase everything
@@ -77,7 +122,7 @@ Use AskUserQuestion:
 - Trim leading/trailing `-`
 - Truncate to ~50 characters at a word boundary
 
-### 6. Check for existing branches with the same Jira ticket
+### 7. Check for existing branches with the same Jira ticket
 
 Before creating a new branch, check if any local or remote branches already contain the Jira number:
 
@@ -85,7 +130,7 @@ Before creating a new branch, check if any local or remote branches already cont
 git branch -a | grep -i "JIRA-NUMBER"
 ```
 
-- **No matches** → proceed to step 7 (create a new branch)
+- **No matches** → proceed to step 8 (create a new branch)
 - **Exactly one match** → ask the user: "Found existing branch `<branch>`. Switch to it, or create a new one?"
 - **Multiple matches** → list all matches and use AskUserQuestion to let the user pick which branch to check out, or choose to create a new one
 
@@ -96,9 +141,9 @@ git pull
 ```
 Then stop — the workflow is done.
 
-If the user chooses to create a new branch, continue to step 7.
+If the user chooses to create a new branch, continue to step 8.
 
-### 7. Choose base branch and create feature branch
+### 8. Choose base branch and create feature branch
 
 **a. Load default dev branch from memory** (`dev_branch.md`):
 - If not saved, ask: "What is the default dev branch for this project? (e.g. `dev`, `develop`, `main`)"
