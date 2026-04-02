@@ -19,6 +19,10 @@ normalize() {
   if [[ "$p" =~ ^([A-Za-z]):(/.*) ]]; then
     p="/${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
   fi
+  # Convert /mnt/c/... to /c/... (WSL/Git Bash on Windows)
+  if [[ "$p" =~ ^/mnt/([a-zA-Z])(/.*)$ ]]; then
+    p="/${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+  fi
   # Lowercase everything for case-insensitive comparison on Windows
   echo "${p,,}"
 }
