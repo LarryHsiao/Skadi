@@ -31,6 +31,30 @@ CWD=$(normalize "$CWD")
 HOME_DIR=$(normalize "$HOME_DIR")
 PROJECT_DIR=$(normalize "$PROJECT_DIR")
 
+# User dev directories — colon-separated, set via CLAUDE_DEV_DIRS env var
+# e.g. export CLAUDE_DEV_DIRS="~/phantom:~/work"
+IFS=: read -ra _RAW_DEV_DIRS <<< "${CLAUDE_DEV_DIRS:-}"
+DEV_DIRS=()
+for _d in "${_RAW_DEV_DIRS[@]}"; do
+  _d="${_d/#\~/$HOME}"  # expand leading ~
+  DEV_DIRS+=("$(normalize "$_d")")
+done
+
+# Returns 0 if path is under project dir, .claude dir, or any dev dir
+in_allowed_dir() {
+  local p="$1"
+  case "$p" in
+    "$PROJECT_DIR"|"$PROJECT_DIR"/*) return 0 ;;
+    "$HOME_DIR"/.claude|"$HOME_DIR"/.claude/*) return 0 ;;
+  esac
+  for _d in "${DEV_DIRS[@]}"; do
+    case "$p" in
+      "$_d"|"$_d"/*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
 # Check if at disk root (/, /c, /d, etc.)
 if echo "$CWD" | grep -qE '^(/[a-z])?$'; then
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: running at disk root (%s) is not allowed"}}' "$CWD"
@@ -47,15 +71,11 @@ case "$CWD" in
     ;;
 esac
 
-# Check if outside project directory
-case "$CWD" in
-  "$PROJECT_DIR"|"$PROJECT_DIR"/*)
-    ;; # ok, inside project
-  *)
-    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: cwd (%s) is outside project directory (%s)"}}' "$CWD" "$PROJECT_DIR"
-    exit 0
-    ;;
-esac
+# Check if outside project dir and dev dirs
+if ! in_allowed_dir "$CWD"; then
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: cwd (%s) is outside project and dev directories"}}' "$CWD"
+  exit 0
+fi
 
 # Check command arguments for absolute paths outside the project
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command' 2>/dev/null)
@@ -70,16 +90,10 @@ if [ -n "$CMD" ]; then
     # Check for absolute paths (/c/..., /usr/..., C:\...)
     if [[ "$TOKEN" =~ ^/[a-zA-Z] ]] || [[ "$TOKEN" =~ ^[A-Za-z]:\\ ]]; then
       NORM=$(normalize "$TOKEN")
-      case "$NORM" in
-        "$PROJECT_DIR"|"$PROJECT_DIR"/*)
-          ;; # ok, inside project
-        "$HOME_DIR"/.claude|"$HOME_DIR"/.claude/*)
-          ;; # ok, claude config dir
-        *)
-          printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: command references path (%s) outside project directory (%s)"}}' "$NORM" "$PROJECT_DIR"
-          exit 0
-          ;;
-      esac
+      if ! in_allowed_dir "$NORM"; then
+        printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: command references path (%s) outside project and dev directories"}}' "$NORM"
+        exit 0
+      fi
     fi
     # Check for relative paths with ../ that escape the project
     if [[ "$TOKEN" =~ \.\. ]]; then
