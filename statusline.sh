@@ -149,8 +149,40 @@ printf "🌿 %s  ✏️ %s  %s  %s\n" "$branch_label" "$lines_str" "$changed_str
 printf "%s %s  📊 %s  ⚡ %s  📅 %s\n" \
     "$model_emoji" "$model_short" "$context_str" "$rate_5h_str" "$rate_7d_str"
 
+# John Wick quotes (first movie)
+wick_quotes=(
+    "People keep asking if I'm back. Yeah, I'm thinking I'm back."
+    "He killed my dog."
+    "I'm not that guy anymore."
+    "Whoever comes, I'll send them back."
+    "You stabbed the Devil in the back and forced him back into the life he had just left."
+    "He once killed three men in a bar with a pencil. A f***ing pencil."
+    "John is a man of focus, commitment, and sheer will."
+    "Be seeing you, Jonathan."
+    "That's a lot of money for a hound dog."
+    "You've been asking about John Wick. He's the one you send to kill the Boogeyman."
+    "With a gun, he's the best. Without, he's still the best."
+    "It's not what you did, son, that angers me so. It's who you did it to."
+    "He's not the Boogeyman. He's the one you send to kill the f***ing Boogeyman."
+    "Baba Yaga."
+    "Oh, and I'd like to make a dinner reservation for twelve."
+    "Just tell them, whoever comes, I'll kill them all."
+    "We're professionals. Our reputations are everything."
+    "You're not welcome here anymore."
+    "I saw a different John Wick tonight."
+    "Do I look like I'm f***ing around?"
+    "Everything's got a price."
+    "You can't just waltz in and kill someone. There are rules."
+    "Results. That's what I need."
+    "Consequences."
+)
+wick_quote="${wick_quotes[$RANDOM % ${#wick_quotes[@]}]}"
+
 # Line 4: divider
 printf "%s\n" "──────────────────────────────────────────────────"
 
 # Line 5: weather
 printf "%s\n" "$weather"
+
+# Line 6: John Wick quote
+printf "🗡️  \"%s\"\n" "$wick_quote"
