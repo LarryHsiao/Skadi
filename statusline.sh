@@ -35,19 +35,20 @@ colorize() {
         return
     fi
 
-    local pct_num
-    pct_num=$(printf "%.0f" "$val")
+    local used_num remaining
+    used_num=$(printf "%.0f" "$val")
+    remaining=$(( 100 - used_num ))
 
     local color
-    if [ "$pct_num" -ge 85 ]; then
-        color="$RED"
-    elif [ "$pct_num" -ge 45 ]; then
+    if [ "$remaining" -ge 75 ]; then
+        color="$GREEN"
+    elif [ "$remaining" -ge 30 ]; then
         color="$YELLOW"
     else
-        color="$GREEN"
+        color="$RED"
     fi
 
-    printf "%s%s: %s%%%s" "$color" "$label" "$pct_num" "$RESET"
+    printf "%s%s: %s%%%s" "$color" "$label" "$remaining" "$RESET"
 }
 
 # colorize_temp weather_str — replaces the temperature value with a colored version
@@ -108,8 +109,8 @@ rate_7d_str=$(colorize "7d" "$rate_7d_raw")
 
 # Format lines changed and unstaged/untracked counts
 lines_str="+${lines_added}/-${lines_removed}"
-changed_str="📄${changed_count}"
-unpushed_str="⬆${unpushed_count}"
+changed_str="📄 ${changed_count}"
+unpushed_str="⬆ ${unpushed_count}"
 
 # Model short name + emoji
 model_lower=$(echo "$model_name" | tr '[:upper:]' '[:lower:]')
@@ -122,7 +123,7 @@ esac
 
 # Line 1: project name
 project_name=$(basename "$cwd")
-printf "📁%s\n" "$project_name"
+printf "📁 %s\n" "$project_name"
 
 # Ellipsize middle of a string if longer than max_len
 ellipsize_middle() {
@@ -142,10 +143,10 @@ ellipsize_middle() {
 branch_label=$(ellipsize_middle "${git_branch:-N/A}" 35)
 
 # Line 2: branch info
-printf "🌿%s  ✏️%s  %s  %s\n" "$branch_label" "$lines_str" "$changed_str" "$unpushed_str"
+printf "🌿 %s  ✏️ %s  %s  %s\n" "$branch_label" "$lines_str" "$changed_str" "$unpushed_str"
 
 # Line 3: model + context + rate limits
-printf "%s%s  📊%s  ⚡%s  📅%s\n" \
+printf "%s %s  📊 %s  ⚡ %s  📅 %s\n" \
     "$model_emoji" "$model_short" "$context_str" "$rate_5h_str" "$rate_7d_str"
 
 # Line 4: divider
