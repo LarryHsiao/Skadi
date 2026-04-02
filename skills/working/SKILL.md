@@ -22,10 +22,42 @@ PROJ-789/fix/larry/cannot-close-emergency-measure-page
 
 ## Workflow
 
-### 1. Parse command arguments
+### 1. Parse command arguments and resolve ticket number
 
-- Extract `JIRA-NUMBER` from the command (e.g., `PROJ-123`)
-- If `type` was also provided (`/working PROJ-123 feat`), use it; otherwise go to step 3
+- If `JIRA-NUMBER` was provided (e.g., `PROJ-123`), use it and skip the rest of this step.
+- If `type` was also provided alongside the ticket (`/working PROJ-123 feat`), record it for step 4.
+
+**If no ticket number was provided:**
+
+**a. Load Jira config from memory** (`jira_config.md`) and resolve the project key:
+
+1. Check memory file `jira_project.md` for a saved project key.
+2. If not found, search git history and branches for a Jira ticket pattern (`[A-Z]+-[0-9]+`):
+   ```bash
+   git log --oneline -100 2>/dev/null | grep -oE '[A-Z]+-[0-9]+' | head -1
+   git branch -a 2>/dev/null | grep -oE '[A-Z]+-[0-9]+' | head -1
+   ```
+   Extract the project key (e.g. `PROJ` from `PROJ-123`).
+3. If still not found, ask the user for the project key via AskUserQuestion, then save to memory:
+   - Write to `/Users/larryhsiao/.claude/projects/-Users-larryhsiao-skadi/memory/jira_project.md`
+   - Add pointer to `MEMORY.md`
+
+**b. Fetch open/in-progress tickets for the project** and present them for selection:
+
+```bash
+curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+  "$JIRA_BASE_URL/rest/api/3/search?jql=project=PROJECT_KEY+AND+statusCategory+in+(\"To+Do\",\"In+Progress\")+ORDER+BY+updated+DESC&fields=summary,status&maxResults=20" \
+  | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+for i in d.get('issues',[]):
+    print(i['key'], '|', i['fields']['status']['name'], '|', i['fields']['summary'])
+"
+```
+
+Present the results via AskUserQuestion (up to 4 options; if more than 4, show the 4 most recently updated and offer "Other" for manual entry). Use the ticket key + summary as the label.
+
+Set the chosen ticket as `JIRA-NUMBER` and continue.
 
 ### 2. Get Jira ticket description
 
@@ -40,6 +72,8 @@ If not saved, ask the user for their Jira domain and email, then save to memory:
 - Add pointer to `MEMORY.md`
 
 **b. Fetch the ticket via API** (requires `JIRA_API_TOKEN` env var):
+
+> Skip this fetch if the summary and status were already retrieved from the ticket list in step 1.
 
 ```bash
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
