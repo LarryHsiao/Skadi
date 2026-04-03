@@ -86,18 +86,20 @@ if [ -f "$WEATHER_CACHE" ]; then
 fi
 
 if [ "$weather" = "Weather N/A" ]; then
-    fetched=$(curl -s --max-time 3 "wttr.in?format=3" 2>/dev/null)
-    if [ -n "$fetched" ]; then
-        # Title-case the location name (part before the first ': ')
-        weather=$(echo "$fetched" | awk -F': ' '{
-            n=split($1,w," "); loc=""
-            for(i=1;i<=n;i++) loc=loc (i>1?" ":"") toupper(substr(w[i],1,1)) substr(w[i],2)
-            print "📍 " loc " " $2
-        }')
+    fetched=$(curl -s --max-time 3 "wttr.in?format=2" 2>/dev/null)
+    if [ -n "$fetched" ] && ! echo "$fetched" | grep -qi "not available\|unknown location"; then
+        weather="$fetched"
         echo "$weather" > "$WEATHER_CACHE"
     elif [ -f "$WEATHER_CACHE" ]; then
         weather=$(cat "$WEATHER_CACHE")
     fi
+fi
+
+# Truncate weather location name to 15 chars
+weather_loc=$(echo "$weather" | sed 's/: .*//')
+weather_rest=$(echo "$weather" | sed 's/^[^:]*: //')
+if [ -n "$weather_rest" ]; then
+    weather="$(ellipsize_end "$weather_loc" 15): $weather_rest"
 fi
 
 # Apply temperature color after resolving weather (not cached, to keep cache clean)
@@ -125,8 +127,8 @@ esac
 project_name=$(basename "$cwd")
 printf "📁 %s\n" "$project_name"
 
-# Ellipsize middle of a string if longer than max_len
-ellipsize_middle() {
+# Ellipsize end of a string if longer than max_len
+ellipsize_end() {
     local str="$1"
     local max_len="${2:-25}"
     local len=${#str}
@@ -134,13 +136,10 @@ ellipsize_middle() {
         echo "$str"
         return
     fi
-    local keep=$(( max_len - 3 ))
-    local left=$(( keep / 2 ))
-    local right=$(( keep - left ))
-    echo "${str:0:$left}...${str: -$right}"
+    echo "${str:0:$(( max_len - 3 ))}..."
 }
 
-branch_label=$(ellipsize_middle "${git_branch:-N/A}" 35)
+branch_label=$(ellipsize_end "${git_branch:-N/A}" 15)
 
 # Line 2: branch info
 printf "🌿 %s  ✏️ %s  %s  %s\n" "$branch_label" "$lines_str" "$changed_str" "$unpushed_str"
