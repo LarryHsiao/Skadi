@@ -40,12 +40,13 @@ for _d in "${_RAW_DEV_DIRS[@]}"; do
   DEV_DIRS+=("$(normalize "$_d")")
 done
 
-# Returns 0 if path is under project dir, .claude dir, or any dev dir
+# Returns 0 if path is under project dir, .claude dir, /tmp, or any dev dir
 in_allowed_dir() {
   local p="$1"
   case "$p" in
     "$PROJECT_DIR"|"$PROJECT_DIR"/*) return 0 ;;
     "$HOME_DIR"/.claude|"$HOME_DIR"/.claude/*) return 0 ;;
+    /tmp|/tmp/*) return 0 ;;
   esac
   for _d in "${DEV_DIRS[@]}"; do
     case "$p" in
