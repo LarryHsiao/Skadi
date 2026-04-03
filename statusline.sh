@@ -95,12 +95,6 @@ if [ "$weather" = "Weather N/A" ]; then
     fi
 fi
 
-# Truncate weather location name to 15 chars
-weather_loc=$(echo "$weather" | sed 's/: .*//')
-weather_rest=$(echo "$weather" | sed 's/^[^:]*: //')
-if [ -n "$weather_rest" ]; then
-    weather="$(ellipsize_end "$weather_loc" 15): $weather_rest"
-fi
 
 # Apply temperature color after resolving weather (not cached, to keep cache clean)
 weather=$(colorize_temp "$weather")
