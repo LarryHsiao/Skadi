@@ -96,6 +96,9 @@ if [ "$weather" = "Weather N/A" ]; then
 fi
 
 
+# Strip location prefix from wttr.in format=2 output (e.g. "City: ⛅ ..." → "⛅ ...")
+weather="${weather#*: }"
+
 # Apply temperature color after resolving weather (not cached, to keep cache clean)
 weather=$(colorize_temp "$weather")
 
