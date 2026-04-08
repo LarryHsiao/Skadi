@@ -136,7 +136,7 @@ ellipsize_end() {
     echo "${str:0:$(( max_len - 3 ))}..."
 }
 
-branch_label=$(ellipsize_end "${git_branch:-N/A}" 15)
+branch_label=$(ellipsize_end "${git_branch:-N/A}" 25)
 
 # Line 2: branch info
 printf "🌿 %s  ✏️ %s  %s  %s\n" "$branch_label" "$lines_str" "$changed_str" "$unpushed_str"
