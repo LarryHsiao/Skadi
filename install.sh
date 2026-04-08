@@ -23,6 +23,11 @@ link() {
   echo "linked:         $dst -> $src"
 }
 
+# Check for rtk
+if ! command -v rtk &>/dev/null; then
+  printf '\033[33mwarning: '"'"'rtk'"'"' not found. Install it from https://github.com/rtk-ai/rtk\033[0m\n'
+fi
+
 # Global CLAUDE.md
 link "$REPO/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
 
