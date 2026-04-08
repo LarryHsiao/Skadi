@@ -75,6 +75,19 @@
             "command": "~/.claude/hooks/pre-commit-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/larryhsiao/.claude/hooks/rtk-rewrite.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/rtk-permission-check.sh"
+          }
+        ]
       }
     ],
     "PreCompact": [
