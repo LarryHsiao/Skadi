@@ -99,8 +99,30 @@ fi
 # Strip location prefix from wttr.in format=2 output (e.g. "City: ⛅ ..." → "⛅ ...")
 weather="${weather#*: }"
 
-# Apply temperature color after resolving weather (not cached, to keep cache clean)
+# colorize_wind weather_str — colors wind speed by threshold (km/h)
+colorize_wind() {
+    local str="$1"
+    local wind_match wind_num color
+
+    wind_match=$(echo "$str" | grep -oE '[0-9]+km/h' | head -1)
+    [ -z "$wind_match" ] && { echo "$str"; return; }
+
+    wind_num=$(echo "$wind_match" | grep -oE '[0-9]+')
+
+    if [ "$wind_num" -le 20 ]; then
+        color="$GREEN"
+    elif [ "$wind_num" -le 40 ]; then
+        color="$YELLOW"
+    else
+        color="$RED"
+    fi
+
+    echo "${str/${wind_match}/${color}${wind_match}${RESET}}"
+}
+
+# Apply temperature and wind color after resolving weather (not cached, to keep cache clean)
 weather=$(colorize_temp "$weather")
+weather=$(colorize_wind "$weather")
 
 context_str=$(colorize "Context" "$context_raw")
 rate_5h_str=$(colorize "5h" "$rate_5h_raw")
