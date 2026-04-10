@@ -71,7 +71,7 @@ colorize_temp() {
         color="$BLUE"
     fi
 
-    echo "${str/${temp_match}/${color}${temp_match}${RESET}}"
+    echo "${str/${temp_match}/ ${color}${temp_match}${RESET}}"
 }
 
 # Weather with 30-minute cache
