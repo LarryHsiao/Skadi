@@ -1,10 +1,13 @@
 {
   "permissions": {
     "allow": [
+      "Bash(rtk:*)",
       "Bash(fvm flutter:*)",
       "Bash(fvm dart:*)",
       "Bash(fvm:*)",
       "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(cargo:*)",
       "Bash(cat:*)",
       "Bash(ls:*)",
       "Bash(which:*)",
@@ -13,10 +16,20 @@
       "Bash(jq:*)",
       "Bash(grep:*)",
       "Bash(find:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(sort:*)",
+      "Bash(pwd:*)",
+      "Bash(chmod:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(cp:*)",
       "Bash(node:*)",
       "Bash(npm:*)",
       "Bash(npx:*)",
       "Bash(nvm:*)",
+      "Bash(pnpm:*)",
       "Bash(tsc:*)",
       "Bash(eslint:*)",
       "Bash(prettier:*)",
@@ -25,10 +38,13 @@
       "Bash(vite:*)",
       "Bash(next:*)",
       "Bash(playwright:*)",
-      "Bash(cypress:*)"
+      "Bash(cypress:*)",
+      "Bash(docker:*)",
+      "Bash(kubectl:*)",
+      "Bash(brew:*)"
     ]
   },
-  "model": "opusplan",
+  "model": "opus",
   "hooks": {
     "PostToolUse": [
       {
@@ -82,10 +98,6 @@
           {
             "type": "command",
             "command": "/Users/larryhsiao/.claude/hooks/rtk-rewrite.sh"
-          },
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/rtk-permission-check.sh"
           }
         ]
       }
