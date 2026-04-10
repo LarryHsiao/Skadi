@@ -281,5 +281,8 @@ cpu_str="📈 ${cpu_color}Load: ${cpu_load}%${RESET}"
 
 printf "%s  %s  %s\n" "$weather" "$cpu_str" "$disk_str"
 
-# Line 6: quote + tone label
-printf "%s  \"%s\"  🎭 %s\n" "$tone_emoji" "$quote" "$tone_label"
+# Line 6: quote
+printf "%s  \"%s\"\n" "$tone_emoji" "$quote"
+
+# Line 7: tone label
+printf "🎭 %s\n" "$tone_label"
