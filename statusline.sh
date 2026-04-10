@@ -169,23 +169,7 @@ printf "🌿 %s  ✏️ %s  %s  %s\n" "$branch_label" "$lines_str" "$changed_str
 printf "%s %s  📊 %s  ⚡ %s  📅 %s\n" \
     "$model_emoji" "$model_short" "$context_str" "$rate_5h_str" "$rate_7d_str"
 
-# Tone selection — 4-hour TTL cache
-TONE_CACHE="/tmp/.claude_tone_cache"
-tone="wick"
-cache_age=99999
-if [ -f "$TONE_CACHE" ]; then
-    cache_age=$(( $(date +%s) - $(stat -f "%m" "$TONE_CACHE" 2>/dev/null || echo 0) ))
-    if [ "$cache_age" -lt 14400 ]; then
-        tone=$(cat "$TONE_CACHE")
-    fi
-fi
-if [ "$cache_age" -ge 14400 ] || [ ! -f "$TONE_CACHE" ]; then
-    tones=("wick" "secretary" "neighbor")
-    tone="${tones[$RANDOM % 3]}"
-    echo "$tone" > "$TONE_CACHE"
-fi
-
-# Quotes per tone
+# John Wick quotes
 wick_quotes=(
     "People keep asking if I'm back. Yeah, I'm thinking I'm back."
     "He killed my dog."
@@ -205,43 +189,7 @@ wick_quotes=(
     "Results. That's what I need."
     "Consequences."
 )
-secretary_quotes=(
-    "I've already taken care of it — you just focus on the important stuff."
-    "Let me get that sorted for you right away!"
-    "I have your notes ready and your calendar cleared."
-    "Don't worry, I've got everything organized."
-    "You're doing great — just leave the details to me."
-    "I'll handle it. You have enough on your plate."
-    "Already one step ahead of you, as always."
-    "Your 3 o'clock is confirmed and I brought coffee."
-    "I made sure everything is in order before you even asked."
-    "Happy to help — that's what I'm here for!"
-    "Consider it done."
-    "I've got your back on this one."
-)
-neighbor_quotes=(
-    "Oh honey, let me help you with that."
-    "You've been working so hard — make sure you take a break!"
-    "I baked extra — come over whenever you need a breather."
-    "You know you can always knock if you need anything, right?"
-    "Don't be too hard on yourself, you're doing wonderfully."
-    "I noticed you've been busy — I saved you some soup."
-    "Everything okay over there? Just checking in."
-    "You've got this! And I'm right here if you need me."
-    "Take care of yourself first — the work will still be there."
-    "I'm so proud of everything you're doing."
-    "You always figure it out. I've seen you do it a hundred times."
-    "Come on, let's solve this together."
-)
-
-case "$tone" in
-    secretary) quote="${secretary_quotes[$RANDOM % ${#secretary_quotes[@]}]}"
-               tone_emoji="💼"; tone_label="Sweetheart Secretary" ;;
-    neighbor)  quote="${neighbor_quotes[$RANDOM % ${#neighbor_quotes[@]}]}"
-               tone_emoji="🏡"; tone_label="Good Neighbor" ;;
-    *)         quote="${wick_quotes[$RANDOM % ${#wick_quotes[@]}]}"
-               tone_emoji="🔫"; tone_label="John Wick" ;;
-esac
+wick_quote="${wick_quotes[$RANDOM % ${#wick_quotes[@]}]}"
 
 # Line 4: divider
 printf "%s\n" "──────────────────────────────────────────────────"
@@ -283,8 +231,5 @@ cpu_str="📈 ${cpu_color}Load: ${cpu_load}%${RESET}"
 
 printf "%s  %s  %s\n" "$weather" "$cpu_str" "$disk_str"
 
-# Line 6: quote
-printf "%s \"%s\"\n" "$tone_emoji" "$quote"
-
-# Line 7: tone label
-printf "🎭 %s\n" "$tone_label"
+# Line 6: John Wick quote
+printf "🔫 \"%s\"\n" "$wick_quote"
