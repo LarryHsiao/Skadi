@@ -144,9 +144,52 @@ case "$model_lower" in
     *)        model_emoji="🤖"; model_short="${model_name:-N/A}" ;;
 esac
 
+# Netdata status — 60-second cache
+# Requires: NETDATA_URL and optionally NETDATA_API_KEY in environment
+NETDATA_CACHE="/tmp/.claude_netdata_cache"
+netdata_dot="⚫"  # default: not configured
+if [ -n "$NETDATA_URL" ]; then
+    netdata_status=""
+    if [ -f "$NETDATA_CACHE" ]; then
+        nd_cache_age=$(( $(date +%s) - $(stat -f "%m" "$NETDATA_CACHE" 2>/dev/null || echo 0) ))
+        if [ "$nd_cache_age" -lt 60 ]; then
+            netdata_status=$(cat "$NETDATA_CACHE")
+        fi
+    fi
+    if [ -z "$netdata_status" ]; then
+        auth_header=""
+        [ -n "$NETDATA_API_KEY" ] && auth_header="Authorization: Bearer $NETDATA_API_KEY"
+        alerts_json=$(curl -s --max-time 5 ${auth_header:+-H "$auth_header"} \
+            "${NETDATA_URL}/api/v3/alerts?status=CRITICAL,WARNING" 2>/dev/null)
+        if [ -n "$alerts_json" ]; then
+            critical=$(echo "$alerts_json" | jq '[.alerts[]? | select(.status == "CRITICAL")] | length' 2>/dev/null || echo 0)
+            warning=$(echo "$alerts_json" | jq '[.alerts[]? | select(.status == "WARNING")] | length' 2>/dev/null || echo 0)
+            critical=${critical:-0}
+            warning=${warning:-0}
+            if [ "$critical" -gt 0 ]; then
+                netdata_status="critical:${critical},warning:${warning}"
+            elif [ "$warning" -gt 0 ]; then
+                netdata_status="warning:${warning}"
+            else
+                netdata_status="ok"
+            fi
+        else
+            netdata_status="unreachable"
+        fi
+        echo "$netdata_status" > "$NETDATA_CACHE"
+    fi
+    case "$netdata_status" in
+        critical*)   netdata_dot="${RED}●${RESET}" ;;
+        warning*)    netdata_dot="${YELLOW}●${RESET}" ;;
+        ok)          netdata_dot="${GREEN}●${RESET}" ;;
+        unreachable) netdata_dot="○" ;;  # configured but unreachable
+        *)           netdata_dot="⚫" ;;
+    esac
+fi
+
 # Line 1: project name
 project_name=$(basename "$cwd")
-printf "📁 %s\n" "$project_name"
+printf "%s 📁 %s\n" "$netdata_dot" "$project_name"
 
 # Ellipsize end of a string if longer than max_len
 ellipsize_end() {
