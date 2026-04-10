@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLAUDE_DIR="$HOME/.claude"
+CLAUDE_DIR="${1:-$HOME/.claude}"
 
 install_file() {
   local src="$1"
