@@ -98,6 +98,8 @@ fi
 
 # Strip location prefix from wttr.in format=2 output (e.g. "City: ⛅ ..." → "⛅ ...")
 weather="${weather#*: }"
+# Collapse multiple spaces into one
+weather=$(echo "$weather" | tr -s ' ')
 
 # colorize_wind weather_str — colors wind speed by threshold (km/h)
 colorize_wind() {
@@ -282,7 +284,7 @@ cpu_str="📈 ${cpu_color}Load: ${cpu_load}%${RESET}"
 printf "%s  %s  %s\n" "$weather" "$cpu_str" "$disk_str"
 
 # Line 6: quote
-printf "%s  \"%s\"\n" "$tone_emoji" "$quote"
+printf "%s \"%s\"\n" "$tone_emoji" "$quote"
 
 # Line 7: tone label
 printf "🎭 %s\n" "$tone_label"
