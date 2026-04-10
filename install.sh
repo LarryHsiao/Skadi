@@ -4,23 +4,20 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 
-link() {
+install_file() {
   local src="$1"
   local dst="$2"
 
-  if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$src" ]; then
-    echo "already linked: $dst"
+  # Remove stale symlink if present
+  [ -L "$dst" ] && rm "$dst"
+
+  if [ -e "$dst" ] && diff -q "$src" "$dst" &>/dev/null; then
+    echo "up to date:     $dst"
     return
   fi
 
-  if [ -e "$dst" ] && [ ! -L "$dst" ]; then
-    local backup="${dst}.bak.$(date +%Y%m%d%H%M%S)"
-    echo "backing up:     $dst -> $backup"
-    mv "$dst" "$backup"
-  fi
-
-  ln -sf "$src" "$dst"
-  echo "linked:         $dst -> $src"
+  cp "$src" "$dst"
+  echo "installed:      $dst"
 }
 
 # Check for rtk
@@ -29,32 +26,32 @@ if ! command -v rtk &>/dev/null; then
 fi
 
 # Global CLAUDE.md
-link "$REPO/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
+install_file "$REPO/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
 
 # Global settings
-link "$REPO/settings.json" "$CLAUDE_DIR/settings.json"
+install_file "$REPO/settings.json" "$CLAUDE_DIR/settings.json"
 
 # Status line script
-link "$REPO/statusline.sh" "$CLAUDE_DIR/statusline.sh"
+install_file "$REPO/statusline.sh" "$CLAUDE_DIR/statusline.sh"
 
-# Hooks — link each hook script
+# Hooks
 mkdir -p "$CLAUDE_DIR/hooks"
 for hook in "$REPO/hooks/"*.sh; do
-  [ -f "$hook" ] && link "$hook" "$CLAUDE_DIR/hooks/$(basename "$hook")"
+  [ -f "$hook" ] && install_file "$hook" "$CLAUDE_DIR/hooks/$(basename "$hook")"
 done
 
-# Skills — create a directory per skill, link as SKILL.md
+# Skills
 mkdir -p "$CLAUDE_DIR/skills"
 for skill in "$REPO/skills/"*; do
   [[ "$(basename "$skill")" == ".gitkeep" ]] && continue
   if [ -d "$skill" ]; then
     skill_name="$(basename "$skill")"
     mkdir -p "$CLAUDE_DIR/skills/$skill_name"
-    [ -f "$skill/SKILL.md" ] && link "$skill/SKILL.md" "$CLAUDE_DIR/skills/$skill_name/SKILL.md"
+    [ -f "$skill/SKILL.md" ] && install_file "$skill/SKILL.md" "$CLAUDE_DIR/skills/$skill_name/SKILL.md"
   elif [ -f "$skill" ]; then
     skill_name="$(basename "${skill%.*}")"
     mkdir -p "$CLAUDE_DIR/skills/$skill_name"
-    link "$skill" "$CLAUDE_DIR/skills/$skill_name/SKILL.md"
+    install_file "$skill" "$CLAUDE_DIR/skills/$skill_name/SKILL.md"
   fi
 done
 
