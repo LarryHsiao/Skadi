@@ -41,7 +41,8 @@
       "Bash(cypress:*)",
       "Bash(docker:*)",
       "Bash(kubectl:*)",
-      "Bash(brew:*)"
+      "Bash(brew:*)",
+      "Bash(stat:*)"
     ]
   },
   "model": "opus",
