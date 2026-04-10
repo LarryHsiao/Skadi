@@ -147,7 +147,7 @@ esac
 # Netdata status — 60-second cache
 # Requires: NETDATA_URL and optionally NETDATA_API_KEY in environment
 NETDATA_CACHE="/tmp/.claude_netdata_cache"
-netdata_dot="⚫"  # default: not configured
+netdata_label=""
 if [ -n "$NETDATA_URL" ]; then
     netdata_status=""
     if [ -f "$NETDATA_CACHE" ]; then
@@ -179,17 +179,29 @@ if [ -n "$NETDATA_URL" ]; then
         echo "$netdata_status" > "$NETDATA_CACHE"
     fi
     case "$netdata_status" in
-        critical*)   netdata_dot="${RED}●${RESET}" ;;
-        warning*)    netdata_dot="${YELLOW}●${RESET}" ;;
-        ok)          netdata_dot="${GREEN}●${RESET}" ;;
-        unreachable) netdata_dot="○" ;;  # configured but unreachable
-        *)           netdata_dot="⚫" ;;
+        critical*)
+            c_num=$(echo "$netdata_status" | grep -oE 'critical:[0-9]+' | cut -d: -f2)
+            w_num=$(echo "$netdata_status" | grep -oE 'warning:[0-9]+' | cut -d: -f2)
+            netdata_label="${RED} ND: ${c_num}C/${w_num}W ${RESET}" ;;
+        warning*)
+            w_num=$(echo "$netdata_status" | grep -oE 'warning:[0-9]+' | cut -d: -f2)
+            netdata_label="${YELLOW} ND: ${w_num}W ${RESET}" ;;
+        ok)
+            netdata_label="${GREEN} ND: OK ${RESET}" ;;
+        unreachable)
+            netdata_label="ND: --" ;;
+        *)
+            netdata_label="" ;;
     esac
 fi
 
 # Line 1: project name
 project_name=$(basename "$cwd")
-printf "%s 📁 %s\n" "$netdata_dot" "$project_name"
+if [ -n "$netdata_label" ]; then
+    printf "%s 📁 %s\n" "$netdata_label" "$project_name"
+else
+    printf "📁 %s\n" "$project_name"
+fi
 
 # Ellipsize end of a string if longer than max_len
 ellipsize_end() {
