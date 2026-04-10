@@ -15,6 +15,8 @@ normalize() {
   # Convert backslashes to forward slashes, strip trailing slash
   p="${p//\\//}"
   p="${p%/}"
+  # Preserve root "/" (stripping trailing slash from "/" yields "")
+  [ -z "$p" ] && p="/"
   # Convert C:/... to /c/...
   if [[ "$p" =~ ^([A-Za-z]):(/.*) ]]; then
     p="/${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
@@ -57,7 +59,7 @@ in_allowed_dir() {
 }
 
 # Check if at disk root (/, /c, /d, etc.)
-if echo "$CWD" | grep -qE '^(/[a-z])?$'; then
+if echo "$CWD" | grep -qE '^/$|^/[a-z]$'; then
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: running at disk root (%s) is not allowed"}}' "$CWD"
   exit 0
 fi
