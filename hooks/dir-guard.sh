@@ -80,15 +80,23 @@ if ! in_allowed_dir "$CWD"; then
   exit 0
 fi
 
-# Check command arguments for absolute paths outside the project
+# Check command arguments for absolute paths outside the project.
+# Uses Python's shlex for quote-aware tokenization so paths inside
+# quoted strings (e.g. commit messages, echo args) are not flagged.
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command' 2>/dev/null)
 if [ -n "$CMD" ]; then
-  # Split command into tokens and check each for absolute paths
-  # Skip tokens that are part of ~/ paths or flags
-  for TOKEN in $CMD; do
-    # Skip ~ paths, flags, and non-path tokens
+  TOKENS=$(python3 - "$CMD" 2>/dev/null <<'PYEOF'
+import sys, shlex
+try:
+    for token in shlex.split(sys.argv[1]):
+        print(token)
+except ValueError:
+    pass  # unparseable (e.g. bare heredoc) — skip path checks
+PYEOF
+)
+  while IFS= read -r TOKEN; do
     case "$TOKEN" in
-      ~*|--*|-*) continue ;;
+      ~*|--*|-*|"") continue ;;
     esac
     # Check for absolute paths (/c/..., /usr/..., C:\...)
     if [[ "$TOKEN" =~ ^/[a-zA-Z] ]] || [[ "$TOKEN" =~ ^[A-Za-z]:\\ ]]; then
@@ -113,7 +121,7 @@ if [ -n "$CMD" ]; then
         esac
       fi
     fi
-  done
+  done <<< "$TOKENS"
 fi
 
 # All checks passed — log cwd as informational message
