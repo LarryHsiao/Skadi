@@ -6,7 +6,9 @@ input=$(cat)
 # Extract raw numeric values from JSON using jq
 context_raw=$(echo "$input" | jq -r '.context_window.used_percentage // empty' 2>/dev/null)
 rate_5h_raw=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty' 2>/dev/null)
+rate_5h_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty' 2>/dev/null)
 rate_7d_raw=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty' 2>/dev/null)
+rate_7d_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty' 2>/dev/null)
 model_name=$(echo "$input" | jq -r '.model.display_name // empty' 2>/dev/null)
 cwd=$(echo "$input" | jq -r '.cwd // "."' 2>/dev/null)
 git_branch=$(git -C "$cwd" rev-parse --abbrev-ref HEAD 2>/dev/null)
@@ -25,10 +27,33 @@ YELLOW=$'\033[43;30m'    # yellow bg, black text
 RED=$'\033[41;97m'       # red bg, white text
 RESET=$'\033[0m'
 
-# colorize label raw_pct — prints "label: XX%" with background color
+# rough_eta iso_timestamp — prints rough time until reset (e.g. "~2h", "~30m", "~3d")
+rough_eta() {
+    local reset_ts="$1"
+    [ -z "$reset_ts" ] && return
+
+    local now reset_epoch diff_sec
+    now=$(date +%s)
+    reset_epoch=$(date -d "$reset_ts" +%s 2>/dev/null || date -jf "%Y-%m-%dT%H:%M:%S" "${reset_ts%%.*}" +%s 2>/dev/null)
+    [ -z "$reset_epoch" ] && return
+
+    diff_sec=$(( reset_epoch - now ))
+    [ "$diff_sec" -le 0 ] && { printf "now"; return; }
+
+    if [ "$diff_sec" -lt 3600 ]; then
+        printf "%dm" $(( diff_sec / 60 ))
+    elif [ "$diff_sec" -lt 86400 ]; then
+        printf "%dh" $(( diff_sec / 3600 ))
+    else
+        printf "%dd" $(( diff_sec / 86400 ))
+    fi
+}
+
+# colorize label raw_pct [reset_ts] — prints "label: XX%" with background color + optional reset ETA
 colorize() {
     local label="$1"
     local val="$2"
+    local reset_ts="$3"
 
     if [ -z "$val" ]; then
         printf "%s: N/A" "$label"
@@ -48,7 +73,14 @@ colorize() {
         color="$RED"
     fi
 
-    printf "%s%s: %s%%%s" "$color" "$label" "$remaining" "$RESET"
+    local display_label="$label"
+    if [ -n "$reset_ts" ]; then
+        local eta
+        eta=$(rough_eta "$reset_ts")
+        [ -n "$eta" ] && display_label="$eta"
+    fi
+
+    printf "%s%s: %s%%%s" "$color" "$display_label" "$remaining" "$RESET"
 }
 
 # colorize_temp weather_str — replaces the temperature value with a colored version
@@ -127,8 +159,8 @@ weather=$(colorize_temp "$weather")
 weather=$(colorize_wind "$weather")
 
 context_str=$(colorize "Context" "$context_raw")
-rate_5h_str=$(colorize "5h" "$rate_5h_raw")
-rate_7d_str=$(colorize "7d" "$rate_7d_raw")
+rate_5h_str=$(colorize "5h" "$rate_5h_raw" "$rate_5h_reset")
+rate_7d_str=$(colorize "7d" "$rate_7d_raw" "$rate_7d_reset")
 
 # Format lines changed and unstaged/untracked counts
 lines_str="+${lines_added}/-${lines_removed}"
