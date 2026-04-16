@@ -224,7 +224,7 @@ Build JQL based on sprint and assignee filter:
 
 ```bash
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  "$JIRA_BASE_URL/rest/api/3/search" \
+  "$JIRA_BASE_URL/rest/api/3/search/jql" \
   --get \
   --data-urlencode "jql=CONSTRUCTED_JQL" \
   --data-urlencode "fields=summary,status,priority,assignee" \

@@ -46,7 +46,7 @@ PROJ-789/fix/larry/cannot-close-emergency-measure-page
 
 ```bash
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  "$JIRA_BASE_URL/rest/api/3/search?jql=project=PROJECT_KEY+AND+statusCategory+in+(\"To+Do\",\"In+Progress\")+ORDER+BY+updated+DESC&fields=summary,status&maxResults=20" \
+  "$JIRA_BASE_URL/rest/api/3/search/jql?jql=project=PROJECT_KEY+AND+statusCategory+in+(\"To+Do\",\"In+Progress\")+ORDER+BY+updated+DESC&fields=summary,status&maxResults=20" \
   | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
