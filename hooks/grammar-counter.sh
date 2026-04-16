@@ -12,10 +12,10 @@ last_text=$(echo "$INPUT" | jq -r '
     then [ .content[]? | select(.type == "text") | .text ] | join("\n")
     else .content // ""
     end
-' 2>/dev/null)
+' 2>/dev/null | tr -d '\r')
 
 # Count **Grammar:** occurrences (one per correction line)
-count=$(echo "$last_text" | grep -c '^\*\*Grammar:\*\*' 2>/dev/null || echo 0)
+count=$(echo "$last_text" | grep -c '> \*\*Grammar:\*\*' 2>/dev/null | tr -d '\r\n ')
 count=${count:-0}
 
 if [ "$count" -gt 0 ]; then
