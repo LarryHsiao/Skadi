@@ -22,6 +22,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/stage` — Interactively stage files
 - `/summary` — Summarize staged changes
 - `/working` — Start working on a Jira ticket
+- `/publish` — Build Flutter release archives and collect into `build/publish/`
 
 ### Hooks
 
