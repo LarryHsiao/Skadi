@@ -27,14 +27,19 @@ YELLOW=$'\033[43;30m'    # yellow bg, black text
 RED=$'\033[41;97m'       # red bg, white text
 RESET=$'\033[0m'
 
-# rough_eta iso_timestamp — prints rough time until reset (e.g. "~2h", "~30m", "~3d")
+# rough_eta timestamp — prints rough time until reset (e.g. "~2h", "~30m", "~3d")
+# Accepts Unix epoch (integer) or ISO-8601 string
 rough_eta() {
     local reset_ts="$1"
     [ -z "$reset_ts" ] && return
 
     local now reset_epoch diff_sec
     now=$(date +%s)
-    reset_epoch=$(date -d "$reset_ts" +%s 2>/dev/null || date -jf "%Y-%m-%dT%H:%M:%S" "${reset_ts%%.*}" +%s 2>/dev/null)
+    if [[ "$reset_ts" =~ ^[0-9]+$ ]]; then
+        reset_epoch="$reset_ts"
+    else
+        reset_epoch=$(date -d "$reset_ts" +%s 2>/dev/null || date -jf "%Y-%m-%dT%H:%M:%S" "${reset_ts%%.*}" +%s 2>/dev/null)
+    fi
     [ -z "$reset_epoch" ] && return
 
     diff_sec=$(( reset_epoch - now ))
