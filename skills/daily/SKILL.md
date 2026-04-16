@@ -68,7 +68,7 @@ Format in memory:
 }
 ```
 
-Valid categories: `todo`, `in_progress`, `done`.
+Valid categories: `todo`, `in_progress`, `in_review`, `done`.
 
 If the file doesn't exist yet, that's fine — it will be created after the first run when unmapped statuses are encountered (step 6).
 
@@ -83,7 +83,13 @@ Determine the label for the header:
 
 ### 5. Fetch tasks from Jira
 
-Build the JQL. For multiple project keys use `project IN (KEY1, KEY2)`, for a single key use `project = KEY`.
+Check memory file `jira_filter.md` for a saved filter ID. If found, use it as the base scope.
+
+Build the JQL:
+- If a saved filter exists: start with `filter = FILTER_ID AND ...`
+- If no saved filter: use `project = KEY` (or `project IN (KEY1, KEY2)` for multiple keys)
+
+Then append `assignee = "ASSIGNEE"` and any project filter if using a saved filter with explicit project args.
 
 **No `statusCategory` filter** — fetch all statuses so we can categorize them ourselves.
 
@@ -130,7 +136,14 @@ for issue in issues:
 "
 ```
 
-**Constructed JQL:**
+**Constructed JQL (with saved filter):**
+
+```
+filter = 10363 AND assignee = "ASSIGNEE"
+  ORDER BY priority ASC
+```
+
+**Constructed JQL (without saved filter):**
 
 ```
 project IN (KEY1, KEY2) AND assignee = "ASSIGNEE"
@@ -167,11 +180,14 @@ PROJ — My Tasks (5)
 - Label: `My Tasks` or `David's Tasks`
 - Count: total issue count in parentheses
 
-**Body — grouped by category, in this order: In Progress → To Do → Done:**
+**Body — grouped by category, in this order: In Progress → In Review → To Do → Done:**
 ```
 In Progress
   ▶ [|||] PROJ-456  Add user dashboard
   ▶ [|| ] PROJ-198  Refactor notification service
+In Review
+  ◆ [|||] PROJ-321  Implement search API
+  ◆ [|| ] PROJ-654  Update auth flow
 To Do
   ○ [|||] PROJ-201  Implement patient alert system
   ○ [|| ] PROJ-789  Implement CSV export
@@ -182,7 +198,7 @@ Done
 ```
 
 - Each issue: `  SYMBOL [BAR] KEY  SUMMARY`
-- `▶` for In Progress, `○` for To Do, `✓` for Done
+- `▶` for In Progress, `◆` for In Review, `○` for To Do, `✓` for Done
 - Bar: `[|||]` Highest/High · `[|| ]` Medium · `[|  ]` Low/Lowest
 - Key column width: pad to align summaries (use the longest key in the result)
 - Summary truncated to 55 chars
@@ -191,7 +207,7 @@ Done
 **Footer:**
 ```
 ───────────────────────────────────────────
-  N in progress · N to do · N done
+  N in progress · N in review · N to do · N done
 ```
 
 **Special cases:**
