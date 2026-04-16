@@ -5,7 +5,7 @@ description: Use when the user runs /daily [...args]. Shows Jira tasks assigned 
 
 # Daily Tasks Report
 
-Shows open Jira tasks (In Progress + To Do) assigned to you or someone else, grouped by status and sorted by priority.
+Shows Jira tasks assigned to you or someone else, grouped into three categories (In Progress, To Do, Done) and sorted by priority.
 
 ## Argument Parsing
 
@@ -54,7 +54,25 @@ git branch -a 2>/dev/null | grep -oE '[A-Z]+-[0-9]+' | grep -oE '^[A-Z]+' | head
 
 If still not found, check memory file `jira_project.md`. If not there either, ask the user.
 
-### 3. Resolve assignee
+### 3. Load status mapping from memory
+
+Check memory file `jira_status_mapping.md` for a JSON mapping of Jira status names to categories.
+
+Format in memory:
+```json
+{
+  "Open": "todo",
+  "In Progress": "in_progress",
+  "Done": "done",
+  "Closed": "done"
+}
+```
+
+Valid categories: `todo`, `in_progress`, `done`.
+
+If the file doesn't exist yet, that's fine — it will be created after the first run when unmapped statuses are encountered (step 6).
+
+### 4. Resolve assignee
 
 - `@person` was provided → use the name as the assignee display name in JQL: `assignee = "PERSON"`
 - No `@person` → use `JIRA_EMAIL` from memory: `assignee = "JIRA_EMAIL"`
@@ -63,9 +81,11 @@ Determine the label for the header:
 - Using `JIRA_EMAIL` → `"My Tasks"`
 - Using a display name → `"PERSON's Tasks"` (capitalize first letter)
 
-### 4. Fetch tasks from Jira
+### 5. Fetch tasks from Jira
 
 Build the JQL. For multiple project keys use `project IN (KEY1, KEY2)`, for a single key use `project = KEY`.
+
+**No `statusCategory` filter** — fetch all statuses so we can categorize them ourselves.
 
 ```bash
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
@@ -99,33 +119,14 @@ PRIORITY_BARS = {
     'Lowest':  '|  ',
 }
 PRIORITY_ORDER = {'Highest': 0, 'High': 1, 'Medium': 2, 'Low': 3, 'Lowest': 4}
-CATEGORY_ORDER = {'In Progress': 0, 'To Do': 1}
 
-groups = defaultdict(list)
 for issue in issues:
     f = issue['fields']
-    cat = f['status']['statusCategory']['name']
+    status_name = f['status']['name']
     priority_name = f['priority']['name'] if f.get('priority') else 'Medium'
-    priority_order = PRIORITY_ORDER.get(priority_name, 2)
     bar = PRIORITY_BARS.get(priority_name, '|| ')
     summary = f['summary'][:55]
-    groups[cat].append({
-        'key': issue['key'],
-        'summary': summary,
-        'bar': bar,
-        'priority_order': priority_order,
-        'cat': cat,
-    })
-
-total = sum(len(v) for v in groups.values())
-print(f'TOTAL|{total}')
-
-for cat in sorted(groups.keys(), key=lambda c: CATEGORY_ORDER.get(c, 9)):
-    items = sorted(groups[cat], key=lambda x: x['priority_order'])
-    print(f'GROUP|{cat}|{len(items)}')
-    for item in items:
-        symbol = '▶' if cat == 'In Progress' else '○'
-        print(f'ISSUE|{symbol}|{item[\"bar\"]}|{item[\"key\"]}|{item[\"summary\"]}')
+    print(f'ISSUE|{status_name}|{bar}|{issue[\"key\"]}|{summary}')
 "
 ```
 
@@ -133,13 +134,28 @@ for cat in sorted(groups.keys(), key=lambda c: CATEGORY_ORDER.get(c, 9)):
 
 ```
 project IN (KEY1, KEY2) AND assignee = "ASSIGNEE"
-  AND statusCategory IN ("In Progress", "To Do")
-  ORDER BY statusCategory DESC, priority ASC
+  ORDER BY priority ASC
 ```
 
-### 5. Render output
+### 6. Map statuses to categories
 
-Claude renders the output from the parsed lines above.
+After fetching, collect all unique status names from the `ISSUE|` lines.
+
+Compare against the mapping loaded in step 3. For any **unmapped** status name:
+
+1. Use AskUserQuestion to ask the user which category it belongs to:
+   > Status `"Review"` isn't mapped yet. Which category?
+   > 1. Todo
+   > 2. In Progress
+   > 3. Done
+2. Add the mapping to the in-memory map
+3. After all unmapped statuses are resolved, **update** `jira_status_mapping.md` with the full JSON mapping
+
+If all statuses are already mapped, skip this step silently.
+
+### 7. Render output
+
+Group the issues by their mapped category (`in_progress`, `todo`, `done`) and render.
 
 **Header:**
 ```
@@ -151,7 +167,7 @@ PROJ — My Tasks (5)
 - Label: `My Tasks` or `David's Tasks`
 - Count: total issue count in parentheses
 
-**Body — grouped by status:**
+**Body — grouped by category, in this order: In Progress → To Do → Done:**
 ```
 In Progress
   ▶ [|||] PROJ-456  Add user dashboard
@@ -160,18 +176,22 @@ To Do
   ○ [|||] PROJ-201  Implement patient alert system
   ○ [|| ] PROJ-789  Implement CSV export
   ○ [|  ] PROJ-210  Update onboarding copy
+Done
+  ✓ [|||] PROJ-300  Set up CI pipeline
+  ✓ [|| ] PROJ-112  Fix login redirect
 ```
 
 - Each issue: `  SYMBOL [BAR] KEY  SUMMARY`
-- `▶` for In Progress, `○` for To Do
+- `▶` for In Progress, `○` for To Do, `✓` for Done
 - Bar: `[|||]` Highest/High · `[|| ]` Medium · `[|  ]` Low/Lowest
 - Key column width: pad to align summaries (use the longest key in the result)
 - Summary truncated to 55 chars
+- **Omit empty categories** — if a category has no issues, don't show the heading
 
 **Footer:**
 ```
 ───────────────────────────────────────────
-  N in progress · N to do
+  N in progress · N to do · N done
 ```
 
 **Special cases:**
@@ -180,7 +200,7 @@ If `EMPTY`:
 ```
 PROJ — My Tasks
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-No open tasks assigned.
+No tasks assigned.
 ```
 
 If `API_ERROR`:
@@ -193,3 +213,6 @@ If `API_ERROR`:
 - If `JIRA_API_TOKEN` is missing, stop and tell the user — do not proceed
 - Default to current user's tasks when no `@person` is given
 - Summaries truncated to 55 chars in output
+- Only ask about unmapped statuses once — save to `jira_status_mapping.md` immediately
+- Omit empty categories from output (e.g. if no Done tasks, skip that section)
+- When asking about unmapped statuses, batch them into a single question if multiple are unknown
