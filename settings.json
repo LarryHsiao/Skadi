@@ -103,6 +103,16 @@
         ]
       }
     ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/grammar-counter.sh"
+          }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "hooks": [

@@ -135,6 +135,15 @@ lines_str="+${lines_added}/-${lines_removed}"
 changed_str="📄 ${changed_count}"
 unpushed_str="⬆ ${unpushed_count}"
 
+# Grammar error count for today
+GRAMMAR_LOG="$HOME/.claude/.grammar_log"
+TODAY=$(date +%Y-%m-%d)
+grammar_today=0
+if [ -f "$GRAMMAR_LOG" ]; then
+    grammar_today=$(grep -c "^${TODAY}$" "$GRAMMAR_LOG" 2>/dev/null || echo 0)
+fi
+grammar_str="✍️ ${grammar_today}"
+
 # Model short name + emoji
 model_lower=$(echo "$model_name" | tr '[:upper:]' '[:lower:]')
 case "$model_lower" in
@@ -163,7 +172,7 @@ ellipsize_end() {
 branch_label=$(ellipsize_end "${git_branch:-N/A}" 25)
 
 # Line 2: branch info
-printf "🌿 %s  ✏️ %s  %s  %s\n" "$branch_label" "$lines_str" "$changed_str" "$unpushed_str"
+printf "🌿 %s  ✏️ %s  %s  %s  %s\n" "$branch_label" "$lines_str" "$changed_str" "$unpushed_str" "$grammar_str"
 
 # Line 3: model + context + rate limits
 printf "%s %s  📊 %s  ⚡ %s  📅 %s\n" \
