@@ -5,6 +5,14 @@ INPUT=$(cat)
 GRAMMAR_LOG="$HOME/.claude/.grammar_log"
 TODAY=$(date +%Y-%m-%d)
 
+# Reset if log is from a previous day
+if [ -f "$GRAMMAR_LOG" ]; then
+    last_date=$(head -1 "$GRAMMAR_LOG" | tr -d '\r\n ')
+    if [ "$last_date" != "$TODAY" ]; then
+        > "$GRAMMAR_LOG"
+    fi
+fi
+
 # Extract last assistant message from stop hook input
 last_text=$(echo "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null | tr -d '\r')
 
