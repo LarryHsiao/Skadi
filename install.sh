@@ -20,11 +20,6 @@ install_file() {
   echo "installed:      $dst"
 }
 
-# Check for rtk
-if ! command -v rtk &>/dev/null; then
-  printf '\033[33mwarning: '"'"'rtk'"'"' not found. Install it from https://github.com/rtk-ai/rtk\033[0m\n'
-fi
-
 # Global CLAUDE.md
 install_file "$REPO/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
 

@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Bash(rtk:*)",
       "Bash(fvm flutter:*)",
       "Bash(fvm dart:*)",
       "Bash(fvm:*)",
@@ -90,15 +89,6 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/pre-commit-guard.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/larryhsiao/.claude/hooks/rtk-rewrite.sh"
           }
         ]
       }
