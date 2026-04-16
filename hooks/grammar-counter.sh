@@ -5,14 +5,8 @@ INPUT=$(cat)
 GRAMMAR_LOG="$HOME/.claude/.grammar_log"
 TODAY=$(date +%Y-%m-%d)
 
-# Extract last assistant message text from transcript
-last_text=$(echo "$INPUT" | jq -r '
-  [ .transcript[]? | select(.role == "assistant") ] | last
-  | if (.content | type) == "array"
-    then [ .content[]? | select(.type == "text") | .text ] | join("\n")
-    else .content // ""
-    end
-' 2>/dev/null | tr -d '\r')
+# Extract last assistant message from stop hook input
+last_text=$(echo "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null | tr -d '\r')
 
 # Count **Grammar:** occurrences (one per correction line)
 count=$(echo "$last_text" | grep -c '> \*\*Grammar:\*\*' 2>/dev/null | tr -d '\r\n ')
