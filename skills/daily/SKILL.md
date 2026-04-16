@@ -139,7 +139,7 @@ for issue in issues:
 **Constructed JQL (with saved filter):**
 
 ```
-filter = 10363 AND assignee = "ASSIGNEE"
+filter = FILTER_ID AND assignee = "ASSIGNEE"
   ORDER BY priority ASC
 ```
 
