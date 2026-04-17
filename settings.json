@@ -41,7 +41,8 @@
       "Bash(docker:*)",
       "Bash(kubectl:*)",
       "Bash(brew:*)",
-      "Bash(stat:*)"
+      "Bash(stat:*)",
+      "Bash(~/.claude/hooks/jira-daily.sh:*)"
     ]
   },
   "model": "opus",

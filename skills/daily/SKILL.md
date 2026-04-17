@@ -93,47 +93,10 @@ Then append `assignee = "ASSIGNEE"` and any project filter if using a saved filt
 
 **No `statusCategory` filter** — fetch all statuses so we can categorize them ourselves.
 
+Use the pre-approved hook script to avoid permission prompts:
+
 ```bash
-curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  "$JIRA_BASE_URL/rest/api/3/search/jql" \
-  --get \
-  --data-urlencode "jql=CONSTRUCTED_JQL" \
-  --data-urlencode "fields=summary,status,priority" \
-  --data-urlencode "maxResults=50" \
-  | python3 -c "
-import sys, json
-from collections import defaultdict
-
-d = json.load(sys.stdin)
-
-# Check for API errors
-if d.get('errorMessages') or d.get('errors'):
-    msgs = d.get('errorMessages', []) + list(d.get('errors', {}).values())
-    print('API_ERROR|' + '; '.join(msgs))
-    sys.exit(0)
-
-issues = d.get('issues', [])
-if not issues:
-    print('EMPTY')
-    sys.exit(0)
-
-PRIORITY_BARS = {
-    'Highest': '|||',
-    'High':    '|||',
-    'Medium':  '|| ',
-    'Low':     '|  ',
-    'Lowest':  '|  ',
-}
-PRIORITY_ORDER = {'Highest': 0, 'High': 1, 'Medium': 2, 'Low': 3, 'Lowest': 4}
-
-for issue in issues:
-    f = issue['fields']
-    status_name = f['status']['name']
-    priority_name = f['priority']['name'] if f.get('priority') else 'Medium'
-    bar = PRIORITY_BARS.get(priority_name, '|| ')
-    summary = f['summary'][:55]
-    print(f'ISSUE|{status_name}|{bar}|{issue[\"key\"]}|{summary}')
-"
+~/.claude/hooks/jira-daily.sh "CONSTRUCTED_JQL"
 ```
 
 **Constructed JQL (with saved filter):**
