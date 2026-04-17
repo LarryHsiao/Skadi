@@ -103,6 +103,16 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/grammar-reminder.sh"
+          }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "hooks": [
