@@ -25,6 +25,10 @@ When creating a skill or any automation that requires a bash command (especially
 
 Never embed complex bash (pipelines, variable expansion) directly in skill instructions — it triggers permission prompts every time.
 
+## Code Style
+
+- Dart: @docs/style/dart.md
+
 ## Grammar Check
 
 After every user message, silently check for grammar and phrasing issues. If any are found, append a brief correction at the end of your response in this format:
