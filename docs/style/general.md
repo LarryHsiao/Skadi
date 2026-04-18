@@ -1,5 +1,7 @@
 # Code Style Guide
 
+> Language- or framework-specific rules belong in their own style file, not here.
+
 ## Naming
 
 - **No `-er` suffix** for classes or packages (no `Manager`, `Helper`, `Handler`, `Processor`, etc.). Name things after the domain concept they represent.
