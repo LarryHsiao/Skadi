@@ -27,7 +27,7 @@ Never embed complex bash (pipelines, variable expansion) directly in skill instr
 
 ## Code Style
 
-- Dart: @docs/style/dart.md
+- General: @docs/style/general.md
 
 ## Grammar Check
 

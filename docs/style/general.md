@@ -1,4 +1,4 @@
-# Dart Style Guide
+# Code Style Guide
 
 ## Naming
 
