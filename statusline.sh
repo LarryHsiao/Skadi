@@ -239,6 +239,7 @@ wick_quote="${wick_quotes[$RANDOM % ${#wick_quotes[@]}]}"
 
 # Proverbs
 proverbs=(
+    "Break a leg."
 )
 
 # The Accountant quotes
