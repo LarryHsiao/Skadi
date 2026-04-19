@@ -190,10 +190,6 @@ case "$model_lower" in
     *)        model_emoji="🤖"; model_short="${model_name:-N/A}" ;;
 esac
 
-# Line 1: project name
-project_name=$(basename "$cwd")
-printf "📁 %s\n" "$project_name"
-
 # Ellipsize end of a string if longer than max_len
 ellipsize_end() {
     local str="$1"
@@ -206,10 +202,14 @@ ellipsize_end() {
     echo "${str:0:$(( max_len - 3 ))}..."
 }
 
+# Line 1: project name + branch
+project_name=$(basename "$cwd")
+project_label=$(ellipsize_end "$project_name" 15)
 branch_label=$(ellipsize_end "${git_branch:-N/A}" 25)
+printf "📁 %s  🌿 %s\n" "$project_label" "$branch_label"
 
 # Line 2: branch info
-printf "🌿 %s  ✏️ %s  %s  %s  %s\n" "$branch_label" "$lines_str" "$changed_str" "$unpushed_str" "$grammar_str"
+printf "✏️ %s  %s  %s  %s\n" "$lines_str" "$changed_str" "$unpushed_str" "$grammar_str"
 
 # Line 3: model + context + rate limits
 printf "%s %s  📊 %s  ⚡ %s  📅 %s\n" \
