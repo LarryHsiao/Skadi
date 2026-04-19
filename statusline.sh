@@ -254,8 +254,72 @@ accountant_quotes=(
     "Patience. Things get better."
 )
 
+# The Mentalist quotes (超感應神探)
+mentalist_quotes=(
+    "Red John is a shallow, sick, narcissistic sociopath."
+    "Tea is the solution to all problems."
+    "I'm not psychic. I just pay attention."
+    "I don't have friends. I have associates... and Teresa Lisbon."
+    "Red John wants me to suffer. So I intend to be very, very happy."
+    "There is no such thing as psychic phenomenon. There are only tricks."
+    "I solve crimes. I help put bad guys in jail. It's my way of making amends."
+    "Everybody has a tell."
+    "I'm a consultant. I consult."
+    "I'm very good at reading people. It's a gift and a curse."
+    "Always bet on human nature."
+    "People are predictable. That's not an insult. It's comforting."
+    "The best con is the one where the mark never knows they've been had."
+    "A good magician never reveals his secrets. Lucky for you, I'm not a magician."
+    "I've been called a lot of things. Modest isn't one of them."
+    "There's a fine line between confidence and arrogance. I walk it perfectly."
+    "You'd be amazed what you can get people to do if you just ask nicely."
+    "Be the chess player, not the chess piece."
+    "The details. The details tell you everything."
+    "I notice things. That's all."
+    "The trick to lying is believing your own lie."
+    "Patterns. Everything is patterns."
+    "Happiness is an inside job."
+    "Lying is like any other skill. The more you practice, the better you get."
+    "The greatest trick is making people think they figured it out themselves."
+    "I have a very low boredom threshold."
+    "You can't con an honest man. Well, you can, but it's not as much fun."
+    "Every lie contains a seed of truth. Find the seed."
+    "Instinct is just experience dressed up as intuition."
+    "Anger is just fear with nowhere to go."
+    "People don't change. They just reveal themselves more clearly."
+    "Patience is just cruelty with better manners."
+    "The best lies are the ones closest to the truth."
+    "Everybody lies. The trick is knowing when it matters."
+    "Guilt is a funny thing. It never quite goes away."
+    "Revenge is a dish best served piping hot. Contrary to popular opinion."
+    "You should never argue with a woman who's carrying a gun."
+    "Never underestimate the power of a broken heart."
+    "Trust is a leap of faith. Most people are too afraid to jump."
+    "The problem with secrets is they have a way of coming out."
+    "People only see what they're prepared to see."
+    "You'd be surprised what you can learn from people when you actually listen to them."
+    "A guilty man always returns to the scene of the crime."
+    "Sometimes the best way to get information is to give some."
+    "Don't ever tell a man he has no sense of humor. It's the one thing every man thinks he has."
+    "The truth is always the truth, whether you believe it or not."
+    "Memory is a strange thing. It doesn't work like I thought it did."
+    "Faith is a beautiful thing, but it can be used against you."
+    "A man with nothing to lose is a very dangerous man."
+    "I was a fake psychic. Now I just have to be real."
+    "Everything is significant if you look closely enough."
+    "You can tell everything about a person by what they laugh at."
+    "The most dangerous person in any room is the one who has nothing to lose."
+    "Observation without judgment. That's the key."
+    "The mind is a muscle. Most people never exercise it."
+    "Charm is just honesty with better packaging."
+    "A good question is worth more than a good answer."
+    "A smile is the most powerful weapon in any arsenal."
+    "You can't fake kindness. It's the one thing people always recognize."
+    "Every story has a beginning, a middle, and an end. Not always in that order."
+)
+
 # Build pool of available categories
-pool=("wick")
+pool=("wick" "mentalist")
 [ ${#proverbs[@]} -gt 0 ] && pool+=("proverb")
 [ ${#accountant_quotes[@]} -gt 0 ] && pool+=("accountant")
 chosen="${pool[$RANDOM % ${#pool[@]}]}"
@@ -264,6 +328,7 @@ case "$chosen" in
     wick)       display_quote="🔫 \"${wick_quotes[$RANDOM % ${#wick_quotes[@]}]}\"";;
     proverb)    display_quote="📜 \"${proverbs[$RANDOM % ${#proverbs[@]}]}\"";;
     accountant) display_quote="🧮 \"${accountant_quotes[$RANDOM % ${#accountant_quotes[@]}]}\"";;
+    mentalist)  display_quote="🔮 \"${mentalist_quotes[$RANDOM % ${#mentalist_quotes[@]}]}\"";;
 esac
 
 # Line 4: divider
