@@ -319,10 +319,46 @@ mentalist_quotes=(
     "Every story has a beginning, a middle, and an end. Not always in that order."
 )
 
+# Suits quotes
+suits_quotes=(
+    "When you're backed against the wall, break the goddamn thing down. — Harvey Specter"
+    "I don't have dreams, I have goals. — Harvey Specter"
+    "Sometimes good guys gotta do bad things to make the bad guys pay. — Harvey Specter"
+    "Winners don't make excuses when the other side plays the game. — Harvey Specter"
+    "Loyalty is a two-way street. If I'm asking for it from you, you're getting it back from me. — Harvey Specter"
+    "That's the difference between you and me. You wanna lose small, I wanna win big. — Harvey Specter"
+    "Work until you no longer have to introduce yourself. — Harvey Specter"
+    "You always have a choice. — Harvey Specter"
+    "I don't play the odds, I play the man. — Harvey Specter"
+    "First impressions last. You start behind the eight ball, you'll never get in front. — Harvey Specter"
+    "I don't get lucky. I make my own luck. — Harvey Specter"
+    "Anyone can do my job, but no one can be me. — Harvey Specter"
+    "Sorry, I can't hear you over the sound of how awesome I am. — Harvey Specter"
+    "I'm against having emotions, not against using them. — Harvey Specter"
+    "I'm Harvey Specter. I close. — Harvey Specter"
+    "Don't raise your voice. Improve your argument. — Harvey Specter"
+    "Never destroy anyone in public when you can accomplish the same result in private. — Harvey Specter"
+    "What are your choices when someone puts a gun to your head? You take the gun, or you pull out a bigger one. — Harvey Specter"
+    "The only time success comes before work is in the dictionary. — Harvey Specter"
+    "You wanna be a winner? Then win. — Harvey Specter"
+    "Let me tell you something. You wanna work here? Act like it. — Harvey Specter"
+    "I refuse to answer that on the grounds that I don't want to. — Harvey Specter"
+    "Life is this. I like this. — Harvey Specter"
+    "I don't have time for matters of principle. — Harvey Specter"
+    "Ever love somebody so much you can barely breathe when you're with them? — Mike Ross"
+    "Some people quit because they see the obstacles. Others create history because they don't. — Mike Ross"
+    "Loyalty doesn't require you to lose your soul. — Jessica Pearson"
+    "I don't respond to threats. I make them. — Jessica Pearson"
+    "You just got Litt up. — Louis Litt"
+    "Goddammit, Harvey! — Louis Litt"
+    "I'm Donna. I know everything. — Donna Paulsen"
+)
+
 # Build pool of available categories
 pool=("wick" "mentalist")
 [ ${#proverbs[@]} -gt 0 ] && pool+=("proverb")
 [ ${#accountant_quotes[@]} -gt 0 ] && pool+=("accountant")
+[ ${#suits_quotes[@]} -gt 0 ] && pool+=("suits")
 chosen="${pool[$RANDOM % ${#pool[@]}]}"
 
 case "$chosen" in
@@ -330,6 +366,7 @@ case "$chosen" in
     proverb)    display_quote="📜 \"${proverbs[$RANDOM % ${#proverbs[@]}]}\"";;
     accountant) display_quote="🧮 \"${accountant_quotes[$RANDOM % ${#accountant_quotes[@]}]}\"";;
     mentalist)  display_quote="🔮 \"${mentalist_quotes[$RANDOM % ${#mentalist_quotes[@]}]}\"";;
+    suits)      display_quote="👔 \"${suits_quotes[$RANDOM % ${#suits_quotes[@]}]}\"";;
 esac
 
 # Line 4: divider
