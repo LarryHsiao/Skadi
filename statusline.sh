@@ -237,6 +237,35 @@ wick_quotes=(
 )
 wick_quote="${wick_quotes[$RANDOM % ${#wick_quotes[@]}]}"
 
+# Proverbs
+proverbs=(
+)
+
+# The Accountant quotes
+accountant_quotes=(
+    "I'm a work in progress."
+    "Somebody always gets hurt."
+    "Math is the only thing that isn't subject to opinion."
+    "Being different is not a bad thing. It means you see the world in your own way."
+    "Sometimes, in order to keep the people in our lives safe, we do things that we regret."
+    "You're not done. When I'm done, I'll tell you."
+    "I uncook books."
+    "You must make friends wherever you go."
+    "Patience. Things get better."
+)
+
+# Build pool of available categories
+pool=("wick")
+[ ${#proverbs[@]} -gt 0 ] && pool+=("proverb")
+[ ${#accountant_quotes[@]} -gt 0 ] && pool+=("accountant")
+chosen="${pool[$RANDOM % ${#pool[@]}]}"
+
+case "$chosen" in
+    wick)       display_quote="🔫 \"${wick_quotes[$RANDOM % ${#wick_quotes[@]}]}\"";;
+    proverb)    display_quote="📜 \"${proverbs[$RANDOM % ${#proverbs[@]}]}\"";;
+    accountant) display_quote="🧮 \"${accountant_quotes[$RANDOM % ${#accountant_quotes[@]}]}\"";;
+esac
+
 # Line 4: divider
 printf "%s\n" "──────────────────────────────────────────────────"
 
@@ -277,5 +306,5 @@ cpu_str="📈 ${cpu_color}Load: ${cpu_load}%${RESET}"
 
 printf "%s  %s  %s\n" "$weather" "$cpu_str" "$disk_str"
 
-# Line 6: John Wick quote
-printf "🔫 \"%s\"\n" "$wick_quote"
+# Line 6: quote
+printf "%s\n" "$display_quote"
