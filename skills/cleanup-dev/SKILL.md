@@ -110,6 +110,14 @@ Never recommend deleting system or app-data paths (`~/Library/Application Suppor
 
 Report what was cleaned and roughly how much space was freed (subtract pre-report total from a fresh report of the same buckets if you want an exact number — otherwise just list the cleaned buckets).
 
+Then record the run timestamp so `/preflight` knows this was done:
+
+```bash
+~/.claude/hooks/cleanup-dev-mark-run.sh
+```
+
+Run this even if only a subset of buckets was cleaned — partial cleanup still counts.
+
 ## Buckets
 
 **Auto-reported (per-bucket approval):**

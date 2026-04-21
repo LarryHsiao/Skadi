@@ -47,6 +47,10 @@
       "Bash(~/.claude/hooks/cleanup-dev-project-scan.sh:*)",
       "Bash(~/.claude/hooks/cleanup-dev-execute.sh:*)",
       "Bash(~/.claude/hooks/cleanup-dev-analyze.sh:*)",
+      "Bash(~/.claude/hooks/prs-check.sh:*)",
+      "Bash(~/.claude/hooks/mrs-check.sh:*)",
+      "Bash(~/.claude/hooks/preflight-check.sh:*)",
+      "Bash(~/.claude/hooks/cleanup-dev-mark-run.sh:*)",
       "Bash(xcrun:*)"
     ]
   },
