@@ -1,12 +1,16 @@
 ---
 name: cleanup-dev
-description: Free disk space by clearing dev caches and build artifacts. Reports sizes per bucket, asks per-bucket confirmation, then deletes only what the user approves. For fvm SDKs and per-project artifacts, user picks interactively. Use /cleanup-dev.
+description: Free disk space by clearing dev caches and build artifacts. Reports sizes per bucket, asks per-bucket confirmation, then deletes only what the user approves. For fvm SDKs and per-project artifacts, user picks interactively. Use /cleanup-dev [--no-analyze].
 user_invocable: true
 ---
 
 # Cleanup Dev Caches
 
 Frees disk space by clearing common dev caches and build artifacts. Nothing is deleted without per-bucket approval.
+
+## Arguments
+
+- `--no-analyze` (alias: `--skip-analyze`, `fast`) — skip step 6 (interactive filesystem analyzer). Run only the known buckets, fvm versions, and per-project artifact scan.
 
 ## Workflow
 
@@ -76,6 +80,8 @@ Output is `size|path`, already sorted by size desc. Present the top entries. Use
 The execute script refuses any path whose basename isn't one of the allowed artifact names — safety net.
 
 ### 6. Analyze filesystem (interactive, read-only)
+
+**Skip this entire step if the user passed `--no-analyze` / `--skip-analyze` / `fast`.**
 
 Ask whether to analyze arbitrary paths for other space hogs outside the known buckets. If approved:
 
