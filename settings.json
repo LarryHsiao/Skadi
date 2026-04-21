@@ -42,7 +42,11 @@
       "Bash(kubectl:*)",
       "Bash(brew:*)",
       "Bash(stat:*)",
-      "Bash(~/.claude/hooks/jira-daily.sh:*)"
+      "Bash(~/.claude/hooks/jira-daily.sh:*)",
+      "Bash(~/.claude/hooks/cleanup-dev-report.sh:*)",
+      "Bash(~/.claude/hooks/cleanup-dev-project-scan.sh:*)",
+      "Bash(~/.claude/hooks/cleanup-dev-execute.sh:*)",
+      "Bash(xcrun:*)"
     ]
   },
   "model": "opus",
