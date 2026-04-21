@@ -142,10 +142,10 @@ For each fetched issue in the current result set:
     - `subject`: `KEY — SUMMARY` (truncate summary to ~55 chars)
     - `description`: Jira ticket URL `JIRA_BASE_URL/browse/KEY`
     - `metadata`: `{ "jira_key": "KEY" }`
-    - Creation status is always `pending`; set `activeForm` for the `in_progress` case
+    - Status: `pending` for `todo`, `in_progress` for `in_progress` or `in_review` (set `activeForm` too). `in_review` is not fresh work — it's active work awaiting review, so treat it as in-progress.
   - Existing task → **TaskUpdate** to align status:
-    - Jira `in_progress` → task `in_progress` (if not already)
-    - Jira `todo` or `in_review` → task `pending` (if it was `in_progress`, leave as `in_progress` — don't demote work already started)
+    - Jira `in_progress` or `in_review` → task `in_progress` (if not already)
+    - Jira `todo` → task `pending` (if it was `in_progress`, leave as `in_progress` — don't demote work already started)
 
 - If its mapped category is `done`:
   - Existing task with this `jira_key` → **TaskUpdate** `status=completed`.
