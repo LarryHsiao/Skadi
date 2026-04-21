@@ -75,7 +75,32 @@ Output is `size|path`, already sorted by size desc. Present the top entries. Use
 
 The execute script refuses any path whose basename isn't one of the allowed artifact names — safety net.
 
-### 6. Summary
+### 6. Analyze filesystem (interactive, read-only)
+
+Ask whether to analyze arbitrary paths for other space hogs outside the known buckets. If approved:
+
+1. Ask the user which path to start from (default `$HOME`).
+2. Run:
+
+   ```bash
+   ~/.claude/hooks/cleanup-dev-analyze.sh <path> 20
+   ```
+
+   Output is `size|path`, sorted by size desc. Present as a table.
+
+3. Use AskUserQuestion (multi-select) with one option per returned path plus **Drill in** / **Stop**. Options:
+   - **Drill in** — pick one path to re-analyze at the next level.
+   - **Stop** — finish analysis.
+
+4. If the user picks a path to drill into, re-run the script with that path. Repeat until the user stops or reaches a leaf directory.
+
+5. For any paths the user wants removed:
+   - If the path's basename matches an auto-bucket or `node_modules|.dart_tool|build|target|.next`, route through `cleanup-dev-execute.sh`.
+   - Otherwise, surface the path with a clear warning and ask explicit confirmation before deletion. This script never deletes arbitrary paths on its own.
+
+Never recommend deleting system or app-data paths (`~/Library/Application Support`, `~/Library/Containers`, etc.) — these hold user data, not caches.
+
+### 7. Summary
 
 Report what was cleaned and roughly how much space was freed (subtract pre-report total from a fresh report of the same buckets if you want an exact number — otherwise just list the cleaned buckets).
 

@@ -46,6 +46,7 @@
       "Bash(~/.claude/hooks/cleanup-dev-report.sh:*)",
       "Bash(~/.claude/hooks/cleanup-dev-project-scan.sh:*)",
       "Bash(~/.claude/hooks/cleanup-dev-execute.sh:*)",
+      "Bash(~/.claude/hooks/cleanup-dev-analyze.sh:*)",
       "Bash(xcrun:*)"
     ]
   },
