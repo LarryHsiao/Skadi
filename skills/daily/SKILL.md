@@ -137,7 +137,7 @@ Call **TaskList**. A Jira-backed task is any task whose `metadata.jira_key` is s
 
 For each fetched issue in the current result set:
 
-- If its mapped category is `todo` or `in_progress`:
+- If its mapped category is `todo`, `in_progress`, or `in_review`:
   - No existing task with this `jira_key` → **TaskCreate**:
     - `subject`: `KEY — SUMMARY` (truncate summary to ~55 chars)
     - `description`: Jira ticket URL `JIRA_BASE_URL/browse/KEY`
@@ -145,9 +145,9 @@ For each fetched issue in the current result set:
     - Creation status is always `pending`; set `activeForm` for the `in_progress` case
   - Existing task → **TaskUpdate** to align status:
     - Jira `in_progress` → task `in_progress` (if not already)
-    - Jira `todo` → task `pending` (if it was `in_progress`, leave as `in_progress` — don't demote work already started)
+    - Jira `todo` or `in_review` → task `pending` (if it was `in_progress`, leave as `in_progress` — don't demote work already started)
 
-- If its mapped category is `done` or `in_review`:
+- If its mapped category is `done`:
   - Existing task with this `jira_key` → **TaskUpdate** `status=completed`.
 
 For any existing Jira-backed task whose `jira_key` is **not** in the current fetch (e.g. reassigned, closed, filtered out):
