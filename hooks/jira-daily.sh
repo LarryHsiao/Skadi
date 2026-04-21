@@ -3,6 +3,16 @@
 # Fetches Jira issues and prints ISSUE|status|bar|key|summary lines
 
 JQL="$1"
+
+# Prefer memory over env — env can be polluted by unrelated JIRA_BASE_URL/JIRA_EMAIL
+CONFIG_FILE="$HOME/.claude-personal/projects/$(pwd | sed 's|/|-|g')/memory/jira_config.md"
+if [[ -f "$CONFIG_FILE" ]]; then
+  mem_url=$(awk -F'`' '/JIRA_BASE_URL/{print $4; exit}' "$CONFIG_FILE")
+  mem_email=$(awk -F'`' '/JIRA_EMAIL/{print $4; exit}' "$CONFIG_FILE")
+  [[ -n "$mem_url" ]]   && JIRA_BASE_URL="$mem_url"
+  [[ -n "$mem_email" ]] && JIRA_EMAIL="$mem_email"
+fi
+
 JIRA_BASE_URL="${JIRA_BASE_URL:-https://jubo.atlassian.net}"
 JIRA_EMAIL="${JIRA_EMAIL:-larryhsiao@jubo.health}"
 
