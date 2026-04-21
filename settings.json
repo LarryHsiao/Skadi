@@ -51,6 +51,7 @@
       "Bash(~/.claude/hooks/mrs-check.sh:*)",
       "Bash(~/.claude/hooks/preflight-check.sh:*)",
       "Bash(~/.claude/hooks/cleanup-dev-mark-run.sh:*)",
+      "Bash(~/.claude/hooks/publish-macos-target.sh:*)",
       "Bash(xcrun:*)"
     ]
   },

@@ -1,26 +1,27 @@
 ---
 name: publish-macos
-description: Bump version, commit, push, build a native macOS Xcode project, export a signed .app, package as DMG (via create-dmg) or notarized .app, then tag the commit. Use /publish-macos [scheme] [--no-bump]. Auto-detects scheme if omitted.
+description: Bump version, commit, push, build a native macOS Xcode project, export a signed artifact, then publish to either GitHub Releases or the Mac App Store (remembered per project). Use /publish-macos [scheme] [--no-bump] [--github|--app-store|--target=<github|app-store>]. Auto-detects scheme if omitted.
 user_invocable: true
-args: "[scheme] [--no-bump]"
+args: "[scheme] [--no-bump] [--github|--app-store|--target=<github|app-store>]"
 ---
 
-# Build Native macOS Release
+# Build & Publish Native macOS Release
 
-Bumps the version, commits, pushes, then builds a native macOS Xcode project, exports a signed `.app`, and packages it as a DMG or notarized `.app` into `build/publish/`. Tags the commit with the new version on success.
+Bumps the version, commits, pushes, builds a native macOS Xcode project, exports a signed artifact, and publishes it to the configured target (GitHub Releases or Mac App Store). Tags the commit on success.
+
+The publish target is remembered per-project in `./.claude/publish-macos-target`. First run asks. Later runs run silently unless the user overrides with `--github`, `--app-store`, or `--target=<…>`.
 
 ## Arguments
 
-`/publish-macos [scheme] [--no-bump]`
+`/publish-macos [scheme] [--no-bump] [--github|--app-store|--target=<github|app-store>]`
 
-- `scheme`: Xcode scheme to build. If omitted, auto-detected from the project.
-- `--no-bump`: Skip version bump, commit, push, and tagging. Build only.
+- `scheme`: Xcode scheme to build. Auto-detected if omitted.
+- `--no-bump`: Skip version bump, commit, push, and tagging. Build and publish only.
+- `--github` / `--app-store` / `--target=<github|app-store>`: Publish target override. Persists to the per-project target file. If none is given and no file exists, the skill asks once.
 
 ## Workflow
 
 ### 1. Verify Xcode project
-
-Check for `.xcworkspace` first, then `.xcodeproj`:
 
 ```bash
 ls *.xcworkspace 2>/dev/null || ls *.xcodeproj 2>/dev/null
@@ -32,28 +33,56 @@ If neither found, stop:
 
 ### 2. Detect scheme
 
-If no scheme argument provided, list available schemes:
+If no scheme argument, list schemes:
 
 ```bash
 xcodebuild -list 2>/dev/null
 ```
 
-Pick the first scheme that is not a test scheme (does not end in `Tests` or `UITests`).
-If multiple non-test schemes exist, use AskUserQuestion to let the user pick.
+Pick the first non-test scheme (does not end in `Tests` or `UITests`). If multiple, use AskUserQuestion.
 
-### 3. Bump version (skip if `--no-bump`)
+### 3. Resolve publish target
 
-Read the current marketing version:
+Priority:
+
+1. **CLI arg** — `--github`, `--app-store`, or `--target=<value>`. Persist it:
+   ```bash
+   ~/.claude/hooks/publish-macos-target.sh set <github|app-store>
+   ```
+2. **Stored file** — otherwise read:
+   ```bash
+   ~/.claude/hooks/publish-macos-target.sh get
+   ```
+   If non-empty, use it silently. Do **not** mention the target until step 12 unless the user asks.
+3. **First run** — if no arg and no stored value, use AskUserQuestion:
+
+   ```
+   question: "Where should this project publish to?"
+   options:
+     - label: "GitHub Releases"
+       description: "Upload DMG / notarized .app to a new GitHub release"
+     - label: "Mac App Store"
+       description: "Upload .pkg to App Store Connect via altool"
+   ```
+
+   Save the choice:
+   ```bash
+   ~/.claude/hooks/publish-macos-target.sh set <github|app-store>
+   ```
+
+Hold the resolved target as `TARGET` for later steps.
+
+### 4. Bump version (skip if `--no-bump`)
 
 ```bash
 agvtool what-marketing-version -terse1 | tail -n 1 | tr -d ' '
 ```
 
-If `agvtool` reports that versioning isn't configured, stop:
+If `agvtool` reports versioning isn't configured, stop:
 
-> `agvtool` is not configured for this project. Enable Apple Generic Versioning in build settings, or re-run with `--no-bump`.
+> `agvtool` is not configured for this project. Enable Apple Generic Versioning, or re-run with `--no-bump`.
 
-Ask via AskUserQuestion which part to bump:
+Ask which part to bump:
 
 ```
 question: "Current version: CURRENT. Which part to bump?"
@@ -63,14 +92,14 @@ options:
   - label: "Major"    description: "X.Y.Z → (X+1).0.0"
 ```
 
-Compute `NEW_VERSION` from the choice. Apply it:
+Apply:
 
 ```bash
 agvtool new-marketing-version NEW_VERSION
 agvtool next-version -all
 ```
 
-Confirm via AskUserQuestion:
+Confirm:
 
 ```
 question: "Bumped to NEW_VERSION. Commit and push?"
@@ -79,9 +108,7 @@ options:
   - label: "Stop"             description: "Leave the working tree dirty and exit"
 ```
 
-Stop if rejected.
-
-If accepted:
+Stop if rejected. Otherwise:
 
 ```bash
 rtk git add -A
@@ -89,34 +116,33 @@ rtk git commit -m "chore: bump version to NEW_VERSION"
 rtk git push
 ```
 
-Remember `NEW_VERSION` for step 11.
+Remember `NEW_VERSION` for steps 11 and 12.
 
-### 4. Confirm before building
-
-Use AskUserQuestion:
+### 5. Confirm before building
 
 ```
 question: "Build release archive for scheme: SCHEME?"
 options:
   - label: "Build"
-    description: "xcodebuild archive → export → package"
+    description: "xcodebuild archive → export → publish"
 ```
 
 Stop if rejected.
 
-### 5. Prepare output directory
+### 6. Prepare output directory
 
 ```bash
 rm -rf build/publish
 mkdir -p build/publish
 ```
 
-### 6. Archive
+### 7. Archive
 
-Use `-workspace` if a `.xcworkspace` exists, otherwise `-project`:
+Use `-workspace` if a `.xcworkspace` exists, else `-project`.
+
+**If `TARGET == github`** (ad-hoc sign is fine for DMG / notarization):
 
 ```bash
-# with workspace:
 xcodebuild archive \
   -workspace *.xcworkspace \
   -scheme SCHEME \
@@ -125,23 +151,26 @@ xcodebuild archive \
   CODE_SIGN_IDENTITY="-" \
   CODE_SIGNING_REQUIRED=NO \
   | xcpretty || cat
+```
 
-# with project only:
+**If `TARGET == app-store`** (let the project's own signing config handle it — Apple Distribution + provisioning profile are required):
+
+```bash
 xcodebuild archive \
-  -project *.xcodeproj \
+  -workspace *.xcworkspace \
   -scheme SCHEME \
   -configuration Release \
   -archivePath build/publish/SCHEME.xcarchive \
-  CODE_SIGN_IDENTITY="-" \
-  CODE_SIGNING_REQUIRED=NO \
   | xcpretty || cat
 ```
 
-Stop on failure and show the last 30 lines of output.
+Swap `-workspace *.xcworkspace` for `-project *.xcodeproj` if only the project exists.
 
-### 7. Export .app
+Stop on failure and show the last 30 lines.
 
-Create a minimal `ExportOptions.plist`:
+### 8. Export
+
+**If `TARGET == github`:**
 
 ```bash
 cat > /tmp/ExportOptions.plist << 'EOF'
@@ -154,52 +183,48 @@ cat > /tmp/ExportOptions.plist << 'EOF'
 </dict>
 </plist>
 EOF
-```
 
-```bash
 xcodebuild -exportArchive \
   -archivePath build/publish/SCHEME.xcarchive \
   -exportPath build/publish/export \
   -exportOptionsPlist /tmp/ExportOptions.plist
 ```
 
+Then go to step 9.
+
+**If `TARGET == app-store`:**
+
+```bash
+cat > /tmp/ExportOptions.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>app-store</string>
+</dict>
+</plist>
+EOF
+
+xcodebuild -exportArchive \
+  -archivePath build/publish/SCHEME.xcarchive \
+  -exportPath build/publish/export \
+  -exportOptionsPlist /tmp/ExportOptions.plist
+```
+
+The export dir will contain `SCHEME.pkg`. Skip to step 10.
+
 Stop on failure.
 
-### 8. Check for create-dmg
+### 9. Package for GitHub (only when `TARGET == github`)
+
+Check for `create-dmg`:
 
 ```bash
 which create-dmg
 ```
 
-**If found:** proceed to step 9 (DMG packaging).
-
-**If not found:** inform the user:
-
-> `create-dmg` not found. Install it with:
->
-> ```
-> brew install create-dmg
-> ```
->
-> Then re-run `/publish-macos` to get a DMG.
->
-> Alternatively, the exported `.app` at `build/publish/export/SCHEME.app` is ready for notarization.
-
-Then use AskUserQuestion:
-
-```
-question: "create-dmg not installed. How do you want to proceed?"
-options:
-  - label: "Notarize .app"
-    description: "Submit the exported .app to Apple notarization and staple"
-  - label: "Stop here"
-    description: "Keep the exported .app and exit"
-```
-
-If "Stop here": report location of `.app` and exit (no tag).
-If "Notarize .app": skip step 9 and go to step 10.
-
-### 9. Package as DMG
+**If found:**
 
 ```bash
 create-dmg \
@@ -212,86 +237,137 @@ create-dmg \
   "build/publish/export/"
 ```
 
-Stop on failure. Then go to step 11.
+Set `ARTIFACT=build/publish/SCHEME.dmg`. Go to step 10.
 
-### 10. Notarize .app (fallback path)
+**If not found:** ask:
 
-Resolve credentials in this order for each of `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`:
+```
+question: "create-dmg not installed. How do you want to proceed?"
+options:
+  - label: "Notarize .app"
+    description: "Notarize & staple the .app, zip it, attach to the release"
+  - label: "Stop here"
+    description: "Keep the exported .app and exit (no publish, no tag)"
+```
 
-1. **Bitwarden (`bw`)** — if `bw` is installed and the vault is unlocked, search for an item named `Apple Notarization`:
-   ```bash
-   bw get item "Apple Notarization"
-   ```
-   Extract `APPLE_ID` from `login.username`, `APPLE_APP_PASSWORD` from `login.password`, and `APPLE_TEAM_ID` from the custom field named `team_id`.
+If "Stop here": report location and exit.
 
-2. **Memory** — check saved memory for stored Apple notarization credentials.
-
-3. **Env vars** — fall back to `$APPLE_ID`, `$APPLE_TEAM_ID`, `$APPLE_APP_PASSWORD`.
-
-If `bw` is installed but the vault is locked (`bw status` returns `locked`), inform the user:
-
-> Bitwarden vault is locked. Run `bw unlock` and set `BW_SESSION`, or provide credentials another way.
-
-If any value is missing after all three checks, stop:
-
-> Notarization requires APPLE_ID, APPLE_TEAM_ID, and APPLE_APP_PASSWORD.
-> Provide them via Bitwarden, memory, or env vars.
-
-Zip the `.app`:
+If "Notarize .app": resolve Apple credentials (step 10 resolution). Then:
 
 ```bash
 ditto -c -k --keepParent \
   "build/publish/export/SCHEME.app" \
   "build/publish/SCHEME.zip"
-```
 
-Submit for notarization:
-
-```bash
 xcrun notarytool submit "build/publish/SCHEME.zip" \
   --apple-id "$APPLE_ID" \
   --team-id "$APPLE_TEAM_ID" \
   --password "$APPLE_APP_PASSWORD" \
   --wait
+
+xcrun stapler staple "build/publish/export/SCHEME.app"
+
+rm -f "build/publish/SCHEME.zip"
+ditto -c -k --keepParent \
+  "build/publish/export/SCHEME.app" \
+  "build/publish/SCHEME.zip"
 ```
 
-Staple:
+Set `ARTIFACT=build/publish/SCHEME.zip`.
+
+### 10. Publish
+
+#### Apple credentials resolution (used by both paths when needed)
+
+Resolve `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` in this order:
+
+1. **Bitwarden** — if `bw` is installed and unlocked:
+   ```bash
+   bw get item "Apple Notarization"
+   ```
+   `login.username` → `APPLE_ID`, `login.password` → `APPLE_APP_PASSWORD`, custom field `team_id` → `APPLE_TEAM_ID`.
+
+2. **Memory** — check saved memory.
+
+3. **Env vars** — `$APPLE_ID`, `$APPLE_TEAM_ID`, `$APPLE_APP_PASSWORD`.
+
+If `bw` is installed but locked (`bw status` returns `locked`):
+
+> Bitwarden vault is locked. Run `bw unlock` and set `BW_SESSION`, or provide credentials another way.
+
+If any value is still missing:
+
+> Publishing requires APPLE_ID, APPLE_TEAM_ID, and APPLE_APP_PASSWORD. Provide via Bitwarden, memory, or env vars.
+
+#### If `TARGET == github`
+
+Require `gh` authenticated (`gh auth status`). If not, stop with instructions.
 
 ```bash
-xcrun stapler staple "build/publish/export/SCHEME.app"
+rtk gh release create "vNEW_VERSION" \
+  "ARTIFACT" \
+  --title "vNEW_VERSION" \
+  --generate-notes
 ```
+
+If `--no-bump` is in effect, ask the user for a release name (or default to the most recent tag incremented).
+
+#### If `TARGET == app-store`
+
+Upload the `.pkg`:
+
+```bash
+xcrun altool --upload-app \
+  --type macos \
+  --file "build/publish/export/SCHEME.pkg" \
+  --username "$APPLE_ID" \
+  --password "$APPLE_APP_PASSWORD"
+```
+
+Stop on failure. On success, the build is in App Store Connect awaiting processing — submission/review is manual from there.
 
 ### 11. Tag the commit (skip if `--no-bump`)
 
-Only when step 3 ran and the DMG (or notarized `.app`) was produced:
+Only after publishing succeeds:
 
 ```bash
 rtk git tag "vNEW_VERSION"
 rtk git push origin "vNEW_VERSION"
 ```
 
-If tagging fails (e.g. tag already exists), report the error — do not delete the DMG.
+If tagging fails (e.g. tag exists), report but don't roll back the published artifact.
 
-### 12. Report results
+Note: for `TARGET == github`, `gh release create` already creates the tag remotely. Check before re-tagging:
+
+```bash
+rtk git fetch --tags
+rtk git tag -l "vNEW_VERSION"
+```
+
+If the tag already exists locally/remotely from the release, skip this step.
+
+### 12. Report
 
 ```
 Build complete:
   version  →  NEW_VERSION                         ← if bumped
   archive  →  build/publish/SCHEME.xcarchive
-  app      →  build/publish/export/SCHEME.app
-  dmg      →  build/publish/SCHEME.dmg            ← if DMG path taken
-  zip      →  build/publish/SCHEME.zip            ← if notarization path taken
-  tag      →  vNEW_VERSION pushed to origin       ← if bumped
+  artifact →  build/publish/SCHEME.dmg | .zip | .pkg
+  target   →  github | app-store
+  publish  →  https://github.com/.../releases/tag/vNEW_VERSION   ← github
+           →  App Store Connect (awaiting processing)             ← app-store
+  tag      →  vNEW_VERSION pushed                                 ← if bumped
 
 All artifacts in build/publish/
 ```
 
 ## Rules
 
-- Prefer `.xcworkspace` over `.xcodeproj` when both exist
-- Always use `xcpretty` for archive output if available (`which xcpretty`), fallback to raw output
-- Stop on first failure; show last 30 lines of build log
-- Version bump runs before the build; tag runs only after the DMG (or notarized `.app`) is produced
-- When `--no-bump` is passed, skip version bump, commit, push, and tag — build only
-- Never modify other project files beyond what `agvtool` touches
-- Notarization only runs when the user explicitly chooses it or when called with no DMG tool available
+- Prefer `.xcworkspace` over `.xcodeproj` when both exist.
+- Use `xcpretty` for archive output if available.
+- Stop on first failure; show last 30 lines of build log.
+- Version bump → build → publish → tag. Never tag before publish succeeds.
+- `--no-bump` skips bump/commit/push and tagging. Build and publish still run.
+- App Store path requires proper signing config in the Xcode project (Apple Distribution cert, provisioning profile). The skill does not override signing for this path.
+- Target is persisted per-project in `./.claude/publish-macos-target`. Arg flags override and update the stored value. Silent otherwise.
+- Never modify other project files beyond what `agvtool` touches.
