@@ -167,13 +167,24 @@ Stop on failure. Then go to step 10.
 
 Resolve credentials in this order for each of `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`:
 
-1. **Memory** — check saved memory for stored Apple notarization credentials
-2. **Env vars** — fall back to `$APPLE_ID`, `$APPLE_TEAM_ID`, `$APPLE_APP_PASSWORD`
+1. **Bitwarden (`bw`)** — if `bw` is installed and the vault is unlocked, search for an item named `Apple Notarization`:
+   ```bash
+   bw get item "Apple Notarization"
+   ```
+   Extract `APPLE_ID` from `login.username`, `APPLE_APP_PASSWORD` from `login.password`, and `APPLE_TEAM_ID` from the custom field named `team_id`.
 
-If any value is missing after both checks, stop:
+2. **Memory** — check saved memory for stored Apple notarization credentials.
+
+3. **Env vars** — fall back to `$APPLE_ID`, `$APPLE_TEAM_ID`, `$APPLE_APP_PASSWORD`.
+
+If `bw` is installed but the vault is locked (`bw status` returns `locked`), inform the user:
+
+> Bitwarden vault is locked. Run `bw unlock` and set `BW_SESSION`, or provide credentials another way.
+
+If any value is missing after all three checks, stop:
 
 > Notarization requires APPLE_ID, APPLE_TEAM_ID, and APPLE_APP_PASSWORD.
-> Set them as env vars or ask me to remember them.
+> Provide them via Bitwarden, memory, or env vars.
 
 Zip the `.app`:
 
