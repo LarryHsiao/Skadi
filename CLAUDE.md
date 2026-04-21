@@ -25,6 +25,8 @@ When creating a skill or any automation that requires a bash command (especially
 
 Never embed complex bash (pipelines, variable expansion) directly in skill instructions — it triggers permission prompts every time.
 
+When creating a new skill directory under `skills/`, do **not** manually copy or symlink files into `~/.claude/skills/`. Run `./install.sh` — it copies everything into place.
+
 ## Code Style
 
 - General: @docs/style/general.md
