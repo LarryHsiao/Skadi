@@ -8,15 +8,34 @@
 #   cleanup-dev-execute.sh project-path PATH [PATH...]
 set -uo pipefail
 
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) OS=windows ;;
+  Darwin) OS=mac ;;
+  *) OS=linux ;;
+esac
+
+if [ "$OS" = windows ]; then
+  LOCALAPPDATA_POSIX="$(cygpath -u "${LOCALAPPDATA:-$HOME/AppData/Local}" 2>/dev/null || echo "$HOME/AppData/Local")"
+  APPDATA_POSIX="$(cygpath -u "${APPDATA:-$HOME/AppData/Roaming}" 2>/dev/null || echo "$HOME/AppData/Roaming")"
+fi
+
+rmrf_glob() {
+  # shellcheck disable=SC2086
+  rm -rf $1 2>/dev/null || true
+}
+
 clean_bucket() {
   case "$1" in
     xcode-derived-data)
+      [ "$OS" = mac ] || { echo "skip $1 (macOS only)"; return 0; }
       rm -rf "$HOME/Library/Developer/Xcode/DerivedData"/* 2>/dev/null || true
       ;;
     xcode-archives)
+      [ "$OS" = mac ] || { echo "skip $1 (macOS only)"; return 0; }
       rm -rf "$HOME/Library/Developer/Xcode/Archives"/* 2>/dev/null || true
       ;;
     xcode-sim-unavailable)
+      [ "$OS" = mac ] || { echo "skip $1 (macOS only)"; return 0; }
       xcrun simctl delete unavailable
       ;;
     gradle-caches)
@@ -27,23 +46,37 @@ clean_bucket() {
       ;;
     pub-cache)
       if command -v fvm >/dev/null 2>&1; then
-        fvm dart pub cache clean -f 2>/dev/null || rm -rf "$HOME/.pub-cache"
-      else
-        rm -rf "$HOME/.pub-cache"
+        fvm dart pub cache clean -f 2>/dev/null && { echo "done: $1"; return 0; }
       fi
+      case "$OS" in
+        windows) rm -rf "$LOCALAPPDATA_POSIX/Pub/Cache" 2>/dev/null || true ;;
+        *)       rm -rf "$HOME/.pub-cache" 2>/dev/null || true ;;
+      esac
       ;;
     homebrew-cache)
+      [ "$OS" = mac ] || { echo "skip $1 (macOS only)"; return 0; }
       brew cleanup -s
       rm -rf "$(brew --cache)" 2>/dev/null || true
       ;;
     npm-cache)
-      npm cache clean --force 2>/dev/null || rm -rf "$HOME/.npm/_cacache"
+      npm cache clean --force 2>/dev/null && { echo "done: $1"; return 0; }
+      case "$OS" in
+        windows) rm -rf "$APPDATA_POSIX/npm-cache" 2>/dev/null || true ;;
+        *)       rm -rf "$HOME/.npm/_cacache" 2>/dev/null || true ;;
+      esac
+      ;;
+    npm-cache-home)
+      rm -rf "$HOME/.npm/_cacache" 2>/dev/null || true
       ;;
     pnpm-store)
       pnpm store prune 2>/dev/null || true
       ;;
     yarn-cache)
-      yarn cache clean 2>/dev/null || rm -rf "$HOME/.yarn/cache"
+      yarn cache clean 2>/dev/null && { echo "done: $1"; return 0; }
+      case "$OS" in
+        windows) rm -rf "$LOCALAPPDATA_POSIX/Yarn/Cache" 2>/dev/null || true ;;
+        *)       rm -rf "$HOME/.yarn/cache" 2>/dev/null || true ;;
+      esac
       ;;
     cargo-registry)
       rm -rf "$HOME/.cargo/registry/cache" 2>/dev/null || true
@@ -52,13 +85,25 @@ clean_bucket() {
       rm -rf "$HOME/.cargo/git" 2>/dev/null || true
       ;;
     jetbrains-caches)
-      rm -rf "$HOME/Library/Caches/JetBrains" 2>/dev/null || true
+      case "$OS" in
+        mac)     rm -rf "$HOME/Library/Caches/JetBrains" 2>/dev/null || true ;;
+        windows) rm -rf "$LOCALAPPDATA_POSIX/JetBrains"/*/caches 2>/dev/null || true ;;
+        *)       rm -rf "$HOME/.cache/JetBrains" 2>/dev/null || true ;;
+      esac
       ;;
     jetbrains-logs)
-      rm -rf "$HOME/Library/Logs/JetBrains" 2>/dev/null || true
+      case "$OS" in
+        mac)     rm -rf "$HOME/Library/Logs/JetBrains" 2>/dev/null || true ;;
+        windows) rmrf_glob "$LOCALAPPDATA_POSIX/JetBrains/*/log" ;;
+        *)       : ;;
+      esac
       ;;
     android-studio-caches)
-      rm -rf "$HOME/Library/Caches/Google"/AndroidStudio* 2>/dev/null || true
+      case "$OS" in
+        mac)     rmrf_glob "$HOME/Library/Caches/Google/AndroidStudio*" ;;
+        windows) rmrf_glob "$LOCALAPPDATA_POSIX/Google/AndroidStudio*" ;;
+        *)       : ;;
+      esac
       ;;
     docker-prune)
       docker system prune -af

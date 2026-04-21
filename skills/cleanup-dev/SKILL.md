@@ -120,18 +120,26 @@ Run this even if only a subset of buckets was cleaned — partial cleanup still 
 
 ## Buckets
 
-**Auto-reported (per-bucket approval):**
+The report script detects the OS (`macOS` / `Windows` via Git Bash / `Linux`) and only emits buckets that apply. Bucket **keys** are the same everywhere — only the underlying paths differ.
+
+**macOS-only:**
 - `xcode-derived-data` — `~/Library/Developer/Xcode/DerivedData`
 - `xcode-archives` — `~/Library/Developer/Xcode/Archives`
 - `xcode-sim-unavailable` — `xcrun simctl delete unavailable`
-- `gradle-caches` — `~/.gradle/caches`
-- `gradle-daemon` — `~/.gradle/daemon`
-- `pub-cache` — `~/.pub-cache` (re-downloaded on next `pub get`)
 - `homebrew-cache` — `brew cleanup -s`
-- `npm-cache`, `pnpm-store`, `yarn-cache`
+
+**Cross-platform (different paths per OS):**
+- `jetbrains-caches`, `jetbrains-logs` — `~/Library/...` on macOS, `%LOCALAPPDATA%/JetBrains/...` on Windows
+- `android-studio-caches` — `~/Library/Caches/Google/AndroidStudio*` on macOS, `%LOCALAPPDATA%/Google/AndroidStudio*` on Windows
+- `pub-cache` — `~/.pub-cache` on macOS/Linux, `%LOCALAPPDATA%/Pub/Cache` on Windows
+- `yarn-cache` — `~/.yarn/cache` on macOS/Linux, `%LOCALAPPDATA%/Yarn/Cache` on Windows
+- `npm-cache` — `~/.npm/_cacache` on macOS/Linux, `%APPDATA%/npm-cache` on Windows
+  - `npm-cache-home` — extra Windows bucket when `~/.npm/_cacache` also exists (nvm-windows / Git Bash installs)
+
+**Works anywhere (`$HOME` = `%USERPROFILE%` under Git Bash):**
+- `gradle-caches`, `gradle-daemon`
+- `pnpm-store`
 - `cargo-registry`, `cargo-git`
-- `jetbrains-caches`, `jetbrains-logs`
-- `android-studio-caches`
 - `docker-prune` — `docker system prune -af` + `docker volume prune -f`
 
 **Interactive (user picks individual items):**
@@ -141,5 +149,7 @@ Run this even if only a subset of buckets was cleaned — partial cleanup still 
 ## Safety
 
 - Scripts refuse unknown buckets and refuse arbitrary paths (only recognized artifact dir names).
-- No `sudo`, no system paths, no `~/Library` outside cache/log dirs.
+- No `sudo`, no system paths, no `~/Library` / `%APPDATA%` outside cache/log dirs.
+- Project scan excludes `~/Library` (macOS), `~/AppData`, `~/OneDrive*`, `~/$Recycle.Bin` (Windows), and `~/.Trash`.
+- `analyze` uses `du -x` to skip filesystem boundaries and NTFS junctions.
 - Report scripts are read-only; only `cleanup-dev-execute.sh` deletes.

@@ -19,7 +19,9 @@ fi
 
 target="$(cd "$target" 2>/dev/null && pwd)" || { echo "cannot resolve: $target" >&2; exit 1; }
 
-du -sh "$target"/* "$target"/.[!.]* 2>/dev/null \
+# -x skips other filesystems — also prevents Git Bash from following NTFS
+# junctions like "Application Data" under AppData into loops.
+du -shx "$target"/* "$target"/.[!.]* 2>/dev/null \
   | sort -hr \
   | head -n "$limit" \
   | awk -F'\t' 'NF==2 {print $1"|"$2}'
