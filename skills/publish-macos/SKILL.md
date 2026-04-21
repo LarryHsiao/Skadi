@@ -1,19 +1,20 @@
 ---
 name: publish-macos
-description: Build a native macOS Xcode project, export a signed .app, and package it as a DMG (via create-dmg) or notarized .app. Use /publish-macos [scheme] to build. Auto-detects scheme if omitted.
+description: Bump version, commit, push, build a native macOS Xcode project, export a signed .app, package as DMG (via create-dmg) or notarized .app, then tag the commit. Use /publish-macos [scheme] [--no-bump]. Auto-detects scheme if omitted.
 user_invocable: true
-args: "[scheme]"
+args: "[scheme] [--no-bump]"
 ---
 
 # Build Native macOS Release
 
-Builds a native macOS Xcode project, exports a signed `.app`, then packages it as a DMG or notarized `.app` archive into `build/publish/`.
+Bumps the version, commits, pushes, then builds a native macOS Xcode project, exports a signed `.app`, and packages it as a DMG or notarized `.app` into `build/publish/`. Tags the commit with the new version on success.
 
 ## Arguments
 
-`/publish-macos [scheme]`
+`/publish-macos [scheme] [--no-bump]`
 
 - `scheme`: Xcode scheme to build. If omitted, auto-detected from the project.
+- `--no-bump`: Skip version bump, commit, push, and tagging. Build only.
 
 ## Workflow
 
@@ -40,7 +41,57 @@ xcodebuild -list 2>/dev/null
 Pick the first scheme that is not a test scheme (does not end in `Tests` or `UITests`).
 If multiple non-test schemes exist, use AskUserQuestion to let the user pick.
 
-### 3. Confirm before building
+### 3. Bump version (skip if `--no-bump`)
+
+Read the current marketing version:
+
+```bash
+agvtool what-marketing-version -terse1 | tail -n 1 | tr -d ' '
+```
+
+If `agvtool` reports that versioning isn't configured, stop:
+
+> `agvtool` is not configured for this project. Enable Apple Generic Versioning in build settings, or re-run with `--no-bump`.
+
+Ask via AskUserQuestion which part to bump:
+
+```
+question: "Current version: CURRENT. Which part to bump?"
+options:
+  - label: "Patch"    description: "X.Y.Z → X.Y.(Z+1)"
+  - label: "Minor"    description: "X.Y.Z → X.(Y+1).0"
+  - label: "Major"    description: "X.Y.Z → (X+1).0.0"
+```
+
+Compute `NEW_VERSION` from the choice. Apply it:
+
+```bash
+agvtool new-marketing-version NEW_VERSION
+agvtool next-version -all
+```
+
+Confirm via AskUserQuestion:
+
+```
+question: "Bumped to NEW_VERSION. Commit and push?"
+options:
+  - label: "Commit and push"  description: "rtk git add -A && rtk git commit && rtk git push"
+  - label: "Stop"             description: "Leave the working tree dirty and exit"
+```
+
+Stop if rejected.
+
+If accepted:
+
+```bash
+rtk git add -A
+rtk git commit -m "chore: bump version to NEW_VERSION"
+rtk git push
+```
+
+Remember `NEW_VERSION` for step 11.
+
+### 4. Confirm before building
 
 Use AskUserQuestion:
 
@@ -53,14 +104,14 @@ options:
 
 Stop if rejected.
 
-### 4. Prepare output directory
+### 5. Prepare output directory
 
 ```bash
 rm -rf build/publish
 mkdir -p build/publish
 ```
 
-### 5. Archive
+### 6. Archive
 
 Use `-workspace` if a `.xcworkspace` exists, otherwise `-project`:
 
@@ -88,7 +139,7 @@ xcodebuild archive \
 
 Stop on failure and show the last 30 lines of output.
 
-### 6. Export .app
+### 7. Export .app
 
 Create a minimal `ExportOptions.plist`:
 
@@ -114,13 +165,13 @@ xcodebuild -exportArchive \
 
 Stop on failure.
 
-### 7. Check for create-dmg
+### 8. Check for create-dmg
 
 ```bash
 which create-dmg
 ```
 
-**If found:** proceed to step 8 (DMG packaging).
+**If found:** proceed to step 9 (DMG packaging).
 
 **If not found:** inform the user:
 
@@ -145,10 +196,10 @@ options:
     description: "Keep the exported .app and exit"
 ```
 
-If "Stop here": report location of `.app` and exit.
-If "Notarize .app": skip to step 9.
+If "Stop here": report location of `.app` and exit (no tag).
+If "Notarize .app": skip step 9 and go to step 10.
 
-### 8. Package as DMG
+### 9. Package as DMG
 
 ```bash
 create-dmg \
@@ -161,9 +212,9 @@ create-dmg \
   "build/publish/export/"
 ```
 
-Stop on failure. Then go to step 10.
+Stop on failure. Then go to step 11.
 
-### 9. Notarize .app (fallback path)
+### 10. Notarize .app (fallback path)
 
 Resolve credentials in this order for each of `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`:
 
@@ -210,14 +261,27 @@ Staple:
 xcrun stapler staple "build/publish/export/SCHEME.app"
 ```
 
-### 10. Report results
+### 11. Tag the commit (skip if `--no-bump`)
+
+Only when step 3 ran and the DMG (or notarized `.app`) was produced:
+
+```bash
+rtk git tag "vNEW_VERSION"
+rtk git push origin "vNEW_VERSION"
+```
+
+If tagging fails (e.g. tag already exists), report the error — do not delete the DMG.
+
+### 12. Report results
 
 ```
 Build complete:
+  version  →  NEW_VERSION                         ← if bumped
   archive  →  build/publish/SCHEME.xcarchive
   app      →  build/publish/export/SCHEME.app
-  dmg      →  build/publish/SCHEME.dmg        ← if DMG path taken
-  zip      →  build/publish/SCHEME.zip        ← if notarization path taken
+  dmg      →  build/publish/SCHEME.dmg            ← if DMG path taken
+  zip      →  build/publish/SCHEME.zip            ← if notarization path taken
+  tag      →  vNEW_VERSION pushed to origin       ← if bumped
 
 All artifacts in build/publish/
 ```
@@ -227,5 +291,7 @@ All artifacts in build/publish/
 - Prefer `.xcworkspace` over `.xcodeproj` when both exist
 - Always use `xcpretty` for archive output if available (`which xcpretty`), fallback to raw output
 - Stop on first failure; show last 30 lines of build log
-- Never bump version, modify project files, or push anything
+- Version bump runs before the build; tag runs only after the DMG (or notarized `.app`) is produced
+- When `--no-bump` is passed, skip version bump, commit, push, and tag — build only
+- Never modify other project files beyond what `agvtool` touches
 - Notarization only runs when the user explicitly chooses it or when called with no DMG tool available
