@@ -150,6 +150,19 @@ curl -s -X POST \
 
 Confirm success silently (no output to user unless it fails).
 
+**d. Sync the todo list:**
+
+Call **TaskList** and look for a task whose `metadata.jira_key == JIRA-NUMBER`.
+
+- Found → **TaskUpdate** `status=in_progress`.
+- Not found → **TaskCreate** with:
+  - `subject`: `JIRA-NUMBER — SUMMARY` (truncate to ~55 chars)
+  - `description`: `JIRA_BASE_URL/browse/JIRA-NUMBER`
+  - `metadata`: `{ "jira_key": "JIRA-NUMBER" }`
+  - Then **TaskUpdate** it to `in_progress`.
+
+Silent on success.
+
 ### 5. Ask for type (if not provided)
 
 Use AskUserQuestion:
