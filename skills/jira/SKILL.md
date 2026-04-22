@@ -156,11 +156,12 @@ Then ask via AskUserQuestion: "Start working on PROJECT-123 now?" (yes → chain
 
 Shows a sprint board overview grouped by status, sorted by priority. Acts as a secretary: tells you what the team is doing and what you should focus on next.
 
-Arguments after `status`: `/jira status [filter]`
+Arguments after `status`: `/jira status [filter] [--all]`
 
 - No argument: show all issues in the current sprint
 - `me`: show only issues assigned to the current user
 - Any other string: filter by that person's display name
+- `--all`: bypass the 50-issue cap and fetch everything (paginate if needed)
 
 ### 1. Load Jira config from memory
 
@@ -181,6 +182,8 @@ Same as `create` verb: git history → `jira_project.md` memory → ask user.
 - No argument → no filter (show all)
 - `me` → use `JIRA_EMAIL` from memory as the assignee value
 - Any other string → use as the assignee display name in JQL
+
+If `--all` is present anywhere in the args, set `FETCH_ALL=true` and strip it before treating the remainder as the filter.
 
 ### 4. Fetch active sprint
 
@@ -221,6 +224,8 @@ Build JQL based on sprint and assignee filter:
   - `me` → `AND assignee="JIRA_EMAIL"`
   - other → `AND assignee="FILTER_STRING"`
 - Always append: `ORDER BY status ASC, priority ASC`
+
+When `FETCH_ALL=false` (default), pass `maxResults=50`. When `FETCH_ALL=true`, page through results using `nextPageToken` (Jira's `/search/jql` endpoint) until exhausted, accumulating issues before rendering. Use a per-page `maxResults=100` to cut round trips.
 
 ```bash
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
@@ -328,4 +333,4 @@ After the tree, add a separator and recommendation:
 - The focus recommendation always refers to the current user, regardless of the assignee filter
 - When no board/sprint exists, fall back gracefully to open issues query
 - Truncate issue summaries at 50 chars in tree display
-- If the API returns > 50 issues, add a footer: "Showing first 50. Use an assignee filter to narrow results."
+- When `FETCH_ALL=false` and the page is full (50 issues returned), add a footer: "Showing first 50. Re-run with `--all` to fetch everything, or use an assignee filter to narrow." When `FETCH_ALL=true`, omit the cap footer and instead show the total count fetched.
