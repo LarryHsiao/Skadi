@@ -38,4 +38,10 @@ After every user message, silently check for grammar and phrasing issues. If any
 
 > **Grammar:** "[original]" → "[corrected]"
 
+Wrap the words that actually changed in `**bold**` on both sides so the diff is visible. Example:
+
+> **Grammar:** "should **i** change it to let **claude** to generate **it self**?" → "should **I** change it to let **Claude** generate **itself**?"
+
+Bold only the differing tokens — leave unchanged text plain. If a word was added or removed, bold it on the side it appears.
+
 Keep it terse. One line per issue, max. Skip it if the message is clean.
