@@ -108,7 +108,16 @@ options:
   - label: "Stop"             description: "Leave the working tree dirty and exit"
 ```
 
-Stop if rejected. Otherwise:
+Stop if rejected.
+
+**Stamp the changelog** (best-effort — skip silently if no `CHANGELOG.md` at repo root):
+
+- Find the heading line for `NEW_VERSION` (matches `## [NEW_VERSION]` or `## NEW_VERSION`, with or without surrounding brackets).
+- If that line contains an in-progress marker (case-insensitive: `in-progress`, `in progress`, `unreleased`, `wip`, `tbd`), replace the marker with today's date in `YYYY-MM-DD` format. Preserve the surrounding separator (`—`, `-`, `(`, etc.).
+- If no matching heading exists, or the heading has no in-progress marker, leave the file alone.
+- If multiple headings match the version, only stamp the first and report the others.
+
+Then commit everything together:
 
 ```bash
 rtk git add -A
