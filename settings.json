@@ -2,6 +2,7 @@
   "permissions": {
     "allow": [
       "Bash(fvm flutter:*)",
+      "Bash(flutter analyze:*)",
       "Bash(fvm dart:*)",
       "Bash(fvm:*)",
       "Bash(git:*)",

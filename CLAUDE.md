@@ -4,11 +4,15 @@ This repository tracks my personal Claude Code setup: global instructions, setti
 
 ## About This Repo
 
-- `CLAUDE.md` — this file, symlinked to `~/.claude/CLAUDE.md`
-- `settings.json` — global Claude settings, symlinked to `~/.claude/settings.json`
-- `skills/` — custom skills, each file symlinked into `~/.claude/skills/`
-- `hooks/` — hook scripts referenced from settings
-- `install.sh` — sets up all symlinks (idempotent, safe to re-run)
+- `CLAUDE.md` — this file, copied to `~/.claude/CLAUDE.md`
+- `settings.json` — global Claude settings, copied to `~/.claude/settings.json`
+- `skills/` — custom skills, copied into `~/.claude/skills/`
+- `hooks/` — hook scripts copied into `~/.claude/hooks/`
+- `install.sh` — copies everything into `~/.claude/` (idempotent, safe to re-run)
+
+**This repo is the source of truth for the live Claude config.** Files under `~/.claude/` are copies, not symlinks — edits there will be overwritten on the next install run. Any change to the live config must be made in this repo first, then propagated by invoking the `/install` skill. Never edit `~/.claude/` directly.
+
+**Rule: always propagate with `/install`, never `./install.sh` directly.** The `/install` skill iterates over every configured root (e.g. `~/.claude`, `~/.claude-personal`, `~/.claude-work`). Running `./install.sh` with no argument only syncs the default root and leaves the others stale. Only call `./install.sh <path>` directly if the user explicitly names a single target.
 
 ## Tone
 
@@ -25,7 +29,7 @@ When creating a skill or any automation that requires a bash command (especially
 
 Never embed complex bash (pipelines, variable expansion) directly in skill instructions — it triggers permission prompts every time.
 
-When creating a new skill directory under `skills/`, do **not** manually copy or symlink files into `~/.claude/skills/`. Run `./install.sh` — it copies everything into place.
+When creating a new skill directory under `skills/`, do **not** manually copy or symlink files into `~/.claude/skills/`. Invoke the `/install` skill — it copies everything into every configured root.
 
 ## Code Style
 
