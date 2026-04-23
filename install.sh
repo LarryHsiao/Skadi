@@ -42,7 +42,13 @@ for skill in "$REPO/skills/"*; do
   if [ -d "$skill" ]; then
     skill_name="$(basename "$skill")"
     mkdir -p "$CLAUDE_DIR/skills/$skill_name"
-    [ -f "$skill/SKILL.md" ] && install_file "$skill/SKILL.md" "$CLAUDE_DIR/skills/$skill_name/SKILL.md"
+    # Mirror every file under the skill directory, preserving structure.
+    while IFS= read -r -d '' src; do
+      rel="${src#$skill/}"
+      dst="$CLAUDE_DIR/skills/$skill_name/$rel"
+      mkdir -p "$(dirname "$dst")"
+      install_file "$src" "$dst"
+    done < <(find "$skill" -type f -not -path '*/.*' -print0)
   elif [ -f "$skill" ]; then
     skill_name="$(basename "${skill%.*}")"
     mkdir -p "$CLAUDE_DIR/skills/$skill_name"
