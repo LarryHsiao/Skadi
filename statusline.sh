@@ -354,11 +354,85 @@ suits_quotes=(
     "I'm Donna. I know everything. — Donna Paulsen"
 )
 
+# The Lord of the Rings quotes
+lotr_quotes=(
+    "All we have to decide is what to do with the time that is given us. — Gandalf"
+    "Even the smallest person can change the course of the future. — Galadriel"
+    "Not all those who wander are lost. — Bilbo Baggins"
+    "You shall not pass! — Gandalf"
+    "I am no man. — Éowyn"
+    "My precious. — Gollum"
+    "One does not simply walk into Mordor. — Boromir"
+    "Fly, you fools! — Gandalf"
+    "I can't carry it for you, but I can carry you. — Samwise Gamgee"
+    "There's some good in this world, Mr. Frodo — and it's worth fighting for. — Samwise Gamgee"
+    "A wizard is never late, Frodo Baggins. Nor is he early. He arrives precisely when he means to. — Gandalf"
+    "The board is set, the pieces are moving. — Gandalf"
+    "Death is just another path, one that we all must take. — Gandalf"
+    "I would have followed you, my brother, my captain, my king. — Boromir"
+    "Po-ta-toes! Boil 'em, mash 'em, stick 'em in a stew. — Samwise Gamgee"
+    "I'm going on an adventure! — Bilbo Baggins"
+    "It's a dangerous business, Frodo, going out your door. — Bilbo Baggins"
+    "The Ring has awoken. It's heard its master's call. — Gandalf"
+    "Courage is found in unlikely places. — Gildor (via Gandalf)"
+    "And my axe! — Gimli"
+    "One Ring to rule them all, One Ring to find them, One Ring to bring them all, and in the darkness bind them. — The Ring inscription"
+    "Speak, friend, and enter. — The Doors of Durin"
+    "I am Gandalf the White. And I come back to you now at the turn of the tide. — Gandalf"
+    "Nobody tosses a dwarf. — Gimli"
+    "I would rather share one lifetime with you than face all the ages of this world alone. — Arwen"
+    "For Frodo. — Aragorn"
+    "My friends, you bow to no one. — Aragorn"
+    "A day may come when the courage of men fails, but it is not this day. — Aragorn"
+    "Certainty of death. Small chance of success. What are we waiting for? — Gimli"
+    "So it begins. — Théoden"
+    "Ride now, ride now, ride! Ride to ruin and the world's ending! — Théoden"
+    "Forth Eorlingas! — Théoden"
+    "The Ring-bearer is setting out on the Quest of Mount Doom. — Elrond"
+    "Nine companions. So be it. You shall be the Fellowship of the Ring. — Elrond"
+    "We wants it, we needs it. Must have the precious. — Gollum"
+    "Sneaky little hobbitses. Wicked, tricksy, false. — Gollum"
+    "What about second breakfast? — Pippin"
+    "I don't think he knows about second breakfast, Pip. — Merry"
+    "I'm glad you're with me, Samwise Gamgee. Here at the end of all things. — Frodo"
+    "Well, I'm back. — Samwise Gamgee"
+    "I am a servant of the Secret Fire, wielder of the flame of Anor. — Gandalf"
+    "Fool of a Took! — Gandalf"
+    "Keep it secret. Keep it safe. — Gandalf"
+    "Don't be hasty. — Treebeard"
+    "A red sun rises. Blood has been spilled this night. — Legolas"
+    "They're taking the hobbits to Isengard! — Legolas"
+    "I made a promise, Mr. Frodo. A promise. 'Don't you leave him, Samwise Gamgee.' And I don't mean to. — Samwise Gamgee"
+    "I will not say: do not weep, for not all tears are an evil. — Gandalf"
+    "Strangers from distant lands, friends of old. You have been summoned here to answer the threat of Mordor. — Elrond"
+    "Middle-earth stands upon the brink of destruction. None can escape it. You will unite, or you will fall. — Elrond"
+    "Bring forth the Ring, Frodo. — Elrond"
+    "The Ring cannot be destroyed by any craft that we here possess. It must be cast back into the fiery chasm from whence it came. — Elrond"
+    "It is hardly possible to separate you, even when he is summoned to a secret council and you are not. — Elrond"
+    "It is a gift. A gift to the foes of Mordor. Why not use this Ring? — Boromir"
+    "Gondor has no king. Gondor needs no king. — Boromir"
+    "You carry the fate of us all, little one. If this is indeed the will of the Council, then Gondor will see it done. — Boromir"
+    "You cannot wield it. None of us can. The One Ring answers to Sauron alone. — Aragorn"
+    "Havo dad, Legolas. (Sit down, Legolas.) — Aragorn"
+    "If by my life or death I can protect you, I will. You have my sword. — Aragorn"
+    "This is no mere Ranger. He is Aragorn, son of Arathorn. You owe him your allegiance. — Legolas"
+    "Have you heard nothing Lord Elrond has said? The Ring must be destroyed! — Legolas"
+    "And you have my bow. — Legolas"
+    "I will be dead before I see the Ring in the hands of an Elf! — Gimli"
+    "I will take it. I will take the Ring to Mordor. Though — I do not know the way. — Frodo"
+    "I will help you bear this burden, Frodo Baggins, as long as it is yours to bear. — Gandalf"
+    "Hey! Mr. Frodo's not going anywhere without me! — Samwise Gamgee"
+    "Anyway, you need people of intelligence on this sort of mission... quest... thing. — Merry"
+    "You'd have to send us home tied up in a sack to stop us! — Pippin"
+    "Great! Where are we going? — Pippin"
+)
+
 # Build pool of available categories
 pool=("wick" "mentalist")
 [ ${#proverbs[@]} -gt 0 ] && pool+=("proverb")
 [ ${#accountant_quotes[@]} -gt 0 ] && pool+=("accountant")
 [ ${#suits_quotes[@]} -gt 0 ] && pool+=("suits")
+[ ${#lotr_quotes[@]} -gt 0 ] && pool+=("lotr")
 chosen="${pool[$RANDOM % ${#pool[@]}]}"
 
 case "$chosen" in
@@ -367,6 +441,7 @@ case "$chosen" in
     accountant) display_quote="🧮 \"${accountant_quotes[$RANDOM % ${#accountant_quotes[@]}]}\"";;
     mentalist)  display_quote="🔮 \"${mentalist_quotes[$RANDOM % ${#mentalist_quotes[@]}]}\"";;
     suits)      display_quote="👔 \"${suits_quotes[$RANDOM % ${#suits_quotes[@]}]}\"";;
+    lotr)       display_quote="💍 \"${lotr_quotes[$RANDOM % ${#lotr_quotes[@]}]}\"";;
 esac
 
 # Line 4: divider
