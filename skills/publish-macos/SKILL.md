@@ -145,11 +145,41 @@ rm -rf build/publish
 mkdir -p build/publish
 ```
 
+### 6.5. Resolve Apple credentials
+
+Needed by both targets (github needs them to sign/notarize; app-store needs them for `altool`). Resolve `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` in this order:
+
+1. **Bitwarden** — if `bw` is installed and unlocked:
+   ```bash
+   bw get item "Apple Notarization"
+   ```
+   `login.username` → `APPLE_ID`, `login.password` → `APPLE_APP_PASSWORD`, custom field `team_id` → `APPLE_TEAM_ID`.
+
+2. **Memory** — check saved memory.
+
+3. **Env vars** — `$APPLE_ID`, `$APPLE_TEAM_ID`, `$APPLE_APP_PASSWORD`.
+
+4. **Project fallback for `APPLE_TEAM_ID` only** — if still empty, read from the Xcode build settings:
+   ```bash
+   xcodebuild -showBuildSettings -scheme SCHEME 2>/dev/null \
+     | awk '/^[[:space:]]*DEVELOPMENT_TEAM = / {print $3; exit}'
+   ```
+
+If `bw` is installed but locked (`bw status` returns `locked`):
+
+> Bitwarden vault is locked. Run `bw unlock` and set `BW_SESSION`, or provide credentials another way.
+
+If any of `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` is still missing:
+
+> Publishing requires APPLE_ID, APPLE_TEAM_ID, and APPLE_APP_PASSWORD. Provide via Bitwarden, memory, env vars, or (for APPLE_TEAM_ID) DEVELOPMENT_TEAM in the Xcode project.
+
+Hold the resolved values in env for the rest of the workflow.
+
 ### 7. Archive
 
 Use `-workspace` if a `.xcworkspace` exists, else `-project`.
 
-**If `TARGET == github`** (ad-hoc sign is fine for DMG / notarization):
+**If `TARGET == github`** (Developer ID signing — required so Gatekeeper accepts the DMG after download. Ad-hoc signing fails with "is damaged" once the quarantine bit is set):
 
 ```bash
 xcodebuild archive \
@@ -157,8 +187,9 @@ xcodebuild archive \
   -scheme SCHEME \
   -configuration Release \
   -archivePath build/publish/SCHEME.xcarchive \
-  CODE_SIGN_IDENTITY="-" \
-  CODE_SIGNING_REQUIRED=NO \
+  CODE_SIGN_STYLE=Manual \
+  CODE_SIGN_IDENTITY="Developer ID Application" \
+  DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
   | xcpretty || cat
 ```
 
@@ -182,13 +213,17 @@ Stop on failure and show the last 30 lines.
 **If `TARGET == github`:**
 
 ```bash
-cat > /tmp/ExportOptions.plist << 'EOF'
+cat > /tmp/ExportOptions.plist << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>method</key>
-    <string>mac-application</string>
+    <string>developer-id</string>
+    <key>teamID</key>
+    <string>$APPLE_TEAM_ID</string>
+    <key>signingStyle</key>
+    <string>manual</string>
 </dict>
 </plist>
 EOF
@@ -246,6 +281,20 @@ create-dmg \
   "build/publish/export/"
 ```
 
+Then notarize and staple the DMG so Gatekeeper accepts it after download (Apple creds were resolved in step 6.5):
+
+```bash
+xcrun notarytool submit "build/publish/SCHEME.dmg" \
+  --apple-id "$APPLE_ID" \
+  --team-id "$APPLE_TEAM_ID" \
+  --password "$APPLE_APP_PASSWORD" \
+  --wait
+
+xcrun stapler staple "build/publish/SCHEME.dmg"
+```
+
+Stop on notarization failure and show the submission log via `xcrun notarytool log <submission-id> --apple-id … --team-id … --password …`.
+
 Set `ARTIFACT=build/publish/SCHEME.dmg`. Go to step 10.
 
 **If not found:** ask:
@@ -261,7 +310,7 @@ options:
 
 If "Stop here": report location and exit.
 
-If "Notarize .app": resolve Apple credentials (step 10 resolution). Then:
+If "Notarize .app" (Apple creds were resolved in step 6.5):
 
 ```bash
 ditto -c -k --keepParent \
@@ -286,27 +335,7 @@ Set `ARTIFACT=build/publish/SCHEME.zip`.
 
 ### 10. Publish
 
-#### Apple credentials resolution (used by both paths when needed)
-
-Resolve `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` in this order:
-
-1. **Bitwarden** — if `bw` is installed and unlocked:
-   ```bash
-   bw get item "Apple Notarization"
-   ```
-   `login.username` → `APPLE_ID`, `login.password` → `APPLE_APP_PASSWORD`, custom field `team_id` → `APPLE_TEAM_ID`.
-
-2. **Memory** — check saved memory.
-
-3. **Env vars** — `$APPLE_ID`, `$APPLE_TEAM_ID`, `$APPLE_APP_PASSWORD`.
-
-If `bw` is installed but locked (`bw status` returns `locked`):
-
-> Bitwarden vault is locked. Run `bw unlock` and set `BW_SESSION`, or provide credentials another way.
-
-If any value is still missing:
-
-> Publishing requires APPLE_ID, APPLE_TEAM_ID, and APPLE_APP_PASSWORD. Provide via Bitwarden, memory, or env vars.
+Apple creds (`APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`) were resolved in step 6.5 and are already in env.
 
 #### If `TARGET == github`
 
@@ -377,6 +406,7 @@ All artifacts in build/publish/
 - Stop on first failure; show last 30 lines of build log.
 - Version bump → build → publish → tag. Never tag before publish succeeds.
 - `--no-bump` skips bump/commit/push and tagging. Build and publish still run.
+- GitHub path always Developer-ID-signs the archive and notarizes + staples the DMG (or zipped .app). Ad-hoc signing is never used for downloads — Gatekeeper rejects it once quarantine is set.
 - App Store path requires proper signing config in the Xcode project (Apple Distribution cert, provisioning profile). The skill does not override signing for this path.
 - Target is persisted per-project in `./.claude/publish-macos-target`. Arg flags override and update the stored value. Silent otherwise.
 - Never modify other project files beyond what `agvtool` touches.
