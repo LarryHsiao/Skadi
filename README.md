@@ -1,6 +1,6 @@
 # Skadi
 
-My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) configuration. Global instructions, settings, custom skills, and hooks — all version-controlled and symlinked into `~/.claude/`.
+My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) configuration. Global instructions, settings, custom skills, and hooks — all version-controlled and copied into `~/.claude/` (and any other configured roots) by `install.sh`.
 
 ## What's Inside
 
@@ -11,18 +11,35 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 | `statusline.sh` | Custom status line script |
 | `hooks/` | Shell scripts that run before/after tool calls |
 | `skills/` | Custom slash-command skills |
-| `install.sh` | Symlink installer (idempotent, safe to re-run) |
+| `install.sh` | Copy installer (idempotent, safe to re-run) |
+
+### Features
+
+- **Grammar check** — Every user message is silently checked for grammar and phrasing. If anything's off, a single corrected line is appended to the response with the changed tokens bolded on both sides (e.g. `"should **i** go?"` → `"should **I** go?"`). A counter hook tallies corrections per session so trends stay visible.
+- **John Wick tone** — Minimal words, dry deadpan wit, no filler. Short responses by default.
+- **Multi-root install** — `/install` copies this repo into every root listed in memory (`~/.claude`, `~/.claude-personal`, `~/.claude-work`) so switching contexts stays consistent.
+- **Source of truth** — `~/.claude/` is a copy. Edits there get overwritten on the next install; every change must land in this repo first.
 
 ### Skills
 
+- `/install` — Copy this repo into every configured Claude config root
 - `/commit` — Generate a commit message from the diff and commit after approval
 - `/commit-push` — Same as commit, then push to remote
-- `/focus` — Pomodoro focus timer
-- `/reset` — Reset workspace to HEAD
 - `/stage` — Interactively stage files
 - `/summary` — Summarize staged changes
+- `/reset` — Reset workspace to HEAD
+- `/branch` — Switch to a target branch, safely handling uncommitted work
+- `/prs` — Show open GitHub PRs requiring attention
+- `/mrs` — Show open GitLab merge requests requiring attention
+- `/jira` — Create or check status of Jira tickets
+- `/daily` — Show Jira tasks grouped by status, sorted by priority
 - `/working` — Start working on a Jira ticket
+- `/eod` — End-of-day scan of configured repos for uncommitted/unpushed work
+- `/focus` — Pomodoro focus timer
+- `/preflight` — Run periodic maintenance checks and sync overdue items into the todo list
+- `/cleanup-dev` — Free disk space by clearing dev caches and build artifacts
 - `/publish` — Build Flutter release archives and collect into `build/publish/`
+- `/publish-macos` — Bump version, build, and publish a macOS Xcode project to GitHub Releases or the Mac App Store
 
 ### Hooks
 
@@ -32,16 +49,23 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **flutter-analyze** — Run `flutter analyze` after editing Dart files
 - **prettier-format** — Run Prettier after editing supported files
 - **eslint-check** — Run ESLint after editing JS/TS files
+- **grammar-reminder** — Inject the grammar-check reminder on every user prompt
+- **grammar-counter** — Count grammar corrections at session stop
+- **preflight-check** — Emit the preflight checklist state consumed by `/preflight`
+- **jira-daily**, **prs-check**, **mrs-check**, **eod-git-check** — Data collectors for the matching skills
+- **cleanup-dev-*** — Analyze, report, execute, and mark-run helpers for `/cleanup-dev`
+- **publish-macos-target** — Remember whether a macOS project publishes to GitHub Releases or the Mac App Store
 
 ## Setup
 
 ```bash
-git clone git@github.com:LarryHsiao/Skadi.git
-cd Skadi
-./install.sh
+git clone git@github.com:LarryHsiao/Skadi.git ~/skadi
+cd ~/skadi
+./install.sh                 # installs into ~/.claude by default
+./install.sh ~/.claude-work  # or any other root
 ```
 
-The installer symlinks everything into `~/.claude/`. Existing files are backed up with a timestamp suffix before being replaced.
+The installer copies every file into the target root. Re-running is safe — unchanged files are skipped. Inside a Claude session, `/install` iterates over all roots saved in memory in a single call.
 
 ## License
 
