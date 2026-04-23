@@ -1,6 +1,5 @@
 ---
 name: No -er suffix on classes or packages
-agent: Explore
 ---
 
 The project style rejects agent-noun suffixes on class and package names — no Manager, Helper, Handler, Processor, Builder, Runner, Controller, Worker, Coordinator, Formatter, Parser, and the like. Classes and packages are nouns, named for the domain concept they represent, not for what they do.

@@ -51,7 +51,7 @@ it but pass. Otherwise fail with file:line of the commented block.
 ```
 
 - `name` — shown in the report table. Required.
-- `agent` — subagent type to dispatch. Default `Explore` (read-only, lighter). Escalate to `general-purpose` only when the check genuinely needs broader tools.
+- `agent` — subagent type to dispatch. Default `general-purpose` (tends to honour format demands). Declare `Explore` only when the check is read-only *and* the author has verified Explore answers in the required shape — Explore is trained to narrate and will often return prose instead of one line.
 - `autofix` — reserved flag for a future `--fix` mode. Ignore it for now.
 
 Assign each check an **index** starting at 1, in stable filename-sorted order. The index travels with the rider to the reply.
@@ -60,18 +60,30 @@ Assign each check an **index** starting at 1, in stable filename-sorted order. T
 
 Dispatch one **Agent** call per check, **all in a single message**, so they ride in parallel.
 
-Each agent prompt must contain, and in this order:
+Each agent prompt must be built in this exact order — the reply contract comes **first**, not last, so it is not drowned by the check body:
 
 1. The rider's identity: `You are rider #<N> of /nazgul: "<check name>".`
-2. The target: either the inline `DIFF`, or `The diff is at <path>. Read it first.`
-3. The prompt body from the check file, verbatim.
-4. The reply shape, exactly:
+2. The reply contract, spelled out hard:
 
-   > Reply with exactly one line and nothing else:
+   > **Your ENTIRE response must be a single line in the form:**
    > `<N>|<status>|<note>`
+   >
    > where `<status>` is one of `pass`, `fail`, `n/a`,
-   > and `<note>` is a short human-readable reason, no pipes.
-   > No preamble. No markdown. No code fences. No trailing newline of explanation.
+   > and `<note>` is a short human-readable reason containing no `|`.
+   >
+   > **Do not** write preamble, acknowledgements, summaries, markdown,
+   > headers, fences, or any additional lines. The parent's parser
+   > will scan your reply for the first line matching this shape and
+   > ignore the rest — but a well-behaved rider returns the one line
+   > and stops.
+   >
+   > WRONG: `Here is my finding:\n1|pass|nothing flagged`
+   > WRONG: `## Verdict\n\nThe diff does not introduce…\n\n1|pass|ok`
+   > RIGHT: `1|pass|nothing flagged`
+
+3. The target: either the inline `DIFF`, or `The diff is at <path>. Read it first.`
+4. The prompt body from the check file, verbatim.
+5. A closing reminder: `Remember — reply with one line only, in the form shown above. Nothing else.`
 
 Riders may read any file in the tree when context is needed beyond the diff. Riders must never write, edit, commit, push, or file issues — they are auditors.
 
@@ -79,7 +91,7 @@ Give each rider a **timeout of 60 seconds**. A rider that errors or times out yi
 
 ### 4. Aggregate
 
-Parse each reply by splitting on the first two `|` characters — so notes containing `|` are preserved. Validate: the first field must match the rider's assigned index; the second must be `pass`, `fail`, or `n/a`; reject anything else as malformed.
+Scan each reply line by line for the **first** line that matches the regex `^\s*(\d+)\s*\|\s*(pass|fail|n/a)\s*\|(.*)$`. Take that line and split it into `<index>`, `<status>`, `<note>` — only the first two `|` characters bound the fields, so notes may contain `|`. Validate: the index must match the rider's assigned number; the status must be one of `pass`, `fail`, `n/a`. If no matching line is found, or validation fails, mark the row `?` and keep the raw reply for the dump beneath the table.
 
 Print one table:
 
