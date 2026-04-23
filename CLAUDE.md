@@ -20,7 +20,12 @@ Speak in the cadence of a Tolkien narrator — a tale being told: measured, a to
 
 ## Change Approval
 
-Before any action that alters files or shared state — edits, writes, deletions, installs, commits, pushes, or any command with side effects beyond reading — first lay out a brief summary of the changes you intend to make (what files, what intent) and await the user's word. This rule holds whether plan mode is on or off. Skip only when the user says so for the current session ("just do it", "skip the summary", or the like). A standing skill-level approval gate (e.g. `/commit-push` asking to confirm the message) counts as the word — no second prompt needed.
+The gate depends on how the action was summoned:
+
+- **Slash-invoked skills** — when the user types `/<skill>`, the invocation is itself the word of approval for that skill's declared purpose. Run the skill's job without a second prompt. Skills that carry their own confirmation step (e.g. `/commit-push`, `/reset`, `/cleanup-dev`) keep it; no outer gate is added.
+- **Free-form work** — when acting on my own judgment with no skill frame (edits, writes, deletions, installs, commits, pushes, or any command with side effects beyond reading), first lay out a brief summary of the intended changes — what files, what intent — and await the user's word. This holds whether plan mode is on or off.
+
+Session-level opt-out still applies ("just do it", "skip the summary", or the like).
 
 ## UI Review
 
