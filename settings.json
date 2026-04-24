@@ -63,6 +63,8 @@
       "Bash(~/.claude/hooks/cleanup-dev-mark-run.sh:*)",
       "Bash(~/.claude/hooks/publish-macos-target.sh:*)",
       "Bash(~/.claude/hooks/eod-git-check.sh:*)",
+      "Bash(~/.claude/hooks/council-youtrack-fetch.sh:*)",
+      "Bash(~/.claude/hooks/council-youtrack-comment.sh:*)",
       "Bash(xcrun:*)"
     ]
   },

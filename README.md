@@ -40,6 +40,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/focus` — Pomodoro focus timer
 - `/preflight` — Run periodic maintenance checks and sync overdue items into the todo list
 - `/nazgul` — Dispatch the Nine: one agent per check file, aggregating pass/fail verdicts into a single table
+- `/council` — Convene a planning council on a tracker ticket: Erestor drafts, Elrond decides, all by comment
 - `/cleanup-dev` — Free disk space by clearing dev caches and build artifacts
 - `/publish` — Build Flutter release archives and collect into `build/publish/`
 - `/publish-macos` — Bump version, build, and publish a macOS Xcode project to GitHub Releases or the Mac App Store
@@ -57,6 +58,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **preflight-check** — Emit the preflight checklist state consumed by `/preflight`
 - **jira-daily**, **prs-check**, **mrs-check**, **eod-git-check** — Data collectors for the matching skills
 - **cleanup-dev-*** — Analyze, report, execute, and mark-run helpers for `/cleanup-dev`
+- **council-youtrack-fetch**, **council-youtrack-comment** — YouTrack I/O for `/council`
 - **publish-macos-target** — Remember whether a macOS project publishes to GitHub Releases or the Mac App Store
 
 ## Setup
