@@ -427,12 +427,42 @@ lotr_quotes=(
     "Great! Where are we going? — Pippin"
 )
 
+# Band of Brothers quotes
+band_of_brothers_quotes=(
+    "Hang tough. — Richard Winters"
+    "We salute the rank, not the man. — Richard Winters"
+    "We're paratroopers, Lieutenant. We're supposed to be surrounded. — Richard Winters"
+    "You don't want to be a good officer, Nix. You don't want the responsibility. — Richard Winters"
+    "I cherish the memories of a question my grandson asked me: 'Grandpa, were you a hero in the war?' Grandpa said, 'No, but I served in a company of heroes.' — Richard Winters (quoting Mike Ranney)"
+    "The only hope you have is to accept the fact that you're already dead. — Ronald Speirs"
+    "War brings out the worst in some and the best in others. — Ronald Speirs"
+    "You think you can lead this platoon? — Richard Winters / — Yes, sir. — Ronald Speirs"
+    "Three days in Eindhoven and everybody's a lover. — Lewis Nixon"
+    "We're not lost, Private. We're in Normandy. — Richard Winters"
+    "I'm not a coward, Captain. I'm just not that brave. — Albert Blithe"
+    "Just hold my hand, then I won't be scared. — Albert Blithe"
+    "You listen up! You're not the only man here with problems! — Carwood Lipton"
+    "Currahee. — 506th PIR motto"
+    "We stand alone together. — 506th PIR"
+    "Men, it's been a long war, it's been a tough war. You've fought bravely, proudly for your country. You're a special group. You've found in one another a bond that exists only in combat, among brothers. — Richard Winters"
+    "I found my peace in a foxhole. — Eugene Roe (paraphrased)"
+    "Flash. — Thunder. — challenge and countersign, Normandy"
+    "That's why I don't pray. I put my faith in something stronger. — Lewis Nixon (paraphrased)"
+    "Who's the CO here? — I am. — Speirs. Good to have you with us. — Ronald Speirs to Easy"
+    "They call me 'Wild Bill.' I like that. — William 'Wild Bill' Guarnere"
+    "Gonna, gonna, gonna. You never do. — Joseph Toye"
+    "I swear to God, Bull. You wanna know what your problem is? You care too much. — George Luz (paraphrased)"
+    "Sir, there's a rumor we're going to be sent home. — Carwood Lipton"
+    "We're all replacements, Private, one way or another. — Ronald Speirs"
+)
+
 # Build pool of available categories
 pool=("wick" "mentalist")
 [ ${#proverbs[@]} -gt 0 ] && pool+=("proverb")
 [ ${#accountant_quotes[@]} -gt 0 ] && pool+=("accountant")
 [ ${#suits_quotes[@]} -gt 0 ] && pool+=("suits")
 [ ${#lotr_quotes[@]} -gt 0 ] && pool+=("lotr")
+[ ${#band_of_brothers_quotes[@]} -gt 0 ] && pool+=("band")
 chosen="${pool[$RANDOM % ${#pool[@]}]}"
 
 case "$chosen" in
@@ -442,6 +472,7 @@ case "$chosen" in
     mentalist)  display_quote="🔮 \"${mentalist_quotes[$RANDOM % ${#mentalist_quotes[@]}]}\"";;
     suits)      display_quote="👔 \"${suits_quotes[$RANDOM % ${#suits_quotes[@]}]}\"";;
     lotr)       display_quote="💍 \"${lotr_quotes[$RANDOM % ${#lotr_quotes[@]}]}\"";;
+    band)       display_quote="🎖️ \"${band_of_brothers_quotes[$RANDOM % ${#band_of_brothers_quotes[@]}]}\"";;
 esac
 
 # Line 4: divider
@@ -484,5 +515,5 @@ cpu_str="📈 ${cpu_color}Load: ${cpu_load}%${RESET}"
 
 printf "%s  %s  %s\n" "$weather" "$cpu_str" "$disk_str"
 
-# Line 6: quote
-printf "%s\n" "$display_quote"
+# Line 6: quote (wrap at 50 columns, breaking on spaces)
+printf "%s\n" "$display_quote" | fold -s -w 50
