@@ -5,6 +5,7 @@
       "Read(/Users/larryhsiao/.claude/hooks/**)",
       "Read(/Users/larryhsiao/.claude-personal/hooks/**)",
       "Read(/Users/larryhsiao/.claude-work/hooks/**)",
+      "Read(/tmp/**)",
       "Bash(fvm flutter:*)",
       "Bash(flutter analyze:*)",
       "Bash(fvm dart:*)",
