@@ -64,6 +64,10 @@ Never embed complex bash (pipelines, variable expansion) directly in skill instr
 
 When creating a new skill directory under `skills/`, do **not** manually copy or symlink files into `~/.claude/skills/`. Invoke the `/install` skill — it copies everything into every configured root.
 
+## Shell Compatibility
+
+When a needed command is missing on the current shell, do not reach for a different terminal to escape the gap — no spawning bash from PowerShell, no calling PowerShell from bash to borrow its cmdlets. Name the missing tool plainly and ask the user to install it (e.g. `zip` absent from Git Bash). If a native substitute exists in the current shell (`tar`, `Compress-Archive`), use that instead.
+
 ## Code Style
 
 - General: @docs/style/general.md
