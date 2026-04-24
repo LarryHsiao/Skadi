@@ -515,5 +515,5 @@ cpu_str="📈 ${cpu_color}Load: ${cpu_load}%${RESET}"
 
 printf "%s  %s  %s\n" "$weather" "$cpu_str" "$disk_str"
 
-# Line 6: quote (wrap at 50 columns, breaking on spaces)
-printf "%s\n" "$display_quote" | fold -s -w 50
+# Line 6: quote (wrap at 50 columns; continuation lines hang under the opening ")
+printf "%s\n" "$display_quote" | fold -s -w 46 | awk 'NR==1 {print; next} {print "    " $0}'
