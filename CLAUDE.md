@@ -38,6 +38,15 @@ Show the gauge above the change summary, so the weight is known before a line is
 
 **When the gauge reads medium or heavy**, offer a best-effort breakdown — how the task might be split into several **minimum**-sized steps, each small of reach, shallow in depth, easy to undo. Give it an honest try; do not belabor it. If the task truly will not cleave, say so plainly and move on.
 
+For example, "add a session-summary hook" rings **medium** — a new script, a settings wire-up, a README line, an end-to-end check. It cleaves so:
+
+1. Write the shell script under `hooks/` in isolation; run it by hand to confirm shape.
+2. Add a single `permissions.allow` entry in `settings.json` for the new script path.
+3. Wire the hook into `settings.json` under its event, one event only.
+4. Update the `README.md` Hooks entry so the inventory stays honest.
+
+Each step narrow of reach, each leaves the tree working, each trivial to walk back.
+
 ## Change Approval
 
 The gate depends on how the action was summoned:
