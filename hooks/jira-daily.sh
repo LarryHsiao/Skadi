@@ -16,6 +16,8 @@ fi
 JIRA_BASE_URL="${JIRA_BASE_URL:-https://jubo.atlassian.net}"
 JIRA_EMAIL="${JIRA_EMAIL:-larryhsiao@jubo.health}"
 
+JIRA_API_TOKEN="$("$(dirname "$0")/secret.sh" jira password JIRA_API_TOKEN 2>/dev/null || true)"
+
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
   "$JIRA_BASE_URL/rest/api/3/search/jql" \
   --get \

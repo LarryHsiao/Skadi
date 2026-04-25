@@ -36,20 +36,13 @@ If the prefix does not match any supported tracker, tell the user it is not yet 
 
 ### 1. Load YouTrack config
 
-Determine the memory directory for this project: `<claude-root>/projects/<pwd-slugified>/memory/` where `<pwd-slugified>` is the current working directory with path separators replaced by dashes (see how jira-daily resolves it).
+URL and token both live on a single Vaultwarden item named `youtrack` — URI field for the server URL, password field for the permanent token. Resolution order for the URL:
 
-Check memory file `council_youtrack.md` for:
+1. **Vaultwarden** — `~/.claude/hooks/secret.sh youtrack uri`. If non-empty, use it.
+2. **Memory file** — `council_youtrack.md` at `<claude-root>/projects/<pwd-slugified>/memory/` (see how jira-daily resolves the path). If found, use it.
+3. **Ask** — prompt the user via AskUserQuestion. Save the answer to the memory file (with frontmatter and a `MEMORY.md` pointer) AND tell the user to also set the URI on the `youtrack` Vaultwarden item so the pair stays atomic.
 
-- `YOUTRACK_URL` — e.g. `https://your-org.youtrack.cloud`
-
-If not found, ask the user for the URL via AskUserQuestion, then save to memory:
-
-- Write the file under that memory directory with the standard frontmatter pattern.
-- Add a one-line pointer to `MEMORY.md`.
-
-Require `YOUTRACK_TOKEN` env var. If not set, stop and tell the user:
-
-> Set `YOUTRACK_TOKEN` in your environment with a YouTrack permanent token from `<YOUTRACK_URL>/users/me?tab=account-security`.
+The fetch and comment scripts resolve the token themselves via `secret.sh youtrack` and error plainly if it cannot be found. If the user sees `YOUTRACK_TOKEN not found`, direct them to either unlock the vault (`bw unlock`, `bw serve --port 8087 &`) and ensure the `youtrack` item carries the token in its password field, or export `YOUTRACK_TOKEN` in their shell. The token itself comes from `<YOUTRACK_URL>/users/me?tab=account-security`.
 
 ### 2. Fetch the ticket and its comment thread
 
@@ -59,7 +52,7 @@ Invoke the fetch script with the ticket ID and the URL exported into the environ
 YOUTRACK_URL=<from-memory> ~/.claude/hooks/council-youtrack-fetch.sh <TICKET-ID>
 ```
 
-(`YOUTRACK_TOKEN` is already in the shell environment; do not echo or log it.)
+(The script pulls `YOUTRACK_TOKEN` via the secret helper; do not echo or log it.)
 
 The script prints a single JSON object:
 
@@ -151,7 +144,7 @@ Human replies between these tokens are free-form prose — Erestor reads them as
 
 - Never act on Elrond's behalf. The skill only reads tickets and posts comments.
 - Never edit or delete existing comments. Every round is a new comment.
-- If `YOUTRACK_TOKEN` is unset, stop and tell the user — do not proceed.
+- If the secret helper cannot resolve `YOUTRACK_TOKEN` (neither Vaultwarden nor env), the fetch/comment script returns an error; surface it and stop — do not proceed.
 - Turn limit is five plans per ticket. On the sixth, post `[AGENT-ASK]` asking to take the thread offline.
 - Case-insensitive matching of `[APPROVE]`, `[REJECT]`, `[PLAN vN]`, `[AGENT-ASK]`.
 - Trackers other than YouTrack are not yet wired. Do not guess.
