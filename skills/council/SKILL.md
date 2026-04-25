@@ -22,12 +22,35 @@ Convenes a planning council on a tracker ticket. A subagent — Erestor, chief c
 
 ## Tracker routing
 
-Today only YouTrack is wired. Route every ticket ID to:
+Two trackers are wired today:
 
-- Fetch: `~/.claude/hooks/council-youtrack-fetch.sh`
-- Comment: `~/.claude/hooks/council-youtrack-comment.sh`
+| Tracker | Fetch hook | Comment hook |
+|---|---|---|
+| YouTrack | `~/.claude/hooks/council-youtrack-fetch.sh` | `~/.claude/hooks/council-youtrack-comment.sh` |
+| Jira | `~/.claude/hooks/council-jira-fetch.sh` | `~/.claude/hooks/council-jira-comment.sh` |
 
-The ticket prefix (`YT-`, `MET-`, etc.) is whatever YouTrack's project shortName happens to be — do not gate on it. When a second tracker lands, this section will spell out a real dispatch rule (likely a `--tracker` flag or a project-scoped memory pointer).
+**Hybrid dispatch rule.** Resolve the tracker for a given `/council [tracker:]TICKET-ID` invocation in this order:
+
+1. **Explicit override.** If the argument carries a tracker prefix — `youtrack:MET-1`, `yt:MET-1`, `jira:PSG-4264` — that wins. Strip the prefix and use the remainder as the ticket ID. Accept `youtrack` or `yt`; accept `jira`. Case-insensitive.
+2. **Per-project memory.** Read `tracker_routing.md` from the project memory directory. The file maps a project key prefix to a tracker:
+
+   ```markdown
+   ---
+   name: Tracker Routing
+   description: Project-key prefix to tracker mapping for /council and /glorfindel.
+   type: reference
+   ---
+
+   - MET → youtrack
+   - PSG → jira
+   ```
+
+   Match the prefix of the ticket ID (`MET-1` → prefix `MET`) against the table; if found, use the named tracker.
+3. **Ask.** No prefix override, no memory mapping — ask the user via AskUserQuestion which tracker to use, then offer to save the mapping to memory for next time.
+
+Once the tracker is chosen, all subsequent steps use that backend's hooks. The ticket-ID prefix itself is just a project shortName; do not hardcode any list of valid prefixes.
+
+**Jira read-only rule.** When smoke-testing or otherwise running the council in a non-production capacity, treat Jira tickets as read-only — do not post comments. The Jira comment hook accepts `COUNCIL_DRY_RUN=1` in env to print the would-be ADF payload instead of posting. Use that for shape verification.
 
 ---
 
@@ -35,23 +58,27 @@ The ticket prefix (`YT-`, `MET-`, etc.) is whatever YouTrack's project shortName
 
 The skill is invoked from inside the repository the ticket concerns. Erestor inherits this working directory and may read it (Read, Grep, Glob, `git log`) to verify assumptions before drafting. He must not modify anything. If the ticket concerns a repo other than the one Claude Code was opened in, the user is expected to `cd` there before running `/council`.
 
-## YouTrack Workflow
+## Workflow
 
-### 1. YouTrack config
+### 0. Resolve the tracker
 
-URL and token both live on a single Vaultwarden item named `youtrack` — URI field for the server URL, password field for the permanent token. The fetch and comment scripts resolve both fields themselves via `secret.sh youtrack uri` and `secret.sh youtrack password`, falling back to `$YOUTRACK_URL` / `$YOUTRACK_TOKEN` env vars when the vault is unreachable. No memory file is required.
+Apply the **Hybrid dispatch rule** from "Tracker routing" above to choose between YouTrack and Jira. The remainder of these steps refer to `<fetch-hook>` and `<comment-hook>` — substitute the chosen tracker's pair from the routing table.
 
-If a script reports `YOUTRACK_URL not found` or `YOUTRACK_TOKEN not found`, direct the user to unlock the vault (`bw unlock`, `bw serve --port 8087 &`) and ensure the `youtrack` item carries both URI and password, or export the matching env var. The token itself comes from `<YOUTRACK_URL>/users/me?tab=account-security`.
+**YouTrack credentials.** One Vaultwarden item named `youtrack`: URI = server URL, password = permanent token. Hooks resolve via `secret.sh youtrack uri` / `secret.sh youtrack`. Env fallback: `$YOUTRACK_URL` / `$YOUTRACK_TOKEN`. Token comes from `<YOUTRACK_URL>/users/me?tab=account-security`.
 
-### 2. Fetch the ticket and its comment thread
+**Jira credentials.** One Vaultwarden item named `jira`: URI = `https://<your>.atlassian.net`, username = your email, password = an API token. Hooks resolve via `secret.sh jira uri` / `secret.sh jira username` / `secret.sh jira password JIRA_API_TOKEN`. Env fallback: `$JIRA_BASE_URL` / `$JIRA_EMAIL` / `$JIRA_API_TOKEN`. Token comes from `https://id.atlassian.com/manage-profile/security/api-tokens`.
 
-Invoke the fetch script with just the ticket ID — URL and token are resolved inside:
+If any credential cannot be resolved, the hook prints `{"error":"jira credentials missing"}` (or YouTrack equivalent) — surface it and stop.
+
+### 1. Fetch the ticket and its comment thread
+
+Invoke the chosen tracker's fetch script with just the ticket ID — credentials are resolved inside:
 
 ```bash
-~/.claude/hooks/council-youtrack-fetch.sh <TICKET-ID>
+<fetch-hook> <TICKET-ID>
 ```
 
-(The script pulls both URL and token via the secret helper; do not echo or log them.)
+(The script pulls every credential via the secret helper; do not echo or log them.)
 
 The script prints a single JSON object:
 
@@ -68,16 +95,22 @@ The script prints a single JSON object:
 
 If the script prints `{"error": "..."}`, tell the user the error and stop.
 
-### 3. Parse the thread
+### 2. Parse the thread
 
 Walk the `comments` array (already oldest-first). Determine:
 
 - **Latest plan version.** The highest `N` where a comment's first line matches `[PLAN vN]` (case-insensitive). If no plan exists yet, the next version is `1`.
-- **Bot's last word.** The most recent comment authored by the Council (login is the service account, e.g. `claude`, OR — when no service account is in use — first line carries `[PLAN v…]` / `[AGENT-ASK]`). If no bot comment exists yet, this is the first turn.
-- **Fresh counsel.** Any comments after the bot's last word, authored by a non-bot login. These are Elrond's counsel. If none exist, the thread has not moved since the bot last spoke.
+- **Bot identity.** Two modes:
+  - **Service-account mode** (e.g. YouTrack with a dedicated `claude` user): a comment is the bot's iff `login == "<bot-login>"`.
+  - **Shared-identity mode** (e.g. Jira where the bot posts as Elrond): no login distinction exists; a comment is the bot's iff its first line carries `[PLAN v…]` or `[AGENT-ASK]`.
+
+  Detect mode by inspecting the comment thread: if any login carries the configured bot value (today: `claude`), use service-account mode; otherwise use shared-identity mode.
+
+- **Bot's last word.** The most recent comment classified as the bot's under the chosen mode. If no bot comment exists yet, this is the first turn.
+- **Fresh counsel.** Any comments after the bot's last word that are *not* the bot's under the chosen mode. These are Elrond's counsel. If none exist, the thread has not moved since the bot last spoke.
 - **Verdict.** Scan the fresh counsel for `[APPROVE]` or `[REJECT]` (case-insensitive, anywhere in the body).
 
-### 4. Handle thread state
+### 3. Handle thread state
 
 The order of these checks matters — verdict beats fresh-counsel check beats first-turn.
 
@@ -85,11 +118,11 @@ The order of these checks matters — verdict beats fresh-counsel check beats fi
 
 2. **No fresh counsel and a plan already exists.** The bot has spoken last and Elrond has not replied. Do not draft, do not post — there is no new ground to chew on, and a re-issue would only clutter the thread. Tell the user: "Awaiting Elrond's reply on `[PLAN vN]` (or the latest `[AGENT-ASK]`). No fresh counsel since `<timestamp>`." Stop. **This makes the skill loop-safe** — repeated invocations between Elrond's replies are no-ops.
 
-3. **First turn (no plan yet).** Skip to step 5 to draft `[PLAN v1]`. The ticket itself is the counsel; no prior bot word is required.
+3. **First turn (no plan yet).** Skip to step 4 to draft `[PLAN v1]`. The ticket itself is the counsel; no prior bot word is required.
 
 4. **Fresh counsel without verdict.** Fall through to the turn-limit check, then summon Erestor.
 
-### 5. Check turn limit
+### 4. Check turn limit
 
 The limit is on `[PLAN vN]` count, not invocation count — `[AGENT-ASK]` posts do not count. If the next plan would be `[PLAN v6]` (i.e. five plan-versions already posted without verdict), do not draft. Post a single `[AGENT-ASK]` comment via the comment script with this body:
 
@@ -99,7 +132,7 @@ The limit is on `[PLAN vN]` count, not invocation count — `[AGENT-ASK]` posts 
 
 Then stop.
 
-### 6. Summon Erestor
+### 5. Summon Erestor
 
 Load the Erestor prompt from `<skill-dir>/erestor.md` (read the file contents). Dispatch a subagent via the Agent tool, `subagent_type: general-purpose`, passing:
 
@@ -112,15 +145,15 @@ Load the Erestor prompt from `<skill-dir>/erestor.md` (read the file contents). 
 
 Erestor returns a single markdown body whose first line begins with either `[PLAN v{NEXT}]` or `[AGENT-ASK]`. If he returns anything else, treat it as a drafting failure and stop — do not post.
 
-### 7. Post the comment
+### 6. Post the comment
 
-Pipe Erestor's body into the comment script:
+Pipe Erestor's body into the chosen tracker's comment script:
 
 ```bash
-printf '%s' "$EREST_OR_BODY" | ~/.claude/hooks/council-youtrack-comment.sh <TICKET-ID>
+printf '%s' "$EREST_OR_BODY" | <comment-hook> <TICKET-ID>
 ```
 
-On success the script prints one line:
+On success the script prints one line in the same shape regardless of tracker:
 
 ```
 posted: id=<comment-id> created=<epoch-ms> url=<full-ticket-url>
@@ -128,13 +161,13 @@ posted: id=<comment-id> created=<epoch-ms> url=<full-ticket-url>
 
 On failure it prints `{"error":"...","response":"..."}` (the `response` field carries the server's actual error body). If the script exits non-zero, tell the user the error and stop.
 
-### 8. Report
+### 7. Report
 
 Tell the user, in one short block:
 
 - The ticket ID.
 - Which token was posted (`[PLAN vN]` or `[AGENT-ASK]`).
-- The ticket URL printed on the success line in step 7.
+- The ticket URL printed on the success line in step 6.
 
 Do not reproduce Erestor's draft in the response — it lives on the ticket now.
 
@@ -158,8 +191,9 @@ Human replies between these tokens are free-form prose — Erestor reads them as
 - Never act on Elrond's behalf. The skill only reads tickets and posts comments.
 - Never edit or delete existing comments. Every round is a new comment.
 - **Loop-safe.** If no fresh counsel from Elrond has come since the bot's last word, post nothing. Repeated invocations between Elrond's replies must be silent no-ops. The thread, not the invocation count, is the source of truth.
-- If the secret helper cannot resolve `YOUTRACK_TOKEN` (neither Vaultwarden nor env), the fetch/comment script returns an error; surface it and stop — do not proceed.
+- If the tracker hook reports a credential is missing, surface the error and stop — do not proceed.
 - Turn limit is five plans per ticket. On the sixth, post `[AGENT-ASK]` asking to take the thread offline. (Only triggers when fresh counsel exists; otherwise the loop-safe rule keeps the thread quiet.)
 - Case-insensitive matching of `[APPROVE]`, `[REJECT]`, `[PLAN vN]`, `[AGENT-ASK]`.
-- Trackers other than YouTrack are not yet wired. Do not guess.
-- Do not surface `YOUTRACK_TOKEN` in logs, responses, or saved files.
+- Two trackers are wired: YouTrack and Jira. The hybrid dispatch rule above chooses between them.
+- **Jira tickets are real work.** Do not post test or diagnostic comments to Jira during smoke testing. Use `COUNCIL_DRY_RUN=1` env on the Jira comment hook for shape verification, and do write-path smoke tests against YouTrack (MET-1).
+- Do not surface tracker tokens in logs, responses, or saved files.
