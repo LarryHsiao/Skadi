@@ -28,8 +28,15 @@ Glorfindel rode out from Rivendell to seek the Ringbearer, and visited each road
 
 **Filter semantics:**
 
-- **YouTrack:** an extra query fragment, ANDed with the project clause. Example: `--filter "state:Open assignee:me"`. If omitted, defaults to `#Unresolved`.
-- **Jira:** either a saved filter ID (all-digit, e.g. `--filter 10363`) OR a JQL fragment ANDed with the project (e.g. `--filter "assignee = currentUser()"`). If omitted, defaults to `statusCategory != Done`.
+- **YouTrack:** an extra query fragment, ANDed with the project clause. Example: `--filter "state:Open assignee:me"`.
+- **Jira:** either a saved filter ID (all-digit, e.g. `--filter 10363`) OR a JQL fragment ANDed with the project (e.g. `--filter "assignee = currentUser()"`).
+
+**Filter resolution order** (when `--filter` is *not* given on the command line):
+
+1. **Per-project memory** — read `default_filters.md` from the project memory directory. Look up `<tracker>:<project>` (e.g. `jira:PSG`). If found, pass that value to the list hook as if the user had typed `--filter <value>`.
+2. **Hook default** — list hooks fall back to their hardcoded baseline: YouTrack uses `#Unresolved`; Jira uses `statusCategory != Done`.
+
+An explicit `--filter <value>` always wins over both.
 
 ## Tracker routing
 
@@ -51,13 +58,19 @@ If the user picks "proceed unattended" explicitly, continue. Otherwise stop and 
 
 ### 2. List the open tickets
 
-Invoke the chosen list hook:
+Resolve the filter argument per the **Filter resolution order** above (explicit `--filter` > `default_filters.md` > hook default). Then invoke the chosen list hook:
 
 ```bash
 <list-hook> <PROJECT> [<FILTER>]
 ```
 
-The hook prints a JSON array `[{id, summary}]`. If it prints `{"error": ...}`, surface it and stop. If the array is empty, tell the user *"The road lies empty — no tickets matching the scope."* and stop.
+The hook output takes one of three shapes:
+
+- **Flat array** `[{id, summary}, ...]` — the normal case. Iterate it.
+- **Wrapped truncation object** `{"tickets": [...], "truncated": true, "cap": 1000}` — emitted when the hook hit its safety cap (1000 tickets in 20 pages of 50). Tell the user the cap fired (*"The road runs longer than the eye can see — N tickets returned, more remain"*) and ask whether to proceed with the truncated list or to narrow the filter and re-run. On "proceed", iterate `.tickets`.
+- **Error object** `{"error": "...", "response": "..."}` — surface and stop.
+
+If the iterable list is empty, tell the user *"The road lies empty — no tickets matching the scope."* and stop.
 
 ### 3. For each ticket — run the council
 

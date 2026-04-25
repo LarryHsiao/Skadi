@@ -10,9 +10,15 @@
 #         jql = "project = <KEY> AND statusCategory != Done"
 # Prints JSON array: [{"id":"PSG-4264","summary":"..."}]
 # On failure, prints {"error":"...","response":"..."} and exits non-zero.
+#
+# Pagination: pages of 50 via maxResults + nextPageToken (Jira v3 cursor model).
+# Hard cap of MAX_PAGES * 50 = 1000 issues per call to bound runaway sweeps.
 
 set -euo pipefail
 export LC_ALL=C.UTF-8
+
+PAGE_SIZE=50
+MAX_PAGES=20
 
 PROJECT_KEY="${1:-}"
 FILTER="${2:-}"
@@ -42,21 +48,57 @@ else
   jql="project = $PROJECT_KEY AND ($FILTER)"
 fi
 
-response_file=$(mktemp)
-trap 'rm -f "$response_file"' EXIT
+aggregate_file=$(mktemp)
+page_file=$(mktemp)
+trap 'rm -f "$aggregate_file" "$page_file"' EXIT
+echo '[]' > "$aggregate_file"
 
-status=$(curl -sS -G -o "$response_file" -w "%{http_code}" \
-  -u "$EMAIL:$TOK" \
-  -H "Accept: application/json" \
-  --data-urlencode "jql=$jql" \
-  --data-urlencode "fields=summary" \
-  --data-urlencode "maxResults=200" \
-  "$URL/rest/api/3/search/jql")
+next_token=""
+truncated=false
+for ((page=0; page<MAX_PAGES; page++)); do
+  url_args=(
+    --data-urlencode "jql=$jql"
+    --data-urlencode "fields=summary"
+    --data-urlencode "maxResults=$PAGE_SIZE"
+  )
+  if [[ -n "$next_token" ]]; then
+    url_args+=( --data-urlencode "nextPageToken=$next_token" )
+  fi
 
-if [[ "$status" != 2* ]]; then
-  jq -cn --arg s "$status" --arg j "$jql" --rawfile b "$response_file" \
-    '{error: ("jira list failed (http=" + $s + ")"), jql: $j, response: $b}'
-  exit 1
+  status=$(curl -sS -G -o "$page_file" -w "%{http_code}" \
+    -u "$EMAIL:$TOK" \
+    -H "Accept: application/json" \
+    "${url_args[@]}" \
+    "$URL/rest/api/3/search/jql")
+
+  if [[ "$status" != 2* ]]; then
+    jq -cn --arg s "$status" --arg j "$jql" --arg page "$page" --rawfile b "$page_file" \
+      '{error: ("jira list failed (http=" + $s + ") on page " + $page), jql: $j, response: $b}'
+    exit 1
+  fi
+
+  page_count=$(jq '.issues | length' "$page_file")
+  if [[ "$page_count" -gt 0 ]]; then
+    jq -s '.[0] + (.[1].issues | map({id: .key, summary: .fields.summary}))' \
+      "$aggregate_file" "$page_file" > "$aggregate_file.next"
+    mv "$aggregate_file.next" "$aggregate_file"
+  fi
+
+  is_last=$(jq -r '.isLast // false' "$page_file")
+  next_token=$(jq -r '.nextPageToken // ""' "$page_file")
+
+  if [[ "$is_last" == "true" || -z "$next_token" ]]; then
+    break
+  fi
+
+  if [[ "$page" -eq $((MAX_PAGES - 1)) ]]; then
+    truncated=true
+  fi
+done
+
+if $truncated; then
+  jq --arg cap "$((MAX_PAGES * PAGE_SIZE))" \
+    '{tickets: ., truncated: true, cap: ($cap | tonumber)}' "$aggregate_file"
+else
+  cat "$aggregate_file"
 fi
-
-jq '[.issues[]? | {id: .key, summary: .fields.summary}]' "$response_file"
