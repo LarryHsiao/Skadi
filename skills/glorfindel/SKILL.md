@@ -53,9 +53,11 @@ An explicit `--filter <value>` always wins.
 
 ## Workflow
 
-### 1. Pre-flight check
+### 1. Pre-flight checks
 
-If `<tracker>` is `jira` and neither `--dry-run` nor `--confirm` is set: warn the user via AskUserQuestion that Glorfindel is about to sweep Jira and may post automatically to many real tickets. Offer three options:
+**a. Resolve the repo path** for Erestor's reads. Same rule as `/council` — see the council skill's "Working-directory contract" section. Look up `<tracker>:<project>` in `repo_routing.md`; if absent, ask once, save, proceed. The resolution happens once for the whole sweep — every ticket in this `<tracker>:<project>` shares the same repo root.
+
+**b. Jira post-safety warning.** If `<tracker>` is `jira` and neither `--dry-run` nor `--confirm` is set: warn the user via AskUserQuestion that Glorfindel is about to sweep Jira and may post automatically to many real tickets. Offer three options:
 - Proceed unattended (risky on Jira).
 - Re-run with `--confirm` (recommended).
 - Re-run with `--dry-run` (safest).

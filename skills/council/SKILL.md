@@ -56,7 +56,18 @@ Once the tracker is chosen, all subsequent steps use that backend's hooks. The t
 
 ## Working-directory contract
 
-The skill is invoked from inside the repository the ticket concerns. Erestor inherits this working directory and may read it (Read, Grep, Glob, `git log`) to verify assumptions before drafting. He must not modify anything. If the ticket concerns a repo other than the one Claude Code was opened in, the user is expected to `cd` there before running `/council`.
+Erestor's working directory comes from a per-project memory file `repo_routing.md`, **not** from the user's current shell pwd. Resolution order:
+
+1. **Memory mapping.** Read `repo_routing.md` from the project memory directory. Look up `<tracker>:<project>` (e.g. `youtrack:MET`). If found, that's Erestor's repo root. If the value is `(no repo)`, tell Erestor explicitly that this ticket has no codebase context — he drafts from ticket text alone.
+2. **Ask and save.** If no entry, prompt the user via AskUserQuestion with options:
+   - *"Current cwd"* — capture `git rev-parse --show-toplevel` (or the cwd if not a repo) and save.
+   - *"A specific path"* — let the user type one (the AskUserQuestion "Other" affordance).
+   - *"No repo"* — save `(no repo)` for this project.
+   
+   Save the chosen value to `repo_routing.md` under the `<tracker>:<project>` key, then proceed.
+3. **Use the resolved path** as Erestor's working directory and pass it in his prompt. He may Read / Grep / Glob / `git log` there. He must not modify anything.
+
+This decouples *where you happen to be* from *which repo this ticket concerns*. To change the binding for a project, edit `repo_routing.md`. To re-prompt, delete the project's line.
 
 ## Workflow
 
@@ -145,8 +156,8 @@ Load the Erestor prompt from `<skill-dir>/erestor.md` (read the file contents). 
 - A tail block containing:
   - The ticket `summary` and `description`.
   - The full comment thread (all `[COUNSEL v…]`, `[PARLEY]`, and human comments in order, with author names).
-  - The repo root (`git rev-parse --show-toplevel`) so Erestor knows where his read-tools point.
-  - The instruction: "You are drafting `[COUNSEL v{NEXT}]`. The working directory is the repo this ticket concerns; you may read it (no writes) to verify assumptions before drafting. If a clarifying question is more honest than a guess, reply with a single `[PARLEY]` instead."
+  - The repo root resolved per the **Working-directory contract** above. If the resolved value is `(no repo)`, state that plainly so Erestor knows not to attempt reads.
+  - The instruction: "You are drafting `[COUNSEL v{NEXT}]`. Your working directory is the named repo (or none, if so stated); you may read it with no writes, to verify assumptions before drafting. If a clarifying question is more honest than a guess, reply with a single `[PARLEY]` instead."
 
 Erestor returns a single markdown body whose first line begins with either `[COUNSEL v{NEXT}]` or `[PARLEY]`. If he returns anything else, treat it as a drafting failure and stop — do not post.
 
