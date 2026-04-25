@@ -114,7 +114,12 @@ Walk the `comments` array (already oldest-first). Determine:
 
 The order of these checks matters — verdict beats fresh-counsel check beats first-turn.
 
-1. **Verdict present.** Token precedence: `[FORTH]`/`[APPROVE]` → adjourn with approval on `[COUNSEL vN]`; `[NAY]`/`[REJECT]` → adjourn without approval; `[NAMARIE]`/`[FAREWELL]` → adjourn without verdict (farewell). Tell the user which adjournment fired and on which counsel version. Post nothing. Stop. The first matching token in fresh counsel wins (precedence: `[FORTH]` > `[NAY]` > `[NAMARIE]`).
+1. **Verdict present.** Scan all fresh counsel for the three verdict tokens (and their aliases). Token precedence — *not* chronological order — picks the winner: `[FORTH]`/`[APPROVE]` beats `[NAY]`/`[REJECT]` beats `[NAMARIE]`/`[FAREWELL]`. So if Elrond posts `[NAY]` and later posts `[FORTH]`, the parser adjourns as approved (FORTH wins regardless of when it appeared); same if the order is reversed. Effect:
+   - `[FORTH]`/`[APPROVE]` → adjourn with approval on `[COUNSEL vN]`.
+   - `[NAY]`/`[REJECT]` → adjourn without approval.
+   - `[NAMARIE]`/`[FAREWELL]` → adjourn without verdict (farewell — for out-of-band resolution).
+   
+   Tell the user which adjournment fired and on which counsel version. Post nothing. Stop.
 
 2. **No fresh counsel and a plan already exists.** The bot has spoken last and Elrond has not replied. Do not draft, do not post — there is no new ground to chew on, and a re-issue would only clutter the thread. Tell the user: "Awaiting Elrond's reply on `[COUNSEL vN]` (or the latest `[PARLEY]`). No fresh counsel since `<timestamp>`." Stop. **This makes the skill loop-safe** — repeated invocations between Elrond's replies are no-ops.
 
