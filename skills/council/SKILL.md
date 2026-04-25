@@ -175,7 +175,7 @@ Do not reproduce Erestor's draft in the response — it lives on the ticket now.
 
 ## Comment grammar
 
-Exactly four tokens carry state. Everything else is counsel.
+Five tokens carry state. Everything else is counsel.
 
 | Token | Who writes it | Meaning |
 |---|---|---|
@@ -183,6 +183,7 @@ Exactly four tokens carry state. Everything else is counsel.
 | `[AGENT-ASK]` | Erestor | A single clarifying question. |
 | `[APPROVE]` | Elrond | The plan stands. Council adjourns. |
 | `[REJECT]` | Elrond | The plan is abandoned. Council adjourns. |
+| `[MELLON]` | Elrond | Summons the council to enroll this ticket in `/glorfindel` sweeps. *Speak, friend, and enter.* Ignored by single-ticket `/council` (the invocation itself is consent). |
 
 Human replies between these tokens are free-form prose — Erestor reads them as counsel, never as commands.
 
