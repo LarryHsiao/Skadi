@@ -52,10 +52,12 @@ Then add a pointer line to `MEMORY.md`:
 
 ### 2. Run install for each root
 
-For each resolved root:
+Resolve the repo root via `git rev-parse --show-toplevel`. The skill is loaded from `.claude/skills/install/`, so the working directory is inside the skadi repo by definition.
+
+For each resolved Claude config root:
 
 ```bash
-~/skadi/install.sh <root>
+"$(git rev-parse --show-toplevel)/install.sh" <root>
 ```
 
 Show the script's output.
@@ -76,6 +78,7 @@ For each root, print:
 ## Rules
 
 - Do not pass any flags to `install.sh` beyond the root path
-- If `~/skadi/install.sh` is missing, stop and tell the user the skadi repo isn't at `~/skadi`
+- If `git rev-parse --show-toplevel` fails, the working directory is not inside a git repo — stop and ask the user to `cd` into the skadi repo before invoking `/install`
+- If the resolved repo root has no `install.sh` at its top, stop and tell the user this isn't the skadi repo
 - If the memory file exists but looks malformed, fall back to asking again and overwrite
 - To change the saved roots, the user can edit `claude_config_roots.md` or delete it to re-prompt

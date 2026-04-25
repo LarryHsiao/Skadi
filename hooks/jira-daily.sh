@@ -4,17 +4,25 @@
 
 JQL="$1"
 
-# Prefer memory over env — env can be polluted by unrelated JIRA_BASE_URL/JIRA_EMAIL
+# Resolution order for url/email: vault -> memory -> env -> default.
+# Vault-only first (sentinel "-" disables env fallback so memory can still win).
+SECRET="$(dirname "$0")/secret.sh"
+JIRA_BASE_URL_VAULT="$("$SECRET" jira uri - 2>/dev/null || true)"
+JIRA_EMAIL_VAULT="$("$SECRET" jira username - 2>/dev/null || true)"
+
+# Memory file fallback (project-local override, kept for legacy/offline use).
 CONFIG_FILE="$HOME/.claude-personal/projects/$(pwd | sed 's|/|-|g')/memory/jira_config.md"
+JIRA_BASE_URL_MEM=""
+JIRA_EMAIL_MEM=""
 if [[ -f "$CONFIG_FILE" ]]; then
-  mem_url=$(awk -F'`' '/JIRA_BASE_URL/{print $4; exit}' "$CONFIG_FILE")
-  mem_email=$(awk -F'`' '/JIRA_EMAIL/{print $4; exit}' "$CONFIG_FILE")
-  [[ -n "$mem_url" ]]   && JIRA_BASE_URL="$mem_url"
-  [[ -n "$mem_email" ]] && JIRA_EMAIL="$mem_email"
+  JIRA_BASE_URL_MEM=$(awk -F'`' '/JIRA_BASE_URL/{print $4; exit}' "$CONFIG_FILE")
+  JIRA_EMAIL_MEM=$(awk -F'`' '/JIRA_EMAIL/{print $4; exit}' "$CONFIG_FILE")
 fi
 
-JIRA_BASE_URL="${JIRA_BASE_URL:-https://jubo.atlassian.net}"
-JIRA_EMAIL="${JIRA_EMAIL:-larryhsiao@jubo.health}"
+JIRA_BASE_URL="${JIRA_BASE_URL_VAULT:-${JIRA_BASE_URL_MEM:-${JIRA_BASE_URL:-https://jubo.atlassian.net}}}"
+JIRA_EMAIL="${JIRA_EMAIL_VAULT:-${JIRA_EMAIL_MEM:-${JIRA_EMAIL:-larryhsiao@jubo.health}}}"
+
+JIRA_API_TOKEN="$("$SECRET" jira password JIRA_API_TOKEN 2>/dev/null || true)"
 
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
   "$JIRA_BASE_URL/rest/api/3/search/jql" \
