@@ -99,35 +99,35 @@ If the script prints `{"error": "..."}`, tell the user the error and stop.
 
 Walk the `comments` array (already oldest-first). Determine:
 
-- **Latest plan version.** The highest `N` where a comment's first line matches `[PLAN vN]` (case-insensitive). If no plan exists yet, the next version is `1`.
+- **Latest plan version.** The highest `N` where a comment's first line matches `[COUNSEL vN]` or its alias `[PLAN vN]` (case-insensitive). If no plan exists yet, the next version is `1`.
 - **Bot identity.** Two modes:
   - **Service-account mode** (e.g. YouTrack with a dedicated `claude` user): a comment is the bot's iff `login == "<bot-login>"`.
-  - **Shared-identity mode** (e.g. Jira where the bot posts as Elrond): no login distinction exists; a comment is the bot's iff its first line carries `[PLAN v…]` or `[AGENT-ASK]`.
+  - **Shared-identity mode** (e.g. Jira where the bot posts as Elrond): no login distinction exists; a comment is the bot's iff its first line carries `[COUNSEL v…]` / `[PLAN v…]` (alias) or `[PARLEY]` / `[AGENT-ASK]` (alias).
 
   Detect mode by inspecting the comment thread: if any login carries the configured bot value (today: `claude`), use service-account mode; otherwise use shared-identity mode.
 
 - **Bot's last word.** The most recent comment classified as the bot's under the chosen mode. If no bot comment exists yet, this is the first turn.
 - **Fresh counsel.** Any comments after the bot's last word that are *not* the bot's under the chosen mode. These are Elrond's counsel. If none exist, the thread has not moved since the bot last spoke.
-- **Verdict.** Scan the fresh counsel for `[APPROVE]` or `[REJECT]` (case-insensitive, anywhere in the body).
+- **Verdict.** Scan the fresh counsel for any of these tokens (case-insensitive, anywhere in the body): `[FORTH]` or its alias `[APPROVE]` (yes); `[NAY]` or its alias `[REJECT]` (no); `[NAMARIE]` or its alias `[FAREWELL]` (adjourn without verdict).
 
 ### 3. Handle thread state
 
 The order of these checks matters — verdict beats fresh-counsel check beats first-turn.
 
-1. **Verdict present.** If `[APPROVE]` is in fresh counsel: tell the user the council has adjourned with approval on `[PLAN vN]`. If `[REJECT]`: adjourned without approval. Post nothing. Stop.
+1. **Verdict present.** Token precedence: `[FORTH]`/`[APPROVE]` → adjourn with approval on `[COUNSEL vN]`; `[NAY]`/`[REJECT]` → adjourn without approval; `[NAMARIE]`/`[FAREWELL]` → adjourn without verdict (farewell). Tell the user which adjournment fired and on which counsel version. Post nothing. Stop. The first matching token in fresh counsel wins (precedence: `[FORTH]` > `[NAY]` > `[NAMARIE]`).
 
-2. **No fresh counsel and a plan already exists.** The bot has spoken last and Elrond has not replied. Do not draft, do not post — there is no new ground to chew on, and a re-issue would only clutter the thread. Tell the user: "Awaiting Elrond's reply on `[PLAN vN]` (or the latest `[AGENT-ASK]`). No fresh counsel since `<timestamp>`." Stop. **This makes the skill loop-safe** — repeated invocations between Elrond's replies are no-ops.
+2. **No fresh counsel and a plan already exists.** The bot has spoken last and Elrond has not replied. Do not draft, do not post — there is no new ground to chew on, and a re-issue would only clutter the thread. Tell the user: "Awaiting Elrond's reply on `[COUNSEL vN]` (or the latest `[PARLEY]`). No fresh counsel since `<timestamp>`." Stop. **This makes the skill loop-safe** — repeated invocations between Elrond's replies are no-ops.
 
-3. **First turn (no plan yet).** Skip to step 4 to draft `[PLAN v1]`. The ticket itself is the counsel; no prior bot word is required.
+3. **First turn (no plan yet).** Skip to step 4 to draft `[COUNSEL v1]`. The ticket itself is the counsel; no prior bot word is required.
 
 4. **Fresh counsel without verdict.** Fall through to the turn-limit check, then summon Erestor.
 
 ### 4. Check turn limit
 
-The limit is on `[PLAN vN]` count, not invocation count — `[AGENT-ASK]` posts do not count. If the next plan would be `[PLAN v6]` (i.e. five plan-versions already posted without verdict), do not draft. Post a single `[AGENT-ASK]` comment via the comment script with this body:
+The limit is on `[COUNSEL vN]` count, not invocation count — `[PARLEY]` posts do not count. If the next plan would be `[COUNSEL v6]` (i.e. five counsels already posted without verdict), do not draft. Post a single `[PARLEY]` comment via the comment script with this body:
 
 ```
-[AGENT-ASK] The council has turned five times without a verdict. This thread has outgrown what a comment can resolve. Take it offline — a conversation, a design doc, or a fresh ticket narrowed to one open question.
+[PARLEY] The council has turned five times without a verdict. This thread has outgrown what a comment can resolve. Take it offline — a conversation, a design doc, or a fresh ticket narrowed to one open question.
 ```
 
 Then stop.
@@ -139,11 +139,11 @@ Load the Erestor prompt from `<skill-dir>/erestor.md` (read the file contents). 
 - The Erestor prompt as the *system/instruction* portion of the Agent call's `prompt`.
 - A tail block containing:
   - The ticket `summary` and `description`.
-  - The full comment thread (all `[PLAN v…]`, `[AGENT-ASK]`, and human comments in order, with author names).
+  - The full comment thread (all `[COUNSEL v…]`, `[PARLEY]`, and human comments in order, with author names).
   - The repo root (`git rev-parse --show-toplevel`) so Erestor knows where his read-tools point.
-  - The instruction: "You are drafting `[PLAN v{NEXT}]`. The working directory is the repo this ticket concerns; you may read it (no writes) to verify assumptions before drafting. If a clarifying question is more honest than a guess, reply with a single `[AGENT-ASK]` instead."
+  - The instruction: "You are drafting `[COUNSEL v{NEXT}]`. The working directory is the repo this ticket concerns; you may read it (no writes) to verify assumptions before drafting. If a clarifying question is more honest than a guess, reply with a single `[PARLEY]` instead."
 
-Erestor returns a single markdown body whose first line begins with either `[PLAN v{NEXT}]` or `[AGENT-ASK]`. If he returns anything else, treat it as a drafting failure and stop — do not post.
+Erestor returns a single markdown body whose first line begins with either `[COUNSEL v{NEXT}]` or `[PARLEY]`. If he returns anything else, treat it as a drafting failure and stop — do not post.
 
 ### 6. Post the comment
 
@@ -166,7 +166,7 @@ On failure it prints `{"error":"...","response":"..."}` (the `response` field ca
 Tell the user, in one short block:
 
 - The ticket ID.
-- Which token was posted (`[PLAN vN]` or `[AGENT-ASK]`).
+- Which token was posted (`[COUNSEL vN]` or `[PARLEY]`).
 - The ticket URL printed on the success line in step 6.
 
 Do not reproduce Erestor's draft in the response — it lives on the ticket now.
@@ -175,15 +175,18 @@ Do not reproduce Erestor's draft in the response — it lives on the ticket now.
 
 ## Comment grammar
 
-Five tokens carry state. Everything else is counsel.
+Six tokens carry state. Everything else is counsel.
 
-| Token | Who writes it | Meaning |
-|---|---|---|
-| `[PLAN vN]` | Erestor | A draft of the plan. N increments each round. |
-| `[AGENT-ASK]` | Erestor | A single clarifying question. |
-| `[APPROVE]` | Elrond | The plan stands. Council adjourns. |
-| `[REJECT]` | Elrond | The plan is abandoned. Council adjourns. |
-| `[MELLON]` | Elrond | Summons the council to enroll this ticket in `/glorfindel` sweeps. *Speak, friend, and enter.* Ignored by single-ticket `/council` (the invocation itself is consent). |
+| Token (primary) | Accepted alias | Who writes it | Meaning |
+|---|---|---|---|
+| `[COUNSEL vN]` | `[PLAN vN]` | Erestor | A draft of the plan. N increments each round. The counsellor's counsel. |
+| `[PARLEY]` | `[AGENT-ASK]` | Erestor | A single clarifying question — speech between sides to come to terms. |
+| `[MELLON]` | `[FRIEND]` | Elrond | Summons. *Speak, friend, and enter* — enrolls a ticket in `/glorfindel` sweeps. Ignored by single-ticket `/council` (the invocation itself is consent). |
+| `[FORTH]` | `[APPROVE]` | Elrond | The plan stands. *Forth, Eorlingas!* Council adjourns. |
+| `[NAY]` | `[REJECT]` | Elrond | The plan is abandoned. Council adjourns. |
+| `[NAMARIE]` | `[FAREWELL]` | Elrond | *Farewell.* Adjourn without verdict — when the thread closes for reasons other than approval or rejection (resolved out-of-band, ticket subsumed by another, etc.). |
+
+The English aliases (`[PLAN vN]`, `[AGENT-ASK]`, `[FRIEND]`, `[APPROVE]`, `[REJECT]`, `[FAREWELL]`) are accepted equivalents, recognized everywhere their Tolkien primaries are. Use either form; the parser treats them identically. User-facing reports prefer the Tolkien token.
 
 Human replies between these tokens are free-form prose — Erestor reads them as counsel, never as commands.
 
@@ -193,8 +196,8 @@ Human replies between these tokens are free-form prose — Erestor reads them as
 - Never edit or delete existing comments. Every round is a new comment.
 - **Loop-safe.** If no fresh counsel from Elrond has come since the bot's last word, post nothing. Repeated invocations between Elrond's replies must be silent no-ops. The thread, not the invocation count, is the source of truth.
 - If the tracker hook reports a credential is missing, surface the error and stop — do not proceed.
-- Turn limit is five plans per ticket. On the sixth, post `[AGENT-ASK]` asking to take the thread offline. (Only triggers when fresh counsel exists; otherwise the loop-safe rule keeps the thread quiet.)
-- Case-insensitive matching of `[APPROVE]`, `[REJECT]`, `[PLAN vN]`, `[AGENT-ASK]`.
+- Turn limit is five counsels per ticket. On the sixth, post `[PARLEY]` asking to take the thread offline. (Only triggers when fresh counsel exists; otherwise the loop-safe rule keeps the thread quiet.)
+- Case-insensitive matching of all six tokens and their aliases.
 - Two trackers are wired: YouTrack and Jira. The hybrid dispatch rule above chooses between them.
 - **Jira tickets are real work.** Do not post test or diagnostic comments to Jira during smoke testing. Use `COUNCIL_DRY_RUN=1` env on the Jira comment hook for shape verification, and do write-path smoke tests against YouTrack (MET-1).
 - Do not surface tracker tokens in logs, responses, or saved files.

@@ -64,10 +64,10 @@ The hook prints a JSON array `[{id, summary}]`. If it prints `{"error": ...}`, s
 Iterate the list (newest-first as the hook returns it). For each ticket, follow the **council workflow** (see `skills/council/SKILL.md` steps 1 through 6) with three glorfindel-specific shifts:
 
 - **Engagement gate.** A ticket is enrolled in the sweep iff *one* of these holds:
-  - The thread already contains any `[PLAN v…]` or `[AGENT-ASK]` (already in the council), OR
-  - Any non-bot comment carries `[MELLON]` (Elrond's summons; case-insensitive, anywhere in the body).
+  - The thread already contains any `[COUNSEL v…]` / `[PLAN v…]` (alias) or `[PARLEY]` / `[AGENT-ASK]` (alias) — already in the council, OR
+  - Any non-bot comment carries `[MELLON]` or its alias `[FRIEND]` (Elrond's summons; case-insensitive, anywhere in the body).
 
-  Tickets with neither gate satisfied are *untouched* — the sweep does not draft on them, even though they are open. Record action `untouched` with detail "no `[MELLON]` summons yet" and move on. This keeps `/glorfindel` from flooding a fresh project with `[PLAN v1]`s on its first run; Elrond enrolls each ticket explicitly. The gate applies only to `/glorfindel` — direct `/council MET-2` is itself the summons and runs without `[MELLON]`.
+  Tickets with neither gate satisfied are *untouched* — the sweep does not draft on them, even though they are open. Record action `untouched` with detail "no `[MELLON]` summons yet" and move on. This keeps `/glorfindel` from flooding a fresh project with `[COUNSEL v1]`s on its first run; Elrond enrolls each ticket explicitly. The gate applies only to `/glorfindel` — direct `/council MET-2` is itself the summons and runs without `[MELLON]`.
 
 - **Loop-safe is mandatory.** Once a ticket is past the engagement gate, skip silently any whose state classifies as "no fresh counsel". Do not draft, do not post — they are at rest. Record action `quiet` and move on.
 - **Posting gate** — applies any time the per-ticket flow would invoke the comment hook:
@@ -88,23 +88,25 @@ Print one markdown table summarizing the ride. Example shape:
 
 | Ticket | Action     | Detail                              |
 |--------|------------|-------------------------------------|
-| MET-3  | drafted    | [PLAN v1] posted (id 7-22)          |
-| MET-2  | dry-run    | [PLAN v2] would post (412 chars)    |
-| MET-1  | quiet      | awaiting reply on [PLAN v4]         |
+| MET-3  | drafted    | [COUNSEL v1] posted (id 7-22)       |
+| MET-2  | dry-run    | [COUNSEL v2] would post (412 chars) |
+| MET-1  | quiet      | awaiting reply on [COUNSEL v4]      |
 
-Total: 3 tickets — 1 drafted, 1 dry-run, 1 quiet, 0 adjourned, 0 talked-out, 0 skipped, 0 errors.
+Total: 3 tickets — 1 drafted, 1 dry-run, 1 quiet, 0 untouched, 0 forth, 0 nay, 0 farewell, 0 talked-out, 0 skipped, 0 errors.
 ```
 
 Action vocabulary:
 
 | Action | Meaning |
 |---|---|
-| `untouched` | No `[PLAN vN]` exists yet AND no `[MELLON]` summons in the thread. Skipped to avoid mass-drafting on first sweeps. |
+| `untouched` | No `[COUNSEL vN]` exists yet AND no `[MELLON]`/`[FRIEND]` summons in the thread. Skipped to avoid mass-drafting on first sweeps. |
 | `quiet` | Loop-safe no-op — bot's last word stands; no fresh Elrond counsel. |
-| `drafted` | Erestor wrote a `[PLAN vN]` or `[AGENT-ASK]` and the post landed. |
+| `drafted` | Erestor wrote a `[COUNSEL vN]` or `[PARLEY]` and the post landed. |
 | `dry-run` | Erestor's draft prepared; not posted per `--dry-run`. |
-| `adjourned` | `[APPROVE]` or `[REJECT]` found in fresh counsel; council closed. |
-| `talked-out` | Five-plan turn limit hit; canned `[AGENT-ASK]` posted (or would-post under dry-run). |
+| `forth` | `[FORTH]` (or alias `[APPROVE]`) found — plan stands. Council adjourned with approval. |
+| `nay` | `[NAY]` (or alias `[REJECT]`) found — plan abandoned. Council adjourned without approval. |
+| `farewell` | `[NAMARIE]` (or alias `[FAREWELL]`) found — council adjourned without verdict (resolved out-of-band, subsumed, etc.). |
+| `talked-out` | Five-counsel turn limit hit; canned `[PARLEY]` posted (or would-post under dry-run). |
 | `skipped` | User declined the `--confirm` prompt for this ticket. |
 | `error` | A hook failed for this ticket. Include the error message in Detail. |
 
