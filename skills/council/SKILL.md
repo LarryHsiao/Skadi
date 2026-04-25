@@ -22,15 +22,18 @@ Convenes a planning council on a tracker ticket. A subagent — Erestor, chief c
 
 ## Tracker routing
 
-Dispatch by ticket-ID prefix:
+Today only YouTrack is wired. Route every ticket ID to:
 
-| Prefix | Tracker | Fetch script | Comment script |
-|---|---|---|---|
-| `YT-…` | YouTrack | `~/.claude/hooks/council-youtrack-fetch.sh` | `~/.claude/hooks/council-youtrack-comment.sh` |
+- Fetch: `~/.claude/hooks/council-youtrack-fetch.sh`
+- Comment: `~/.claude/hooks/council-youtrack-comment.sh`
 
-If the prefix does not match any supported tracker, tell the user it is not yet wired and stop.
+The ticket prefix (`YT-`, `MET-`, etc.) is whatever YouTrack's project shortName happens to be — do not gate on it. When a second tracker lands, this section will spell out a real dispatch rule (likely a `--tracker` flag or a project-scoped memory pointer).
 
 ---
+
+## Working-directory contract
+
+The skill is invoked from inside the repository the ticket concerns. Erestor inherits this working directory and may read it (Read, Grep, Glob, `git log`) to verify assumptions before drafting. He must not modify anything. If the ticket concerns a repo other than the one Claude Code was opened in, the user is expected to `cd` there before running `/council`.
 
 ## YouTrack Workflow
 
@@ -70,18 +73,25 @@ If the script prints `{"error": "..."}`, tell the user the error and stop.
 Walk the `comments` array (already oldest-first). Determine:
 
 - **Latest plan version.** The highest `N` where a comment's first line matches `[PLAN vN]` (case-insensitive). If no plan exists yet, the next version is `1`.
-- **Latest human reply.** Any comments after the last `[PLAN vN]` whose first line is *not* one of the Council tokens (`[PLAN v…]`, `[AGENT-ASK]`). These are Elrond's counsel.
-- **Verdict.** Scan the latest human reply for `[APPROVE]` or `[REJECT]` (case-insensitive, anywhere in the body).
+- **Bot's last word.** The most recent comment authored by the Council (login is the service account, e.g. `claude`, OR — when no service account is in use — first line carries `[PLAN v…]` / `[AGENT-ASK]`). If no bot comment exists yet, this is the first turn.
+- **Fresh counsel.** Any comments after the bot's last word, authored by a non-bot login. These are Elrond's counsel. If none exist, the thread has not moved since the bot last spoke.
+- **Verdict.** Scan the fresh counsel for `[APPROVE]` or `[REJECT]` (case-insensitive, anywhere in the body).
 
-### 4. Handle verdict
+### 4. Handle thread state
 
-If `[APPROVE]` is present: tell the user the council has adjourned with approval on `[PLAN vN]`. Do not post anything. Stop.
+The order of these checks matters — verdict beats fresh-counsel check beats first-turn.
 
-If `[REJECT]` is present: tell the user the council has adjourned without approval. Do not post anything. Stop.
+1. **Verdict present.** If `[APPROVE]` is in fresh counsel: tell the user the council has adjourned with approval on `[PLAN vN]`. If `[REJECT]`: adjourned without approval. Post nothing. Stop.
+
+2. **No fresh counsel and a plan already exists.** The bot has spoken last and Elrond has not replied. Do not draft, do not post — there is no new ground to chew on, and a re-issue would only clutter the thread. Tell the user: "Awaiting Elrond's reply on `[PLAN vN]` (or the latest `[AGENT-ASK]`). No fresh counsel since `<timestamp>`." Stop. **This makes the skill loop-safe** — repeated invocations between Elrond's replies are no-ops.
+
+3. **First turn (no plan yet).** Skip to step 5 to draft `[PLAN v1]`. The ticket itself is the counsel; no prior bot word is required.
+
+4. **Fresh counsel without verdict.** Fall through to the turn-limit check, then summon Erestor.
 
 ### 5. Check turn limit
 
-If the next plan would be `[PLAN v6]` (i.e. five rounds already posted without verdict), do not draft. Post a single `[AGENT-ASK]` comment via the comment script with this body:
+The limit is on `[PLAN vN]` count, not invocation count — `[AGENT-ASK]` posts do not count. If the next plan would be `[PLAN v6]` (i.e. five plan-versions already posted without verdict), do not draft. Post a single `[AGENT-ASK]` comment via the comment script with this body:
 
 ```
 [AGENT-ASK] The council has turned five times without a verdict. This thread has outgrown what a comment can resolve. Take it offline — a conversation, a design doc, or a fresh ticket narrowed to one open question.
@@ -97,7 +107,8 @@ Load the Erestor prompt from `<skill-dir>/erestor.md` (read the file contents). 
 - A tail block containing:
   - The ticket `summary` and `description`.
   - The full comment thread (all `[PLAN v…]`, `[AGENT-ASK]`, and human comments in order, with author names).
-  - The instruction: "You are drafting `[PLAN v{NEXT}]`. If a clarifying question is more honest than a guess, reply with a single `[AGENT-ASK]` instead."
+  - The repo root (`git rev-parse --show-toplevel`) so Erestor knows where his read-tools point.
+  - The instruction: "You are drafting `[PLAN v{NEXT}]`. The working directory is the repo this ticket concerns; you may read it (no writes) to verify assumptions before drafting. If a clarifying question is more honest than a guess, reply with a single `[AGENT-ASK]` instead."
 
 Erestor returns a single markdown body whose first line begins with either `[PLAN v{NEXT}]` or `[AGENT-ASK]`. If he returns anything else, treat it as a drafting failure and stop — do not post.
 
@@ -109,7 +120,13 @@ Pipe Erestor's body into the comment script:
 printf '%s' "$EREST_OR_BODY" | ~/.claude/hooks/council-youtrack-comment.sh <TICKET-ID>
 ```
 
-If the script exits non-zero or prints an error, tell the user and stop.
+On success the script prints one line:
+
+```
+posted: id=<comment-id> created=<epoch-ms> url=<full-ticket-url>
+```
+
+On failure it prints `{"error":"...","response":"..."}` (the `response` field carries the server's actual error body). If the script exits non-zero, tell the user the error and stop.
 
 ### 8. Report
 
@@ -117,7 +134,7 @@ Tell the user, in one short block:
 
 - The ticket ID.
 - Which token was posted (`[PLAN vN]` or `[AGENT-ASK]`).
-- The ticket URL so they can go render verdict: `<YOUTRACK_URL>/issue/<TICKET-ID>`.
+- The ticket URL printed on the success line in step 7.
 
 Do not reproduce Erestor's draft in the response — it lives on the ticket now.
 
@@ -140,8 +157,9 @@ Human replies between these tokens are free-form prose — Erestor reads them as
 
 - Never act on Elrond's behalf. The skill only reads tickets and posts comments.
 - Never edit or delete existing comments. Every round is a new comment.
+- **Loop-safe.** If no fresh counsel from Elrond has come since the bot's last word, post nothing. Repeated invocations between Elrond's replies must be silent no-ops. The thread, not the invocation count, is the source of truth.
 - If the secret helper cannot resolve `YOUTRACK_TOKEN` (neither Vaultwarden nor env), the fetch/comment script returns an error; surface it and stop — do not proceed.
-- Turn limit is five plans per ticket. On the sixth, post `[AGENT-ASK]` asking to take the thread offline.
+- Turn limit is five plans per ticket. On the sixth, post `[AGENT-ASK]` asking to take the thread offline. (Only triggers when fresh counsel exists; otherwise the loop-safe rule keeps the thread quiet.)
 - Case-insensitive matching of `[APPROVE]`, `[REJECT]`, `[PLAN vN]`, `[AGENT-ASK]`.
 - Trackers other than YouTrack are not yet wired. Do not guess.
 - Do not surface `YOUTRACK_TOKEN` in logs, responses, or saved files.

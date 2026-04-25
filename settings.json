@@ -24,6 +24,7 @@
       "Bash(egrep:*)",
       "Bash(fgrep:*)",
       "Bash(rtk grep:*)",
+      "Bash(rtk ls:*)",
       "Bash(find:*)",
       "Bash(head:*)",
       "Bash(tail:*)",
