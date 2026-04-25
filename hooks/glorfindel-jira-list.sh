@@ -1,13 +1,11 @@
 #!/bin/bash
-# Usage: glorfindel-jira-list.sh <PROJECT-KEY> [<FILTER>]
-# Lists open issues in a Jira project.
-#   FILTER (optional):
+# Usage: glorfindel-jira-list.sh <PROJECT-KEY> <FILTER>
+# Lists issues in a Jira project matching the given filter.
+#   FILTER (required):
 #     - All-digits string (e.g. "10363") -> treat as saved filter ID:
 #         jql = "filter = 10363"
 #     - Otherwise -> treat as raw JQL fragment, ANDed with the project clause:
 #         jql = "project = <KEY> AND <FILTER>"
-#     - If omitted -> default scope:
-#         jql = "project = <KEY> AND statusCategory != Done"
 # Prints JSON array: [{"id":"PSG-4264","summary":"..."}]
 # On failure, prints {"error":"...","response":"..."} and exits non-zero.
 #
@@ -28,6 +26,11 @@ if [[ -z "$PROJECT_KEY" ]]; then
   exit 1
 fi
 
+if [[ -z "$FILTER" ]]; then
+  echo '{"error":"filter required (pass a saved-filter ID like 10363, or a raw JQL fragment)"}'
+  exit 1
+fi
+
 SECRET="$(dirname "$0")/secret.sh"
 URL="$("$SECRET" jira uri 2>/dev/null || true)"
 EMAIL="$("$SECRET" jira username 2>/dev/null || true)"
@@ -40,9 +43,7 @@ fi
 
 URL="${URL%/}"
 
-if [[ -z "$FILTER" ]]; then
-  jql="project = $PROJECT_KEY AND statusCategory != Done"
-elif [[ "$FILTER" =~ ^[0-9]+$ ]]; then
+if [[ "$FILTER" =~ ^[0-9]+$ ]]; then
   jql="filter = $FILTER"
 else
   jql="project = $PROJECT_KEY AND ($FILTER)"

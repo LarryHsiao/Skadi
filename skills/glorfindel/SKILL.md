@@ -26,17 +26,23 @@ Glorfindel rode out from Rivendell to seek the Ringbearer, and visited each road
 | `--dry-run` | no | List what would happen; never post |
 | `--confirm` | no | Ask before each post (default off) |
 
-**Filter semantics:**
+**Filter is required.** Glorfindel will not sweep without one — sweeping a whole project is too broad to be useful and too costly to be safe. The skill enforces this; the list hooks enforce it too.
 
-- **YouTrack:** an extra query fragment, ANDed with the project clause. Example: `--filter "state:Open assignee:me"`.
-- **Jira:** either a saved filter ID (all-digit, e.g. `--filter 10363`) OR a JQL fragment ANDed with the project (e.g. `--filter "assignee = currentUser()"`).
+**Filter semantics, by tracker:**
+
+- **YouTrack:**
+  - Saved-query ID (digits-hyphen-digits, e.g. `--filter 11-0`) — looks the saved query up at `/api/savedQueries/<id>`, uses its `query` text. Symmetric with Jira's saved-filter shortcut.
+  - Raw query fragment (e.g. `--filter "state:Open assignee:me"`, or `--filter "#Unresolved"`) — ANDed with the project clause.
+- **Jira:**
+  - Saved filter ID (all-digit, e.g. `--filter 10363`) — JQL becomes `filter = 10363`.
+  - Raw JQL fragment (e.g. `--filter "assignee = currentUser()"`) — ANDed with the project.
 
 **Filter resolution order** (when `--filter` is *not* given on the command line):
 
 1. **Per-project memory** — read `default_filters.md` from the project memory directory. Look up `<tracker>:<project>` (e.g. `jira:PSG`). If found, pass that value to the list hook as if the user had typed `--filter <value>`.
-2. **Hook default** — list hooks fall back to their hardcoded baseline: YouTrack uses `#Unresolved`; Jira uses `statusCategory != Done`.
+2. **Stop with an error.** No hardcoded fallback. Tell the user: *"No filter specified and no entry for `<tracker>:<project>` in `default_filters.md`. Pass `--filter <value>` or seed the memory file."*
 
-An explicit `--filter <value>` always wins over both.
+An explicit `--filter <value>` always wins.
 
 ## Tracker routing
 

@@ -1,7 +1,10 @@
 #!/bin/bash
-# Usage: glorfindel-youtrack-list.sh <PROJECT-KEY> [<EXTRA-QUERY>]
-# Lists open tickets in a YouTrack project (default: state #Unresolved).
-# If EXTRA-QUERY is given, it is appended to the project filter.
+# Usage: glorfindel-youtrack-list.sh <PROJECT-KEY> <FILTER>
+# Lists tickets in a YouTrack project matching the given filter.
+#   FILTER (required):
+#     - Saved-query ID (digits-hyphen-digits, e.g. "11-0") -> look up the
+#       saved query's text via /api/savedQueries/<id> and use it.
+#     - Otherwise -> raw YouTrack query fragment, ANDed with the project clause.
 # Prints JSON array: [{"id":"MET-1","summary":"..."}]
 # On failure, prints {"error":"...","response":"..."} and exits non-zero.
 #
@@ -15,10 +18,15 @@ PAGE_SIZE=50
 MAX_PAGES=20
 
 PROJECT_KEY="${1:-}"
-EXTRA_QUERY="${2:-}"
+FILTER="${2:-}"
 
 if [[ -z "$PROJECT_KEY" ]]; then
   echo '{"error":"project key required"}'
+  exit 1
+fi
+
+if [[ -z "$FILTER" ]]; then
+  echo '{"error":"filter required (pass a saved-query ID like 11-0, or a raw query fragment)"}'
   exit 1
 fi
 
@@ -33,10 +41,27 @@ fi
 
 URL="${URL%/}"
 
-if [[ -n "$EXTRA_QUERY" ]]; then
-  query="project: $PROJECT_KEY $EXTRA_QUERY"
+if [[ "$FILTER" =~ ^[0-9]+-[0-9]+$ ]]; then
+  saved_file=$(mktemp)
+  saved_status=$(curl -sS -o "$saved_file" -w "%{http_code}" \
+    -H "Authorization: Bearer $TOK" \
+    -H "Accept: application/json" \
+    "$URL/api/savedQueries/$FILTER?fields=name,query")
+  if [[ "$saved_status" != 2* ]]; then
+    jq -cn --arg id "$FILTER" --arg s "$saved_status" --rawfile b "$saved_file" \
+      '{error: ("youtrack saved-query lookup failed for " + $id + " (http=" + $s + ")"), response: $b}'
+    rm -f "$saved_file"
+    exit 1
+  fi
+  filter_text=$(jq -r '.query // ""' "$saved_file")
+  rm -f "$saved_file"
+  if [[ -z "$filter_text" ]]; then
+    jq -cn --arg id "$FILTER" '{error: ("youtrack saved query " + $id + " has no query text")}'
+    exit 1
+  fi
+  query="project: $PROJECT_KEY $filter_text"
 else
-  query="project: $PROJECT_KEY #Unresolved"
+  query="project: $PROJECT_KEY $FILTER"
 fi
 
 aggregate_file=$(mktemp)
