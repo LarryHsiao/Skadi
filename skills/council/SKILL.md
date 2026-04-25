@@ -34,25 +34,21 @@ If the prefix does not match any supported tracker, tell the user it is not yet 
 
 ## YouTrack Workflow
 
-### 1. Load YouTrack config
+### 1. YouTrack config
 
-URL and token both live on a single Vaultwarden item named `youtrack` — URI field for the server URL, password field for the permanent token. Resolution order for the URL:
+URL and token both live on a single Vaultwarden item named `youtrack` — URI field for the server URL, password field for the permanent token. The fetch and comment scripts resolve both fields themselves via `secret.sh youtrack uri` and `secret.sh youtrack password`, falling back to `$YOUTRACK_URL` / `$YOUTRACK_TOKEN` env vars when the vault is unreachable. No memory file is required.
 
-1. **Vaultwarden** — `~/.claude/hooks/secret.sh youtrack uri`. If non-empty, use it.
-2. **Memory file** — `council_youtrack.md` at `<claude-root>/projects/<pwd-slugified>/memory/` (see how jira-daily resolves the path). If found, use it.
-3. **Ask** — prompt the user via AskUserQuestion. Save the answer to the memory file (with frontmatter and a `MEMORY.md` pointer) AND tell the user to also set the URI on the `youtrack` Vaultwarden item so the pair stays atomic.
-
-The fetch and comment scripts resolve the token themselves via `secret.sh youtrack` and error plainly if it cannot be found. If the user sees `YOUTRACK_TOKEN not found`, direct them to either unlock the vault (`bw unlock`, `bw serve --port 8087 &`) and ensure the `youtrack` item carries the token in its password field, or export `YOUTRACK_TOKEN` in their shell. The token itself comes from `<YOUTRACK_URL>/users/me?tab=account-security`.
+If a script reports `YOUTRACK_URL not found` or `YOUTRACK_TOKEN not found`, direct the user to unlock the vault (`bw unlock`, `bw serve --port 8087 &`) and ensure the `youtrack` item carries both URI and password, or export the matching env var. The token itself comes from `<YOUTRACK_URL>/users/me?tab=account-security`.
 
 ### 2. Fetch the ticket and its comment thread
 
-Invoke the fetch script with the ticket ID and the URL exported into the environment:
+Invoke the fetch script with just the ticket ID — URL and token are resolved inside:
 
 ```bash
-YOUTRACK_URL=<from-memory> ~/.claude/hooks/council-youtrack-fetch.sh <TICKET-ID>
+~/.claude/hooks/council-youtrack-fetch.sh <TICKET-ID>
 ```
 
-(The script pulls `YOUTRACK_TOKEN` via the secret helper; do not echo or log it.)
+(The script pulls both URL and token via the secret helper; do not echo or log them.)
 
 The script prints a single JSON object:
 
@@ -110,7 +106,7 @@ Erestor returns a single markdown body whose first line begins with either `[PLA
 Pipe Erestor's body into the comment script:
 
 ```bash
-printf '%s' "$EREST_OR_BODY" | YOUTRACK_URL=<from-memory> ~/.claude/hooks/council-youtrack-comment.sh <TICKET-ID>
+printf '%s' "$EREST_OR_BODY" | ~/.claude/hooks/council-youtrack-comment.sh <TICKET-ID>
 ```
 
 If the script exits non-zero or prints an error, tell the user and stop.

@@ -12,14 +12,15 @@ if [[ -z "$TICKET_ID" ]]; then
   exit 1
 fi
 
-if [[ -z "${YOUTRACK_URL:-}" ]]; then
-  echo '{"error":"YOUTRACK_URL not set"}'
+YOUTRACK_URL="$("$(dirname "$0")/secret.sh" youtrack uri 2>/dev/null || true)"
+if [[ -z "$YOUTRACK_URL" ]]; then
+  echo '{"error":"YOUTRACK_URL not found (tried Vaultwarden item \"youtrack\" uri and $YOUTRACK_URL)"}'
   exit 1
 fi
 
 YOUTRACK_TOKEN="$("$(dirname "$0")/secret.sh" youtrack 2>/dev/null || true)"
 if [[ -z "$YOUTRACK_TOKEN" ]]; then
-  echo '{"error":"YOUTRACK_TOKEN not found (tried Vaultwarden item \"youtrack\" and $YOUTRACK_TOKEN)"}'
+  echo '{"error":"YOUTRACK_TOKEN not found (tried Vaultwarden item \"youtrack\" password and $YOUTRACK_TOKEN)"}'
   exit 1
 fi
 

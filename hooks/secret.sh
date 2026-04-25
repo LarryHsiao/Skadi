@@ -11,6 +11,7 @@
 #   service       Bitwarden item name. Required.
 #   field         password|uri|username|notes. Default: password.
 #   env_override  Env var name to fall back to. Default: auto-mapped.
+#                 Pass "-" to skip env fallback entirely (vault-only).
 #
 # Auto env-var = <SERVICE_UPPER>_<SUFFIX>, where:
 #   password -> TOKEN
@@ -52,22 +53,27 @@ if curl -sS --max-time 1 "$SERVE_URL/status" >/dev/null 2>&1; then
   fi
 fi
 
-if [[ -z "$ENV_OVERRIDE" ]]; then
-  service_upper=$(printf '%s' "$SERVICE" | tr '[:lower:]' '[:upper:]')
-  case "$FIELD" in
-    password) suffix=TOKEN ;;
-    uri)      suffix=URL ;;
-    username) suffix=USERNAME ;;
-    notes)    suffix=NOTES ;;
-  esac
-  ENV_OVERRIDE="${service_upper}_${suffix}"
+if [[ "$ENV_OVERRIDE" != "-" ]]; then
+  if [[ -z "$ENV_OVERRIDE" ]]; then
+    service_upper=$(printf '%s' "$SERVICE" | tr '[:lower:]' '[:upper:]')
+    case "$FIELD" in
+      password) suffix=TOKEN ;;
+      uri)      suffix=URL ;;
+      username) suffix=USERNAME ;;
+      notes)    suffix=NOTES ;;
+    esac
+    ENV_OVERRIDE="${service_upper}_${suffix}"
+  fi
+  env_value="${!ENV_OVERRIDE:-}"
+  if [[ -n "$env_value" ]]; then
+    printf '%s' "$env_value"
+    exit 0
+  fi
 fi
 
-env_value="${!ENV_OVERRIDE:-}"
-if [[ -n "$env_value" ]]; then
-  printf '%s' "$env_value"
-  exit 0
+if [[ "$ENV_OVERRIDE" == "-" ]]; then
+  echo "secret.sh: '$SERVICE.$FIELD' not in Vaultwarden (bw serve at $SERVE_URL); env fallback disabled" >&2
+else
+  echo "secret.sh: '$SERVICE.$FIELD' not in Vaultwarden (bw serve at $SERVE_URL) or env \$$ENV_OVERRIDE" >&2
 fi
-
-echo "secret.sh: '$SERVICE.$FIELD' not in Vaultwarden (bw serve at $SERVE_URL) or env \$$ENV_OVERRIDE" >&2
 exit 1
