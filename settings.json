@@ -69,6 +69,10 @@
       "Bash(~/.claude/hooks/council-youtrack-comment.sh:*)",
       "Bash(~/.claude/hooks/celebrimbor-github-pr.sh:*)",
       "Bash(~/.claude/hooks/celebrimbor-gitlab-mr.sh:*)",
+      "Bash(~/.claude/hooks/lindir-github-pr.sh:*)",
+      "Bash(~/.claude/hooks/lindir-gitlab-mr.sh:*)",
+      "Bash(~/.claude/hooks/lindir-github-approve.sh:*)",
+      "Bash(~/.claude/hooks/lindir-gitlab-approve.sh:*)",
       "Bash(glab:*)",
       "Bash(~/.claude/hooks/secret.sh:*)",
       "Bash(xcrun:*)"

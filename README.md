@@ -43,6 +43,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/council` — Convene a planning council on a tracker ticket: Erestor drafts, Elrond decides, all by comment
 - `/glorfindel` — Sweep every open ticket in a project and run the council on each, aggregating one report
 - `/celebrimbor` — Forge an approved counsel into a PR/MR: branch off base, dispatch the smith, open the PR/MR, post `[GWAITH]` on the ticket
+- `/lindir` — Read a PR/MR and render a four-section review brief; with the `approve` verb, ask once and submit an approving review on the forge
 - `/cleanup-dev` — Free disk space by clearing dev caches and build artifacts
 - `/publish` — Build Flutter release archives and collect into `build/publish/`
 - `/publish-macos` — Bump version, build, and publish a macOS Xcode project to GitHub Releases or the Mac App Store
@@ -63,6 +64,8 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **council-youtrack-fetch**, **council-youtrack-comment**, **council-jira-fetch**, **council-jira-comment** — Tracker I/O for `/council` (YouTrack and Jira)
 - **glorfindel-youtrack-list**, **glorfindel-jira-list** — List open tickets matching a filter for `/glorfindel`
 - **celebrimbor-github-pr**, **celebrimbor-gitlab-mr** — Push a branch and open a PR/MR on GitHub or GitLab via `gh`/`glab`; body taken from stdin
+- **lindir-github-pr**, **lindir-gitlab-mr** — Read a PR/MR via `gh`/`glab` and emit a JSON brief for `/lindir`
+- **lindir-github-approve**, **lindir-gitlab-approve** — Submit an approving review on a PR/MR via `gh`/`glab` for `/lindir approve`
 - **publish-macos-target** — Remember whether a macOS project publishes to GitHub Releases or the Mac App Store
 
 ## Council → Forge
