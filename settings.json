@@ -67,6 +67,9 @@
       "Bash(~/.claude/hooks/eod-git-check.sh:*)",
       "Bash(~/.claude/hooks/council-youtrack-fetch.sh:*)",
       "Bash(~/.claude/hooks/council-youtrack-comment.sh:*)",
+      "Bash(~/.claude/hooks/celebrimbor-github-pr.sh:*)",
+      "Bash(~/.claude/hooks/celebrimbor-gitlab-mr.sh:*)",
+      "Bash(glab:*)",
       "Bash(~/.claude/hooks/secret.sh:*)",
       "Bash(xcrun:*)"
     ]

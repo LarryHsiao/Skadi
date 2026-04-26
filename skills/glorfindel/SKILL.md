@@ -113,7 +113,7 @@ Print one markdown table summarizing the ride. Example shape:
 | MET-2  | dry-run    | [COUNSEL v2] would post (412 chars) |
 | MET-1  | quiet      | awaiting reply on [COUNSEL v4]      |
 
-Total: 3 tickets — 1 drafted, 1 dry-run, 1 quiet, 0 untouched, 0 forth, 0 nay, 0 farewell, 0 talked-out, 0 skipped, 0 errors.
+Total: 3 tickets — 1 drafted, 1 dry-run, 1 quiet, 0 untouched, 0 forth, 0 forged, 0 nay, 0 farewell, 0 talked-out, 0 skipped, 0 errors.
 ```
 
 Action vocabulary:
@@ -125,6 +125,7 @@ Action vocabulary:
 | `drafted` | Erestor wrote a `[COUNSEL vN]` or `[PARLEY]` and the post landed. |
 | `dry-run` | Erestor's draft prepared; not posted per `--dry-run`. |
 | `forth` | `[FORTH]` (or alias `[APPROVE]`) found — plan stands. Council adjourned with approval. |
+| `forged` | `[GWAITH]` (or alias `[FORGED]` / `[SHIPPED]`) found — Celebrimbor has opened the PR/MR; the deed is wrought. Detail carries the PR/MR URL. Takes precedence over `forth` and `quiet` when `[GWAITH]` is present in the thread. |
 | `nay` | `[NAY]` (or alias `[REJECT]`) found — plan abandoned. Council adjourned without approval. |
 | `farewell` | `[NAMARIE]` (or alias `[FAREWELL]`) found — council adjourned without verdict (resolved out-of-band, subsumed, etc.). |
 | `talked-out` | Five-counsel turn limit hit; canned `[PARLEY]` posted (or would-post under dry-run). |
