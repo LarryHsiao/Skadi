@@ -39,6 +39,7 @@ Celebrimbor was the master smith of Eregion, lord of the Gwaith-i-Mírdain, who 
 | Repo path | `repo_routing.md` | `<tracker>:<project>` | AskUserQuestion, save |
 | Forge | `forge_routing.md` | `<tracker>:<project>` | AskUserQuestion (`github` / `gitlab`), save |
 | Base branch | `base_branch.md` | repo path | AskUserQuestion (default options: `master`, `main`), save |
+| State mapping | `state_mapping.md` | `<tracker>:<project>` | Lazy bootstrap on the `forged` key — see "State transition" below |
 
 `forge_routing.md` shape:
 
@@ -73,6 +74,26 @@ type: reference
 | `gitlab` | `~/.claude/hooks/celebrimbor-gitlab-mr.sh` |
 
 Both hooks honour the same contract — `<branch> <base> <title> [--draft|--ready]` with body on stdin — and print the same success line: `opened: forge=<github|gitlab> url=<url> number=<n>`. The skill body is forge-blind below this line.
+
+## State transition
+
+After `[GWAITH]` is posted, look up the project's `forged` value in `state_mapping.md`. The file is shared with `/glorfindel`; format:
+
+```
+- youtrack:SKA → forth=To Do, forged=In Review
+- jira:PSG     → forth=10006, forged=10007
+```
+
+YouTrack values are state names (the State field's value, e.g. `In Review`). Jira values are transition IDs (numeric, project-specific — see `GET /rest/api/3/issue/<key>/transitions`).
+
+**Lazy bootstrap.** The first time `[GWAITH]` lands for a `<tracker>:<project>` whose row is absent or missing the `forged` key, ask via AskUserQuestion *once*:
+
+- For YouTrack: prompt for the State name with an `(skip — never transition on GWAITH for this project)` option that seeds `forged=` (empty).
+- For Jira: prompt for the transition ID with the same skip option, and remind the user how to find it.
+
+Save and proceed. If the value is empty, skip the transition silently. If the hook errors, surface the error in the report (action stays `forged`); the PR/MR is open and `[GWAITH]` is posted regardless.
+
+The state hook lives at `~/.claude/hooks/youtrack-state.sh` (YouTrack) or `~/.claude/hooks/jira-state.sh` (Jira); the tracker is the same one resolved in pre-flight step 1a.
 
 ## Workflow
 
@@ -183,6 +204,14 @@ printf '%s' "$GWAITH_BODY" | <comment-hook> <ticket-id>
 ```
 
 If the comment hook errors, the PR is already open — surface the error but do not roll back the PR. The user can post the link by hand.
+
+c. **State transition (forged).** After `[GWAITH]` is on the ticket, look up the project's `forged` value in `state_mapping.md` (see "State transition" above). Bootstrap if missing. If the value is empty, skip silently. Otherwise:
+
+```bash
+<state-hook> <ticket-id> <forged-value>
+```
+
+The hook is idempotent — `noop:` is a normal outcome. On JSON error, surface the message in the report; do not roll back the PR or the comment.
 
 ### 9. Cleanup and report
 
