@@ -1,18 +1,27 @@
 #!/bin/bash
-# Usage: lindir-gitlab-mr.sh <mr-url>
-# Reads a GitLab merge request and prints a single JSON object:
-#   {title, number, author, state, head, base, description, files:[{path,additions,deletions}]}
+# Usage:
+#   lindir-gitlab-mr.sh <mr-url>          # prints JSON brief (default)
+#   lindir-gitlab-mr.sh --diff <mr-url>   # prints raw unified diff to stdout
+#
+# JSON shape: {title, number, author, state, head, base, description, files:[{path,additions,deletions}]}
 # On failure prints {"error":"...","response":"..."} and exits non-zero.
 #
 # Auth note: requires `glab auth login` to have been completed for the host.
-# The host is derived from the URL itself; glab resolves the host from its config.
+# The --repo argument is built from the URL itself so self-hosted GitLab works
+# without depending on glab's default host.
 
 set -euo pipefail
 export LC_ALL=C.UTF-8
 
+MODE="json"
+if [[ "${1:-}" == "--diff" ]]; then
+  MODE="diff"
+  shift
+fi
+
 URL="${1:-}"
 if [[ -z "$URL" ]]; then
-  echo '{"error":"usage: lindir-gitlab-mr.sh <mr-url>"}'
+  echo '{"error":"usage: lindir-gitlab-mr.sh [--diff] <mr-url>"}'
   exit 1
 fi
 
@@ -33,8 +42,15 @@ if [[ ! "$URL" =~ ^https?://[^/]+/(.+)/-/merge_requests/([0-9]+) ]]; then
   jq -cn --arg u "$URL" '{error: ("not a gitlab merge request URL: " + $u)}'
   exit 1
 fi
-GROUP_PROJECT="${BASH_REMATCH[1]}"
 IID="${BASH_REMATCH[2]}"
+# Build the host-qualified repo URL so glab targets the right instance.
+# Strips everything from "/-/merge_requests/..." onward, leaving "<scheme>://<host>/<group/project>".
+REPO_URL="${URL%/-/merge_requests/*}"
+
+# --diff mode: print raw unified diff and exit.
+if [[ "$MODE" == "diff" ]]; then
+  exec glab mr diff "$IID" --repo "$REPO_URL" --raw
+fi
 
 view_log=$(mktemp)
 diff_log=$(mktemp)
@@ -42,7 +58,7 @@ trap 'rm -f "$view_log" "$diff_log"' EXIT
 
 # `glab mr view --output=json` gives the structured fields we need.
 if ! glab mr view "$IID" \
-      --repo "$GROUP_PROJECT" \
+      --repo "$REPO_URL" \
       --output json \
       >"$view_log" 2>&1; then
   jq -cn --arg u "$URL" --rawfile r "$view_log" \
@@ -53,7 +69,7 @@ fi
 # `glab mr diff --raw` prints unified diff. We parse per-file additions/deletions
 # from the diff text; counting + and - lines, ignoring the +++/--- headers.
 if ! glab mr diff "$IID" \
-      --repo "$GROUP_PROJECT" \
+      --repo "$REPO_URL" \
       --raw \
       >"$diff_log" 2>&1; then
   jq -cn --arg u "$URL" --rawfile r "$diff_log" \

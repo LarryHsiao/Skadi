@@ -1,7 +1,9 @@
 #!/bin/bash
-# Usage: lindir-github-pr.sh <pr-url>
-# Reads a GitHub pull request and prints a single JSON object:
-#   {title, number, author, state, head, base, description, files:[{path,additions,deletions}]}
+# Usage:
+#   lindir-github-pr.sh <pr-url>          # prints JSON brief (default)
+#   lindir-github-pr.sh --diff <pr-url>   # prints raw unified diff to stdout
+#
+# JSON shape: {title, number, author, state, head, base, description, files:[{path,additions,deletions}]}
 # On failure prints {"error":"...","response":"..."} and exits non-zero.
 #
 # Auth note: requires `gh auth login` to have been completed for the host.
@@ -10,9 +12,15 @@
 set -euo pipefail
 export LC_ALL=C.UTF-8
 
+MODE="json"
+if [[ "${1:-}" == "--diff" ]]; then
+  MODE="diff"
+  shift
+fi
+
 URL="${1:-}"
 if [[ -z "$URL" ]]; then
-  echo '{"error":"usage: lindir-github-pr.sh <pr-url>"}'
+  echo '{"error":"usage: lindir-github-pr.sh [--diff] <pr-url>"}'
   exit 1
 fi
 
@@ -35,6 +43,11 @@ fi
 OWNER="${BASH_REMATCH[1]}"
 REPO="${BASH_REMATCH[2]}"
 NUMBER="${BASH_REMATCH[3]}"
+
+# --diff mode: print raw unified diff and exit.
+if [[ "$MODE" == "diff" ]]; then
+  exec gh pr diff "$NUMBER" --repo "$OWNER/$REPO"
+fi
 
 view_log=$(mktemp)
 files_log=$(mktemp)

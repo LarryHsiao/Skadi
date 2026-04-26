@@ -1,6 +1,6 @@
 ---
 name: lindir
-description: Use when the user runs /lindir <url> or /lindir approve <url>. Reads a pull request or merge request and renders a four-section review brief — header, description, metadata, file list. With the `approve` verb, asks once and submits an approving review on the forge. Host-agnostic; routes to GitHub or GitLab from the URL.
+description: Use when the user runs /lindir <url> or /lindir approve <url>. Reads a pull request or merge request and renders a five-section review brief — header, description, metadata, summary of changes, file list. With the `approve` verb, asks once and submits an approving review on the forge. Host-agnostic; routes to GitHub or GitLab from the URL.
 user_invocable: true
 ---
 
@@ -13,6 +13,7 @@ Lindir of Rivendell sang the songs of Imladris and read what others wrote. So th
 - **Read by default; speak only when summoned.** Plain `/lindir <url>` is read-only. The `approve` verb is the one path that writes, and it always asks once first.
 - **Host-agnostic.** The URL chooses the forge. No project memory, no per-host config — the link itself is enough.
 - **The forge is the source of truth.** Lindir does not pre-check, does not second-guess; if the forge rejects, Lindir surfaces the rejection verbatim.
+- **Summary is reading, not opinion.** The summary section is grounded strictly in the diff text — what changed, never why. No speculation about intent, no praise, no critique.
 
 ## Argument parsing
 
@@ -46,7 +47,7 @@ If neither pattern matches, stop with: *"Lindir does not know that URL — it be
 
 Match the URL. Resolve the read hook from the table above.
 
-### 2. Invoke the hook
+### 2. Invoke the hook for metadata
 
 ```bash
 <read-hook> <url>
@@ -72,16 +73,27 @@ The hook prints a single JSON object:
 
 If the hook prints `{"error":"..."}`, surface the error and stop.
 
-### 3. Render the four-section brief
+### 3. Invoke the hook for the diff
+
+```bash
+<read-hook> --diff <url>
+```
+
+The hook prints the raw unified diff to stdout. Read it; this is the only ground for the summary section. If the diff call fails, render the brief without the summary section and append a one-line note: *"(diff unavailable — summary skipped)"*.
+
+### 4. Render the five-section brief
 
 Render in this order, in plain markdown:
 
 1. **Header** — `<title>` (one line), then `#<number> by <author> (<state>) — <head> → <base>` underneath.
 2. **Description** — the PR/MR body as the forge has it. If empty, write *"(no description)"*.
 3. **Metadata** — a small table or list with author, state, head, base, total additions, total deletions, and file count.
-4. **File list** — every file in the diff, sorted **ascending by churn** (additions + deletions; loudest last). Cap at thirty rows. If more files exist, render the first thirty and append `... and <k> more files`. Each row: `<path>  +<additions>  -<deletions>`.
-
-Do not invent commentary. Do not summarise the diff. Lindir reads; Elrond decides.
+4. **Summary of changes** — a bulleted list, one bullet per file, describing **what** changed. Each bullet leads with the bolded file label (e.g. `**Form page** (\`path/to/Form.tsx\`)`) followed by an em-dash and the description. Order bullets by **priority**:
+   - **Top:** substantive logic, behavior, or control-flow changes — new fields wired through state, auth guards, refactors that alter rendering, type tightening that affects call sites.
+   - **Bottom:** plumbing — i18n string files, util helpers, pure component wiring with no behavior change.
+   - Within each band, order is the author's choice; reach for clarity over alphabetisation.
+   - Stay grounded in the diff text — what changed only. No "why", no praise, no critique.
+5. **File list** — every file in the diff, sorted **ascending by churn** (additions + deletions; loudest last). Cap at thirty rows. If more files exist, render the first thirty and append `... and <k> more files`. Each row: `<path>  +<additions>  -<deletions>`.
 
 ## Workflow — write-path (`approve`)
 
@@ -157,4 +169,5 @@ One short block:
 - Do not surface forge tokens in logs, responses, or saved files.
 - Host-agnostic — the URL chooses the forge; the host portion is not pinned.
 - File-list cap is thirty rows; more become a tail-line. The cap exists to keep the brief readable, not to hide work.
+- Summary is grounded in the diff text only — never speculate about intent, never praise or critique.
 - Do not edit `~/.claude/`, `~/.bashrc`, or anything outside the repo root.
