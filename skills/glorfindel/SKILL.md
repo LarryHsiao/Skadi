@@ -46,10 +46,28 @@ An explicit `--filter <value>` always wins.
 
 ## Tracker routing
 
-| Tracker | List hook | Council fetch | Council comment |
-|---|---|---|---|
-| `youtrack` / `yt` | `~/.claude/hooks/glorfindel-youtrack-list.sh` | `~/.claude/hooks/council-youtrack-fetch.sh` | `~/.claude/hooks/council-youtrack-comment.sh` |
-| `jira` | `~/.claude/hooks/glorfindel-jira-list.sh` | `~/.claude/hooks/council-jira-fetch.sh` | `~/.claude/hooks/council-jira-comment.sh` |
+| Tracker | List hook | Council fetch | Council comment | State transition |
+|---|---|---|---|---|
+| `youtrack` / `yt` | `~/.claude/hooks/glorfindel-youtrack-list.sh` | `~/.claude/hooks/council-youtrack-fetch.sh` | `~/.claude/hooks/council-youtrack-comment.sh` | `~/.claude/hooks/youtrack-state.sh` |
+| `jira` | `~/.claude/hooks/glorfindel-jira-list.sh` | `~/.claude/hooks/council-jira-fetch.sh` | `~/.claude/hooks/council-jira-comment.sh` | `~/.claude/hooks/jira-state.sh` |
+
+## State mapping
+
+When the per-ticket action settles to `forth` (and only `forth` in v1), Glorfindel looks up the project's state mapping in `state_mapping.md` and asks the state hook to move the ticket. The mapping is per `<tracker>:<project>`. Format:
+
+```
+- youtrack:SKA → forth=To Do, forged=In Review
+- jira:PSG     → forth=10006, forged=10007
+```
+
+YouTrack values are state names (the State field's value, e.g. `To Do`). Jira values are transition IDs (numeric, project-specific — see `GET /rest/api/3/issue/<key>/transitions`). The same file is read by `/celebrimbor` for its `forged` action.
+
+**Lazy bootstrap.** The first time the action would fire for a `<tracker>:<project>` whose row is absent or missing the `forth` key, ask via AskUserQuestion *once* per sweep:
+
+- For YouTrack: offer the project's common State names if known, otherwise an "Other" affordance for free text. Add a `(skip — never transition on FORTH for this project)` option which seeds `forth=` (empty) so the prompt does not return.
+- For Jira: prompt for a transition ID with the same skip option, and remind the user to fetch it via `GET /rest/api/3/issue/<key>/transitions` if unknown.
+
+Save the answer to `state_mapping.md`, then proceed. Future sweeps consult the file silently.
 
 ## Workflow
 
@@ -99,6 +117,17 @@ Iterate the list (newest-first as the hook returns it). For each ticket, follow 
 Erestor's draft is per-ticket — each ticket gets its own subagent dispatch with its own thread context.
 
 If a hook fails mid-sweep (auth, network, server error), record the ticket as `error` with the message and continue with the rest. Do not let one ticket's failure halt the sweep.
+
+- **State transition on `forth`** — when the per-ticket action settles to `forth`, look up the project's `forth` value in `state_mapping.md`. Bootstrap if missing (see "State mapping"). If the value is empty or `--dry-run` is on, do not transition; otherwise invoke the state hook:
+
+  ```bash
+  <state-hook> <ticket-id> <forth-value>
+  ```
+
+  Append the hook's outcome to the ticket's `Detail` cell:
+  - `transitioned: ...` → suffix becomes `; state <from>->\<to\>`.
+  - `noop: ...` → suffix becomes `; state already <state>`.
+  - JSON error → suffix becomes `; state error: <message>` (the action stays `forth`; the comment / verdict was untouched).
 
 ### 4. Aggregate the report
 
