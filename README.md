@@ -75,3 +75,5 @@ The installer copies every file into the target root. Re-running is safe — unc
 ## License
 
 MIT
+
+Testing
