@@ -41,6 +41,8 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/preflight` — Run periodic maintenance checks and sync overdue items into the todo list
 - `/nazgul` — Dispatch the Nine: one agent per check file, aggregating pass/fail verdicts into a single table
 - `/council` — Convene a planning council on a tracker ticket: Erestor drafts, Elrond decides, all by comment
+- `/glorfindel` — Sweep every open ticket in a project and run the council on each, aggregating one report
+- `/celebrimbor` — Forge an approved counsel into a PR/MR: branch off base, dispatch the smith, open the PR/MR, post `[GWAITH]` on the ticket
 - `/cleanup-dev` — Free disk space by clearing dev caches and build artifacts
 - `/publish` — Build Flutter release archives and collect into `build/publish/`
 - `/publish-macos` — Bump version, build, and publish a macOS Xcode project to GitHub Releases or the Mac App Store
@@ -58,8 +60,46 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **preflight-check** — Emit the preflight checklist state consumed by `/preflight`
 - **jira-daily**, **prs-check**, **mrs-check**, **eod-git-check** — Data collectors for the matching skills
 - **cleanup-dev-*** — Analyze, report, execute, and mark-run helpers for `/cleanup-dev`
-- **council-youtrack-fetch**, **council-youtrack-comment** — YouTrack I/O for `/council`
+- **council-youtrack-fetch**, **council-youtrack-comment**, **council-jira-fetch**, **council-jira-comment** — Tracker I/O for `/council` (YouTrack and Jira)
+- **glorfindel-youtrack-list**, **glorfindel-jira-list** — List open tickets matching a filter for `/glorfindel`
+- **celebrimbor-github-pr**, **celebrimbor-gitlab-mr** — Push a branch and open a PR/MR on GitHub or GitLab via `gh`/`glab`; body taken from stdin
 - **publish-macos-target** — Remember whether a macOS project publishes to GitHub Releases or the Mac App Store
+
+## Council → Forge
+
+`/council`, `/glorfindel`, and `/celebrimbor` work as one machine for turning a ticket into a PR/MR — the ticket thread is the record, no side channels.
+
+1. **Plan** — `/council TICKET-ID`. Erestor (subagent) reads the ticket and drafts `[COUNSEL vN]` as a comment. Elrond (the human) replies in prose; each `/council TICKET-ID` turns the wheel another round, weaving Elrond's reply into `[COUNSEL v(N+1)]`. Read-only — never writes code or opens PRs.
+2. **Sweep** — `/glorfindel TRACKER PROJECT --filter <filter>`. Visits every ticket the filter returns and runs the council on each. Loop-safe — quiet on threads with no fresh counsel since the bot last spoke. A ticket only enrolls in the sweep once it carries either an existing `[COUNSEL v…]` or a `[MELLON]` summons from Elrond, so a fresh project is not flooded with v1 drafts on the first ride.
+3. **Forge** — `/celebrimbor TRACKER PROJECT [--filter <filter>] [--ticket <id>]`. Picks one ticket bearing `[FORTH]` without `[GWAITH]`, branches off the project's base, dispatches the smith subagent to implement the approved counsel, opens a draft PR/MR via the forge hook, and posts `[GWAITH] <url>` back on the ticket. Single-shot — one ticket per invocation; `/loop` covers throughput.
+
+### Comment grammar
+
+Seven tokens carry state. Everything else is counsel. Matching is case-insensitive; English aliases are recognized everywhere their Tolkien primaries are.
+
+| Token | Alias | Author | Meaning |
+|---|---|---|---|
+| `[COUNSEL vN]` | `[PLAN vN]` | Erestor | Draft of the plan; N increments each round |
+| `[PARLEY]` | `[AGENT-ASK]` | Erestor | A single clarifying question — speech between sides to come to terms |
+| `[MELLON]` | `[FRIEND]` | Elrond | Summons — *speak, friend, and enter*; enrolls a ticket in `/glorfindel` sweeps |
+| `[FORTH]` | `[APPROVE]` | Elrond | The plan stands; council adjourns with approval |
+| `[NAY]` | `[REJECT]` | Elrond | The plan is abandoned; council adjourns without approval |
+| `[NAMARIE]` | `[FAREWELL]` | Elrond | *Farewell* — adjourn without verdict (out-of-band resolution, ticket subsumed, etc.) |
+| `[GWAITH]` | `[FORGED]`, `[SHIPPED]` | Celebrimbor | The deed is wrought; PR/MR opened on the approved counsel; body carries the URL |
+
+### When the council adjourns
+
+Adjournment puts a ticket at rest. `/glorfindel` records its action and stops drafting on the thread; further sweeps over the same ticket are silent. Each verdict shapes what comes next:
+
+- `[FORTH]` — the plan stands. The ticket is now eligible for `/celebrimbor`. Once `[GWAITH]` appears, the forge will not pick it up again.
+- `[NAY]` — the plan is abandoned. `/celebrimbor` ignores the ticket; if a new plan is wanted, redraft via `/council`.
+- `[NAMARIE]` — adjourn without verdict. Used when the thread closes for reasons other than approval or rejection (resolved out-of-band, ticket subsumed by another, deferred indefinitely).
+
+Verdict precedence is *by token, not by chronology*: `[FORTH]` > `[NAY]` > `[NAMARIE]`. If Elrond posts `[NAY]` and later posts `[FORTH]`, the council adjourns approved. (Same if the order is reversed.) This makes it safe to overrule yourself in the same thread.
+
+### Turn limit
+
+The council brakes at five `[COUNSEL vN]`s without a verdict. On what would be `[COUNSEL v6]`, the comment hook posts a single canned `[PARLEY]` instead — *"The council has turned five times without a verdict. Take it offline."* — and stops. `[PARLEY]` posts do not count toward the limit; only `[COUNSEL vN]`s do. The signal is that the comment thread has outgrown the problem; either split the ticket or move to a doc / call.
 
 ## Setup
 
