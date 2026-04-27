@@ -57,6 +57,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **prettier-format** — Run Prettier after editing supported files
 - **eslint-check** — Run ESLint after editing JS/TS files
 - **grammar-reminder** — Inject the grammar-check reminder on every user prompt
+- **session-readme** — On `SessionStart`, inject the project's `README.md` (if any) as additional context
 - **grammar-counter** — Count grammar corrections at session stop
 - **preflight-check** — Emit the preflight checklist state consumed by `/preflight`
 - **jira-daily**, **prs-check**, **mrs-check**, **eod-git-check** — Data collectors for the matching skills
