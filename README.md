@@ -45,6 +45,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/celebrimbor` — Forge an approved counsel into a PR/MR: branch off base, dispatch the smith, open the PR/MR, post `[GWAITH]` on the ticket
 - `/lindir` — Read a PR/MR and render a four-section review brief; with the `approve` verb, ask once and submit an approving review on the forge
 - `/cleanup-dev` — Free disk space by clearing dev caches and build artifacts
+- `/vocab` — Personal vocabulary deck: look up a word in EN + ZH-TW, store as a card under `~/.skadi/vocab/`, surface due cards via spaced repetition
 - `/publish` — Build Flutter release archives and collect into `build/publish/`
 - `/publish-macos` — Bump version, build, and publish a macOS Xcode project to GitHub Releases or the Mac App Store
 
@@ -69,6 +70,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **lindir-github-approve**, **lindir-gitlab-approve** — Submit an approving review on a PR/MR via `gh`/`glab` for `/lindir approve`
 - **youtrack-state**, **jira-state** — Idempotent state transitions on YouTrack and Jira tickets, used by `/glorfindel` (on `[FORTH]`) and `/celebrimbor` (after `[GWAITH]`)
 - **publish-macos-target** — Remember whether a macOS project publishes to GitHub Releases or the Mac App Store
+- **vocab-cards** — Emit every vocab card with SRS state and days-until-due as TSV for `/vocab review` and `/vocab list`
 
 ## Council → Forge
 

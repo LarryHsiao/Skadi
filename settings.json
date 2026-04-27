@@ -78,6 +78,7 @@
       "Bash(glab:*)",
       "Bash(~/.claude/hooks/secret.sh:*)",
       "Bash(~/.claude/hooks/session-readme.sh:*)",
+      "Bash(~/.claude/hooks/vocab-cards.sh:*)",
       "Bash(xcrun:*)"
     ]
   },

@@ -55,5 +55,6 @@ When a run finishes, the next `/preflight` invocation will auto-complete the cor
 | Key | Threshold | Action when overdue |
 |-----|-----------|---------------------|
 | `cleanup-dev` | 30 days since last run | `/cleanup-dev` |
+| `vocab` | any card with `due_in_days <= 0` | `/vocab review` |
 
 Add new checks by extending `~/.claude/hooks/preflight-check.sh` and the table above.
