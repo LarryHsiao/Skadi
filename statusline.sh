@@ -516,4 +516,6 @@ cpu_str="📈 ${cpu_color}Load: ${cpu_load}%${RESET}"
 printf "%s  %s  %s\n" "$weather" "$cpu_str" "$disk_str"
 
 # Line 6: quote (wrap at 50 columns; continuation lines hang under the opening ")
-printf "%s\n" "$display_quote" | fold -s -w 46 | awk 'NR==1 {print; next} {print "    " $0}'
+# Lead with '|' — Claude Code's statusline trims leading whitespace, so anchor with a visible char.
+quote_indent='|   '
+printf "%s\n" "$display_quote" | fold -s -w 46 | awk -v ind="$quote_indent" 'NR==1 {print; next} {print ind $0}'
