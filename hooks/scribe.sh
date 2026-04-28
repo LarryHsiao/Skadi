@@ -30,13 +30,14 @@ WRITEBACK_ONLY=0
 MARKER_KEY=""
 MARKER_VALUE=""
 MARKER_TASK_TITLE=""
+PARENT_DOC_ID=""
 
 # Duplicate-detected exit code, surfaced so the skill can prompt the user and
 # re-invoke with --force.
 EXIT_DUPLICATE=75
 
 usage() {
-  echo "Usage: $0 <file> <heading-slug> --project=<KEY> [--target=youtrack|disk] [--commit] [--force] [--with-subtasks] [--screenshot-path=<png>]" >&2
+  echo "Usage: $0 <file> <heading-slug> --project=<KEY> [--target=youtrack|disk|outline] [--collection=<name>] [--parent=<UUID>] [--commit] [--force] [--with-subtasks] [--screenshot-path=<png>]" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -44,6 +45,7 @@ while [[ $# -gt 0 ]]; do
     --project=*)         PROJECT="${1#*=}" ;;
     --target=*)          TARGET="${1#*=}" ;;
     --screenshot-path=*) SCREENSHOT_PATH="${1#*=}" ;;
+    --parent=*)          PARENT_DOC_ID="${1#*=}" ;;
     --commit)            COMMIT=1 ;;
     --force)             FORCE=1 ;;
     --with-subtasks)     WITH_SUBTASKS=1 ;;
@@ -202,7 +204,16 @@ if [[ $WRITEBACK_ONLY -eq 1 ]]; then
             bare = substr(bare, 3, length(bare) - 4)
           }
 
-          if ((rest == task_title || bare == task_title) && line !~ pat) {
+          # Also accept a leading-bold form: lines like
+          # `**Title** (parens...)` or `**Title** — trailing prose`.
+          # Extract just the leading **...** segment so the caller can
+          # writeback by the bold title alone.
+          leading_bold = ""
+          if (match(rest, /^\*\*[^*]+\*\*/)) {
+            leading_bold = substr(rest, 3, RLENGTH - 4)
+          }
+
+          if ((rest == task_title || bare == task_title || leading_bold == task_title) && line !~ pat) {
             line = line " <!-- " key ": " value " -->"
           }
         }
@@ -811,18 +822,69 @@ case "$TARGET" in
         local idx="$1" title="$2" ytid="$3" otid="$4"
         local body
         body="$(render_child_body "$title" "$LEAVES_TMP" "<parent>")"
+
+        # Build the leaves array (level-2 grandchildren under this child) when
+        # depth >= 2. Each leaf body is rendered with `<parent>` placeholder
+        # so the skill can substitute the level-1 child's doc URL after it is
+        # created or updated. Mirrors the YouTrack depth=2 path.
+        local leaves_json='[]'
+        if [[ $MAX_DEPTH -ge 2 && -n "$LEAVES_TMP" ]]; then
+          local l2_idx=0 l2_t="" l2_o="" l2_d="" l2_in_b=0 l2_line=""
+          flush_outline_leaf() {
+            [[ -z "$l2_t" ]] && return 0
+            local l2_body
+            l2_body="$(render_leaf_body "$l2_t" "$l2_d" "<parent>" "$title")"
+            leaves_json="$(jq -nc \
+              --arg ltitle "$l2_t" \
+              --arg lbody  "$l2_body" \
+              --arg lotid  "$l2_o" \
+              --argjson lacc "$leaves_json" \
+              '$lacc + [{
+                 title: $ltitle,
+                 body:  $lbody,
+                 action: (if $lotid == "" then "create" else "update" end),
+                 outline_id: (if $lotid == "" then null else $lotid end)
+               }]')"
+          }
+          while IFS= read -r l2_line; do
+            case "$l2_line" in
+              $'\tLEAF\t')
+                if [[ $l2_idx -gt 0 ]]; then flush_outline_leaf; fi
+                l2_idx=$((l2_idx + 1))
+                l2_t=""; l2_o=""; l2_d=""; l2_in_b=0
+                ;;
+              "LEAF_TITLE	"*)        l2_t="${l2_line#LEAF_TITLE	}" ;;
+              "LEAF_OUTLINE_ID	"*)   l2_o="${l2_line#LEAF_OUTLINE_ID	}" ;;
+              "LEAF_YT_ID	"*)        : ;;
+              "LEAF_RAW	"*)          : ;;
+              "LEAF_BODY_BEGIN")     l2_in_b=1 ;;
+              "LEAF_BODY_END")       l2_in_b=0 ;;
+              *)
+                if [[ $l2_in_b -eq 1 ]]; then
+                  if [[ -z "$l2_d" ]]; then l2_d="$l2_line"
+                  else                      l2_d="$l2_d"$'\n'"$l2_line"
+                  fi
+                fi
+                ;;
+            esac
+          done < <(parse_level2_leaves "$LEAVES_TMP")
+          if [[ $l2_idx -gt 0 ]]; then flush_outline_leaf; fi
+        fi
+
         CHILDREN_JSON="$(jq -nc \
           --arg title "$title" \
           --arg body  "$body" \
           --arg ytid  "$ytid" \
           --arg otid  "$otid" \
+          --argjson leaves "$leaves_json" \
           --argjson acc "$CHILDREN_JSON" \
           '$acc + [{
              title: $title,
              body:  $body,
              action: (if $otid == "" then "create" else "update" end),
              outline_id: (if $otid == "" then null else $otid end),
-             yt_id:      (if $ytid == "" then null else $ytid end)
+             yt_id:      (if $ytid == "" then null else $ytid end),
+             leaves: $leaves
            }]')"
       }
       foreach_child collect_outline_child
@@ -839,8 +901,10 @@ case "$TARGET" in
       --arg     jira_key    "$JIRA_KEY" \
       --arg     shot        "${SCREENSHOT_PATH:-}" \
       --arg     slug        "$OUTPUT_SLUG" \
+      --arg     parent_doc  "$PARENT_DOC_ID" \
       --argjson children    "$CHILDREN_JSON" \
       --argjson with_sub    "$WITH_SUBTASKS" \
+      --argjson max_depth   "$MAX_DEPTH" \
       '{
          target: "outline",
          action: (if $outline_id == "" then "create" else "update" end),
@@ -853,8 +917,10 @@ case "$TARGET" in
          figma_node_id:      (if $figma_node == "" then null else $figma_node end),
          jira_key:           (if $jira_key == ""   then null else $jira_key   end),
          screenshot_path:    (if $shot == ""       then null else $shot       end),
+         parent_document_id: (if $parent_doc == "" then null else $parent_doc end),
          slug: $slug,
          with_subtasks: ($with_sub == 1),
+         max_depth: $max_depth,
          children: $children
        }'
     ;;

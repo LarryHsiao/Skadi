@@ -1,6 +1,6 @@
 ---
 name: scribe
-description: Use when the user runs /scribe <file> <heading-slug> --project=<KEY> [--target=youtrack|disk|outline] [--collection=<name>]. Exports a single section (top-level Epic heading) of a Minerva markdown file to YouTrack (issue), Outline (wiki document via Seshat MCP), or disk. Carries title, scope, Figma screenshot, sub-task checklist, and Open Questions. Update mode: re-runs read inline `<!-- yt: ... -->` / `<!-- outline: ... -->` markers and PATCH in place rather than duplicating.
+description: Use when the user runs /scribe <file> <heading-slug> --project=<KEY> [--target=youtrack|disk|outline] [--collection=<name>] [--parent=<UUID>]. Exports a single section (top-level Epic heading) of a Minerva markdown file to YouTrack (issue), Outline (wiki document via Seshat MCP), or disk. Carries title, scope, Figma screenshot, sub-task checklist, and Open Questions. Update mode: re-runs read inline `<!-- yt: ... -->` / `<!-- outline: ... -->` markers and PATCH in place rather than duplicating.
 ---
 
 # Scribe Skill
@@ -16,6 +16,7 @@ Carries a planning section from a Minerva markdown file out to an issue tracker 
 - `--project=<KEY>` — **required**. The destination project key (YouTrack project short name; for `--target=disk` it is currently informational only — the disk path is namespaced by source-file stem and heading slug, not by project).
 - `--target=youtrack|disk|outline` — optional, defaults to `youtrack`.
 - `--collection=<name>` — **required for `--target=outline`**, ignored otherwise. The Outline collection name (case-insensitive substring match against `mcp__seshat__list_collections`).
+- `--parent=<UUID>` — optional, only meaningful for `--target=outline` on the **create** path. The Outline document UUID under which the new section doc should be nested. Threads through the envelope as `parent_document_id` and is passed verbatim to `mcp__seshat__create_document`'s `parentDocumentId`. Ignored for `update` (an existing doc keeps its current parent) and for non-outline targets.
 
 If any required arg is missing or no `## Epic` heading matches the slug, tell the user plainly and stop.
 
@@ -40,7 +41,7 @@ The hook is the executable; the rest of this file describes what the hook does i
 
 1. **Run the hook in commit mode**:
    ```
-   ~/.claude/hooks/scribe.sh <file> "<slug>" --project=<KEY> --target=outline --commit [--screenshot-path=<png>]
+   ~/.claude/hooks/scribe.sh <file> "<slug>" --project=<KEY> --target=outline --commit [--screenshot-path=<png>] [--parent=<UUID>] [--with-subtasks] [--max-depth=N]
    ```
    The hook does not call Outline. It emits a JSON envelope to stdout:
    ```json
@@ -55,16 +56,32 @@ The hook is the executable; the rest of this file describes what the hook does i
      "section_yt_id": null | "...",
      "figma_node_id": null | "...",
      "screenshot_path": null | "/abs/path.png",
-     "slug": "..."
+     "parent_document_id": null | "uuid",
+     "slug": "...",
+     "with_subtasks": true | false,
+     "max_depth": 1 | 2,
+     "children": [
+       {
+         "title": "...",
+         "body":  "...",
+         "action": "create" | "update",
+         "outline_id": null | "uuid",
+         "yt_id": null | "...",
+         "leaves": [
+           { "title": "...", "body": "...", "action": "create" | "update", "outline_id": null | "uuid" }
+         ]
+       }
+     ]
    }
    ```
+   `leaves` is populated only when `--max-depth=2` (or higher) is passed; otherwise each child carries an empty `leaves` array.
    On non-zero exit, surface stderr and stop.
 
 2. **Resolve the collection.** Call `mcp__seshat__list_collections` (limit 100). Match the user-supplied `<name>` against each `name` field, case-insensitively, prefer exact then substring. On zero or multiple matches, list candidates and stop. Capture the `id` (UUID).
 
 3. **Create or update the document**, branching on `action`:
-   - `create` — call `mcp__seshat__create_document` with `title`, `text=body`, `collectionId=<resolved>`. Capture the returned `id` and `url`.
-   - `update` — call `mcp__seshat__update_document` with `id=section_outline_id`, `title`, `text=body`. The same `id` is the document URL slug.
+   - `create` — call `mcp__seshat__create_document` with `title`, `text=body`, `collectionId=<resolved>`, and — if `envelope.parent_document_id` is non-null — `parentDocumentId=<that UUID>` so the new doc nests under the named parent rather than landing at the collection root. Capture the returned `id` and `url`.
+   - `update` — call `mcp__seshat__update_document` with `id=section_outline_id`, `title`, `text=body`. The same `id` is the document URL slug. (Parent is ignored on update — an existing doc keeps its current location; move it in the Outline UI if needed.)
 
 4. **Upload the screenshot, if present.**
    - If `screenshot_path` is non-null, call `mcp__seshat__upload_attachment` with `filePath=screenshot_path`, `documentId=<id from step 3>`. Capture the returned URL.
@@ -80,8 +97,22 @@ The hook is the executable; the rest of this file describes what the hook does i
 6. **Children loop (only when `--with-subtasks` was passed and the envelope's `children` array is non-empty).** For each child entry in `envelope.children`:
    - Substitute the literal string `<parent>` in `child.body` with the parent document's full URL (the URL returned in step 3).
    - Branch on `child.action`:
-     - `create` — call `mcp__seshat__create_document` with `collectionId=<resolved>`, `parentDocumentId=<parent doc id>`, `title=child.title`, `text=<substituted body>`. Capture the new child UUID.
-     - `update` — call `mcp__seshat__update_document` with `id=child.outline_id`, `title=child.title`, `text=<substituted body>`.
+     - `create` — call `mcp__seshat__create_document` with `collectionId=<resolved>`, `parentDocumentId=<parent doc id>`, `title=child.title`, `text=<substituted body>`. Capture the new child UUID **and URL**.
+     - `update` — call `mcp__seshat__update_document` with `id=child.outline_id`, `title=child.title`, `text=<substituted body>`. Use the existing doc URL.
+   - **Leaves loop (only when `envelope.max_depth >= 2` and `child.leaves` is non-empty).** For each leaf entry in `child.leaves`:
+     - Substitute the literal string `<parent>` in `leaf.body` with the level-1 child's full URL (captured above).
+     - Branch on `leaf.action`:
+       - `create` — call `mcp__seshat__create_document` with `collectionId=<resolved>`, `parentDocumentId=<level-1 child UUID>`, `title=leaf.title`, `text=<substituted body>`. Capture the new leaf UUID and URL.
+       - `update` — call `mcp__seshat__update_document` with `id=leaf.outline_id`, `title=leaf.title`, `text=<substituted body>`.
+     - **Writeback per newly-created leaf**: invoke the hook in writeback-only mode:
+       ```
+       ~/.claude/hooks/scribe.sh <file> "<slug>" \
+         --writeback-only --marker-key=outline \
+         --marker-value=<leaf UUID> \
+         --writeback-task-title=<leaf.title>
+       ```
+       The plain-title matcher (P5.23) locates the level-2 leaf line and appends the marker. Idempotent.
+   - **Level-1 body rewrite (only when leaves were processed under this child).** Compose a new `## Tasks` block where each line is `- [ ] [<leaf.title>](<leaf URL>)` in source order. Splice it into the substituted `child.body`, replacing the original `## Tasks` section — i.e. the `## Tasks` heading and every line until the next `## ` heading or end of body. Call `mcp__seshat__update_document` with `id=<level-1 child UUID>`, `title=child.title`, `text=<rewritten body>`. Same shape as the YouTrack depth=2 parent rewrite (P5.26), only with Outline URLs in place of `JVC-N — title`.
    - **Writeback per newly-created child**: invoke the hook again with the per-sub-task flag:
      ```
      ~/.claude/hooks/scribe.sh <file> "<slug>" \
@@ -91,9 +122,9 @@ The hook is the executable; the rest of this file describes what the hook does i
      ```
      The hook walks the section's sub-task lines, finds the one whose bold title matches `child.title` exactly, and appends the marker (idempotent). Updates skip writeback — their marker is already in the markdown.
 
-   In v1, child docs are text-only — no separate per-child screenshot upload. The parent's screenshot is the canonical visual.
+   In v1, child and leaf docs are text-only — no separate per-doc screenshot upload. The parent's screenshot is the canonical visual.
 
-7. **Print the result** to the user: the parent document URL, plus a tally of children processed (`N created, M updated`).
+7. **Print the result** to the user: the parent document URL, plus a tally of children and (when depth=2) leaves processed (`N children created/updated; M leaves created/updated`).
 
 If any MCP call fails, surface the error verbatim. Do not retry. If create succeeded but a later step (attachment upload, body patch, writeback, child create) failed, name what landed and what did not — the document tree exists in Outline even if its body or markers are incomplete.
 
