@@ -163,4 +163,25 @@ f. Print the absolute path to the user.
 - **Step 5 (`--target=disk` write path)** — done. With `--commit --target=disk`, the hook writes `~/Documents/scribe/<source-stem>/<slug>/ticket.md` and, if `--screenshot-path=<png>` is supplied, copies it to `screenshot.png` next to the ticket. Without commit the hook stays in dry-run.
 - **Step 6 (`--commit` performs the YouTrack POST + attachment)** — done. Resolves credentials via `secret.sh youtrack`, runs a pre-flight duplicate check (exits with code 75 and the existing issue URL on a hit, unless `--force` is set), POSTs the issue, uploads the screenshot, then patches the description to swap `attachment://screenshot.png` for the real attachment URL.
 - **Step 7 (`/install` propagation, first live test)** — done. First live post on 2026-04-28 into project **JVC**: `JVC-1` carrying the Epic 1 (Left Panel) section of `reminder-overview-todo.md` with the Figma frame screenshot attached.
+
+## Phase 1 — Sub-issues (`--with-subtasks`)
+
+When `--with-subtasks` is set on a youtrack commit, scribe parses the section's `**Sub-tasks**` checklist into top-level items, creates one child issue per item, links each as a YouTrack `Subtask`, and rewrites the parent description so the original checklist becomes a list of child links.
+
+- **P1.1 Parser** — done. `parse_subtasks` walks `SECTION_BODY` and emits one record per top-level `- [ ] **TITLE**` line, capturing title, optional `<!-- yt: ID -->` marker, and the indented leaves block.
+- **P1.2 Child body rendering** — done. `render_child_body(title, leaves, parent_url)` produces a Source block + Tasks checklist; `foreach_child` walks records and invokes a callback with `LEAVES_TMP` set.
+- **P1.3 Child issue creation** — done. POST per child via `/api/issues`, parent URL substituted into each body. Partial-failure recovery: prints which children were created on stderr and exits non-zero on first failure.
+- **P1.4 Sub-task linking** — done. `POST /api/commands` with `query: "subtask of <parent>"` applied to each child; sets `INWARD Subtask` from child → parent (i.e. `OUTWARD Subtask` on parent).
+- **P1.5 Parent body rewrite** — done. After children are linked, the parent's `**Sub-tasks**` block is replaced with `- [ ] JVC-N — <title>` lines via a second description PATCH. Splice handled in awk via `ENVIRON[]` (BSD awk does not accept newlines in `-v`). Blank line before next heading preserved.
+- **P1.6 End-to-end live test** — done. JVC-5 (Epic 1) with 4 children JVC-6 / JVC-7 / JVC-8 / JVC-9, all linked, parent body rewritten.
+
+## Phase 2 — Update mode (`<!-- yt: ID -->` markers)
+
+After a successful create, scribe writes `<!-- yt: <ID> -->` markers back into the source markdown — on the section heading and on each newly-created top-level sub-task. On re-run, the marker reader finds those markers and takes the **update** path: existing issues are PATCHed in place rather than duplicated. Idempotent.
+
+- **P2.7 Marker reader** — done. `SECTION_YT_ID` is harvested from the section heading line; per-sub-task `yt_id` was already captured by the parser. HTML-comment markers are stripped from titles/slugs via `strip_markers()`.
+- **P2.8 Parent update path** — done. When `SECTION_YT_ID` is set, scribe skips pre-flight + create and PATCHes the named issue. Status line reads `COMMITTED — youtrack issue updated`.
+- **P2.9 Children update path** — done. The child loop branches on per-item marker: PATCH if marker present, POST otherwise. Linking step runs only for newly-created children (existing ones are already linked). Parent rewrite uses the full `CHILDREN_IDS` list (created + updated).
+- **P2.10 Marker writeback** — done. After a successful create, `awk` walks the source markdown and appends `<!-- yt: <ID> -->` to the section heading (when SECTION_YT_ID was empty) and to each newly-created top-level sub-task line, matching by bold title. Idempotent — lines that already have a yt marker are left alone.
+- **P2.11 End-to-end live test** — done. Two-run synthetic test on /tmp markdown: run 1 created JVC-10 + JVC-11 and wrote markers; run 2 detected the markers and updated both with no new issues created. JVC count stable at JVC-11 across runs.
 - **Step 7 (`/install` propagation, smoke test)** — pending.
