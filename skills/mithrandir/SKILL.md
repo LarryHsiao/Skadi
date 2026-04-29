@@ -1,6 +1,6 @@
 ---
 name: mithrandir
-description: Use when the user runs /mithrandir <url> or /mithrandir comment <url>. Reads a pull request or merge request and renders a four-axis verdict — cohesion, proportion, direction, risk — followed by an optional `Worth keeping` section (concrete bright spots) and an optional `To pass` action list grouped by severity (Blocker / Nice to have / Nit), closing with a tier (sound | wavering | off) and a short reasoning paragraph. A blockquote header at the top distils the bottom line — Merge / Hold / Refuse. The read verb (default) renders to chat; the `comment` verb posts the verdict to the forge after a confirm-once gate. Tone defaults differ by audience — read leans Tolkien (private counsel), comment leans plain (public note). The `--plain` and `--lore` flags override either default. Host-agnostic; routes to GitHub or GitLab from the URL.
+description: Use when the user runs /mithrandir, /mithrandir branch, /mithrandir <url>, or /mithrandir comment <url>. With no argument or the `branch` verb, weighs the current local branch against its base; with a URL, weighs a pull request or merge request. Renders a four-axis verdict — cohesion, proportion, direction, risk — followed by an optional `Worth keeping` section (concrete bright spots) and an optional `To pass` action list grouped by severity (Blocker / Nice to have / Nit), closing with a tier (sound | wavering | off) and a short reasoning paragraph. A blockquote header at the top distils the bottom line — Merge / Hold / Refuse. The default and `branch` paths render to chat; the `comment` verb posts a URL-path verdict to the forge after a confirm-once gate. Branch-path bears no `comment` — local diffs have no PR to comment on. Tone defaults differ by audience — read leans Tolkien (private counsel), comment leans plain (public note). The `--plain` and `--lore` flags override either default. Host-agnostic; routes to GitHub or GitLab from the URL.
 user_invocable: true
 ---
 
@@ -19,7 +19,10 @@ Where Lindir reads what is written, Mithrandir weighs it. The Grey Pilgrim has w
 ## Argument parsing
 
 ```
-/mithrandir <url>                  # read, lore tone (default)
+/mithrandir                        # branch, lore tone (default — current branch vs base)
+/mithrandir branch                 # branch, lore tone (explicit)
+/mithrandir branch --plain         # branch, plain tone
+/mithrandir <url>                  # read, lore tone
 /mithrandir <url> --plain          # read, plain tone
 /mithrandir comment <url>          # post, plain tone (default)
 /mithrandir comment <url> --lore   # post, lore tone (opt-in)
@@ -27,12 +30,13 @@ Where Lindir reads what is written, Mithrandir weighs it. The Grey Pilgrim has w
 
 Dispatch on the **first positional argument**:
 
-- If the first positional is the literal token `comment`, the second positional is the URL and the write-path runs.
-- Otherwise the first positional is the URL and the read-path runs.
+- If there is no first positional, run the **branch-path** against the current branch.
+- If the first positional is the literal token `branch`, run the branch-path.
+- If the first positional is the literal token `comment`, the second positional is the URL and the **write-path** runs.
+- If the first positional looks like a URL (`http://` or `https://` prefix), the **read-path** runs against it.
+- Otherwise reject with: *"Mithrandir knows only `branch` and `comment` as verbs; bare URLs ride the read-path; the empty word rides the branch-path."*
 
 The flags `--plain` and `--lore` may appear anywhere after the verb/URL; they are mutually exclusive. If both are passed, stop with: *"`--plain` and `--lore` cannot stand together; choose one tongue."*
-
-No other verbs in v1. Reject any other first-positional token with: *"Mithrandir knows only `comment` as a verb; everything else is read by default."*
 
 ## Tone modes
 
@@ -64,7 +68,57 @@ If neither pattern matches, stop with: *"Mithrandir does not know that URL — i
 
 Mithrandir reuses Lindir's read hooks unchanged; only the comment hooks are new.
 
-## Workflow — read-path (no verb)
+## Workflow — branch-path (no argument or `branch` verb)
+
+### 1. Resolve the base
+
+Find the project's default base branch — the first of `master`, `main`, `origin/HEAD` that resolves locally:
+
+```bash
+git rev-parse --verify --quiet master \
+  || git rev-parse --verify --quiet main \
+  || git rev-parse --verify --quiet origin/HEAD
+```
+
+If none resolves, stop with: *"Mithrandir cannot find a base — neither `master`, `main`, nor `origin/HEAD` stands in this repo."*
+
+### 2. Resolve the current branch
+
+```bash
+git rev-parse --abbrev-ref HEAD
+```
+
+If the current branch matches the resolved base, **or** is one of the literal names `master` or `main`, stop with: *"Nothing to review — you stand on the default branch. Branch off first, then summon Mithrandir."* No diff is captured, no agents weighed.
+
+### 3. Capture the diff
+
+```bash
+git diff $(git merge-base HEAD <base>)..HEAD
+```
+
+If the diff is empty, stop with: *"Nothing to review — the branch stands even with its base."*
+
+### 4. Build synthetic metadata
+
+The four-axis weighing wants a metadata triple. Compose it from local git:
+
+| Field | Source |
+|---|---|
+| `title` | `git log -1 --format=%s` of the branch tip; if vague (e.g. `wip`), fall back to the branch name |
+| `author` | `git log -1 --format=%an` |
+| `state` | the literal string `local` |
+| `head` | the current branch name |
+| `base` | the resolved base name |
+| `description` | concatenated commit subjects from `git log <base>..HEAD --format=%s`, one per line; if a single commit, its body |
+| `files` | derived from the diff (path + per-file additions/deletions, same shape as the URL hooks emit) |
+
+### 5. Weigh and render
+
+Run **steps 4 and 5 of the read-path** verbatim — the four-axis weighing and the brief render. The branch-path uses the same render shape; only the diff source differs.
+
+The `comment` verb is **not available** on the branch-path. There is no PR to comment on — the verdict renders to chat alone. If the user wants a public verdict, they must open a PR/MR first and run `/mithrandir comment <url>` against it.
+
+## Workflow — read-path (URL only)
 
 ### 1. Forge dispatch
 
@@ -113,7 +167,7 @@ What each axis asks:
 
 - **Cohesion** — does the change tell one story, or several entangled? A PR titled "fix login bug" that also reformats unrelated files lacks cohesion.
 - **Proportion** — is the diff sized to its intent? A one-line bug report that becomes a five-hundred-line refactor is bloated; a stated rewrite that touches three lines is thin.
-- **Direction** — does it move the codebase the right way? Toward the project's grain (style, architecture, naming), or against it? When the diff lives in one of your own GitHub repos (URL matches `https?://github\.com/LarryHsiao/...`, case-insensitive), also weigh it against the personal style rules in `~/.claude/docs/style/general.md` and (for Dart files) `~/.claude/docs/style/flutter.md`. For any other owner, any other forge, or a self-hosted GitLab, judge by the repo's own grain alone — personal rules do not travel onto teammate or third-party work, and a `comment` post would otherwise carry your house style into public counsel.
+- **Direction** — does it move the codebase the right way? Toward the project's grain (style, architecture, naming), or against it? When the diff lives in one of your own GitHub repos — *for URL-paths, the URL matches `https?://github\.com/LarryHsiao/...` (case-insensitive); for branch-path, `git remote get-url origin` matches `git@github\.com:LarryHsiao/...` or the equivalent HTTPS form* — also weigh it against the personal style rules in `~/.claude/docs/style/general.md` and (for Dart files) `~/.claude/docs/style/flutter.md`. For any other owner, any other forge, or a self-hosted GitLab, judge by the repo's own grain alone — personal rules do not travel onto teammate or third-party work, and a `comment` post would otherwise carry your house style into public counsel.
 - **Risk** — what could break, and how reversible if it does? Migrations, public APIs, infra changes weigh heavier than internal helpers.
 
 Cite a file or path when naming a concrete flaw.
@@ -255,6 +309,8 @@ One short block:
 
 - Read-path is silent on writes — it only fetches and renders.
 - Write-path always asks once. No opt-out flag in v1; the gate is unconditional.
+- Branch-path is local-only: no URL, no `comment`, no forge write. If the user wants public counsel on a branch, they must open a PR/MR first and run `comment` against the URL.
+- Branch-path refuses to ride on the default branch (`master` / `main` / the resolved base). When the current branch *is* the base, there is nothing to review — stop and say so.
 - One verdict per axis; one tier overall; one paragraph of reasoning. No bullet swarms.
 - Grounded in the diff — when a flaw is named, name the file (and line where it serves).
 - If the URL matches no forge: *"Mithrandir does not know that URL — it bears no PR or MR mark."*
