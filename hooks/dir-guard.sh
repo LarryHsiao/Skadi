@@ -64,13 +64,21 @@ if echo "$CWD" | grep -qE '^/$|^/[a-z]$'; then
   exit 0
 fi
 
-# Check if outside user home
+# Check if outside user home. On the Claude Code remote container ($HOME
+# may be /root while the project lives under /home/user/...), the project
+# dir and dev dirs are admitted even though they fall outside HOME — the
+# downstream in_allowed_dir check still enforces project / .claude / /tmp /
+# dev. On local machines the strict home check stays in place.
 case "$CWD" in
   "$HOME_DIR"|"$HOME_DIR"/*)
     ;; # ok, under home
   *)
-    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: cwd (%s) is outside home directory (%s)"}}' "$CWD" "$HOME_DIR"
-    exit 0
+    if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] && in_allowed_dir "$CWD"; then
+      :  # ok — remote container, cwd is project/dev/.claude/tmp
+    else
+      printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: cwd (%s) is outside home directory (%s)"}}' "$CWD" "$HOME_DIR"
+      exit 0
+    fi
     ;;
 esac
 
