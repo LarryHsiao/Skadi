@@ -1,20 +1,37 @@
 ---
 name: nazgul
-description: Use when the user runs /nazgul. Dispatches the Nine — one agent per check file — to inspect a code target (default — uncommitted changes) and aggregates pass/fail/n/a verdicts into a single table. Checks live as markdown files under `checks/`; project-local overrides take precedence. Audit only — never fixes, commits, or files issues on its own.
+description: Use when the user runs /nazgul [target] or /nazgul project. Dispatches the Nine — one agent per check file — to inspect either a diff (default — uncommitted changes) or the standing project tree, and aggregates pass/fail/n/a verdicts into a single table. Checks live as markdown files under `checks/`, scoped via frontmatter — `scope` may be `diff` (default), `project`, or a list `[diff, project]` for checks that ride both fields. Project-local overrides take precedence. Audit only — never fixes, commits, or files issues on its own.
 user_invocable: true
 ---
 
 # Nazgûl
 
-Calls the riders out. Each check is a small markdown file; each file becomes a separate agent, sent forth in parallel against a chosen code target. Every rider returns a single line — `pass | fail | n/a` and a short note — and the parent gathers them into one table.
+Calls the riders out. Each check is a small markdown file; each file becomes a separate agent, sent forth in parallel against a chosen field. Every rider returns a single line — `pass | fail | n/a` and a short note — and the parent gathers them into one table.
+
+The Nine ride two fields:
+
+- **diff** — *what changed*. The default. Riders inspect a captured diff (uncommitted, branch, or sha range).
+- **project** — *what stands*. Invoked with `/nazgul project`. Riders inspect the standing project tree — naming, lint config, tests, CI, badges, the foundations of the place.
+
+Each check declares which field it belongs to via frontmatter; the parent dispatches only the riders whose scope matches the chosen field.
 
 Nazgûl is an **auditor**. It finds and names; it does not mend, commit, push, or file issues. What is done with the findings is the user's word, handed off to other skills when needed.
 
 ## Workflow
 
-### 1. Resolve target
+### 1. Resolve scope and target
 
-If the user passed an argument, use it. Otherwise default to **uncommitted changes**.
+Parse the first argument to decide the **scope**:
+
+| First argument | Scope | Target |
+|---|---|---|
+| `project` | `project` | the project root tree |
+| (none) | `diff` | uncommitted changes |
+| `branch` | `diff` | the current branch versus its base |
+| `<sha>` | `diff` | the single commit |
+| `<sha1>..<sha2>` | `diff` | the range |
+
+For **diff scope**, capture the diff using one of these forms:
 
 | Argument | How to capture the diff |
 |----------|--------------------------|
@@ -26,6 +43,8 @@ If the user passed an argument, use it. Otherwise default to **uncommitted chang
 Capture the diff **once** and hold it as `DIFF`. If the diff is empty, tell the user and stop — do not summon the riders to an empty field.
 
 **Delivery to riders.** If `DIFF` is under 500 lines, pass it inline in each agent prompt. Otherwise write it once to `build/nazgul/diff-<timestamp>.patch` and pass the path instead. Create `build/nazgul/` if absent.
+
+For **project scope**, resolve the project root via `git rev-parse --show-toplevel` and hold it as `ROOT`. If that fails, the working directory is not inside a git repo — tell the user and stop. No diff is captured; the tree itself is the field.
 
 ### 2. Read the roll
 
@@ -41,8 +60,10 @@ Each check file has YAML frontmatter and a prompt body:
 ```markdown
 ---
 name: No commented-out code
-agent: Explore        # optional; default Explore
-autofix: false        # optional; reserved for future --fix flag
+scope: diff                  # optional; default diff. May be a single value or a list.
+# scope: [diff, project]     # list form — the check rides in every named scope.
+agent: Explore               # optional; default general-purpose
+autofix: false               # optional; reserved for future --fix flag
 ---
 
 Flag any commented-out code blocks introduced in the diff. If a
@@ -51,10 +72,13 @@ it but pass. Otherwise fail with file:line of the commented block.
 ```
 
 - `name` — shown in the report table. Required.
+- `scope` — which field this check rides. May be a single value (`diff` or `project`) or a list (`[diff, project]`). Default is `diff` if absent. A check participates in scope *S* if *S* appears in its declared scope set. List-form checks must be written target-agnostically (see below).
 - `agent` — subagent type to dispatch. Default `general-purpose` (tends to honour format demands). Declare `Explore` only when the check is read-only *and* the author has verified Explore answers in the required shape — Explore is trained to narrate and will often return prose instead of one line.
 - `autofix` — reserved flag for a future `--fix` mode. Ignore it for now.
 
-Assign each check an **index** starting at 1, in stable filename-sorted order. The index travels with the rider to the reply.
+**Target-agnostic prose.** A check declared in two scopes will be dispatched once per invocation, with the target swapped to match the chosen field. Write its body so it reads sensibly under either target — e.g. *"Scan the given target — whether the supplied diff or the standing project tree — for X."* The dispatcher selects the right target line at prompt-build time (step 3); the rubric does not name *diff* or *project* exclusively.
+
+After scope filtering, assign each surviving check an **index** starting at 1, in stable filename-sorted order. The index travels with the rider to the reply. If the chosen scope yields no checks, tell the user and stop.
 
 ### 3. Summon the riders
 
@@ -81,7 +105,9 @@ Each agent prompt must be built in this exact order — the reply contract comes
    > WRONG: `## Verdict\n\nThe diff does not introduce…\n\n1|pass|ok`
    > RIGHT: `1|pass|nothing flagged`
 
-3. The target: either the inline `DIFF`, or `The diff is at <path>. Read it first.`
+3. The target — depends on scope:
+   - **diff scope**: either the inline `DIFF`, or `The diff is at <path>. Read it first.`
+   - **project scope**: `The project root is <ROOT>. Read whatever files you need under it.`
 4. The prompt body from the check file, verbatim.
 5. A closing reminder: `Remember — reply with one line only, in the form shown above. Nothing else.`
 
@@ -145,6 +171,7 @@ The prompt body — the truth of the check — does not change in the promotion.
 
 - Dispatch all riders in a single message. Parallel always; never sequential.
 - Riders may read any file in the tree; riders must never write, edit, commit, push, or open a PR.
-- If the diff is empty, tell the user and stop. Do not summon the Nine to an empty field.
+- For diff scope: if the diff is empty, tell the user and stop. Do not summon the Nine to an empty field.
+- For project scope: if no checks bear `scope: project`, tell the user and stop.
 - Reserve the riders for judgment. If grep or a linter can settle the matter, it is not a check.
 - Nazgûl itself never commits, pushes, opens PRs, or files issues. Those actions belong to the user or to other skills the user invokes after the report.

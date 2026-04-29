@@ -11,3 +11,7 @@
 ## Methods
 
 - Keep methods under 25 lines. If it grows beyond that, extract smaller private methods.
+
+## General-purpose code
+
+- When editing a file meant to be a general-purpose widget (a shared component, a utility, a base class), do not add domain-specific logic. Keep it general. If the change needs domain knowledge, lift it to the caller — leave the widget unaware.

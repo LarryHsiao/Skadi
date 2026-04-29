@@ -11,6 +11,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 | `statusline.sh` | Custom status line script |
 | `hooks/` | Shell scripts that run before/after tool calls |
 | `skills/` | Custom slash-command skills |
+| `docs/` | Style guides referenced from `CLAUDE.md` via `@docs/...` |
 | `install.sh` | Copy installer (idempotent, safe to re-run) |
 
 ### Features
@@ -39,7 +40,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/eod` — End-of-day scan of configured repos for uncommitted/unpushed work
 - `/focus` — Pomodoro focus timer
 - `/preflight` — Run periodic maintenance checks and sync overdue items into the todo list
-- `/nazgul` — Dispatch the Nine: one agent per check file, aggregating pass/fail verdicts into a single table
+- `/nazgul` — Dispatch the Nine: one agent per check file, aggregating pass/fail verdicts into a single table. Default scope is the diff (uncommitted, branch, or sha range); `/nazgul project` rides over the standing project tree instead. Each check declares its scope via frontmatter
 - `/council` — Convene a planning council on a tracker ticket: Erestor drafts, Elrond decides, all by comment
 - `/glorfindel` — Sweep every open ticket in a project and run the council on each, aggregating one report
 - `/celebrimbor` — Forge an approved counsel into a PR/MR: branch off base, dispatch the smith, open the PR/MR, post `[GWAITH]` on the ticket

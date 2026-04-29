@@ -56,5 +56,16 @@ for skill in "$REPO/skills/"*; do
   fi
 done
 
+# Docs
+if [ -d "$REPO/docs" ]; then
+  mkdir -p "$CLAUDE_DIR/docs"
+  while IFS= read -r -d '' src; do
+    rel="${src#$REPO/docs/}"
+    dst="$CLAUDE_DIR/docs/$rel"
+    mkdir -p "$(dirname "$dst")"
+    install_file "$src" "$dst"
+  done < <(find "$REPO/docs" -type f -not -path '*/.*' -print0)
+fi
+
 echo ""
 echo "Done."
