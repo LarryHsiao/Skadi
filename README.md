@@ -44,7 +44,8 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/council` — Convene a planning council on a tracker ticket: Erestor drafts, Elrond decides, all by comment
 - `/glorfindel` — Sweep every open ticket in a project and run the council on each, aggregating one report
 - `/celebrimbor` — Forge an approved counsel into a PR/MR: branch off base, dispatch the smith, open the PR/MR, post `[GWAITH]` on the ticket
-- `/lindir` — Read a PR/MR and render a four-section review brief; with the `approve` verb, ask once and submit an approving review on the forge
+- `/lindir` — Read a PR/MR and render a five-section review brief; with the `approve` verb, ask once and submit an approving review on the forge
+- `/scribe` — Export a Minerva planning section to YouTrack, Outline, or disk; carries title, scope, Figma screenshot, sub-tasks, and open questions, and updates in place via inline markers
 - `/cleanup-dev` — Free disk space by clearing dev caches and build artifacts
 - `/vocab` — Personal vocabulary deck: look up a word in EN + ZH-TW, store as a card under `~/.skadi/vocab/`, surface due cards via spaced repetition
 - `/publish` — Build Flutter release archives and collect into `build/publish/`
@@ -55,6 +56,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **dir-guard** — Block Bash commands that run outside the project directory
 - **pre-commit-guard** — Prevent unauthorized commits
 - **destructive-warn** — Warn on destructive shell commands
+- **secret** — Resolve a credential field for a service from Vaultwarden via `bw serve`, falling back to an env var
 - **flutter-analyze** — Run `flutter analyze` after editing Dart files
 - **prettier-format** — Run Prettier after editing supported files
 - **eslint-check** — Run ESLint after editing JS/TS files

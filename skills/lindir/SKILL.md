@@ -17,7 +17,7 @@ Lindir of Rivendell sang the songs of Imladris and read what others wrote. So th
 
 ## Argument parsing
 
-`/lindir <url>` — read-path. Renders the four-section brief.
+`/lindir <url>` — read-path. Renders the five-section brief.
 
 `/lindir approve <url>` — write-path. Asks once, then submits an approving review.
 
@@ -105,9 +105,7 @@ Match the URL. Resolve **both** the read hook (for the prompt body) and the appr
 
 Always ask via AskUserQuestion before invoking the approve hook. The slash invocation alone is **not** authority for a review-approve.
 
-Build the prompt from the URL and a short head/base line. The approve hook itself fetches title and head→base for the prompt — call it with no arguments beyond the URL to get the metadata, *or* fetch it inline via the same path the approve hook uses. The simplest path: have the approve hook print a confirm-line first when invoked in `--prompt` mode.
-
-To keep the contract narrow in v1, the skill body asks the approve hook for the metadata via a one-shot pre-call:
+Fetch the prompt metadata via a one-shot pre-call to the approve hook:
 
 ```bash
 <approve-hook> --prompt <url>
