@@ -1,6 +1,6 @@
 ---
 name: mithrandir
-description: Use when the user runs /mithrandir <url> or /mithrandir comment <url>. Reads a pull request or merge request and renders a four-axis verdict — cohesion, proportion, direction, risk — followed by an optional `Worth keeping` section (concrete bright spots) and an optional `To pass` action list grouped by severity (Blocker / Suggested / Nit), closing with a tier (sound | wavering | off) and a short reasoning paragraph. A blockquote header at the top distils the bottom line — Merge / Hold / Refuse. The read verb (default) renders to chat; the `comment` verb posts the verdict to the forge after a confirm-once gate. Tone defaults differ by audience — read leans Tolkien (private counsel), comment leans plain (public note). The `--plain` and `--lore` flags override either default. Host-agnostic; routes to GitHub or GitLab from the URL.
+description: Use when the user runs /mithrandir <url> or /mithrandir comment <url>. Reads a pull request or merge request and renders a four-axis verdict — cohesion, proportion, direction, risk — followed by an optional `Worth keeping` section (concrete bright spots) and an optional `To pass` action list grouped by severity (Blocker / Nice to have / Nit), closing with a tier (sound | wavering | off) and a short reasoning paragraph. A blockquote header at the top distils the bottom line — Merge / Hold / Refuse. The read verb (default) renders to chat; the `comment` verb posts the verdict to the forge after a confirm-once gate. Tone defaults differ by audience — read leans Tolkien (private counsel), comment leans plain (public note). The `--plain` and `--lore` flags override either default. Host-agnostic; routes to GitHub or GitLab from the URL.
 user_invocable: true
 ---
 
@@ -146,7 +146,7 @@ Render in this order, in plain markdown. The title line and closing paragraph fo
 ### Blocker          ← omit subsection if empty
 - `<file or path>` — <action ≤ 50 words>
 
-### Suggested        ← omit subsection if empty
+### Nice to have     ← omit subsection if empty
 - `<file or path>` — <action ≤ 50 words>
 
 ### Nit              ← omit subsection if empty
@@ -186,7 +186,7 @@ The justification clause is ≤ 15 words and aligns with the chief concern named
 **To pass section.** Optional. The action list — concrete things the author should do for the work to merge — grouped by severity rather than by axis. Heading is `## To pass` in both modes. Three subsections, each rendered only if it has at least one row:
 
 - `### Blocker` — must mend before merge. The work cannot land in good conscience until each is addressed.
-- `### Suggested` — worth doing; does not block merge. The work can land without these, but they round its edges.
+- `### Nice to have` — worth doing; does not block merge. The work can land without these, but they round its edges.
 - `### Nit` — minor, stylistic, or follow-up bookkeeping. Optional even by suggestion.
 
 Each row is a bullet, ≤ 50 words, leading with a backticked file path (with line span where useful). Phrase as an action — *"assign … before await"*, *"name the iM3 hardware verification"* — not as a passive observation. If all three subsections are empty, omit `## To pass` entirely; the verdict alone carries the message.
