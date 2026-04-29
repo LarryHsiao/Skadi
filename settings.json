@@ -73,6 +73,8 @@
       "Bash(~/.claude/hooks/lindir-gitlab-mr.sh:*)",
       "Bash(~/.claude/hooks/lindir-github-approve.sh:*)",
       "Bash(~/.claude/hooks/lindir-gitlab-approve.sh:*)",
+      "Bash(~/.claude/hooks/mithrandir-github-comment.sh:*)",
+      "Bash(~/.claude/hooks/mithrandir-gitlab-comment.sh:*)",
       "Bash(~/.claude/hooks/youtrack-state.sh:*)",
       "Bash(~/.claude/hooks/jira-state.sh:*)",
       "Bash(glab:*)",

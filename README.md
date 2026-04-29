@@ -45,6 +45,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/glorfindel` — Sweep every open ticket in a project and run the council on each, aggregating one report
 - `/celebrimbor` — Forge an approved counsel into a PR/MR: branch off base, dispatch the smith, open the PR/MR, post `[GWAITH]` on the ticket
 - `/lindir` — Read a PR/MR and render a five-section review brief; with the `approve` verb, ask once and submit an approving review on the forge
+- `/mithrandir` — Read a PR/MR and render a four-axis verdict (cohesion, proportion, direction, risk) with a tier (sound/wavering/off) and short reasoning; with the `comment` verb, ask once and post the verdict to the forge. Tone defaults to lore for chat and plain for forge; `--plain` / `--lore` flags override
 - `/scribe` — Export a Minerva planning section to YouTrack, Outline, or disk; carries title, scope, Figma screenshot, sub-tasks, and open questions, and updates in place via inline markers
 - `/cleanup-dev` — Free disk space by clearing dev caches and build artifacts
 - `/vocab` — Personal vocabulary deck: look up a word in EN + ZH-TW, store as a card under `~/.skadi/vocab/`, surface due cards via spaced repetition
@@ -71,6 +72,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **celebrimbor-github-pr**, **celebrimbor-gitlab-mr** — Push a branch and open a PR/MR on GitHub or GitLab via `gh`/`glab`; body taken from stdin
 - **lindir-github-pr**, **lindir-gitlab-mr** — Read a PR/MR via `gh`/`glab` and emit a JSON brief for `/lindir`
 - **lindir-github-approve**, **lindir-gitlab-approve** — Submit an approving review on a PR/MR via `gh`/`glab` for `/lindir approve`
+- **mithrandir-github-comment**, **mithrandir-gitlab-comment** — Post a comment on a PR/MR via `gh`/`glab` for `/mithrandir comment`; body taken from stdin
 - **youtrack-state**, **jira-state** — Idempotent state transitions on YouTrack and Jira tickets, used by `/glorfindel` (on `[FORTH]`) and `/celebrimbor` (after `[GWAITH]`)
 - **publish-macos-target** — Remember whether a macOS project publishes to GitHub Releases or the Mac App Store
 - **vocab-cards** — Emit every vocab card with SRS state and days-until-due as TSV for `/vocab review` and `/vocab list`
