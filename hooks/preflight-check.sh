@@ -61,3 +61,34 @@ if [ -x "$vocab_hook" ]; then
     echo "vocab|all caught up|next due in ${vocab_next_due} day(s)|"
   fi
 fi
+
+# --- nazgul-checks ---
+nazgul_checks_dir=""
+for candidate in \
+    "$HOME/.claude/skills/nazgul/checks" \
+    "$HOME/.claude-personal/skills/nazgul/checks" \
+    "$HOME/.claude-work/skills/nazgul/checks"; do
+  if [ -d "$candidate" ]; then
+    nazgul_checks_dir="$candidate"
+    break
+  fi
+done
+
+if [ -n "$nazgul_checks_dir" ]; then
+  nazgul_count=$(find "$nazgul_checks_dir" -maxdepth 1 -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')
+  nazgul_state="$HOME/.claude/.nazgul-checks-last-review"
+  if [ -f "$nazgul_state" ]; then
+    n_last=$(cat "$nazgul_state" 2>/dev/null || echo "")
+    if [[ "$n_last" =~ ^[0-9]+$ ]]; then
+      n_days=$(( (now - n_last) / 86400 ))
+      n_date_str=$(date -r "$n_last" +%Y-%m-%d 2>/dev/null || echo "unknown")
+      n_flag=""
+      [ "$n_days" -gt 30 ] && n_flag="warn"
+      echo "nazgul-checks|${n_days} days ago|${nazgul_count} rubric(s); last review ${n_date_str}|${n_flag}"
+    else
+      echo "nazgul-checks|unreadable|state file corrupt|warn"
+    fi
+  else
+    echo "nazgul-checks|never|${nazgul_count} rubric(s); no review on record|warn"
+  fi
+fi

@@ -80,6 +80,7 @@
       "Bash(~/.claude/hooks/session-readme.sh:*)",
       "Bash(~/.claude/hooks/vocab-cards.sh:*)",
       "Bash(~/.claude/hooks/scribe.sh:*)",
+      "Bash(~/.claude/hooks/nazgul-checks-mark-reviewed.sh:*)",
       "Bash(xcrun:*)"
     ]
   },

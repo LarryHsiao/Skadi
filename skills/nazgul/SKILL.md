@@ -1,6 +1,6 @@
 ---
 name: nazgul
-description: Use when the user runs /nazgul [target] or /nazgul project. Dispatches the Nine — one agent per check file — to inspect either a diff (default — uncommitted changes) or the standing project tree, and aggregates pass/fail/n/a verdicts into a single table. Checks live as markdown files under `checks/`, scoped via frontmatter — `scope` may be `diff` (default), `project`, or a list `[diff, project]` for checks that ride both fields. Project-local overrides take precedence. Audit only — never fixes, commits, or files issues on its own.
+description: Use when the user runs /nazgul [target], /nazgul project, or /nazgul reviewed. The first two dispatch the Nine — one agent per check file — to inspect either a diff (default — uncommitted changes) or the standing project tree, aggregating pass/fail/n/a verdicts into a single table. The `reviewed` verb stamps the rubric-review state file consumed by /preflight; no agents dispatched. Checks live as markdown files under `checks/`, scoped via frontmatter — `scope` may be `diff` (default), `project`, or a list `[diff, project]`. Project-local overrides take precedence. Audit only — never fixes, commits, or files issues on its own.
 user_invocable: true
 ---
 
@@ -18,6 +18,16 @@ Each check declares which field it belongs to via frontmatter; the parent dispat
 Nazgûl is an **auditor**. It finds and names; it does not mend, commit, push, or file issues. What is done with the findings is the user's word, handed off to other skills when needed.
 
 ## Workflow
+
+### 0. Bookkeeping verbs
+
+Some arguments do not summon riders at all — they only update bookkeeping the parent skill keeps about its own rubrics.
+
+| First argument | What it does |
+|---|---|
+| `reviewed` | Stamps the rubric-review state file with `now`, recording that the user has just walked the rubrics under `checks/` and judged them sound (or amended any that drifted). Run the hook `~/.claude/hooks/nazgul-checks-mark-reviewed.sh` and stop — no agents are dispatched, no table is printed. The next `/preflight` reads the new mtime and clears the corresponding overdue task. |
+
+If the first argument matches a bookkeeping verb, do its job and stop. Otherwise fall through to step 1.
 
 ### 1. Resolve scope and target
 

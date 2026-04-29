@@ -72,6 +72,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **youtrack-state**, **jira-state** — Idempotent state transitions on YouTrack and Jira tickets, used by `/glorfindel` (on `[FORTH]`) and `/celebrimbor` (after `[GWAITH]`)
 - **publish-macos-target** — Remember whether a macOS project publishes to GitHub Releases or the Mac App Store
 - **vocab-cards** — Emit every vocab card with SRS state and days-until-due as TSV for `/vocab review` and `/vocab list`
+- **nazgul-checks-mark-reviewed** — Stamp the rubric-review state file consumed by `/preflight`; called by `/nazgul reviewed`
 
 ## Council → Forge
 

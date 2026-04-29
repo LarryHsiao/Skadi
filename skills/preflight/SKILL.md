@@ -56,5 +56,6 @@ When a run finishes, the next `/preflight` invocation will auto-complete the cor
 |-----|-----------|---------------------|
 | `cleanup-dev` | 30 days since last run | `/cleanup-dev` |
 | `vocab` | any card with `due_in_days <= 0` | `/vocab review` |
+| `nazgul-checks` | 30 days since last review of the rubric files | walk `skills/nazgul/checks/*.md`, then `/nazgul reviewed` |
 
 Add new checks by extending `~/.claude/hooks/preflight-check.sh` and the table above.
