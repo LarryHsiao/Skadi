@@ -64,13 +64,18 @@ if echo "$CWD" | grep -qE '^/$|^/[a-z]$'; then
   exit 0
 fi
 
-# Check if outside user home
+# Check if outside user home — but let project dir and dev dirs pass even
+# when they live outside HOME (e.g. /home/user/Skadi when HOME=/root in a
+# devcontainer). The downstream in_allowed_dir check at line ~78 still
+# enforces that the cwd is one of: project, .claude, /tmp, or a dev dir.
 case "$CWD" in
   "$HOME_DIR"|"$HOME_DIR"/*)
     ;; # ok, under home
   *)
-    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: cwd (%s) is outside home directory (%s)"}}' "$CWD" "$HOME_DIR"
-    exit 0
+    if ! in_allowed_dir "$CWD"; then
+      printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: cwd (%s) is outside home directory (%s)"}}' "$CWD" "$HOME_DIR"
+      exit 0
+    fi
     ;;
 esac
 
