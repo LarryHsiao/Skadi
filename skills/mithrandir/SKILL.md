@@ -113,7 +113,7 @@ What each axis asks:
 
 - **Cohesion** — does the change tell one story, or several entangled? A PR titled "fix login bug" that also reformats unrelated files lacks cohesion.
 - **Proportion** — is the diff sized to its intent? A one-line bug report that becomes a five-hundred-line refactor is bloated; a stated rewrite that touches three lines is thin.
-- **Direction** — does it move the codebase the right way? Toward the project's grain (style, architecture, naming), or against it?
+- **Direction** — does it move the codebase the right way? Toward the project's grain (style, architecture, naming), or against it? When the diff lives in one of your own GitHub repos (URL matches `https?://github\.com/LarryHsiao/...`, case-insensitive), also weigh it against the personal style rules in `~/.claude/docs/style/general.md` and (for Dart files) `~/.claude/docs/style/flutter.md`. For any other owner, any other forge, or a self-hosted GitLab, judge by the repo's own grain alone — personal rules do not travel onto teammate or third-party work, and a `comment` post would otherwise carry your house style into public counsel.
 - **Risk** — what could break, and how reversible if it does? Migrations, public APIs, infra changes weigh heavier than internal helpers.
 
 Cite a file or path when naming a concrete flaw.
