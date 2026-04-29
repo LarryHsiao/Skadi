@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Use git rev-parse so the form ("C:/..." vs "/c/...") matches what the
+# /install skill passes when invoking this script. Fall back to pwd outside a
+# git repo (rare; install.sh always lives inside the skadi clone).
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && (git rev-parse --show-toplevel 2>/dev/null || pwd))"
 CLAUDE_DIR="${1:-$HOME/.claude}"
 
 install_file() {
@@ -20,11 +23,32 @@ install_file() {
   echo "installed:      $dst"
 }
 
+# Render settings.json with {{SKADI_ROOT}} substituted to this machine's repo root.
+# Source-of-truth uses the placeholder so the file stays portable across machines;
+# the rendered live copy carries the per-machine absolute path that the harness needs.
+install_settings() {
+  local src="$1"
+  local dst="$2"
+
+  [ -L "$dst" ] && rm "$dst"
+
+  local rendered
+  rendered=$(sed "s|{{SKADI_ROOT}}|$REPO|g" "$src")
+
+  if [ -e "$dst" ] && [ "$(cat "$dst")" = "$rendered" ]; then
+    echo "up to date:     $dst"
+    return
+  fi
+
+  printf '%s' "$rendered" > "$dst"
+  echo "installed:      $dst"
+}
+
 # Global CLAUDE.md
 install_file "$REPO/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
 
-# Global settings
-install_file "$REPO/settings.json" "$CLAUDE_DIR/settings.json"
+# Global settings (with {{SKADI_ROOT}} substitution)
+install_settings "$REPO/settings.json" "$CLAUDE_DIR/settings.json"
 
 # Status line script
 install_file "$REPO/statusline.sh" "$CLAUDE_DIR/statusline.sh"

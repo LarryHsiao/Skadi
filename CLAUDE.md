@@ -90,6 +90,16 @@ Never embed complex bash (pipelines, variable expansion) directly in skill instr
 
 When creating a new skill directory under `skills/`, do **not** manually copy or symlink files into `~/.claude/skills/`. Invoke the `/install` skill — it copies everything into every configured root.
 
+## Permissions
+
+Entries in the source `settings.json` `permissions.allow` must not bear hard-coded absolute paths. The file is propagated across machines via `/install`, and an absolute path resolves only on the machine that authored it — `/Users/...` is meaningless on Windows, `C:/Users/...` is meaningless on macOS.
+
+Three portable forms:
+
+- **`~`-prefixed paths** (`~/.claude/hooks/foo.sh`, `~/skadi/...`) — for files under the home directory; resolved by the shell at use time.
+- **Bare-command form** (`git:*`, `glab:*`, `rtk git status:*`) — for binaries on `PATH`.
+- **`{{SKADI_ROOT}}` placeholder** — for files at the skadi repo root itself (notably `install.sh`). `install.sh` substitutes the placeholder with the machine's actual skadi root when copying `settings.json` into each Claude config root. The source stays portable; the live file carries the per-machine absolute path the harness requires.
+
 ## Secrets
 
 Secrets live in Vaultwarden. Scripts read them through a single helper — `~/.claude/hooks/secret.sh` — which tries Vaultwarden's `bw serve` REST API first and falls back to an env var. Never read a token directly from `$ENV_VAR` in a hook; always route through the helper.
