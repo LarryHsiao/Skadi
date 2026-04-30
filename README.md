@@ -26,8 +26,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 ### Skills
 
 - `/install` — Copy this repo into every configured Claude config root
-- `/commit` — Generate a commit message from the diff and commit after approval
-- `/commit-push` — Same as commit, then push to remote
+- `/commit` — Generate a commit message from the diff and commit after approval; pass `--push` to push after the commit lands
 - `/stage` — Interactively stage files
 - `/summary` — Summarize staged changes
 - `/reset` — Reset workspace to HEAD

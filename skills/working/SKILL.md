@@ -1,6 +1,6 @@
 ---
 name: working
-description: Use when the user runs /working [JIRA-number] or /working [JIRA-number] [type] to start working on a Jira ticket.
+description: Use when the user runs /working [JIRA-number] [type] to begin a Jira ticket. Resolves the ticket (prompts a list when none given), checks out an existing feature branch or cuts a new one from the chosen base, transitions the ticket to In Progress in Jira, syncs the local todo list, then pushes the branch and opens a draft GitLab MR when the remote is GitLab and `glab` is authenticated.
 ---
 
 # Start Working on a Jira Task

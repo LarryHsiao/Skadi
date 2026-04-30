@@ -114,7 +114,7 @@ EOD Sweep — N repos scanned
 
 If there are any `dirty` or `unpushed` rows, end with one short line — no checklist, no nagging:
 
-> Worth a `/commit-push` in those before you log off.
+> Worth a `/commit --push` in those before you log off.
 
 Skip the suggestion when everything is clean.
 

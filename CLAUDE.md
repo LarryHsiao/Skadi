@@ -68,7 +68,7 @@ Each step narrow of reach, each leaves the tree working, each trivial to walk ba
 
 The gate depends on how the action was summoned:
 
-- **Slash-invoked skills** — when the user types `/<skill>`, the invocation is itself the word of approval for that skill's declared purpose. Run the skill's job without a second prompt. Skills that carry their own confirmation step (e.g. `/commit-push`, `/reset`, `/cleanup-dev`) keep it; no outer gate is added.
+- **Slash-invoked skills** — when the user types `/<skill>`, the invocation is itself the word of approval for that skill's declared purpose. Run the skill's job without a second prompt. Skills that carry their own confirmation step (e.g. `/commit`, `/reset`, `/cleanup-dev`) keep it; no outer gate is added.
 - **Free-form work** — when acting on my own judgment with no skill frame (edits, writes, deletions, installs, commits, pushes, or any command with side effects beyond reading), first lay out a brief summary of the intended changes — what files, what intent — and await the user's word. This holds whether plan mode is on or off.
 
 Session-level opt-out still applies ("just do it", "skip the summary", or the like).
