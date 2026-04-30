@@ -44,6 +44,25 @@ install_settings() {
   echo "installed:      $dst"
 }
 
+# Remove files in dst that have no counterpart in src, then sweep empty dirs.
+# Hidden files and directories under dst are left alone — those belong to the
+# user, not to skadi.
+prune_tree() {
+  local src="$1"
+  local dst="$2"
+  [ -d "$dst" ] || return 0
+
+  while IFS= read -r -d '' path; do
+    local rel="${path#$dst/}"
+    if [ ! -e "$src/$rel" ]; then
+      rm -f "$path"
+      echo "pruned:         $path"
+    fi
+  done < <(find "$dst" -name '.*' -prune -o -type f -print0)
+
+  find "$dst" -depth -mindepth 1 -type d -empty -not -name '.*' -delete 2>/dev/null || true
+}
+
 # Global CLAUDE.md
 install_file "$REPO/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
 
@@ -58,6 +77,7 @@ mkdir -p "$CLAUDE_DIR/hooks"
 for hook in "$REPO/hooks/"*.sh; do
   [ -f "$hook" ] && install_file "$hook" "$CLAUDE_DIR/hooks/$(basename "$hook")"
 done
+prune_tree "$REPO/hooks" "$CLAUDE_DIR/hooks"
 
 # Skills
 mkdir -p "$CLAUDE_DIR/skills"
@@ -79,6 +99,7 @@ for skill in "$REPO/skills/"*; do
     install_file "$skill" "$CLAUDE_DIR/skills/$skill_name/SKILL.md"
   fi
 done
+prune_tree "$REPO/skills" "$CLAUDE_DIR/skills"
 
 # Docs
 if [ -d "$REPO/docs" ]; then
@@ -89,6 +110,7 @@ if [ -d "$REPO/docs" ]; then
     mkdir -p "$(dirname "$dst")"
     install_file "$src" "$dst"
   done < <(find "$REPO/docs" -type f -not -path '*/.*' -print0)
+  prune_tree "$REPO/docs" "$CLAUDE_DIR/docs"
 fi
 
 echo ""
