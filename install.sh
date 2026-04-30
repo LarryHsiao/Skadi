@@ -72,7 +72,7 @@ for skill in "$REPO/skills/"*; do
       dst="$CLAUDE_DIR/skills/$skill_name/$rel"
       mkdir -p "$(dirname "$dst")"
       install_file "$src" "$dst"
-    done < <(find "$skill" -type f -not -path '*/.*' -print0)
+    done < <(find "$skill" -name '.*' -prune -o -type f -print0)
   elif [ -f "$skill" ]; then
     skill_name="$(basename "${skill%.*}")"
     mkdir -p "$CLAUDE_DIR/skills/$skill_name"
@@ -88,7 +88,7 @@ if [ -d "$REPO/docs" ]; then
     dst="$CLAUDE_DIR/docs/$rel"
     mkdir -p "$(dirname "$dst")"
     install_file "$src" "$dst"
-  done < <(find "$REPO/docs" -type f -not -path '*/.*' -print0)
+  done < <(find "$REPO/docs" -name '.*' -prune -o -type f -print0)
 fi
 
 echo ""
