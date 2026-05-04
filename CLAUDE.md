@@ -100,6 +100,8 @@ Three portable forms:
 - **Bare-command form** (`git:*`, `glab:*`, `rtk git status:*`) — for binaries on `PATH`.
 - **`{{SKADI_ROOT}}` placeholder** — for files at the skadi repo root itself (notably `install.sh`). `install.sh` substitutes the placeholder with the machine's actual skadi root when copying `settings.json` into each Claude config root. The source stays portable; the live file carries the per-machine absolute path the harness requires.
 
+Entries must also be **project-agnostic**. A permission tied to a single project's filename or build script — e.g. `Bash(bash build_win7.sh:*)` for one Flutter app's release pipeline — does not belong in skadi. Such narrow entries live in that project's own `.claude/settings.local.json`, where they apply only when that project is the working directory. The global allowlist must read true across every machine *and* every project; anything narrower clutters the file and bears no use beyond its origin.
+
 ## Secrets
 
 Secrets live in Vaultwarden. Scripts read them through a single helper — `~/.claude/hooks/secret.sh` — which tries Vaultwarden's `bw serve` REST API first and falls back to an env var. Never read a token directly from `$ENV_VAR` in a hook; always route through the helper.
