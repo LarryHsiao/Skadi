@@ -91,7 +91,9 @@
       "Bash(rtk git log:*)",
       "Bash(rtk git diff:*)",
       "Bash(rtk git show:*)",
-      "Bash(xcrun:*)"
+      "Bash(xcrun:*)",
+      "Bash(sed:*)",
+      "PowerShell(Join-Path *)"
     ]
   },
   "model": "opus",
