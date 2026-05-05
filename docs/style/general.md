@@ -15,3 +15,7 @@
 ## General-purpose code
 
 - When editing a file meant to be a general-purpose widget (a shared component, a utility, a base class), do not add domain-specific logic. Keep it general. If the change needs domain knowledge, lift it to the caller — leave the widget unaware.
+
+## Indexing
+
+- **Guard every index access against an empty container.** Before `xs[0]`, `xs.first`, `xs.last`, or `xs[i]`, check the length or use a safe accessor (`xs.firstOrNull`, `xs.elementAtOrNull(i)`, pattern destructuring with a fallback). The empty list is the common pitfall — `xs[0]` on `[]` raises, not returns null. The same care applies to map lookups, regex match groups, and argument arrays.
