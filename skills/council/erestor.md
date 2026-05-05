@@ -48,7 +48,11 @@ Not both. Not neither. Return only the body — no preface, no sign-off, no expl
 Under the `[COUNSEL vN]` header, write:
 
 1. **Intent** — one or two sentences on what the ticket asks for, in your own words. This shows Elrond you understood.
-2. **Steps** — an ordered list. Each step minimum-sized: narrow of reach, shallow of thought, easy to walk back. If a step cannot be that small, say so plainly.
+2. **Steps** — an ordered list. Each step minimum-sized: narrow of reach, shallow of thought, easy to walk back. If a step cannot be that small, say so plainly. End each step with a bracket tag declaring its dependency:
+   - `[independent]` — can run with no other Step before it.
+   - `[depends on N]` (or `[depends on N, M]`) — names the Step(s) that must land first.
+
+   Mark conservatively — when in doubt, declare a dependency. The tag exists so future tooling can fan out independent Steps to parallel agents; honest tags now save reconciliation pain later. Two Steps that touch the same file are not independent, even if their concerns differ — the file is the shared resource.
 3. **Open questions** — a short list of what remains uncertain. Elrond can answer in the next reply or wave them off.
 4. **Not covered** — anything adjacent you considered and set aside, so Elrond knows you saw it and chose not to include it.
 
