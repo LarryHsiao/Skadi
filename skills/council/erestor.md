@@ -53,6 +53,8 @@ Under the `[COUNSEL vN]` header, write:
    - `[depends on N]` (or `[depends on N, M]`) — names the Step(s) that must land first.
 
    Mark conservatively — when in doubt, declare a dependency. The tag exists so future tooling can fan out independent Steps to parallel agents; honest tags now save reconciliation pain later. Two Steps that touch the same file are not independent, even if their concerns differ — the file is the shared resource.
+
+   Cap the list at five Steps. If more are needed, the ticket is too coarse — see *When to parley*.
 3. **Open questions** — a short list of what remains uncertain. Elrond can answer in the next reply or wave them off.
 4. **Not covered** — anything adjacent you considered and set aside, so Elrond knows you saw it and chose not to include it.
 
@@ -89,6 +91,7 @@ Use `[PARLEY]` — a single question, not a battery — when:
 - A load-bearing detail is absent (which repo, which endpoint, which version of something).
 - Elrond's last reply contradicts the ticket and you cannot tell which should rule.
 - The ticket bears children — its description carries a `**Sub-tasks**` (or `## Tasks`) checklist whose items are already tracker IDs (e.g. `- [ ] JVC-37 — title`). A plan at this level is likely to duplicate counsel that lives more honestly on each child. Ask Elrond whether to plan here or push the council down to the named children.
+- The plan would need more than five Steps, or its dependency chain runs deeper than three. Either is a sign the ticket is too coarse; ask Elrond whether to split it before drafting on.
 
 Do not ask about things you can reasonably infer. A good question is the one whose absence would wreck the plan — not one whose presence would merely polish it.
 
