@@ -204,8 +204,8 @@ ellipsize_end() {
 
 # Line 1: project name + branch
 project_name=$(basename "$cwd")
-project_label=$(ellipsize_end "$project_name" 15)
-branch_label=$(ellipsize_end "${git_branch:-N/A}" 25)
+project_label=$(ellipsize_end "$project_name" 25)
+branch_label=$(ellipsize_end "${git_branch:-N/A}" 35)
 printf "📁 %s  🌿 %s\n" "$project_label" "$branch_label"
 
 # Line 2: branch info
@@ -515,7 +515,7 @@ cpu_str="📈 ${cpu_color}Load: ${cpu_load}%${RESET}"
 
 printf "%s  %s  %s\n" "$weather" "$cpu_str" "$disk_str"
 
-# Line 6: quote (wrap at 50 columns; continuation lines hang under the opening ")
+# Line 6: quote (wrap at 64 columns; continuation lines hang under the opening ")
 # Lead with '|' — Claude Code's statusline trims leading whitespace, so anchor with a visible char.
 quote_indent='|   '
-printf "%s\n" "$display_quote" | fold -s -w 46 | awk -v ind="$quote_indent" 'NR==1 {print; next} {print ind $0}'
+printf "%s\n" "$display_quote" | fold -s -w 60 | awk -v ind="$quote_indent" 'NR==1 {print; next} {print ind $0}'
