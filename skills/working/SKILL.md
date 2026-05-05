@@ -91,18 +91,41 @@ If not saved, ask the user for their Jira domain and email, then save to memory:
 
 **b. Fetch the ticket via API** (requires `JIRA_API_TOKEN` env var):
 
-> Skip this fetch if the summary and status were already retrieved from the ticket list in step 1.
+Pull `summary`, `status`, `description`, `priority`, and `issuetype` in one call — the brief in step 8e needs all five. Description arrives as ADF (Atlassian Document Format, JSON); flatten it by walking the tree and concatenating `text` nodes with newlines between block-level nodes.
 
 ```bash
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  "$JIRA_BASE_URL/rest/api/3/issue/JIRA-NUMBER?fields=summary,status" \
+  "$JIRA_BASE_URL/rest/api/3/issue/JIRA-NUMBER?fields=summary,status,description,priority,issuetype" \
   | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-print('SUMMARY:', d['fields']['summary'])
-print('STATUS:', d['fields']['status']['name'])
+import sys, json
+
+def flatten_adf(node, out):
+    if isinstance(node, dict):
+        if node.get('type') == 'text':
+            out.append(node.get('text', ''))
+        for child in node.get('content', []) or []:
+            flatten_adf(child, out)
+        if node.get('type') in ('paragraph', 'heading', 'bulletList', 'orderedList', 'listItem', 'codeBlock'):
+            out.append('\n')
+    elif isinstance(node, list):
+        for child in node:
+            flatten_adf(child, out)
+
+d = json.load(sys.stdin)
+f = d['fields']
+parts = []
+flatten_adf(f.get('description'), parts)
+desc = ''.join(parts).strip()
+print('SUMMARY:', f['summary'])
+print('STATUS:', f['status']['name'])
+print('TYPE:', (f.get('issuetype') or {}).get('name', ''))
+print('PRIORITY:', (f.get('priority') or {}).get('name', ''))
+print('---DESCRIPTION---')
+print(desc)
 "
 ```
+
+Stash all five values for use in the step 4 transition (status), the step 8e brief (everything), and the step 8f MR title (summary).
 
 If `JIRA_API_TOKEN` is not set, tell the user:
 > Set `JIRA_API_TOKEN` in your environment (e.g. in `~/.zshrc`) with an Atlassian API token from https://id.atlassian.com/manage-profile/security/api-tokens
@@ -212,7 +235,22 @@ git pull
 git checkout -b JIRA-NUMBER/type/name/description-slug
 ```
 
-**e. Push the branch and open a draft MR on GitLab:**
+**e. Brief the ticket:**
+
+Render a tight ticket card in chat so the user is oriented before they start coding. Use the values stashed in step 3.
+
+```
+─ JIRA-NUMBER ───────────────────────────
+**<summary>**
+<type> · <priority> · <status> · <branch-name>
+
+<description, truncated to 800 chars; append "..." if cut>
+─────────────────────────────────────────
+```
+
+Truncate the description at the nearest whitespace at-or-before 800 chars (don't cut mid-word). If any of `type`, `priority`, or `status` is empty, omit it from the metadata line — keep the dots clean.
+
+**f. Push the branch and open a draft MR on GitLab:**
 
 First run these preflight checks. If any fail, skip the push and MR creation and tell the user why:
 
