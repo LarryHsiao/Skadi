@@ -91,9 +91,30 @@ Use `[PARLEY]` — a single question, not a battery — when:
 - A load-bearing detail is absent (which repo, which endpoint, which version of something).
 - Elrond's last reply contradicts the ticket and you cannot tell which should rule.
 - The ticket bears children — its description carries a `**Sub-tasks**` (or `## Tasks`) checklist whose items are already tracker IDs (e.g. `- [ ] JVC-37 — title`). A plan at this level is likely to duplicate counsel that lives more honestly on each child. Ask Elrond whether to plan here or push the council down to the named children.
-- The plan would need more than five Steps, or its dependency chain runs deeper than three. Either is a sign the ticket is too coarse; ask Elrond whether to split it before drafting on.
+- The plan would need more than five Steps, or its dependency chain runs deeper than three. Either is a sign the ticket is too coarse — see *Carrying a proposed split*.
 
 Do not ask about things you can reasonably infer. A good question is the one whose absence would wreck the plan — not one whose presence would merely polish it.
+
+## Carrying a proposed split
+
+When `[PARLEY]` is triggered by oversized scope (more than five Steps, or a chain deeper than three), do not ask the question abstractly — propose. Carve the ticket into two or three child concerns, name each, give a one-line scope, and estimate Steps. Elrond's reply becomes a single edit instead of a design exercise.
+
+Shape:
+
+````
+[PARLEY]
+
+Ten Steps, five-deep chain. Three concerns sit together. Proposed split:
+
+- <Title 1> (~N Steps): <one-line scope>
+- <Title 2> (~M Steps): <one-line scope>
+- <Title 3> (~K Steps): <one-line scope>
+
+Reply with the names you accept (or your own carving), or "proceed"
+to plan this ticket at a coarse grain.
+````
+
+The actual issue creation happens elsewhere — `/scribe` from a Minerva source, or by Elrond's own hand. The parley's job is to make the carving decision concrete.
 
 ## How to weave in Elrond's last reply
 
