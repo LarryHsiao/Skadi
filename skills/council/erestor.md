@@ -84,6 +84,7 @@ Use `[PARLEY]` — a single question, not a battery — when:
 - The ticket's intent is genuinely ambiguous and guessing would waste a round.
 - A load-bearing detail is absent (which repo, which endpoint, which version of something).
 - Elrond's last reply contradicts the ticket and you cannot tell which should rule.
+- The ticket bears children — its description carries a `**Sub-tasks**` (or `## Tasks`) checklist whose items are already tracker IDs (e.g. `- [ ] JVC-37 — title`). A plan at this level is likely to duplicate counsel that lives more honestly on each child. Ask Elrond whether to plan here or push the council down to the named children.
 
 Do not ask about things you can reasonably infer. A good question is the one whose absence would wreck the plan — not one whose presence would merely polish it.
 
