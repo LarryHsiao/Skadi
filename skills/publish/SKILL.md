@@ -86,19 +86,22 @@ If any of `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` is still empty:
 
 > macOS sign + notarize requires APPLE_ID, APPLE_TEAM_ID, and APPLE_APP_PASSWORD. Add a vault item named `apple-notarization` (login fields: Apple ID + app-specific password), or set `DEVELOPMENT_TEAM` in `macos/Runner.xcodeproj`.
 
-Resolve the signing identity from the keychain by team ID:
+Resolve the signing identity from the keychain. List available identities first so the user can see what is installed regardless of the outcome, then filter — by team ID first, then by distribution type:
 
 ```bash
+echo "Available codesigning identities:"
+security find-identity -v -p codesigning
+
 SIGNING_IDENTITY=$(security find-identity -v -p codesigning \
+  | grep "(${APPLE_TEAM_ID})" \
   | grep "Developer ID Application" \
-  | grep "$APPLE_TEAM_ID" \
   | head -n 1 \
   | sed -E 's/.*"(.+)".*/\1/')
 ```
 
-If empty:
+If `SIGNING_IDENTITY` is empty, the keychain list printed above shows what is installed. Name the failure mode plainly:
 
-> No `Developer ID Application` keychain identity found for team $APPLE_TEAM_ID. Install the Developer ID certificate and re-run.
+> No `Developer ID Application` keychain identity found for team $APPLE_TEAM_ID. Either no cert under that team, or the team's cert is of a different type (e.g. `Apple Development`, `Apple Distribution`). Install the Developer ID Application certificate (Apple Developer portal → Certificates → Developer ID Application) and re-run.
 
 If `bw` is installed but locked and the env-var fallback is also empty, surface the same message `/publish-macos` uses — `bw unlock`, set `BW_SESSION`, restart `bw serve --port 8087 &`, then re-run.
 
