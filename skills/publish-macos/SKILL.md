@@ -147,31 +147,39 @@ mkdir -p build/publish
 
 ### 6.5. Resolve Apple credentials
 
-Needed by both targets (github needs them to sign/notarize; app-store needs them for `altool`). Resolve `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` in this order:
+Needed by both targets (github needs them to sign/notarize; app-store needs them for `altool`). Resolve `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`. Always route through `~/.claude/hooks/secret.sh` per the CLAUDE.md secrets rule — never read tokens directly from memory or env. The helper checks Vaultwarden via `bw serve` first and falls back to env vars.
 
-1. **Bitwarden** — if `bw` is installed and unlocked:
+Canonical vault item: a single login named `apple-notarization` (lowercase slug, per the "Item names are lowercase service names" convention) with:
+- `login.username` → Apple ID
+- `login.password` → app-specific password (Apple rotates these on Apple-ID password changes — keep the live value in the vault, never hard-code in memory)
+
+`APPLE_TEAM_ID` does not rotate, so it lives outside the vault (memory or Xcode project).
+
+Resolution:
+
+1. **Apple ID and app-specific password — via `secret.sh`** (Vaultwarden first, env-var fallback):
    ```bash
-   bw get item "Apple Notarization"
+   APPLE_ID="$(~/.claude/hooks/secret.sh apple-notarization username)"
+   APPLE_APP_PASSWORD="$(~/.claude/hooks/secret.sh apple-notarization password)"
    ```
-   `login.username` → `APPLE_ID`, `login.password` → `APPLE_APP_PASSWORD`, custom field `team_id` → `APPLE_TEAM_ID`.
+   If either is empty: check whether a vault item exists under a different name with `curl -s "http://localhost:8087/list/object/items?search=apple"` (when `bw serve` is up) and report the mismatch — do not silently substitute.
 
-2. **Memory** — check saved memory.
-
-3. **Env vars** — `$APPLE_ID`, `$APPLE_TEAM_ID`, `$APPLE_APP_PASSWORD`.
-
-4. **Project fallback for `APPLE_TEAM_ID` only** — if still empty, read from the Xcode build settings:
+2. **`APPLE_TEAM_ID` — memory, then env, then Xcode build settings**:
    ```bash
+   APPLE_TEAM_ID="${APPLE_TEAM_ID:-}"   # env
+   # …or read from saved memory if present
+   # …or, as last resort, read DEVELOPMENT_TEAM from the project:
    xcodebuild -showBuildSettings -scheme SCHEME 2>/dev/null \
      | awk '/^[[:space:]]*DEVELOPMENT_TEAM = / {print $3; exit}'
    ```
 
-If `bw` is installed but locked (`bw status` returns `locked`):
+If `bw` is installed but locked (`bw status` returns `locked`) and the env-var fallback is also empty:
 
-> Bitwarden vault is locked. Run `bw unlock` and set `BW_SESSION`, or provide credentials another way.
+> Vaultwarden is locked and no APPLE_APP_PASSWORD env var is set. Run `bw unlock` and set `BW_SESSION`, then re-run `bw serve --port 8087 &` so the helper can reach the vault.
 
 If any of `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` is still missing:
 
-> Publishing requires APPLE_ID, APPLE_TEAM_ID, and APPLE_APP_PASSWORD. Provide via Bitwarden, memory, env vars, or (for APPLE_TEAM_ID) DEVELOPMENT_TEAM in the Xcode project.
+> Publishing requires APPLE_ID, APPLE_TEAM_ID, and APPLE_APP_PASSWORD. Add a vault item named `apple-notarization` (login fields: Apple ID + app-specific password), or provide via env vars / memory / Xcode `DEVELOPMENT_TEAM`.
 
 Hold the resolved values in env for the rest of the workflow.
 
@@ -270,7 +278,13 @@ which create-dmg
 
 **If found:**
 
+Stage the `.app` plus an `Applications` symlink in a clean directory first — `create-dmg` is brittle when handed an export dir that may carry sibling files (`DistributionSummary.plist`, `Packaging.log`, etc.):
+
 ```bash
+mkdir -p build/publish/dmg-stage
+cp -R build/publish/export/SCHEME.app build/publish/dmg-stage/
+ln -sfn /Applications build/publish/dmg-stage/Applications
+
 create-dmg \
   --volname "SCHEME" \
   --window-pos 200 120 \
@@ -278,8 +292,26 @@ create-dmg \
   --icon-size 100 \
   --app-drop-link 450 185 \
   "build/publish/SCHEME.dmg" \
-  "build/publish/export/"
+  "build/publish/dmg-stage/"
 ```
+
+**TCC fallback** — if `create-dmg` (or any `hdiutil` mount path) errors with `Operation not permitted` referring to `/Volumes/SCHEME/...`, the running shell lacks the macOS Tahoe TCC grant for `/Volumes`. Do **not** ask the user to re-run from another terminal as the first move. The mount-free path works in any shell:
+
+```bash
+hdiutil makehybrid -hfs -hfs-volume-name "SCHEME" \
+  -hfs-openfolder build/publish/dmg-stage \
+  build/publish/dmg-stage \
+  -o build/publish/SCHEME.tmp.dmg
+
+hdiutil convert build/publish/SCHEME.tmp.dmg \
+  -format UDZO \
+  -imagekey zlib-level=9 \
+  -o build/publish/SCHEME.dmg
+
+rm -f build/publish/SCHEME.tmp.dmg
+```
+
+The fallback DMG is plainer (no backdrop, no positioned icons) but is a valid notarizable image and the Applications symlink keeps the install gesture intact. Mention the fallback was used in the final report so the user knows the chrome was skipped.
 
 Then notarize and staple the DMG so Gatekeeper accepts it after download (Apple creds were resolved in step 6.5):
 
