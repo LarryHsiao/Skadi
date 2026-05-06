@@ -185,6 +185,88 @@ xcrun notarytool log <submission-id> \
 
 Note: `codesign --deep` is the simple path and works for most Flutter macOS apps. Apps with deeply nested third-party frameworks may need each bundle signed individually before the .app — refine here if a project trips that edge.
 
+### 5.6. Package macOS as a DMG (default — skip if `macos` is not in the platform list)
+
+After the .app is signed, notarized, and stapled, also produce a DMG so users get the standard macOS install experience (drag-to-Applications). The DMG itself is then notarized and stapled — the staple on the inner .app does not transfer to the DMG, and Gatekeeper assesses the downloaded DMG, not what's inside.
+
+```bash
+mkdir -p build/publish/dmg-stage
+cp -R "$APP_PATH" build/publish/dmg-stage/
+ln -sfn /Applications build/publish/dmg-stage/Applications
+
+if command -v create-dmg >/dev/null 2>&1; then
+  create-dmg \
+    --volname "${APP_NAME}" \
+    --window-pos 200 120 \
+    --window-size 600 400 \
+    --icon-size 100 \
+    --app-drop-link 450 185 \
+    "build/publish/${APP_NAME}.dmg" \
+    "build/publish/dmg-stage/" || DMG_FAILED=1
+else
+  DMG_FAILED=1
+fi
+
+# TCC fallback — if create-dmg trips on /Volumes (macOS Tahoe TCC) or
+# isn't installed, fall back to a mount-free DMG. Plainer chrome (no
+# positioned icons) but a valid notarizable image, and the Applications
+# symlink keeps the install gesture intact.
+if [ "${DMG_FAILED:-0}" = "1" ]; then
+  hdiutil makehybrid -hfs -hfs-volume-name "${APP_NAME}" \
+    -hfs-openfolder build/publish/dmg-stage \
+    build/publish/dmg-stage \
+    -o "build/publish/${APP_NAME}.tmp.dmg"
+  hdiutil convert "build/publish/${APP_NAME}.tmp.dmg" \
+    -format UDZO -imagekey zlib-level=9 \
+    -o "build/publish/${APP_NAME}.dmg"
+  rm -f "build/publish/${APP_NAME}.tmp.dmg"
+fi
+
+rm -rf build/publish/dmg-stage
+
+xcrun notarytool submit "build/publish/${APP_NAME}.dmg" \
+  --apple-id "$APPLE_ID" \
+  --team-id "$APPLE_TEAM_ID" \
+  --password "$APPLE_APP_PASSWORD" \
+  --wait
+
+xcrun stapler staple "build/publish/${APP_NAME}.dmg"
+```
+
+If the fallback path was used, mention it in the final report so the user knows the chrome was skipped.
+
+### 5.7. Upload macOS artifacts to GitHub Releases (default — skip if `macos` is not in the platform list)
+
+After notarize + staple, push the DMG (and the stapled zip alongside) to the GitHub release matching the project's current version. If the release does not exist yet, create it; if it does, replace the assets with `--clobber`.
+
+```bash
+PROJECT_VERSION=$(awk -F'[ +]' '/^version:/ {print $2; exit}' pubspec.yaml)
+RELEASE_TAG="v${PROJECT_VERSION}"
+
+if ! command -v gh >/dev/null 2>&1; then
+  echo "gh not installed — skipping GitHub upload."
+elif ! gh auth status >/dev/null 2>&1; then
+  echo "gh not authenticated — skipping GitHub upload. Run \`gh auth login\` and re-run."
+else
+  if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+    gh release upload "$RELEASE_TAG" \
+      "build/publish/${APP_NAME}.dmg" \
+      "build/publish/${APP_NAME}.zip" \
+      --clobber
+  else
+    gh release create "$RELEASE_TAG" \
+      "build/publish/${APP_NAME}.dmg" \
+      "build/publish/${APP_NAME}.zip" \
+      --title "$RELEASE_TAG" \
+      --generate-notes
+  fi
+fi
+```
+
+`pubspec.yaml`'s `version:` line carries `MAJOR.MINOR.PATCH+BUILD`; the tag drops the build suffix and prefixes `v`. If the project doesn't follow that shape, the tag derivation may need adjustment — surface the actual derived tag in the run log so the user can intercept.
+
+Stop on `gh` failures; the DMG and zip remain in `build/publish/` for manual upload.
+
 ### 6. Collect archives into build/publish/
 
 **android:**
@@ -242,5 +324,6 @@ All archives collected in build/publish/
 - Build platforms sequentially — stop immediately on first failure
 - Always clean and recreate `build/publish/` at the start
 - macOS path signs the .app with Developer ID, hardened runtime, then notarizes and staples; other platforms are not signed
+- macOS path also packages a DMG (with TCC fallback) and uploads both the DMG and stapled zip to the GitHub release matching `pubspec.yaml`'s version (`v<MAJOR.MINOR.PATCH>`); creates the release if absent, clobbers assets if present
 - Resolve Apple credentials via `~/.claude/hooks/secret.sh` (vault item `apple-notarization`); never read tokens directly from env
-- Do not bump versions, upload to any store, or modify project files — `/publish-macos` is the skill for version bumps and store uploads
+- Do not bump versions or upload to other stores (App Store Connect, etc.) — `/publish-macos` is the skill for version bumps and Mac App Store uploads
