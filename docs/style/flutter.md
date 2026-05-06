@@ -2,7 +2,7 @@
 
 ## Tooling
 
-- Always use `fvm flutter` instead of `flutter` for any Flutter command.
+- Always use `fvm` for the Flutter SDK. Run commands as `fvm flutter <cmd>` so they target the project's pinned SDK version.
 
 ## Dependencies
 
