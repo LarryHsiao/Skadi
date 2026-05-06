@@ -195,6 +195,18 @@ class JsonUser with JsonBacked implements User {
 
 No try/catch in the mixin — that is a decorator's job. The mixin-using `JsonUser` is still a `User`, so it wraps into `SafeUser`, `LoggedUser`, or any other decorator just like the simpler form.
 
+## No Statics
+
+A `static` method or field belongs to the class name, not to an instance. It cannot be overridden, cannot be substituted in a test, cannot be wrapped by a decorator — it sits outside the seam entirely. To call `User.parse(json)` is to bypass the very shape this guide stands for: the seam, the concrete, the decorator chain. The seam loses its purpose the moment a caller can reach past it.
+
+Refuse statics in domain code:
+
+- ❌ `static User parse(Map<String, dynamic> json)` — make it a `JsonUser` constructor.
+- ❌ `static int compare(User a, User b)` — make it a method on `User`, or a free function outside the class.
+- ❌ `static const defaultUser` — make it a `ConstUser` instance the caller composes.
+
+The rule yields only at the framework boundary, where the framework's contract bears the static — Flutter's `Widget.of(context)`, route name constants on a route class, and the like. Outside those seams, a static is a sign the design has slipped into procedural shape: lift it onto the seam, push it into a concrete, or let it stand as a free function with no class wrapping it.
+
 ## Why This Shape
 
 - **Callers depend on the concept**, not the source. A method that takes `User` works the same whether the user came from JSON, DTO, or const.
@@ -202,3 +214,4 @@ No try/catch in the mixin — that is a decorator's job. The mixin-using `JsonUs
 - **Construction stays in the concrete.** Parsing, validation, defaulting — all sit with the source that needs them, never on the seam.
 - **Concerns layer cleanly.** Try/catch, logging, caching, validation — each is a decorator that wraps the seam. The concrete stays focused on its source; the seam stays clean for callers.
 - **Substitution stays cheap.** A test can supply a `ConstUser` wherever production passes a `JsonUser`.
+- **No back doors.** Statics bypass the seam; refusing them keeps every call routed through the interface, where decorators and substitutes can reach.
