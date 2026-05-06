@@ -48,7 +48,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/scribe` — Export a Minerva planning section to YouTrack, Outline, or disk; carries title, scope, Figma screenshot, sub-tasks, and open questions, and updates in place via inline markers
 - `/cleanup-dev` — Free disk space by clearing dev caches and build artifacts
 - `/vocab` — Personal vocabulary deck: look up a word in EN + ZH-TW, store as a card under `~/.skadi/vocab/`, surface due cards via spaced repetition
-- `/publish` — Build Flutter release archives and collect into `build/publish/`
+- `/publish` — Build Flutter release archives and collect into `build/publish/`; macOS builds are signed (Developer ID) and notarized
 - `/publish-macos` — Bump version, build, and publish a macOS Xcode project to GitHub Releases or the Mac App Store
 
 ### Hooks
