@@ -154,6 +154,7 @@ APP_PATH=$(ls -d "build/macos/Build/Products/Release/"*.app | head -n 1)
 APP_NAME=$(basename "$APP_PATH" .app)
 
 codesign --deep --force --options runtime --timestamp \
+  --preserve-metadata=entitlements \
   --sign "$SIGNING_IDENTITY" \
   "$APP_PATH"
 
