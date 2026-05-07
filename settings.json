@@ -63,6 +63,8 @@
       "Bash(~/.claude/hooks/mrs-check.sh:*)",
       "Bash(~/.claude/hooks/preflight-check.sh:*)",
       "Bash(~/.claude/hooks/cleanup-dev-mark-run.sh:*)",
+      "Bash(~/.claude/hooks/daily-mark-run.sh:*)",
+      "Bash(~/.claude/hooks/triage-mark-run.sh:*)",
       "Bash(~/.claude/hooks/publish-macos-target.sh:*)",
       "Bash(~/.claude/hooks/eod-git-check.sh:*)",
       "Bash(~/.claude/hooks/council-youtrack-fetch.sh:*)",

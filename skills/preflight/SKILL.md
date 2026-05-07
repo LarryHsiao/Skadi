@@ -55,6 +55,8 @@ When a run finishes, the next `/preflight` invocation will auto-complete the cor
 | Key | Threshold | Action when overdue |
 |-----|-----------|---------------------|
 | `cleanup-dev` | 30 days since last run | `/cleanup-dev` |
+| `daily` | not yet run today (calendar day) | `/daily` |
+| `triage` | not yet run today (calendar day) | `/triage` |
 | `vocab` | any card with `due_in_days <= 0` | `/vocab review` |
 | `nazgul-checks` | 30 days since last review of the rubric files | walk `skills/nazgul/checks/*.md`, then `/nazgul reviewed` |
 

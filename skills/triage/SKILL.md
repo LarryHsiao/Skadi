@@ -121,6 +121,16 @@ All state paths below resolve per-account when an account was resolved from memo
 
 If both M == 0 and N == 0, the inbox is quiet — render the §3 quiet-inbox line and stop.
 
+### 5. Stamp the run
+
+Record the run timestamp so `/preflight` knows triage was done today:
+
+```bash
+~/.claude/hooks/triage-mark-run.sh
+```
+
+Run this after rendering the report, regardless of which branch step 4 took.
+
 ## Migration to multi-account
 
 When `outlook_accounts.md` is introduced for the first time on a machine that already carries single-account state, move the legacy flat state once into the default account's subdir:

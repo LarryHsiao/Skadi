@@ -24,6 +24,43 @@ else
   echo "cleanup-dev|never|no record|warn"
 fi
 
+# --- daily ---
+daily_state="$HOME/.claude/.daily-last-run"
+today=$(date +%Y-%m-%d)
+if [ -f "$daily_state" ]; then
+  last=$(cat "$daily_state" 2>/dev/null || echo "")
+  if [[ "$last" =~ ^[0-9]+$ ]]; then
+    last_date=$(date -r "$last" +%Y-%m-%d 2>/dev/null || echo "")
+    if [ "$last_date" = "$today" ]; then
+      echo "daily|done today|last run ${last_date}|"
+    else
+      echo "daily|not run today|last run ${last_date}|warn"
+    fi
+  else
+    echo "daily|unreadable|state file corrupt|warn"
+  fi
+else
+  echo "daily|never|no record|warn"
+fi
+
+# --- triage ---
+triage_state="$HOME/.claude/.triage-last-run"
+if [ -f "$triage_state" ]; then
+  last=$(cat "$triage_state" 2>/dev/null || echo "")
+  if [[ "$last" =~ ^[0-9]+$ ]]; then
+    last_date=$(date -r "$last" +%Y-%m-%d 2>/dev/null || echo "")
+    if [ "$last_date" = "$today" ]; then
+      echo "triage|done today|last run ${last_date}|"
+    else
+      echo "triage|not run today|last run ${last_date}|warn"
+    fi
+  else
+    echo "triage|unreadable|state file corrupt|warn"
+  fi
+else
+  echo "triage|never|no record|warn"
+fi
+
 # --- vocab ---
 vocab_hook="$HOME/.claude/hooks/vocab-cards.sh"
 if [ -x "$vocab_hook" ]; then

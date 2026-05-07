@@ -212,6 +212,16 @@ No tasks assigned.
 If `API_ERROR`:
 > Jira API error: [message]. Check your project key and `JIRA_API_TOKEN`.
 
+### 9. Stamp the run
+
+Record the run timestamp so `/preflight` knows daily was done today:
+
+```bash
+~/.claude/hooks/daily-mark-run.sh
+```
+
+Run this after rendering the report, regardless of whether the result was empty or populated. Skip on `API_ERROR`.
+
 ## Rules
 
 - Never ask the user to confirm the project key if it was found in git history or provided as an argument
