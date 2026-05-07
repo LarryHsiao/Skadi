@@ -11,7 +11,7 @@ TOKEN=$("$(dirname "$0")/outlook-token.sh")
 SINCE=$(date -u -v-"${HOURS}H" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null \
      || date -u -d "${HOURS} hours ago" +"%Y-%m-%dT%H:%M:%SZ")
 
-curl -sS -G "https://graph.microsoft.com/v1.0/me/messages" \
+curl -sS -G "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages" \
   -H "Authorization: Bearer $TOKEN" \
   --data-urlencode "\$filter=isRead eq false and receivedDateTime ge $SINCE" \
   --data-urlencode "\$select=id,subject,from,receivedDateTime,bodyPreview,importance,webLink" \
