@@ -43,9 +43,19 @@ esac
 SERVE_URL="${BW_SERVE_URL:-http://localhost:8087}"
 
 if curl -sS --max-time 1 "$SERVE_URL/status" >/dev/null 2>&1; then
-  resp=$(curl -sS --max-time 5 "$SERVE_URL/object/$FIELD/$SERVICE" 2>/dev/null || true)
-  if [[ -n "$resp" ]]; then
-    value=$(printf '%s' "$resp" | jq -r 'select(.success == true) | .data.data // empty' 2>/dev/null || true)
+  items_resp=$(curl -sS --max-time 5 "$SERVE_URL/list/object/items" 2>/dev/null || true)
+  if [[ -n "$items_resp" ]]; then
+    case "$FIELD" in
+      password) jq_field='.login.password // empty' ;;
+      username) jq_field='.login.username // empty' ;;
+      uri)      jq_field='.login.uris[0].uri // empty' ;;
+      notes)    jq_field='.notes // empty' ;;
+    esac
+    value=$(printf '%s' "$items_resp" \
+      | jq -r --arg name "$SERVICE" \
+          "select(.success == true) | .data.data[] | select(.name == \$name) | $jq_field" \
+          2>/dev/null \
+      | head -n1 || true)
     if [[ -n "$value" ]]; then
       printf '%s' "$value"
       exit 0
@@ -75,5 +85,17 @@ if [[ "$ENV_OVERRIDE" == "-" ]]; then
   echo "secret.sh: '$SERVICE.$FIELD' not in Vaultwarden (bw serve at $SERVE_URL); env fallback disabled" >&2
 else
   echo "secret.sh: '$SERVICE.$FIELD' not in Vaultwarden (bw serve at $SERVE_URL) or env \$$ENV_OVERRIDE" >&2
+fi
+
+if curl -sS --max-time 1 "$SERVE_URL/status" >/dev/null 2>&1; then
+  items=$(curl -sS --max-time 5 "$SERVE_URL/list/object/items" 2>/dev/null \
+    | jq -r 'select(.success == true) | .data.data[].name' 2>/dev/null \
+    | sort -u || true)
+  if [[ -n "$items" ]]; then
+    echo "secret.sh: items in vault:" >&2
+    while IFS= read -r name; do
+      [[ -n "$name" ]] && echo "  - $name" >&2
+    done <<<"$items"
+  fi
 fi
 exit 1
