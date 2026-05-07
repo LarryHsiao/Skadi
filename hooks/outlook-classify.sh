@@ -1,7 +1,7 @@
 #!/bin/bash
-# Usage: outlook-classify.sh <from> <subject>
-# Reads ~/.skadi/outlook/classify.json and prints the user's override verdict
-# for the given sender + subject: worth | routine | default.
+# Usage: outlook-classify.sh <from> <subject> [account]
+# Reads ~/.skadi/outlook[/<account>]/classify.json and prints the user's
+# override verdict for the given sender + subject: worth | routine | default.
 #
 # Schema (case-insensitive matching on both fields):
 #   {
@@ -14,12 +14,20 @@
 #   contains that substring (case-insensitive). When omitted, the rule matches
 #   any subject from that sender.
 # - Promote wins over demote when both match.
+# - account names the per-account rules dir; empty falls back to the legacy
+#   flat path (single-account compat).
 
 set -u
 
 FROM="${1:-}"
 SUBJECT="${2:-}"
-RULES_FILE="$HOME/.skadi/outlook/classify.json"
+ACCOUNT="${3:-}"
+
+if [[ -n "$ACCOUNT" ]]; then
+  RULES_FILE="$HOME/.skadi/outlook/$ACCOUNT/classify.json"
+else
+  RULES_FILE="$HOME/.skadi/outlook/classify.json"
+fi
 
 if [[ -z "$FROM" ]]; then
   echo "outlook-classify: from address required (arg 1)" >&2

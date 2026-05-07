@@ -1,21 +1,34 @@
 #!/bin/bash
-# Usage: outlook-token.sh
-# Prints a valid Microsoft Graph access token to stdout.
+# Usage: outlook-token.sh [account] [bw-item]
+# Prints a valid Microsoft Graph access token to stdout for the given account.
 # Handles token cache, refresh, and the device-code dance on first run.
-# Token state lives at ~/.skadi/outlook/tokens.json.
+#
+# Args:
+#   account  Friendly account name (e.g. "personal", "work"). Used for state
+#            path. When empty, state lives at the legacy flat path
+#            ~/.skadi/outlook/tokens.json (single-account compat).
+#   bw-item  Bitwarden item name carrying client-id (username) and authority
+#            (uri). Default: "outlook".
 
 set -euo pipefail
 
+ACCOUNT="${1:-}"
+BW_ITEM="${2:-outlook}"
 SECRET="$(dirname "$0")/secret.sh"
-CACHE_DIR="$HOME/.skadi/outlook"
-TOKEN_FILE="$CACHE_DIR/tokens.json"
 SCOPES="Mail.Read Mail.ReadWrite offline_access"
+
+if [[ -n "$ACCOUNT" ]]; then
+  CACHE_DIR="$HOME/.skadi/outlook/$ACCOUNT"
+else
+  CACHE_DIR="$HOME/.skadi/outlook"
+fi
+TOKEN_FILE="$CACHE_DIR/tokens.json"
 
 mkdir -p "$CACHE_DIR"
 chmod 700 "$CACHE_DIR"
 
-CLIENT_ID="$("$SECRET" outlook username -)"
-AUTHORITY="$("$SECRET" outlook uri -)"
+CLIENT_ID="$("$SECRET" "$BW_ITEM" username -)"
+AUTHORITY="$("$SECRET" "$BW_ITEM" uri -)"
 AUTHORITY="${AUTHORITY%/}"
 
 DEVICECODE_URL="$AUTHORITY/oauth2/v2.0/devicecode"

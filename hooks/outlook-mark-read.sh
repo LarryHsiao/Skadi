@@ -1,7 +1,11 @@
 #!/bin/bash
-# Usage: cat ids.txt | outlook-mark-read.sh
+# Usage: cat ids.txt | outlook-mark-read.sh [account] [bw-item]
 # Marks each Microsoft Graph message ID (one per line on stdin) as read.
 # Token from outlook-token.sh.
+#
+# Args:
+#   account  Friendly account name for state path. Default: legacy flat path.
+#   bw-item  Bitwarden item name for credentials. Default: outlook.
 #
 # stdout: "read: <id>" per success.
 # stderr: "failed: <id> <http_code>" per failure.
@@ -9,7 +13,9 @@
 
 set -u
 
-TOKEN=$("$(dirname "$0")/outlook-token.sh")
+ACCOUNT="${1:-}"
+BW_ITEM="${2:-outlook}"
+TOKEN=$("$(dirname "$0")/outlook-token.sh" "$ACCOUNT" "$BW_ITEM")
 if [[ -z "$TOKEN" ]]; then
   echo "outlook-mark-read: empty token" >&2
   exit 1

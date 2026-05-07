@@ -1,7 +1,12 @@
 #!/bin/bash
-# Usage: cat ids.txt | outlook-move.sh <folder-id>
+# Usage: cat ids.txt | outlook-move.sh <folder-id> [account] [bw-item]
 # Moves each Microsoft Graph message ID (one per line on stdin) to the named folder.
 # Token from outlook-token.sh.
+#
+# Args:
+#   folder-id  Required. Destination folder id.
+#   account    Friendly account name for state path. Default: legacy flat path.
+#   bw-item    Bitwarden item name for credentials. Default: outlook.
 #
 # stdout: "moved: <id>" per success.
 # stderr: "failed: <id> <http_code>" per failure.
@@ -10,12 +15,14 @@
 set -u
 
 FOLDER_ID="${1:-}"
+ACCOUNT="${2:-}"
+BW_ITEM="${3:-outlook}"
 if [[ -z "$FOLDER_ID" ]]; then
   echo "outlook-move: folder id required (arg 1)" >&2
   exit 1
 fi
 
-TOKEN=$("$(dirname "$0")/outlook-token.sh")
+TOKEN=$("$(dirname "$0")/outlook-token.sh" "$ACCOUNT" "$BW_ITEM")
 if [[ -z "$TOKEN" ]]; then
   echo "outlook-move: empty token" >&2
   exit 1
