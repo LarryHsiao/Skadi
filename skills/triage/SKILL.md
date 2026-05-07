@@ -113,7 +113,7 @@ All state paths below resolve per-account when an account was resolved from memo
 - **mark read** — pipe each routine message's `id` to `~/.claude/hooks/outlook-mark-read.sh <account> <bw-item>`, one per line. The hook prints `read: <id>` per success and `failed: <id> <code>` on stderr per failure. Render a one-line tally of marked vs failed.
 - **move to folders** — for each sub-category present in the Routine batch:
   1. Read `folders.json` — a `{ "<sub-category>": "<folder-id>", ... }` map. If the sub-category has an entry, use it.
-  2. If missing, run `~/.claude/hooks/outlook-folders.sh <account> <bw-item>` to list folders, present them with their `displayName`, and ask the user to pick one. On answer, append the choice to the map and persist it (create the file if absent, with mode 600).
+  2. If missing, run `~/.claude/hooks/outlook-folders.sh <account> <bw-item>` to list folders, present them with their `displayName`, and ask the user either to pick an existing folder or to create a new one by name. To create: call `~/.claude/hooks/outlook-folder-create.sh <name> <account> <bw-item>` — the hook returns the new folder's id on stdout. On answer (pick or create), append the choice to the map and persist it (create the file if absent, with mode 600).
   3. Pipe the sub-category's IDs to `~/.claude/hooks/outlook-move.sh <folder-id> <account> <bw-item>`, one per line.
 
   Render a one-line tally per sub-category: `<sub-category> → <folder> (M moved, K failed)`. If a sub-category has no mapping and the user declines to set one, leave those mails in place — the rest still move.

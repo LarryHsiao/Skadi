@@ -88,6 +88,7 @@
       "Bash(~/.claude/hooks/outlook-fetch.sh:*)",
       "Bash(~/.claude/hooks/outlook-mark-read.sh:*)",
       "Bash(~/.claude/hooks/outlook-folders.sh:*)",
+      "Bash(~/.claude/hooks/outlook-folder-create.sh:*)",
       "Bash(~/.claude/hooks/outlook-move.sh:*)",
       "Bash(~/.claude/hooks/outlook-classify.sh:*)",
       "Bash(~/.claude/hooks/session-readme.sh:*)",
