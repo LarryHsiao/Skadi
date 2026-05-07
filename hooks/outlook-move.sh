@@ -33,6 +33,7 @@ body=$(jq -n --arg dest "$FOLDER_ID" '{destinationId: $dest}')
 any_fail=0
 
 while IFS= read -r id; do
+  id="${id%$'\r'}"
   [[ -z "$id" ]] && continue
   code=$(curl -sS -o /dev/null -w '%{http_code}' \
     -X POST "$GRAPH/$id/move" \

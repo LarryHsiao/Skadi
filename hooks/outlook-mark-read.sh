@@ -25,6 +25,7 @@ GRAPH="https://graph.microsoft.com/v1.0/me/messages"
 any_fail=0
 
 while IFS= read -r id; do
+  id="${id%$'\r'}"
   [[ -z "$id" ]] && continue
   code=$(curl -sS -o /dev/null -w '%{http_code}' \
     -X PATCH "$GRAPH/$id" \
