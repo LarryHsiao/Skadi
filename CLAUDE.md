@@ -148,6 +148,7 @@ When a needed command is missing on the current shell, do not reach for a differ
 ## Tools
 
 - Tolgee: @docs/tools/tolgee.md
+- GitLab: @docs/tools/gitlab.md
 
 ## Grammar Check
 
