@@ -8,8 +8,9 @@
 #   prs-check.sh mine         # only: authored by me
 #   prs-check.sh OWNER/REPO   # scope to a repo (both modes)
 #
-# Output: pipe-delimited lines "category|repo|number|title|url|isDraft"
+# Output: pipe-delimited lines "category|repo|number|title|url|isDraft|pipeline"
 #   category: review | mine
+#   pipeline: ok | processing | failed | cancelled | none
 set -u
 
 mode="both"
@@ -35,7 +36,21 @@ fetch() {
   gh search prs --state=open $flag $repo_arg \
     --json "$common" --limit 50 2>/dev/null \
     | jq -r --arg kind "$kind" \
-        '.[] | [$kind, .repository.nameWithOwner, (.number|tostring), .title, .url, (.isDraft|tostring)] | join("|")'
+        '.[] | [.repository.nameWithOwner, (.number|tostring), $kind, .title, .url, (.isDraft|tostring)] | @tsv' \
+    | while IFS=$'\t' read -r repo num cat title url draft; do
+        status="$(gh pr view "$num" --repo "$repo" --json statusCheckRollup 2>/dev/null \
+          | jq -r '
+              [.statusCheckRollup[]? | (.conclusion // .status // "PENDING")] as $cs |
+              if   ($cs | length) == 0 then "none"
+              elif ($cs | any(. == "FAILURE" or . == "ERROR" or . == "TIMED_OUT" or . == "ACTION_REQUIRED" or . == "STARTUP_FAILURE")) then "failed"
+              elif ($cs | all(. == "CANCELLED")) then "cancelled"
+              elif ($cs | any(. == "CANCELLED")) then "failed"
+              elif ($cs | any(. == "IN_PROGRESS" or . == "QUEUED" or . == "PENDING" or . == "WAITING" or . == "REQUESTED")) then "processing"
+              else "ok"
+              end
+            ')"
+        printf '%s|%s|%s|%s|%s|%s|%s\n' "$cat" "$repo" "$num" "$title" "$url" "$draft" "$status"
+      done
 }
 
 case "$mode" in

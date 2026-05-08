@@ -8,8 +8,9 @@
 #   mrs-check.sh mine              # only author=@me
 #   mrs-check.sh GROUP/PROJECT     # scope to a project (both modes)
 #
-# Output: pipe-delimited lines "category|project|iid|title|web_url|isDraft"
+# Output: pipe-delimited lines "category|project|iid|title|web_url|isDraft|pipeline"
 #   category: review | mine
+#   pipeline: ok | processing | failed | cancelled | none
 set -u
 
 mode="both"
@@ -50,14 +51,29 @@ query() {
   glab api "$path" 2>/dev/null \
     | jq -r --arg kind "$kind" '
         .[] | [
+          (.project_id | tostring),
+          (.iid | tostring),
           $kind,
           (.references.full | split("!") | .[0]),
-          (.iid | tostring),
           .title,
           .web_url,
           ((.draft // .work_in_progress // false) | tostring)
-        ] | join("|")
-      '
+        ] | @tsv
+      ' \
+    | while IFS=$'\t' read -r pid iid cat proj title url draft; do
+        status="$(glab api "projects/$pid/merge_requests/$iid" 2>/dev/null \
+          | jq -r '
+              .head_pipeline.status as $s |
+              if   $s == null        then "none"
+              elif $s == "skipped"   then "none"
+              elif $s == "success"   then "ok"
+              elif $s == "failed"    then "failed"
+              elif $s == "canceled"  then "cancelled"
+              else                        "processing"
+              end
+            ')"
+        printf '%s|%s|%s|%s|%s|%s|%s\n' "$cat" "$proj" "$iid" "$title" "$url" "$draft" "$status"
+      done
 }
 
 case "$mode" in

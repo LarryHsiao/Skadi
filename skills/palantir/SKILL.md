@@ -50,11 +50,13 @@ If a forge is unavailable, render the other; the footer carries one line naming 
 For each queried forge, call its check hook and its activity hook:
 
 ```bash
-~/.claude/hooks/prs-check.sh [mode]      # category|repo|number|title|url|isDraft
+~/.claude/hooks/prs-check.sh [mode]      # category|repo|number|title|url|isDraft|pipeline
 ~/.claude/hooks/prs-activity.sh           # repo|number
-~/.claude/hooks/mrs-check.sh [mode]      # category|project|iid|title|web_url|isDraft
+~/.claude/hooks/mrs-check.sh [mode]      # category|project|iid|title|web_url|isDraft|pipeline
 ~/.claude/hooks/mrs-activity.sh           # project|iid
 ```
+
+`pipeline` is one of `ok` | `processing` | `failed` | `cancelled` | `none`.
 
 `mode` for the check hooks is `review` or `mine` if the user passed either. For `activity` or no mode, omit the mode arg so both categories return.
 
@@ -87,11 +89,11 @@ Palantír (N)
 ```
 GitHub
   Review Requested
-    ◆⚑ OWNER/REPO#123  Title of the PR
-    ◆  OWNER/REPO#456  Quiet PR
+    ◆⚑ ✅ OWNER/REPO#123  Title of the PR
+    ◆  🔄 OWNER/REPO#456  Quiet PR with running checks
   Mine
-    ▶⚑ OWNER/REPO#14   My PR with new comments
-    ⋯  OWNER/REPO#17   Draft, no traffic
+    ▶⚑ 🚫 OWNER/REPO#14   My PR with new comments and red checks
+    ⋯  ⚪ OWNER/REPO#17   Draft, no traffic, no CI
 ```
 
 **Body — GitLab section:**
@@ -99,9 +101,9 @@ GitHub
 ```
 GitLab
   Review
-    ◆⚑ group/project!88  Threaded discussion advanced
+    ◆⚑ ✅ group/project!88  Threaded discussion advanced
   Mine
-    ▶  group/project!14  Quiet MR
+    ▶  ⏹ group/project!14  Quiet MR with cancelled pipeline
 ```
 
 Symbols:
@@ -110,8 +112,14 @@ Symbols:
 - `▶` — your open non-draft
 - `⋯` — your draft (`isDraft = true`)
 - `⚑` — new activity since you last looked
+- Pipeline icon (after the activity column):
+  - `✅` — `ok`
+  - `🔄` — `processing`
+  - `🚫` — `failed`
+  - `⏹` — `cancelled`
+  - `⚪` — `none` (no pipeline / no checks configured)
 
-If a row has activity, `⚑` immediately follows the category symbol; otherwise a single space sits in its place so columns align.
+If a row has activity, `⚑` immediately follows the category symbol; otherwise a single space sits in its place so columns align. The pipeline icon follows after a single space.
 
 Reference format: `OWNER/REPO#num` for GitHub, `project!iid` for GitLab. Title truncated to 55 chars.
 
@@ -152,5 +160,5 @@ If a forge's activity check was skipped, append on its own line:
 
 - Read-only — orchestrates four hooks; never opens, merges, comments, approves, or marks notifications/todos read
 - Repo/project scoping is not supported here — use `/prs OWNER/REPO` or `/mrs GROUP/PROJECT` for that
-- Do not fetch full PR/MR detail (checks, reviews, pipelines) unless the user follows up
+- Pipeline state is fetched per row by the check hooks; reviews and approvals are not
 - Sort within a category by repo/project path, then number/iid ascending

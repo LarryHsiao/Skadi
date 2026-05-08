@@ -41,8 +41,9 @@ Use the pre-approved hook script:
 ~/.claude/hooks/prs-check.sh [mode] [OWNER/REPO]
 ```
 
-Output is pipe-delimited: `category|repo|number|title|url|isDraft`
+Output is pipe-delimited: `category|repo|number|title|url|isDraft|pipeline`
 - `category`: `review` or `mine`
+- `pipeline`: `ok` | `processing` | `failed` | `cancelled` | `none`
 
 ### 3. Render output
 
@@ -57,16 +58,22 @@ Open Pull Requests (N)
 **Body:**
 ```
 Review Requested
-  ◆ OWNER/REPO#123  Title of the PR
-  ◆ OWNER/REPO#456  Another title
+  ◆ ✅ OWNER/REPO#123  Title of the PR
+  ◆ 🔄 OWNER/REPO#456  Another title
 Mine
-  ▶ OWNER/REPO#14   Dependenceise
-  ⋯ OWNER/REPO#17   Draft PR title
+  ▶ 🚫 OWNER/REPO#14   Dependenceise
+  ⋯ ⚪ OWNER/REPO#17   Draft PR title
 ```
 
 - `◆` — review requested from you
 - `▶` — your open non-draft PR
 - `⋯` — your draft PR (isDraft=true)
+- Pipeline icon (after the category symbol):
+  - `✅` — `ok` (status check rollup succeeded)
+  - `🔄` — `processing` (any check still in_progress / queued / pending)
+  - `🚫` — `failed`
+  - `⏹` — `cancelled` (every check was cancelled)
+  - `⚪` — `none` (no checks configured)
 - Title column: truncate to 55 chars
 - Show URL under each entry only if the user asks for details
 
@@ -91,5 +98,5 @@ If the hook script errors:
 ## Rules
 
 - Read-only — never opens, merges, or comments on PRs
-- Do not fetch full PR details (checks, reviews) unless the user follows up
+- Status check rollup is fetched per PR (one detail call apiece); reviews are not
 - Sort within a category by repo name then PR number ascending

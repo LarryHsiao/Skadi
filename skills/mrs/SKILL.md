@@ -42,8 +42,9 @@ Use the pre-approved hook script:
 ~/.claude/hooks/mrs-check.sh [mode] [GROUP/PROJECT]
 ```
 
-Output is pipe-delimited: `category|project|iid|title|web_url|isDraft`
+Output is pipe-delimited: `category|project|iid|title|web_url|isDraft|pipeline`
 - `category`: `review` or `mine`
+- `pipeline`: `ok` | `processing` | `failed` | `cancelled` | `none`
 
 ### 3. Render output
 
@@ -58,16 +59,22 @@ Open Merge Requests (N)
 **Body:**
 ```
 Review
-  ◆ group/project!123  Title of the MR
-  ◆ group/project!456  Another title
+  ◆ ✅ group/project!123  Title of the MR
+  ◆ 🔄 group/project!456  Another title
 Mine
-  ▶ group/project!14   My open MR
-  ⋯ group/project!17   Draft MR title
+  ▶ 🚫 group/project!14   My open MR
+  ⋯ ⚪ group/project!17   Draft MR title
 ```
 
 - `◆` — you are a reviewer
 - `▶` — your open non-draft MR
 - `⋯` — your draft MR (isDraft=true)
+- Pipeline icon (after the category symbol):
+  - `✅` — `ok` (latest pipeline succeeded)
+  - `🔄` — `processing` (running, pending, scheduled, manual, etc.)
+  - `🚫` — `failed`
+  - `⏹` — `cancelled`
+  - `⚪` — `none` (no pipeline configured for this MR)
 - Reference format: `project!iid` (GitLab convention)
 - Title truncated to 55 chars
 - Show `web_url` under an entry only if the user asks for details
@@ -93,5 +100,5 @@ If `glab auth failed` is printed:
 ## Rules
 
 - Read-only — never approves, merges, or comments on MRs
-- Do not fetch pipelines or approvals unless the user follows up
+- Pipeline state is fetched per MR (one detail call apiece); approvals are not
 - Sort within a category by project path then iid ascending
