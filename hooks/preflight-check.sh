@@ -129,3 +129,42 @@ if [ -n "$nazgul_checks_dir" ]; then
     echo "nazgul-checks|never|${nazgul_count} rubric(s); no review on record|warn"
   fi
 fi
+
+# --- palantir ---
+palantir_prs_check="$HOME/.claude/hooks/prs-check.sh"
+palantir_prs_act="$HOME/.claude/hooks/prs-activity.sh"
+palantir_mrs_check="$HOME/.claude/hooks/mrs-check.sh"
+palantir_mrs_act="$HOME/.claude/hooks/mrs-activity.sh"
+
+if [ -x "$palantir_prs_act" ] && [ -x "$palantir_mrs_act" ]; then
+  p_prs_check_out="$("$palantir_prs_check" 2>/dev/null || true)"
+  p_prs_act_out="$("$palantir_prs_act" 2>/dev/null || true)"
+  p_mrs_check_out="$("$palantir_mrs_check" 2>/dev/null || true)"
+  p_mrs_act_out="$("$palantir_mrs_act" 2>/dev/null || true)"
+
+  palantir_flagged=0
+
+  if [ -n "$p_prs_check_out" ] && [ -n "$p_prs_act_out" ]; then
+    while IFS='|' read -r _ p_repo p_num _; do
+      [ -z "${p_repo:-}" ] && continue
+      if printf '%s\n' "$p_prs_act_out" | grep -Fxq "$p_repo|$p_num"; then
+        palantir_flagged=$((palantir_flagged + 1))
+      fi
+    done <<< "$p_prs_check_out"
+  fi
+
+  if [ -n "$p_mrs_check_out" ] && [ -n "$p_mrs_act_out" ]; then
+    while IFS='|' read -r _ p_proj p_iid _; do
+      [ -z "${p_proj:-}" ] && continue
+      if printf '%s\n' "$p_mrs_act_out" | grep -Fxq "$p_proj|$p_iid"; then
+        palantir_flagged=$((palantir_flagged + 1))
+      fi
+    done <<< "$p_mrs_check_out"
+  fi
+
+  if [ "$palantir_flagged" -gt 0 ]; then
+    echo "palantir|${palantir_flagged} flagged|new comments on your PRs/MRs|warn"
+  else
+    echo "palantir|clear|no new comments to chase|"
+  fi
+fi

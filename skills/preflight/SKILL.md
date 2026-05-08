@@ -59,5 +59,6 @@ When a run finishes, the next `/preflight` invocation will auto-complete the cor
 | `triage` | not yet run today (calendar day) | `/triage` |
 | `vocab` | any card with `due_in_days <= 0` | `/vocab review` |
 | `nazgul-checks` | 30 days since last review of the rubric files | walk `skills/nazgul/checks/*.md`, then `/nazgul reviewed` |
+| `palantir` | any of your PRs/MRs carries new comments since you last looked | `/palantir activity` |
 
 Add new checks by extending `~/.claude/hooks/preflight-check.sh` and the table above.
