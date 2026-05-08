@@ -77,6 +77,12 @@ Session-level opt-out still applies ("just do it", "skip the summary", or the li
 
 When a change touches UI layout — a new screen, a rearranged panel, a rethought component — render an ASCII wireframe in the console alongside the summary, so the shape of the thing can be judged before a line of code is written. Keep it simple: boxes, labels, proportions. One sketch per distinct layout. The same session-level opt-out as Change Approval applies.
 
+## Comment Replies
+
+When leaving a comment on a thread, or replying to anyone's comment — on any surface (GitHub, GitLab, Jira, YouTrack, Slack, and the like) — if the response runs **more than five lines**, lead with a **one-line summary** before the body.
+
+The reader should know the verdict in one breath; the body is there for those who want the full reasoning. A wall of prose with no opening line forces every reader to scan the whole comment to decide whether it concerns them.
+
 ## Skills & Scripts
 
 When creating a skill or any automation that requires a bash command (especially with variable expansion like `$ENV_VAR`):
