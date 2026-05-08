@@ -7,3 +7,37 @@ When pushing a translation value to Tolgee, the value must keep its line separat
 Tolgee stores the value as it arrives. Escaped separators land in the stored string verbatim and surface to consumers as the literal two-character sequence `\n` rather than a true line break — corrupting the rendered text.
 
 Before any push — CLI, API call, or import script — inspect multiline values. The on-the-wire JSON should carry a JSON-encoded newline (`"\n"` in the source, decoding to a real newline byte), not a doubly-escaped `"\\n"`. If the tooling double-escapes by default, disable that behavior or unescape before the push.
+
+## Debugging line separators
+
+When a translation surfaces a literal `\n` to consumers instead of a true line break, the cure is not to guess at the push tool — it is to **push, then pull the result** and read what Tolgee actually stored. The round-trip is the test.
+
+**The push-then-pull ritual.**
+
+1. **Push** the value through whatever path is suspect — CLI, import script, API call.
+2. **Pull** the same key back from Tolgee's API:
+
+   ```bash
+   curl -s -H "X-API-Key: $TOLGEE_TOKEN" \
+     "$TOLGEE_URL/v2/projects/$PROJECT_ID/translations?filterKeyName=$KEY" \
+     | jq -r '.._embedded.keys[].translations[].text'
+   ```
+
+   `jq -r` decodes the JSON string. If the stored value is healthy, the output prints across multiple lines. If the literal characters `\` and `n` appear in the output, the stored value is double-escaped — the bug is upstream of Tolgee.
+
+3. **Inspect the raw JSON** without `-r` to see the wire form. A correct value carries `"line one\nline two"` (one backslash, one `n` — a JSON-encoded newline). A broken value carries `"line one\\nline two"` (two backslashes — the backslash itself was escaped, so Tolgee stored a literal `\n`).
+
+**Reading the wire form.**
+
+| Wire JSON           | Stored bytes              | Renders as              | Verdict |
+|---------------------|---------------------------|-------------------------|---------|
+| `"a\nb"`            | `a` `\n` `b` (newline)    | two lines               | healthy |
+| `"a\\nb"`           | `a` `\` `n` `b`           | the literal `a\nb`      | broken  |
+
+**Common causes, in order of likelihood.**
+
+- The push tool JSON-encoded a string that was already JSON-encoded — one pass too many.
+- The source on disk (YAML, JSON, properties file) carried escape sequences that the loader did not unescape before handing the value to the push tool.
+- Shell quoting preserved the backslash — `echo "a\nb"` emits four characters in most shells; `printf 'a\nb'` emits a real newline. Quoting choices matter when piping into the push.
+
+**Fix at the source.** Repair the layer that introduced the extra escape — never paper over it at the consumer or by post-processing the stored value. After the fix, run the push-then-pull ritual again on the same key; the stored bytes are the only honest verdict.
