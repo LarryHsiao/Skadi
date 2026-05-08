@@ -28,12 +28,13 @@ Every class and object — seam, concrete, decorator, mixin, value type — is a
 - ✅ `User`, `JsonUser`, `ConstUser`, `DtoUser`, `SafeUser`, `LoggedUser`, `ValidatedUser`, `JsonBacked`, `Money`, `Age`.
 - ❌ `UserManager`, `UserValidator`, `UserLogger`, `UserChecker`, `UserHandler`, `UserParser`, `UserBuilder`.
 
-**Pure domain objects never use `-er` / `-or` suffixes.** The rule yields only at the framework boundary:
+**Pure domain objects never use `-er` / `-or` suffixes.** The rule yields at the framework boundary — first-party or third-party — when the framework's own convention bears the suffix and the class participates in that contract:
 
-- When extending a framework widget or component class whose convention bears the suffix (e.g. `ChangeNotifier`, `ScrollController`, `AnimationController` in Flutter — the framework owns the name).
-- When participating in a dependency-injection framework's vocabulary (`Provider`, `Factory`, `Module`) where the suffix is part of the framework's contract, not the domain's.
+- Framework widget or component classes whose convention bears the suffix (e.g. Flutter's `ChangeNotifier`, `ScrollController`, `AnimationController` — the framework owns the name).
+- Dependency-injection vocabulary (`Provider`, `Factory`, `Module`) where the suffix is part of the framework's contract, not the domain's.
+- Third-party libraries whose extension points carry the suffix (e.g. JUnit's `TestRunner`, Spring's `Controller`, RxJava's `Subscriber`, gRPC's `Interceptor`) — the suffix is the library's contract, not yours to rename.
 
-Outside these two seams, the rule holds. If a class cannot be named without a verb, it is probably a method on something else. See [`general.md`](general.md) for the broader rule.
+Outside these seams, the rule holds. If a class cannot be named without a verb, it is probably a method on something else. See [`general.md`](general.md) for the broader rule.
 
 ## Source as Separate Concrete
 

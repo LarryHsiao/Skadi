@@ -21,6 +21,7 @@ Do not flag, in either mode:
 
 - Methods, variables, or parameters — only types and packages.
 - Names where -er is part of the domain noun, not an agent form: Header, Footer, Border, Container, Buffer, Number, Order, Member, Filter (when it names a filter *concept*, not "thing that filters").
+- Names that participate in a framework contract — first-party or third-party — whose convention bears the suffix (e.g. extending `ChangeNotifier`, implementing JUnit's `Runner`, RxJava's `Subscriber`, gRPC's `Interceptor`, or annotated as Spring's `@Controller`). The framework owns the name.
 - When in doubt, prefer to flag and let the human judge.
 
 On fail, name each offender with `file:line`. For the project mode, if many offenders surface, list up to five and append a count like "and 12 more".
