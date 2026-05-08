@@ -145,6 +145,10 @@ When a needed command is missing on the current shell, do not reach for a differ
 - Flutter: @docs/style/flutter.md
 - OO: @docs/style/oo.md
 
+## Tools
+
+- Tolgee: @docs/tools/tolgee.md
+
 ## Grammar Check
 
 After every user message, silently check for grammar and phrasing issues. If any are found, append a brief correction at the end of your response in this format:
