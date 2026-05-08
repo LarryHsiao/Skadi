@@ -1,6 +1,6 @@
 ---
 name: argonath
-description: Use when the user runs /argonath [--quick]. Runs the project's lint/build/test toolchain on the current repo, scans the about-to-be-pushed diff for secrets, then invokes /nazgul and /mithrandir as advisory rows. Aggregates everything into one Pass / Hold verdict. Report only — never runs `git push`.
+description: Use when the user runs /argonath [project] [--quick]. Default mode weighs the about-to-be-pushed diff; the `project` verb weighs the standing project tree instead. Runs the project's lint/build/test toolchain, scans for secrets, then invokes /nazgul and /mithrandir as advisory rows. Aggregates everything into one Pass / Hold verdict. Report only — never runs `git push`.
 user_invocable: true
 ---
 
@@ -10,10 +10,11 @@ The twin pillars at the river-gate. Before code crosses, render a verdict on whe
 
 ## Argument Parsing
 
-Arguments: `/argonath [--quick]`
+Arguments: `/argonath [project] [--quick]`
 
-- No args → full run (artefacts + secrets + advisory rows from /nazgul and /mithrandir).
-- `--quick` → skip the two advisory rows. Faster; only artefact commands and the secret scan.
+- No verb → diff mode. Weighs the about-to-be-pushed diff (`@{upstream}..HEAD`). Full run includes artefacts + secret scan + advisory rows.
+- `project` verb → project mode. Weighs the standing project tree, not a diff. Useful on master/main, on a fully pushed branch, or when no commits have been made yet.
+- `--quick` → skip the two advisory rows in either mode. Faster; only artefact commands and the secret scan.
 
 ## Workflow
 
@@ -62,18 +63,30 @@ If `test_scope` is `changed`, the project's test command runs as configured — 
 
 ### 4. Secret scan
 
+Diff mode:
+
 ```bash
 ~/.claude/hooks/argonath-secrets.sh
 ```
 
-Returns JSON `{ok, count, hits, note}`. The diff range scanned is `@{upstream}..HEAD` (or `HEAD` if no upstream).
+Project mode:
+
+```bash
+~/.claude/hooks/argonath-secrets.sh --project
+```
+
+Returns JSON `{ok, count, hits, note}`. In diff mode the scanned range is `@{upstream}..HEAD` (or `HEAD` if no upstream); in project mode every tracked file is scanned, untracked / `.gitignore`d paths excluded.
 
 ### 5. Advisory rows (skip when `--quick`)
 
 Invoke the two existing skills as sub-skills via the Skill tool, but fold each into a single row only.
 
-- **Rubric** — invoke `/nazgul` (default verb, scope=diff). Read its pass/fail tally; render `<P> pass · <F> fail`.
-- **Verdict** — invoke `/mithrandir branch`. Read the tier (`sound` / `wavering` / `off`) and the one-line reasoning paragraph; render `<tier> — <≤60-char excerpt>`.
+- **Rubric** —
+  - Diff mode → invoke `/nazgul` (default verb, scope=diff). Read its pass/fail tally; render `<P> pass · <F> fail`.
+  - Project mode → invoke `/nazgul project`. Same row shape.
+- **Verdict** —
+  - Diff mode → invoke `/mithrandir branch`. Read the tier (`sound` / `wavering` / `off`) and the one-line reasoning paragraph; render `<tier> — <≤60-char excerpt>`.
+  - Project mode → `/mithrandir` has no project verb, so render the row as `⚪ skipped — no project mode`.
 
 If either errors out, render its row as `⚠  unavailable — <short reason>` and continue.
 
@@ -87,6 +100,8 @@ Advisory rows (rubric, mithrandir) **never** push the verdict off `Pass`.
 ### 7. Render
 
 Lead with a blockquote summary line, then the table. The blockquote echoes the verdict so the reader gets the conclusion in one breath.
+
+Diff mode:
 
 ```
 > Hold — tests must pass before crossing.
@@ -103,6 +118,23 @@ Argonath  master · 3 commits ahead of origin/master · stack: flutter
   3 of 4 gates clear · 1 advisory note
 ```
 
+Project mode:
+
+```
+> Pass — project tree clear, no obstacles found.
+
+Argonath  master · up to date with origin/master · stack: flutter · mode: project
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✅ Lint            fvm flutter analyze            0 issues
+  ✅ Build           fvm flutter build apk --debug  ok
+  ✅ Tests           fvm flutter test               all green
+  ✅ Secret scan     no tokens / .env values in tracked files
+  ✅ Rubric          /nazgul project: 9 pass · 0 fail
+  ⚪ Verdict         skipped — no project mode
+───────────────────────────────────────
+  4 of 4 gates clear · 1 advisory note
+```
+
 Symbols:
 
 - `✅` — passed (`ok: true`)
@@ -110,7 +142,7 @@ Symbols:
 - `⚪` — skipped (no command, or `--quick` mode for advisory rows)
 - `⚠ ` — advisory tier below `sound` / unavailable
 
-Header line carries: `<branch> · <ahead-state> · stack: <stack>` and `(via .skadi/argonath.yaml)` when relevant.
+Header line carries: `<branch> · <ahead-state> · stack: <stack>` and `(via .skadi/argonath.yaml)` when relevant. In project mode, append ` · mode: project` after the stack name so the scope is plain.
 
 `<ahead-state>`:
 - `<N> commits ahead of <upstream>` when `N > 0`
@@ -121,8 +153,12 @@ Footer line: `<P> of <T> gates clear · <A> advisory note(s)` — counts only th
 
 Verdict-summary line in the blockquote follows /mithrandir's spirit:
 
-- `> Pass — every gate clear, the road is open.`
-- `> Hold — <plain reason: tests must pass / secrets removed / both>.`
+- Diff mode:
+  - `> Pass — every gate clear, the road is open.`
+  - `> Hold — <plain reason: tests must pass / secrets removed / both>.`
+- Project mode:
+  - `> Pass — project tree clear, no obstacles found.`
+  - `> Hold — <plain reason>.`
 
 When `stack: unknown` and every artefact row was skipped, the verdict still resolves on the secret scan alone. If clean: `> Pass — toolchain unknown, but no obstacles found.`
 
@@ -133,3 +169,4 @@ When `stack: unknown` and every artefact row was skipped, the verdict still reso
 - The full step log lives in the tempfile path emitted by `argonath-run.sh`. Do not read it unless the user asks for the failure detail
 - Sub-skills (`/nazgul`, `/mithrandir`) are advisory — never block the Pass/Hold verdict on their findings
 - Sort the body rows in the order: Lint → Build → Tests → Secret scan → Rubric → Verdict. Hide a row only if it is `--quick`-suppressed
+- Project mode scans tracked files only — untracked / `.gitignore`d paths stay out of the secret scan, and the verdict row is always `⚪ skipped` (no `/mithrandir` project verb exists)

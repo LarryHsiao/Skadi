@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# argonath-secrets.sh — scan the about-to-be-pushed diff for secrets.
+# argonath-secrets.sh — scan for secrets in either the unpushed diff or the project tree.
 #
-# Reads `git diff @{upstream}..HEAD` (the range about to be pushed). If no
-# upstream is set, falls back to `HEAD` so a fresh branch is still scanned.
-# Inspects only added lines (those starting with `+`, ignoring `+++` headers).
+# Default (no flag): reads `git diff @{upstream}..HEAD` (the range about to be
+# pushed). If no upstream is set, falls back to `HEAD` so a fresh branch is
+# still scanned. Inspects only added lines (those starting with `+`, ignoring
+# `+++` headers).
+#
+# `--project`: scans every tracked file in the repo for the same patterns.
+# Untracked / `.gitignore`d paths stay out. Binary files are skipped.
 #
 # Output: single-line JSON
 #   { "ok": bool, "count": int, "hits": [string], "note": string }
@@ -20,18 +24,17 @@
 # with an explanatory note.
 set -u
 
+mode="diff"
+if [ "${1:-}" = "--project" ]; then
+  mode="project"
+fi
+
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 if [ -z "$REPO_ROOT" ]; then
   jq -nc '{ok:true,count:0,hits:[],note:"not a git repo"}'
   exit 0
 fi
 cd "$REPO_ROOT"
-
-if upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)"; then
-  range="${upstream}..HEAD"
-else
-  range="HEAD"
-fi
 
 re='AKIA[0-9A-Z]{16}'
 re+='|gh[pousr]_[A-Za-z0-9]{36,}'
@@ -40,18 +43,31 @@ re+='|(sk|pk)_(live|test)_[A-Za-z0-9]{20,}'
 re+='|-----BEGIN [A-Z ]*PRIVATE KEY-----'
 re+='|(API_KEY|API_TOKEN|SECRET|PASSWORD|TOKEN|PRIVATE_KEY)[[:space:]]*=[[:space:]]*["'"'"'`]?[A-Za-z0-9_./+=-]{12,}'
 
-added_hits="$(git diff -U0 "$range" 2>/dev/null \
-  | grep -E '^\+[^+]' \
-  | grep -E -i "$re" \
-  || true)"
+if [ "$mode" = "project" ]; then
+  scope_note="project tree (tracked files)"
+  hits="$(git ls-files -z 2>/dev/null \
+    | xargs -0 grep -IEHni "$re" 2>/dev/null \
+    || true)"
+else
+  if upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)"; then
+    range="${upstream}..HEAD"
+  else
+    range="HEAD"
+  fi
+  scope_note="diff range: $range"
+  hits="$(git diff -U0 "$range" 2>/dev/null \
+    | grep -E '^\+[^+]' \
+    | grep -E -i "$re" \
+    || true)"
+fi
 
-if [ -z "$added_hits" ]; then
-  jq -nc --arg range "$range" '{ok:true,count:0,hits:[],note:("diff range: "+$range)}'
+if [ -z "$hits" ]; then
+  jq -nc --arg note "$scope_note" '{ok:true,count:0,hits:[],note:$note}'
   exit 0
 fi
 
-hits_json="$(printf '%s\n' "$added_hits" | jq -R -s 'split("\n") | map(select(length>0))')"
+hits_json="$(printf '%s\n' "$hits" | jq -R -s 'split("\n") | map(select(length>0))')"
 count="$(printf '%s' "$hits_json" | jq 'length')"
 
-jq -nc --argjson hits "$hits_json" --arg range "$range" --argjson count "$count" \
-  '{ok:false,count:$count,hits:$hits,note:("diff range: "+$range)}'
+jq -nc --argjson hits "$hits_json" --arg note "$scope_note" --argjson count "$count" \
+  '{ok:false,count:$count,hits:$hits,note:$note}'
