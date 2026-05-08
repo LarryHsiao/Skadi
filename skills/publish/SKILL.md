@@ -150,13 +150,43 @@ fvm flutter build linux --release
 After the macOS build succeeds, re-sign the .app with Developer ID and the hardened runtime, zip it for submission, run the notary service to completion, and staple the ticket onto the .app. The .app is signed in place; step 6 carries the stapled artifact into `build/publish/`. The submission zip stays alongside as a second deliverable — a stapled .app inside a zip is the standard distribution form, since unzipping preserves the staple.
 
 ```bash
-APP_PATH=$(ls -d "build/macos/Build/Products/Release/"*.app | head -n 1)
+APP_PATH=$(/bin/ls -d "build/macos/Build/Products/Release/"*.app | head -n 1)
 APP_NAME=$(basename "$APP_PATH" .app)
 
+# Strip xattrs that Finder/Spotlight may have attached to the build product.
+# codesign rejects `com.apple.FinderInfo` on inner resources; a single stray
+# xattr breaks deep-verify — failing notarisation, or slipping past it and
+# tripping AMFI at launch with the unhelpful "can't be opened" dialog.
+xattr -cr "$APP_PATH"
+
+# Generate signing entitlements from the project's Release.entitlements.
+# `--preserve-metadata=entitlements` is unsafe because Flutter's build phase
+# signs with a development profile that bakes in `get-task-allow` —
+# preserving it would carry that forward and notary will refuse.
+#
+# For Developer ID distribution (no embedded provisioning profile), strip
+# entitlements that require a profile to authorize:
+#   • `keychain-access-groups` — without a profile to vouch for the group,
+#     AMFI rejects launch with error 163. The app still gets the default
+#     keychain group `<TEAM_ID>.<BUNDLE_ID>` implicitly, which covers
+#     flutter_secure_storage and similar callers; explicit groups are only
+#     needed to share keychain items with other apps in the team.
+#   • `com.apple.application-identifier` — App Store / TestFlight concept;
+#     not needed for Developer ID.
+# `com.apple.developer.team-identifier` is auto-derived by codesign from
+# the signing cert and need not be declared in the entitlements file.
+ENTITLEMENTS_FILE=$(mktemp)
+sed "s|\$(AppIdentifierPrefix)|${APPLE_TEAM_ID}.|g" macos/Runner/Release.entitlements > "$ENTITLEMENTS_FILE"
+/usr/libexec/PlistBuddy -c "Delete :keychain-access-groups" "$ENTITLEMENTS_FILE" 2>/dev/null
+/usr/libexec/PlistBuddy -c "Delete :com.apple.application-identifier" "$ENTITLEMENTS_FILE" 2>/dev/null
+/usr/libexec/PlistBuddy -c "Delete :com.apple.developer.team-identifier" "$ENTITLEMENTS_FILE" 2>/dev/null
+
 codesign --deep --force --options runtime --timestamp \
-  --preserve-metadata=entitlements \
+  --entitlements "$ENTITLEMENTS_FILE" \
   --sign "$SIGNING_IDENTITY" \
   "$APP_PATH"
+
+rm -f "$ENTITLEMENTS_FILE"
 
 codesign --verify --strict --verbose=2 "$APP_PATH"
 
@@ -192,9 +222,18 @@ After the .app is signed, notarized, and stapled, also produce a DMG so users ge
 ```bash
 mkdir -p build/publish/dmg-stage
 cp -R "$APP_PATH" build/publish/dmg-stage/
-ln -sfn /Applications build/publish/dmg-stage/Applications
+
+# Strip xattrs from the staged copy. cp -R preserves source xattrs, and any
+# `com.apple.FinderInfo` blob will trip codesign deep-verify on the user's
+# machine after install — the failure surfaces as a generic "can't be
+# opened" dialog with no Gatekeeper text, since AMFI rejects launch
+# silently when nested signatures fail.
+xattr -cr build/publish/dmg-stage/
 
 if command -v create-dmg >/dev/null 2>&1; then
+  # Note: do NOT pre-stage `Applications` here — `--app-drop-link` makes
+  # create-dmg write its own, and a pre-existing one fails with
+  # `ln: ...: File exists` and forces the fallback path.
   create-dmg \
     --volname "${APP_NAME}" \
     --window-pos 200 120 \
@@ -209,9 +248,11 @@ fi
 
 # TCC fallback — if create-dmg trips on /Volumes (macOS Tahoe TCC) or
 # isn't installed, fall back to a mount-free DMG. Plainer chrome (no
-# positioned icons) but a valid notarizable image, and the Applications
-# symlink keeps the install gesture intact.
+# positioned icons) but a valid notarizable image. The Applications
+# symlink is staged here, only for the fallback, since hdiutil does not
+# add a drop-link of its own.
 if [ "${DMG_FAILED:-0}" = "1" ]; then
+  ln -sfn /Applications build/publish/dmg-stage/Applications
   hdiutil makehybrid -hfs -hfs-volume-name "${APP_NAME}" \
     -hfs-openfolder build/publish/dmg-stage \
     build/publish/dmg-stage \
@@ -224,6 +265,9 @@ fi
 
 rm -rf build/publish/dmg-stage
 
+codesign --sign "$SIGNING_IDENTITY" --timestamp \
+  "build/publish/${APP_NAME}.dmg"
+
 xcrun notarytool submit "build/publish/${APP_NAME}.dmg" \
   --apple-id "$APPLE_ID" \
   --team-id "$APPLE_TEAM_ID" \
@@ -231,7 +275,12 @@ xcrun notarytool submit "build/publish/${APP_NAME}.dmg" \
   --wait
 
 xcrun stapler staple "build/publish/${APP_NAME}.dmg"
+
+spctl -a -vv -t open --context context:primary-signature \
+  "build/publish/${APP_NAME}.dmg"
 ```
+
+The `codesign` step is load-bearing: notary will accept an unsigned DMG (it verifies the signed content within), and `stapler` will attach a ticket — but Gatekeeper at *open* time evaluates the disk image's own signature, and an unsigned DMG fails with `source=no usable signature` even with a valid staple. The trailing `spctl` check fails fast if any link in the chain (sign → notarize → staple) was skipped or broken.
 
 If the fallback path was used, mention it in the final report so the user knows the chrome was skipped.
 
