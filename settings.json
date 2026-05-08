@@ -61,6 +61,8 @@
       "Bash(~/.claude/hooks/cleanup-dev-analyze.sh:*)",
       "Bash(~/.claude/hooks/prs-check.sh:*)",
       "Bash(~/.claude/hooks/mrs-check.sh:*)",
+      "Bash(~/.claude/hooks/prs-activity.sh:*)",
+      "Bash(~/.claude/hooks/mrs-activity.sh:*)",
       "Bash(~/.claude/hooks/preflight-check.sh:*)",
       "Bash(~/.claude/hooks/cleanup-dev-mark-run.sh:*)",
       "Bash(~/.claude/hooks/daily-mark-run.sh:*)",

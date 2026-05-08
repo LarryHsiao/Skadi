@@ -33,6 +33,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/branch` — Switch to a target branch, safely handling uncommitted work
 - `/prs` — Show open GitHub PRs requiring attention
 - `/mrs` — Show open GitLab merge requests requiring attention
+- `/palantir` — Look across both forges from one stone: open GitHub PRs and GitLab MRs needing attention in one combined view, with `⚑` flags on items carrying new comments. Args: `github` / `gitlab` to scope to one forge; `review`, `mine`, or `activity` to filter category
 - `/jira` — Create or check status of Jira tickets
 - `/daily` — Show Jira tasks grouped by status, sorted by priority
 - `/working` — Start working on a Jira ticket
@@ -65,6 +66,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **grammar-counter** — Count grammar corrections at session stop
 - **preflight-check** — Emit the preflight checklist state consumed by `/preflight`
 - **jira-daily**, **prs-check**, **mrs-check**, **eod-git-check** — Data collectors for the matching skills
+- **prs-activity**, **mrs-activity** — Surface PRs/MRs with new comments via GitHub notifications and GitLab todos for `/palantir`
 - **cleanup-dev-*** — Analyze, report, execute, and mark-run helpers for `/cleanup-dev`
 - **council-youtrack-fetch**, **council-youtrack-comment**, **council-jira-fetch**, **council-jira-comment** — Tracker I/O for `/council` (YouTrack and Jira)
 - **glorfindel-youtrack-list**, **glorfindel-jira-list** — List open tickets matching a filter for `/glorfindel`
