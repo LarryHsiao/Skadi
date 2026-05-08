@@ -152,6 +152,7 @@ After the macOS build succeeds, re-sign the .app with Developer ID and the harde
 ```bash
 APP_PATH=$(/bin/ls -d "build/macos/Build/Products/Release/"*.app | head -n 1)
 APP_NAME=$(basename "$APP_PATH" .app)
+BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Contents/Info.plist")
 
 # Strip xattrs that Finder/Spotlight may have attached to the build product.
 # codesign rejects `com.apple.FinderInfo` on inner resources; a single stray
@@ -159,27 +160,52 @@ APP_NAME=$(basename "$APP_PATH" .app)
 # tripping AMFI at launch with the unhelpful "can't be opened" dialog.
 xattr -cr "$APP_PATH"
 
+# Embed the project's Developer ID provisioning profile if one is supplied.
+# Flutter's build phase drops in a development profile (Mac Team Provisioning
+# Profile) that demands `get-task-allow=true` and conflicts with Developer ID
+# entitlements; replace it. If the project doesn't ship a profile, the .app
+# is signed without one and the entitlements path below strips the keys that
+# would otherwise need a profile to authorize.
+if [ -f macos/Runner/embedded.provisionprofile ]; then
+  cp macos/Runner/embedded.provisionprofile "$APP_PATH/Contents/embedded.provisionprofile"
+else
+  rm -f "$APP_PATH/Contents/embedded.provisionprofile"
+fi
+
 # Generate signing entitlements from the project's Release.entitlements.
 # `--preserve-metadata=entitlements` is unsafe because Flutter's build phase
 # signs with a development profile that bakes in `get-task-allow` —
 # preserving it would carry that forward and notary will refuse.
 #
-# For Developer ID distribution (no embedded provisioning profile), strip
-# entitlements that require a profile to authorize:
-#   • `keychain-access-groups` — without a profile to vouch for the group,
-#     AMFI rejects launch with error 163. The app still gets the default
-#     keychain group `<TEAM_ID>.<BUNDLE_ID>` implicitly, which covers
-#     flutter_secure_storage and similar callers; explicit groups are only
-#     needed to share keychain items with other apps in the team.
-#   • `com.apple.application-identifier` — App Store / TestFlight concept;
-#     not needed for Developer ID.
+# Two paths, gated by whether the project supplies a Developer ID profile:
+#
+#   With profile (sandboxed apps that need keychain-access-groups, etc.):
+#     • Keep `keychain-access-groups` (substituted) — the embedded profile
+#       authorizes the team-prefixed group.
+#     • Inject `com.apple.application-identifier` matching the bundle id
+#       under the team prefix — AMFI cross-checks this against the profile.
+#
+#   Without profile (simpler apps; default Flutter macOS shape):
+#     • Strip `keychain-access-groups` and `com.apple.application-identifier`
+#       — without a profile to vouch for them, AMFI rejects launch with
+#       POSIX 163 and a generic "can't be opened" dialog.
+#     • Apps still get the default keychain group `<TEAM_ID>.<BUNDLE_ID>`
+#       implicitly via flutter_secure_storage's defaults, but only when the
+#       app holds the entitlement, so dropping the entitlement also drops
+#       keychain access for sandboxed apps.
+#
 # `com.apple.developer.team-identifier` is auto-derived by codesign from
 # the signing cert and need not be declared in the entitlements file.
 ENTITLEMENTS_FILE=$(mktemp)
 sed "s|\$(AppIdentifierPrefix)|${APPLE_TEAM_ID}.|g" macos/Runner/Release.entitlements > "$ENTITLEMENTS_FILE"
-/usr/libexec/PlistBuddy -c "Delete :keychain-access-groups" "$ENTITLEMENTS_FILE" 2>/dev/null
-/usr/libexec/PlistBuddy -c "Delete :com.apple.application-identifier" "$ENTITLEMENTS_FILE" 2>/dev/null
 /usr/libexec/PlistBuddy -c "Delete :com.apple.developer.team-identifier" "$ENTITLEMENTS_FILE" 2>/dev/null
+if [ -f "$APP_PATH/Contents/embedded.provisionprofile" ]; then
+  /usr/libexec/PlistBuddy -c "Delete :com.apple.application-identifier" "$ENTITLEMENTS_FILE" 2>/dev/null
+  /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string ${APPLE_TEAM_ID}.${BUNDLE_ID}" "$ENTITLEMENTS_FILE"
+else
+  /usr/libexec/PlistBuddy -c "Delete :keychain-access-groups" "$ENTITLEMENTS_FILE" 2>/dev/null
+  /usr/libexec/PlistBuddy -c "Delete :com.apple.application-identifier" "$ENTITLEMENTS_FILE" 2>/dev/null
+fi
 
 codesign --deep --force --options runtime --timestamp \
   --entitlements "$ENTITLEMENTS_FILE" \
