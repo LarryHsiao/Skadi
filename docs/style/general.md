@@ -12,6 +12,11 @@
 
 - Keep methods under 25 lines. If it grows beyond that, extract smaller private methods.
 
+## Tests
+
+- **New code lands with a test.** Every new function, class, or branch carries a test that exercises its behavior. The test is part of the change, not a follow-up.
+- **Modification is the moment to pay the test debt.** When editing existing code that bears no test, add one as part of the change. Touching untested code without leaving a test behind is how the debt compounds; the edit is the natural occasion to settle it.
+
 ## General-purpose code
 
 - When editing a file meant to be a general-purpose widget (a shared component, a utility, a base class), do not add domain-specific logic. Keep it general. If the change needs domain knowledge, lift it to the caller — leave the widget unaware.
