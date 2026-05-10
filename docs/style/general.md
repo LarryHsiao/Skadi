@@ -16,6 +16,8 @@
 
 - **New code lands with a test.** Every new function, class, or branch carries a test that exercises its behavior. The test is part of the change, not a follow-up.
 - **Modification is the moment to pay the test debt.** When editing existing code that bears no test, add one as part of the change. Touching untested code without leaving a test behind is how the debt compounds; the edit is the natural occasion to settle it.
+- **State the expectation, then test the result.** Each test names the expected outcome explicitly — a `final expected = ...` (or the language's equivalent) declared before the unit is exercised — and the assertion compares the actual result against that named value. Inline literals buried inside an `expect`/`assertEquals` call obscure intent; a named expectation reads as the test's contract.
+- **Cycle code and test until the result matches the plan.** Write a slice of the change, run its test, read the result. If it diverges from what the plan called for, return to the code; do not bend the test to fit the slip. The loop closes only when the test produces the result the plan named (the plan being whatever names the expected outcome — a `[COUNSEL]` body, an issue's acceptance criteria, or the agreement reached in chat). Each branch the slice carries earns its own test naming the expected outcome of that branch — the happy path is the first, error returns and boundaries (empty container, null fallback, failure return, throw) follow. A one-branch slice needs one test; a three-branch slice needs three.
 
 ## General-purpose code
 
