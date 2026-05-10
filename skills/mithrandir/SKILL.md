@@ -1,6 +1,6 @@
 ---
 name: mithrandir
-description: Use when the user runs /mithrandir, /mithrandir branch, /mithrandir <url>, /mithrandir comment <url>, or /mithrandir bless <url> (alias /mithrandir recheck <url>). With no argument or the `branch` verb, weighs the current local branch against its base; with a URL, weighs a pull request or merge request. Renders a four-axis verdict — cohesion, proportion, direction, risk — followed by an optional `Worth keeping` section (concrete bright spots) and an optional `To pass` action list grouped by severity (Blocker / Nice to have / Nit), closing with a tier (sound | wavering | off) and a short reasoning paragraph. A blockquote header at the top distils the bottom line — Merge / Hold / Refuse. The default and `branch` paths render to chat; the `comment` verb posts a URL-path verdict to the forge after a confirm-once gate. The `bless` verb (alias `recheck`) re-weighs an amended PR/MR, finds its prior `comment`-verb post, and threads a follow-up reply — All resolve / Partial okay if the work has earned it; counsel withheld (chat-only) if not. Branch-path bears no `comment` or `bless` — local diffs have no PR to write on. Tone defaults differ by audience — read leans Tolkien (private counsel); comment and bless lean plain (public note). The `--plain` and `--lore` flags override either default. Host-agnostic; routes to GitHub or GitLab from the URL.
+description: Use when the user runs /mithrandir, /mithrandir branch, /mithrandir <url>, /mithrandir comment <url>, or /mithrandir bless <url> (alias /mithrandir recheck <url>). With no argument or the `branch` verb, weighs the current local branch against its base; with a URL, weighs a pull request or merge request. Renders a multi-axis verdict — five always-on (stability, performance, coding style, maintainability, correctness) plus seven conditional (test coverage, security, documentation, backward compatibility, observability, dependency hygiene, accessibility & i18n) that fire only when the diff touches their domain — followed by an optional `Worth keeping` section (concrete bright spots) and an optional `To pass` action list grouped by severity (Blocker / Nice to have / Nit), closing with a tier (sound | wavering | off) and a short reasoning paragraph. A blockquote header at the top distils the bottom line — Merge / Hold / Refuse. The default and `branch` paths render to chat; the `comment` verb posts a URL-path verdict to the forge after a confirm-once gate. The `bless` verb (alias `recheck`) re-weighs an amended PR/MR, finds its prior `comment`-verb post, and threads a follow-up reply — All resolve / Partial okay if the work has earned it; counsel withheld (chat-only) if not. Branch-path bears no `comment` or `bless` — local diffs have no PR to write on. Tone defaults differ by audience — read leans Tolkien (private counsel); comment and bless lean plain (public note). The `--plain` and `--lore` flags override either default. Host-agnostic; routes to GitHub or GitLab from the URL.
 user_invocable: true
 ---
 
@@ -53,7 +53,7 @@ The "forge-write default" applies to both the `comment` and `bless` verbs — an
 
 What stays the same in both modes:
 
-- The four-axis section names (**Cohesion**, **Proportion**, **Direction**, **Risk**) — already plain English.
+- The axis section names (**Stability**, **Performance**, **Coding style**, **Maintainability**, **Correctness**, **Test coverage**, **Security**, **Documentation**, **Backward compatibility**, **Observability**, **Dependency hygiene**, **Accessibility & i18n**) — already plain English.
 - The verdict tier labels (`sound`, `wavering`, `off`) — already plain English.
 - The gauge glyphs (`▰▱▱`, `▰▰▱`, `▰▰▰`) — visual, not lore.
 
@@ -165,18 +165,29 @@ The hook prints the raw unified diff to stdout. Read it; this is the ground for 
 
 If the diff call fails, render the verdict on metadata alone (description and file list) and append a one-line tail-note: *"(diff unavailable — verdict rendered on metadata only)"*.
 
-### 4. Weigh the four axes
+### 4. Weigh the axes
 
-Form a per-axis verdict on each, grounded in what the diff and metadata show. Each axis carries its own tier (`sound` | `wavering` | `off`) and a single short evidence clause.
+Twelve axes are defined. **Five are always rendered** (Stability, Performance, Coding style, Maintainability, Correctness); the other seven are **conditional** — they render only when the diff touches their domain, and are silently omitted from the brief otherwise (no `n/a` row).
 
-What each axis asks:
+Form a per-axis verdict on each rendered axis, grounded in what the diff and metadata show. Each axis carries its own tier (`sound` | `wavering` | `off`) and a single short evidence clause. Cite a file or path when naming a concrete flaw.
 
-- **Cohesion** — does the change tell one story, or several entangled? A PR titled "fix login bug" that also reformats unrelated files lacks cohesion.
-- **Proportion** — is the diff sized to its intent? A one-line bug report that becomes a five-hundred-line refactor is bloated; a stated rewrite that touches three lines is thin.
-- **Direction** — does it move the codebase the right way? Toward the project's grain (style, architecture, naming), or against it? When the diff lives in one of your own GitHub repos — *for URL-paths, the URL matches `https?://github\.com/LarryHsiao/...` (case-insensitive); for branch-path, `git remote get-url origin` matches `git@github\.com:LarryHsiao/...` or the equivalent HTTPS form* — also weigh it against the personal style rules in `~/.claude/docs/style/general.md` and (for Dart files) `~/.claude/docs/style/flutter.md`. For any other owner, any other forge, or a self-hosted GitLab, judge by the repo's own grain alone — personal rules do not travel onto teammate or third-party work, and a `comment` post would otherwise carry your house style into public counsel.
-- **Risk** — what could break, and how reversible if it does? Migrations, public APIs, infra changes weigh heavier than internal helpers.
+#### Always-on axes
 
-Cite a file or path when naming a concrete flaw.
+- **Stability** — does the code hold up under stress? Edge cases, error paths, concurrency, the failure modes that do not show on a happy-path test. Probe: what breaks when input is empty, when the network drops, when two callers race? An unguarded null, a swallowed exception, an unconsidered timeout each cost stability.
+- **Performance** — runtime cost, memory, allocations. Avoidable expense in hot paths — N+1 queries, blocking calls inside a loop, allocations on every render, recompute where memoise would serve. Probe: does this slow the path the user pays for, or hold memory longer than it must?
+- **Coding style** — alignment with the codebase's idioms: naming, formatting, structural conventions, language patterns. Probe: does the change read in the same voice as the surrounding files? When the diff lives in one of your own GitHub repos — *for URL-paths, the URL matches `https?://github\.com/LarryHsiao/...` (case-insensitive); for branch-path, `git remote get-url origin` matches `git@github\.com:LarryHsiao/...` or the equivalent HTTPS form* — also weigh it against the personal style rules in `~/.claude/docs/style/general.md` and (for Dart files) `~/.claude/docs/style/flutter.md`. For any other owner, any other forge, or a self-hosted GitLab, judge by the repo's own grain alone — personal rules do not travel onto teammate or third-party work, and a `comment` post would otherwise carry your house style into public counsel.
+- **Maintainability** — cost to the next reader. Modularity, cognitive load, readable naming, sensible decomposition, the absence of clever-but-opaque tricks. Probe: would a stranger six months from now know what this does and why? A long method that should cleave, a name that hides intent, a comment explaining what the code already says (or worse, what it no longer does) each cost maintainability.
+- **Correctness** — does the code do what it claims? Off-by-ones, wrong API use, mismatched control flow, conditions that read "if" but mean "unless". Probe: does the function's behavior match its name and its callers' expectations? Distinct from Stability — Stability asks whether the code crashes; Correctness asks whether the code is right.
+
+#### Conditional axes — fire when the diff touches the domain
+
+- **Test coverage** — does the change carry tests for new behavior, new branches, new error paths? A new function without a test, a new branch without a test, a new boundary without a test each cost coverage. Probe: if this change broke tomorrow, would a test catch it before a user did? *Fires when the codebase has any test infrastructure (`test/`, `spec/`, `__tests__/`, `*_test.go`, etc.). Skips on prototypes and one-off scripts where no tests exist anywhere in the tree.*
+- **Security** — injection (SQL, command, template), secrets in code or logs, auth bypass, missing input validation, deserialisation hazards, broken cryptography. Probe: does the change widen any surface that a hostile input could reach? *Fires when the diff touches user input handling, network code, auth/session, file IO, command execution, crypto, or templating. Skips on pure refactors with no surface change.*
+- **Documentation** — public API docs (docstrings, dartdoc, javadoc), comments where the WHY is non-obvious, README / CHANGELOG sync for public-facing change. Probe: would a caller reading the symbol know how to use it without reading the implementation? *Fires when the diff adds or alters public symbols, exported APIs, or user-visible README / CHANGELOG content.*
+- **Backward compatibility** — public-surface changes, data migration safety, consumer breakage, config-schema renames. Probe: does an existing caller, persisted record, or deployed config still work after this change? *Fires when the diff touches a public API, an exported type, a database schema, a wire protocol, or a stable config key. Skips on internal-only changes.*
+- **Observability** — logs, metrics, traces, errors surfaced where operators can see them. Probe: when this fails in production at 3am, is there enough signal to diagnose without a debugger? *Fires when the diff adds or modifies a long-running process, a request handler, a background job, a scheduled task, or a critical-path operation. Skips on UI-only or pure-library work.*
+- **Dependency hygiene** — new packages weighed for size, license, maintenance health, transitive bloat; pinned versions where unpinned would be unsafe. Probe: does this dependency carry weight proportional to the value it brings? *Fires when the diff touches `package.json`, `pubspec.yaml`, `Cargo.toml`, `go.mod`, `requirements.txt`, `Gemfile`, or any other dependency manifest.*
+- **Accessibility & i18n** — keyboard navigation, screen reader labels, focus management, colour contrast (a11y); locale handling, plurals, date / number formatting, RTL support (i18n). Probe: does the change degrade for a user on a different language, on a screen reader, or on a keyboard-only path? *Fires when the diff touches user-facing UI: rendered widgets, screens, dialogs, user-visible strings.*
 
 ### 5. Render the brief
 
@@ -189,13 +200,29 @@ Render in this order, in plain markdown. The title line and closing paragraph fo
 
 <head> → <base> · +<adds> -<dels> across <k> files
 
-**Cohesion** <gauge>  <tier> — <evidence clause, ≤ 25 words>
+**Stability** <gauge>  <tier> — <evidence clause, ≤ 25 words>
 
-**Proportion** <gauge>  <tier> — <evidence clause, ≤ 25 words>
+**Performance** <gauge>  <tier> — <evidence clause, ≤ 25 words>
 
-**Direction** <gauge>  <tier> — <evidence clause, ≤ 25 words>
+**Coding style** <gauge>  <tier> — <evidence clause, ≤ 25 words>
 
-**Risk** <gauge>  <tier> — <evidence clause, ≤ 25 words>
+**Maintainability** <gauge>  <tier> — <evidence clause, ≤ 25 words>
+
+**Correctness** <gauge>  <tier> — <evidence clause, ≤ 25 words>
+
+**Test coverage** <gauge>  <tier> — <evidence clause, ≤ 25 words>      ← conditional; render only if the codebase has test infrastructure
+
+**Security** <gauge>  <tier> — <evidence clause, ≤ 25 words>            ← conditional; render only if the diff touches surface (input, network, auth, IO, exec, crypto, templating)
+
+**Documentation** <gauge>  <tier> — <evidence clause, ≤ 25 words>       ← conditional; render only if the diff alters public symbols or user-visible docs
+
+**Backward compatibility** <gauge>  <tier> — <evidence clause, ≤ 25 words>  ← conditional; render only if the diff touches public surface, schemas, or stable config
+
+**Observability** <gauge>  <tier> — <evidence clause, ≤ 25 words>       ← conditional; render only if the diff touches request paths, jobs, or critical-path code
+
+**Dependency hygiene** <gauge>  <tier> — <evidence clause, ≤ 25 words>  ← conditional; render only if the diff touches a dependency manifest
+
+**Accessibility & i18n** <gauge>  <tier> — <evidence clause, ≤ 25 words>  ← conditional; render only if the diff touches user-facing UI
 
 ## Worth keeping     ← optional; render only if there are concrete bright spots
 
@@ -223,11 +250,13 @@ The gauge mirrors the task-sizing gauge from `CLAUDE.md`:
 - `▰▰▱  wavering` — landable, but flaws to address; name them in the closing paragraph.
 - `▰▰▰  off` — should not land in this shape; the closing paragraph names what must change.
 
-**Aggregation.** The overall verdict is the highest concern among the four axes:
+**Aggregation.** The overall verdict is the highest concern among the **rendered** axes (always-on plus any conditional that fired):
 
-- Any axis `off` → overall `off`.
-- Else any axis `wavering` → overall `wavering`.
-- Else (all four `sound`) → overall `sound`.
+- Any rendered axis `off` → overall `off`.
+- Else any rendered axis `wavering` → overall `wavering`.
+- Else (every rendered axis `sound`) → overall `sound`.
+
+Unfired conditional axes do not weigh into aggregation — they are silent, not implicitly `sound`.
 
 **Header line.** The first line of the brief is a blockquote that distils the bottom line — *should this merge?* — to a single clause. Action label by tier:
 
