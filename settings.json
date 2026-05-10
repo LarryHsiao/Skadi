@@ -100,6 +100,8 @@
       "Bash(~/.claude/hooks/argonath-detect.sh:*)",
       "Bash(~/.claude/hooks/argonath-run.sh:*)",
       "Bash(~/.claude/hooks/argonath-secrets.sh:*)",
+      "Bash(~/.claude/hooks/amon-din-gitlab.sh:*)",
+      "Bash(~/.claude/hooks/amon-din-teamcity.sh:*)",
       "Bash({{SKADI_ROOT}}/install.sh:*)",
       "Bash(rtk git status:*)",
       "Bash(rtk git log:*)",

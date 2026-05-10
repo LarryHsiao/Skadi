@@ -34,6 +34,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/prs` — Show open GitHub PRs requiring attention
 - `/mrs` — Show open GitLab merge requests requiring attention
 - `/palantir` — Look across both forges from one stone: open GitHub PRs and GitLab MRs needing attention in one combined view, with `⚑` flags on items carrying new comments. Args: `github` / `gitlab` to scope to one forge; `review`, `mine`, or `activity` to filter category
+- `/amon-din` — Render the most recent CI runs (default 3, override with `[<count>]`) for the current branch (or all branches with `all`). Reads the per-project `ci_routing.md` auto-memory and dispatches to GitLab CI (via `glab`) or TeamCity (via REST). `add` / `remove` verbs (TeamCity only) edit the binding's `buildTypes` list. Read-only against the CI itself. First run on an unbound repo prompts once
 - `/jira` — Create or check status of Jira tickets
 - `/daily` — Show Jira tasks grouped by status, sorted by priority
 - `/working` — Start working on a Jira ticket
@@ -74,6 +75,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **lindir-github-pr**, **lindir-gitlab-mr** — Read a PR/MR via `gh`/`glab` and emit a JSON brief for `/lindir`
 - **lindir-github-approve**, **lindir-gitlab-approve** — Submit an approving review on a PR/MR via `gh`/`glab` for `/lindir approve`
 - **mithrandir-github-comment**, **mithrandir-gitlab-comment** — Post a comment on a PR/MR via `gh`/`glab` for `/mithrandir comment`; body taken from stdin
+- **amon-din-gitlab**, **amon-din-teamcity** — Fetch the most recent CI runs via `glab` (GitLab pipelines) or REST (TeamCity builds) for `/amon-din`
 - **youtrack-state**, **jira-state** — Idempotent state transitions on YouTrack and Jira tickets, used by `/glorfindel` (on `[FORTH]`) and `/celebrimbor` (after `[GWAITH]`)
 - **publish-macos-target** — Remember whether a macOS project publishes to GitHub Releases or the Mac App Store
 - **vocab-cards** — Emit every vocab card with SRS state and days-until-due as TSV for `/vocab review` and `/vocab list`
