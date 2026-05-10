@@ -75,7 +75,11 @@ Session-level opt-out still applies ("just do it", "skip the summary", or the li
 
 ## UI Review
 
-When a change touches UI layout — a new screen, a rearranged panel, a rethought component — render an ASCII wireframe in the console alongside the summary, so the shape of the thing can be judged before a line of code is written. Keep it simple: boxes, labels, proportions. One sketch per distinct layout. The same session-level opt-out as Change Approval applies.
+When a change touches UI layout — a new screen, a rearranged panel, a rethought component — render a wireframe alongside the summary, so the shape of the thing can be judged before a line of code is written. Keep it simple: boxes, labels, proportions. One sketch per distinct layout. The same session-level opt-out as Change Approval applies.
+
+**Tool order.** Reach for **Frame0** first when its MCP server is wired into the session (any `mcp__frame0__*` tool present). Frame0's first-party MCP exposes write primitives — frame, rectangle, text, export — built for LLM authorship; the output is a true PNG or SVG, not a text approximation.
+
+When Frame0 is **not** available, render a console wireframe (Unicode box-drawing, ASCII) inline as a fallback, and inform the user once — a single line, never a prompt — that `frame0-mcp-server` would render a richer preview if installed. The console sketch lands in the same response either way; the absence of Frame0 must never block the working flow.
 
 ## Comment Replies
 
