@@ -1,6 +1,6 @@
 ---
 name: jira
-description: Use when the user runs /jira [verb] [...args]. Supported verbs: create, status. Example: /jira create, /jira create bug, /jira status, /jira status me.
+description: Use when the user runs /jira [verb] [...args]. Supported verbs: create, status. Example: /jira create, /jira create bug, /jira status, /jira status me, /jira status --filter 10363.
 ---
 
 # Jira Skill
@@ -156,11 +156,12 @@ Then ask via AskUserQuestion: "Start working on PROJECT-123 now?" (yes → chain
 
 Shows a sprint board overview grouped by status, sorted by priority. Acts as a secretary: tells you what the team is doing and what you should focus on next.
 
-Arguments after `status`: `/jira status [filter] [--all]`
+Arguments after `status`: `/jira status [filter] [--filter <id>] [--all]`
 
 - No argument: show all issues in the current sprint
 - `me`: show only issues assigned to the current user
 - Any other string: filter by that person's display name
+- `--filter <id>`: run a Jira saved filter by ID (e.g. `--filter 10363`). When set, the skill skips project/sprint resolution entirely and runs the saved filter's JQL. The assignee filter and `--all` still apply.
 - `--all`: bypass the 50-issue cap and fetch everything (paginate if needed)
 
 ### 1. Load Jira config from memory
@@ -177,13 +178,36 @@ Require `JIRA_API_TOKEN` env var. If not set, tell the user to set it and stop.
 
 Same as `create` verb: git history → `jira_project.md` memory → ask user.
 
+**Skip this step entirely when `--filter <id>` is set** — a saved filter carries its own scope.
+
 ### 3. Resolve assignee filter
 
-- No argument → no filter (show all)
-- `me` → use `JIRA_EMAIL` from memory as the assignee value
-- Any other string → use as the assignee display name in JQL
+Walk the args once and extract flags, then treat the remainder as the assignee filter:
 
-If `--all` is present anywhere in the args, set `FETCH_ALL=true` and strip it before treating the remainder as the filter.
+- If `--all` is present anywhere, set `FETCH_ALL=true` and strip it.
+- If `--filter <id>` is present, capture the integer ID into `SAVED_FILTER_ID` and strip both tokens.
+- Remainder rules for the assignee filter:
+  - No remainder → no assignee filter (show all)
+  - `me` → use `JIRA_EMAIL` from memory as the assignee value
+  - Any other string → use as the assignee display name in JQL
+
+### 3.5. Resolve saved filter (only when `--filter <id>` is set)
+
+Fetch the saved filter's JQL and human name:
+
+```bash
+curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+  "$JIRA_BASE_URL/rest/api/3/filter/SAVED_FILTER_ID" \
+  | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print((d.get('name') or '') + '|' + (d.get('jql') or ''))
+"
+```
+
+Capture `FILTER_NAME` and `FILTER_JQL`. If the call fails (404 / no JQL), stop and report the filter ID was not reachable.
+
+When `SAVED_FILTER_ID` is set, **skip step 4 (Fetch active sprint) entirely** — the saved filter's JQL is the scope.
 
 ### 4. Fetch active sprint
 
@@ -216,8 +240,9 @@ If no board or no active sprint, set `HAS_SPRINT=false` and use fallback JQL.
 
 ### 5. Fetch issues via JQL
 
-Build JQL based on sprint and assignee filter:
+Build JQL based on the resolved scope and assignee filter:
 
+- **With saved filter:** `(FILTER_JQL)` — wrap the fetched JQL in parens so later `AND` clauses bind correctly. Any `ORDER BY` clause already inside `FILTER_JQL` must be stripped before wrapping (the skill appends its own).
 - **With sprint:** `sprint in openSprints() AND project=PROJECT_KEY`
 - **Without sprint (fallback):** `project=PROJECT_KEY AND statusCategory in ("To Do","In Progress")`
 - **Append assignee filter if set:**
@@ -273,9 +298,10 @@ for cat in sorted(groups.keys(), key=lambda c: CATEGORY_ORDER.get(c, 9)):
 Format the parsed output as a tree. Claude renders this — not a script.
 
 **Header:**
+- With saved filter: `Filter <id>: <FILTER_NAME>`
 - With sprint: `PROJECT — Sprint "Sprint Name" (start – end)`
 - Without sprint: `PROJECT — Open Issues (no active sprint)`
-- With filter: append ` · filtered: @name`
+- With assignee filter: append ` · filtered: @name`
 
 **Status group icons:** To Do=📋, In Progress=🔨, Done=✅, any other=📌
 
@@ -334,3 +360,4 @@ After the tree, add a separator and recommendation:
 - When no board/sprint exists, fall back gracefully to open issues query
 - Truncate issue summaries at 50 chars in tree display
 - When `FETCH_ALL=false` and the page is full (50 issues returned), add a footer: "Showing first 50. Re-run with `--all` to fetch everything, or use an assignee filter to narrow." When `FETCH_ALL=true`, omit the cap footer and instead show the total count fetched.
+- `--filter <id>` takes precedence over project/sprint resolution: when set, project key is not resolved, sprint is not fetched, and the saved filter's JQL becomes the scope. The assignee filter and `--all` still layer on top.
