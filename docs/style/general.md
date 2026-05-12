@@ -23,6 +23,17 @@
 
 - When editing a file meant to be a general-purpose widget (a shared component, a utility, a base class), do not add domain-specific logic. Keep it general. If the change needs domain knowledge, lift it to the caller — leave the widget unaware.
 
+## Maintainability
+
+Code is read more often than written. These rules guard the next reader against unearned cost.
+
+- **No dead code.** Unused imports, unreachable branches after `return` / `throw` / `break`, always-false guards (`if (false) { … }`, `#if 0`), private functions or fields with no call site, large commented-out blocks (four or more lines reading as paused source) — remove them. If a block is paused for "maybe later", it belongs in git history, not in the file.
+- **Cap nesting at three indents.** When a method runs four-plus levels deep, the reader carries the whole condition chain in their head. Extract the inner work into a private method, or invert with an early return. Three is a soft cap — pass through it when the logic genuinely will not cleave; name plainly when it does.
+- **Name your literals.** `86400`, `"premium"`, hard-coded thresholds and sentinel strings have the value on the page but not the intent. Lift them to a named constant — `static const secondsPerDay = 86400;` — so the call site reads as the thing it means. Exception: literals whose meaning is self-evident at the use site (`0`, `1`, the empty string for "no separator") need no name.
+- **No positional boolean-flag parameters at the call site.** `connect(true, false)` does not read; `connect(retry: true, dryRun: false)` (named arguments) does. When a flag genuinely bifurcates behavior, prefer two methods named for what each does — `connectWithRetry()` / `connectOnce()`. When the flag has three-plus states or a third is plausible, reach for an enum. When the choice deserves its own type, reach for a decorator or concrete per [`oo.md`](oo.md).
+- **One abstraction level per method.** A method that orchestrates high-level steps next to byte-fiddling makes the reader context-switch mid-scroll. Lift the low-level work into a private method named for what it does; the outer method then reads as a sequence of intentions.
+- **Keep comments honest.** A comment that contradicts the code, or that describes behaviour the code has outgrown, misleads the next reader more than no comment at all. When you edit code, edit its comments. When a `// TODO` or `// FIXME` has lost its referent or its urgency, remove it; otherwise update it to name what is actually still owed.
+
 ## Indexing
 
 - **Guard every index access against an empty container.** Before `xs[0]`, `xs.first`, `xs.last`, or `xs[i]`, check the length or use a safe accessor (`xs.firstOrNull`, `xs.elementAtOrNull(i)`, pattern destructuring with a fallback). The empty list is the common pitfall — `xs[0]` on `[]` raises, not returns null. The same care applies to map lookups, regex match groups, and argument arrays.
