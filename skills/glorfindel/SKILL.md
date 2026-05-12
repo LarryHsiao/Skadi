@@ -73,7 +73,15 @@ Save the answer to `state_mapping.md`, then proceed. Future sweeps consult the f
 
 ### 1. Pre-flight checks
 
-**a. Resolve the repo path** for Erestor's reads. Same rule as `/council` — see the council skill's "Working-directory contract" section. Look up `<tracker>:<project>` in `repo_routing.md`; if absent, ask once, save, proceed. The resolution happens once for the whole sweep — every ticket in this `<tracker>:<project>` shares the same repo root.
+**a. Resolve the repo path and acquire a sweep-wide workspace.** Same rule as `/council` — see the council skill's "Working-directory contract" section. Look up `<tracker>:<project>` in `repo_routing.md`; if absent, ask once, save, proceed. The resolution happens once for the whole sweep.
+
+If the resolved value is a real path (not `(no repo)`), acquire **one** isolated workspace for the entire ride via the shared helper:
+
+```bash
+~/.claude/hooks/skadi-worktree.sh acquire <source-repo>
+```
+
+Every ticket in the sweep hands the same workspace path to its Erestor subagent — one acquire per sweep, not per ticket, since worktree setup carries a non-trivial cost and Glorfindel may visit dozens of tickets. The workspace is released in step 4 (after the aggregate report) on the success path. If the resolved value is `(no repo)`, skip the acquire — Erestor drafts from ticket text alone on every ticket.
 
 **b. Jira post-safety warning.** If `<tracker>` is `jira` and neither `--dry-run` nor `--confirm` is set: warn the user via AskUserQuestion that Glorfindel is about to sweep Jira and may post automatically to many real tickets. Offer three options:
 - Proceed unattended (risky on Jira).
@@ -114,7 +122,7 @@ Iterate the list (newest-first as the hook returns it). For each ticket, follow 
   - If `--confirm` is on: ask the user via AskUserQuestion (one ticket per question, with the proposed token and a 2-line excerpt). On rejection: skip the post; record `skipped`. On approval: post.
   - Otherwise: post.
 
-Erestor's draft is per-ticket — each ticket gets its own subagent dispatch with its own thread context.
+Erestor's draft is per-ticket — each ticket gets its own subagent dispatch with its own thread context. Every dispatch reuses the **single sweep-wide workspace** acquired in step 1a; the workspace is detached, read-only from Erestor's vantage, and shared across tickets in the sweep.
 
 If a hook fails mid-sweep (auth, network, server error), record the ticket as `error` with the message and continue with the rest. Do not let one ticket's failure halt the sweep.
 
@@ -162,6 +170,14 @@ Action vocabulary:
 | `error` | A hook failed for this ticket. Include the error message in Detail. |
 
 Do not reproduce Erestor's full drafts in the report — they live on the tickets (or stayed in dry-run memory). Print one URL per ticket only when the action carries an id (drafted / talked-out).
+
+After the report, release the sweep-wide workspace acquired in step 1a, if any:
+
+```bash
+~/.claude/hooks/skadi-worktree.sh release <workspace-path>
+```
+
+A mid-sweep crash that bypasses this step leaves the workspace under `$TMPDIR` for inspection; the next sweep acquires a fresh one, and the OS clears `$TMPDIR` on reboot.
 
 ## Rules
 

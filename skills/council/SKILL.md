@@ -58,16 +58,25 @@ Once the tracker is chosen, all subsequent steps use that backend's hooks. The t
 
 Erestor's working directory comes from a per-project memory file `repo_routing.md`, **not** from the user's current shell pwd. Resolution order:
 
-1. **Memory mapping.** Read `repo_routing.md` from the project memory directory. Look up `<tracker>:<project>` (e.g. `youtrack:MET`). If found, that's Erestor's repo root. If the value is `(no repo)`, tell Erestor explicitly that this ticket has no codebase context — he drafts from ticket text alone.
+1. **Memory mapping.** Read `repo_routing.md` from the project memory directory. Look up `<tracker>:<project>` (e.g. `youtrack:MET`). If found, that's the **source repo path**. If the value is `(no repo)`, tell Erestor explicitly that this ticket has no codebase context — he drafts from ticket text alone, and the worktree step below is skipped.
 2. **Ask and save.** If no entry, prompt the user via AskUserQuestion with options:
    - *"Current cwd"* — capture `git rev-parse --show-toplevel` (or the cwd if not a repo) and save.
    - *"A specific path"* — let the user type one (the AskUserQuestion "Other" affordance).
    - *"No repo"* — save `(no repo)` for this project.
-   
-   Save the chosen value to `repo_routing.md` under the `<tracker>:<project>` key, then proceed.
-3. **Use the resolved path** as Erestor's working directory and pass it in his prompt. He may Read / Grep / Glob / `git log` there. He must not modify anything.
 
-This decouples *where you happen to be* from *which repo this ticket concerns*. To change the binding for a project, edit `repo_routing.md`. To re-prompt, delete the project's line.
+   Save the chosen value to `repo_routing.md` under the `<tracker>:<project>` key, then proceed.
+3. **Wrap the source in a worktree.** Erestor does **not** read the source repo directly — the human may be editing files there, and a concurrent Read against unsaved edits would mislead the draft. Instead, acquire an isolated detached-HEAD workspace via the shared helper:
+
+   ```bash
+   ~/.claude/hooks/skadi-worktree.sh acquire <source-repo>
+   ```
+
+   The helper prints the workspace path on stdout. It tries `git worktree add --detach` first (fast — shares the object store); on failure it falls back to a temp clone under `$TMPDIR`. Either way, the workspace pins to the source repo's HEAD at acquire time and lives under `$TMPDIR/skadi-…`. Hold the path; this — not the source repo — is what Erestor sees.
+
+   When the source value is `(no repo)`, skip this step.
+4. **Use the workspace path** as Erestor's working directory and pass it in his prompt. He may Read / Grep / Glob / `git log` there. He must not modify anything.
+
+This decouples *where you happen to be* from *which repo this ticket concerns*, and the worktree wrap decouples *what Erestor reads* from *whatever the human happens to be editing right now*. To change the binding for a project, edit `repo_routing.md`. To re-prompt, delete the project's line.
 
 ## Workflow
 
@@ -150,16 +159,18 @@ Then stop.
 
 ### 5. Summon Erestor
 
+Acquire the isolated workspace per the **Working-directory contract** above (step 3 of the contract). The workspace path is what Erestor sees as his working directory; the source repo is untouched. If the contract's source value is `(no repo)`, skip the acquire and tell Erestor he has no codebase context.
+
 Load the Erestor prompt from `<skill-dir>/erestor.md` (read the file contents). Dispatch a subagent via the Agent tool, `subagent_type: general-purpose`, passing:
 
 - The Erestor prompt as the *system/instruction* portion of the Agent call's `prompt`.
 - A tail block containing:
   - The ticket `summary` and `description`.
   - The full comment thread (all `[COUNSEL v…]`, `[PARLEY]`, and human comments in order, with author names).
-  - The repo root resolved per the **Working-directory contract** above. If the resolved value is `(no repo)`, state that plainly so Erestor knows not to attempt reads.
-  - The instruction: "You are drafting `[COUNSEL v{NEXT}]`. Your working directory is the named repo (or none, if so stated); you may read it with no writes, to verify assumptions before drafting. If a clarifying question is more honest than a guess, reply with a single `[PARLEY]` instead."
+  - The workspace path resolved above. If `(no repo)` was the contract's verdict, state that plainly so Erestor knows not to attempt reads.
+  - The instruction: "You are drafting `[COUNSEL v{NEXT}]`. Your working directory is the named workspace (or none, if so stated) — an isolated detached snapshot of the repo; you may read it with no writes, to verify assumptions before drafting. If a clarifying question is more honest than a guess, reply with a single `[PARLEY]` instead."
 
-Erestor returns a single markdown body whose first line begins with either `[COUNSEL v{NEXT}]` or `[PARLEY]`. If he returns anything else, treat it as a drafting failure and stop — do not post.
+Erestor returns a single markdown body whose first line begins with either `[COUNSEL v{NEXT}]` or `[PARLEY]`. If he returns anything else, treat it as a drafting failure and stop — do not post. **Even on drafting failure, release the workspace** (see step 7) so it does not accumulate under `$TMPDIR`.
 
 ### 6. Post the comment
 
@@ -177,7 +188,7 @@ posted: id=<comment-id> created=<epoch-ms> url=<full-ticket-url>
 
 On failure it prints `{"error":"...","response":"..."}` (the `response` field carries the server's actual error body). If the script exits non-zero, tell the user the error and stop.
 
-### 7. Report
+### 7. Report and release
 
 Tell the user, in one short block:
 
@@ -186,6 +197,14 @@ Tell the user, in one short block:
 - The ticket URL printed on the success line in step 6.
 
 Do not reproduce Erestor's draft in the response — it lives on the ticket now.
+
+Then release the isolated workspace, if one was acquired in step 5:
+
+```bash
+~/.claude/hooks/skadi-worktree.sh release <workspace-path>
+```
+
+The helper handles both worktree and temp-clone modes silently. Release on the success path *and* on the drafting-failure path (the workspace is ephemeral; nothing of value lives in it after Erestor returns). If Erestor never ran — verdict adjournment, loop-safe quiet, turn-limit `[PARLEY]` — no workspace was acquired, so nothing to release.
 
 ---
 

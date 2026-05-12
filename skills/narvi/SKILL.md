@@ -77,7 +77,7 @@ What each kind covers:
 
 Many projects regenerate files as a side effect of routine operations — Flutter writes `Debug.xcconfig`, CocoaPods recreates `Podfile`, the JS toolchain mutates lockfiles. These are not the smith's scope-miss; they are **environment drift**, and a strict porcelain gate misfires on them.
 
-Narvi filters `git status --porcelain` through a **denylist** before judging the tree. A porcelain line whose path matches any denylist pattern is dropped from consideration; the gate trips only on what remains. Both gates that read porcelain — pre-flight step (f) and post-dispatch step (6d) — apply the same filter, so the asymmetry never bites: a Flutter project that already bears CocoaPods drift can summon Narvi without a `git clean -f` ritual, *and* the same drift produced by the smith's verification does not trip the post-dispatch gate.
+Narvi filters `git status --porcelain` through a **denylist** before judging the workspace. A porcelain line whose path matches any denylist pattern is dropped from consideration; the gate trips only on what remains. The post-dispatch porcelain gate (step 6d) applies this filter, so drift produced by the smith's verification does not trip it — a Flutter project whose tests trigger a CocoaPods pass can be amended without a `git clean -f` ritual.
 
 ### Built-in default
 
@@ -120,7 +120,7 @@ A pattern is matched against the porcelain path (the part after the two-characte
 - A pattern containing `*` is matched as a glob against the path.
 - Otherwise it is a literal-path match.
 
-The filter does **not** affect `git status` shown to the user, nor any other git operation. It is purely an internal filter on Narvi's two porcelain gates. Drift that was filtered out stays on the working tree; the user clears it after the run with their own hand.
+The filter does **not** affect `git status` shown to the user, nor any other git operation. It is purely an internal filter on Narvi's post-dispatch porcelain gate. Drift that was filtered out stays inside the isolated workspace; on the success path the workspace is torn down (drift and all) by the release step, so the human's main checkout never sees it.
 
 ## Workflow
 
@@ -132,13 +132,29 @@ a. **Forge dispatch.** Match the URL against the table. Resolve the two hooks. I
 
 b. **Forge auth sanity.** Run `gh auth status` (GitHub) or `glab auth status` (GitLab). If either fails, surface the message and stop.
 
-c. **Working tree.** From the current working directory, run `git rev-parse --show-toplevel` to confirm we are inside a git repo. If not, stop with: *"Narvi cannot forge here — there is no git tree at this place."*
+c. **Source repo.** From the current working directory, run `git rev-parse --show-toplevel` to find the **source repo** — the human's checkout that anchors Narvi to a project. If the cwd is not inside a git repo, stop with: *"Narvi cannot forge here — there is no git tree at this place."* The source repo is consulted for its remotes and refs; Narvi will not commit on it.
 
-d. **Remote match.** Parse the PR/MR URL's repo path — `<owner>/<repo>` for GitHub, `<group>[/<subgroup>]/<project>` for GitLab — case-insensitive. Run `git remote get-url origin` and parse its repo path the same way (strip the `.git` suffix, strip the SSH `git@<host>:` prefix or the `https?://<host>/` prefix, case-fold). If they do not match, stop with: *"This repo is `<local>`; the PR is on `<pr-repo>`. Narvi forges only where the tree stands."* This check runs before the branch check, so a wrong-repo error never hides as a missing-branch error.
+d. **Remote match.** Parse the PR/MR URL's repo path — `<owner>/<repo>` for GitHub, `<group>[/<subgroup>]/<project>` for GitLab — case-insensitive. Run `git -C <source-repo> remote get-url origin` and parse its repo path the same way (strip the `.git` suffix, strip the SSH `git@<host>:` prefix or the `https?://<host>/` prefix, case-fold). If they do not match, stop with: *"This repo is `<local>`; the PR is on `<pr-repo>`. Narvi forges only where the tree stands."* This check runs before the workspace step, so a wrong-repo error never hides as a worktree-acquire failure.
 
-e. **Branch alignment.** Invoke the read hook (`<read-hook> <url>`) to fetch the PR/MR metadata. Read both `head` (source branch) and `base` (target branch). Run `git rev-parse --abbrev-ref HEAD`. If the current branch is **not** the head branch, AskUserQuestion (options: `switch to <head>` / `abort`). On switch, run `git fetch` and `git checkout <head>` then `git pull --ff-only`. On abort, stop. Hold the resolved `base` for steps 2 and 5.
+e. **Acquire the isolated workspace.** Invoke the read hook (`<read-hook> <url>`) to fetch the PR/MR metadata. Read both `head` (source branch) and `base` (target branch). Then acquire a workspace at the head branch via the shared helper:
 
-f. **Clean tree.** Run `git status --porcelain` and pass the output through the environment-drift filter (see *Environment drift* above). If any unfiltered line remains, stop with: *"The working tree is not clean. Narvi will not forge atop another's work."* Name the unfiltered dirty paths. Drift that the filter dropped is tolerated and stays on the tree.
+   ```bash
+   ~/.claude/hooks/skadi-worktree.sh acquire <source-repo> <head>
+   ```
+
+   The helper prints the workspace path on stdout. It tries `git worktree add` first (fast — shares the object store); when the human already has the head branch checked out in the source repo (so worktree refuses), it silently falls back to a temp clone under `$TMPDIR` and re-points origin at the real remote. Either way the workspace lands on the head branch, freshly checked out and clean.
+
+   Then bring head to the remote's tip:
+
+   ```bash
+   git -C <workspace> pull --ff-only
+   ```
+
+   If the pull is non-fast-forward (someone pushed atop head while you weren't looking), stop and surface the error — release the workspace via `~/.claude/hooks/skadi-worktree.sh release <workspace>` first so it does not linger under `$TMPDIR`. The human reconciles head with their own hand.
+
+   The human's source-repo checkout is **not** disturbed by any of this — the worktree (or temp clone) is its own isolated tree, and the human may keep editing, building, or running tests in the source repo while Narvi works. There is no pre-flight clean-tree gate on the source repo for the same reason: the source repo's working state is irrelevant to Narvi's commits.
+
+   Hold the workspace path and the resolved `base` for steps 2 through 8.
 
 ### 2. Fetch every comment
 
@@ -155,10 +171,10 @@ The hook prints a JSON array (possibly `[]`). Parse it.
 
 ### 3. De-dup by the trail
 
-For each entry, extract the **first comment's URL** (the anchor). Then check the branch's commit log for any commit whose message references that URL in a `See: <url>` footer:
+For each entry, extract the **first comment's URL** (the anchor). Then check the branch's commit log in the workspace for any commit whose message references that URL in a `See: <url>` footer:
 
 ```bash
-git log <base>..HEAD --format=%H --grep="See: <url>" --fixed-strings
+git -C <workspace> log <base>..HEAD --format=%H --grep="See: <url>" --fixed-strings
 ```
 
 If the grep returns any commit, drop the entry — Narvi already addressed it on a prior run. Keep the remaining entries.
@@ -201,10 +217,12 @@ a. Build the kind-aware tail block. Common header:
 
 - PR/MR URL: <url>
 - Kind: <inline | overview>
-- Repo root: <git rev-parse --show-toplevel>
+- Repo root: <workspace-path resolved in pre-flight step e>
 - Branch: <head>
 - Base: <base>
 ```
+
+The `Repo root` field is the **workspace path** from pre-flight step (e) — the isolated worktree (or temp clone) under `$TMPDIR`. The smith reads and writes there, never against the human's source-repo checkout.
 
 For `kind: inline`, append:
 
@@ -220,11 +238,11 @@ For `kind: inline`, append:
 For `kind: overview`, append:
 
 ```
-- Path: (overview — read the PR diff with `git diff <base>..HEAD`)
+- Path: (overview — read the PR diff with `git -C <workspace> diff <base>..HEAD`)
 
 ### PR diff (truncated to first 200 lines)
 
-<first 200 lines of `git diff <base>..HEAD`>
+<first 200 lines of `git -C <workspace> diff <base>..HEAD`>
 ```
 
 Then the thread:
@@ -252,19 +270,21 @@ c. The smith returns one of two shapes (see `narvi.md`):
 
 Anything else: record as a malformed return and continue.
 
-d. After each dispatch, run `git status --porcelain` and pass the output through the environment-drift filter (see *Environment drift* above). If any unfiltered line remains, the smith left real work uncommitted — abort the whole run: roll back with `git reset --hard HEAD` to clear the stray edits, then surface the unfiltered paths in the report. Do **not** push.
+d. After each dispatch, run `git -C <workspace> status --porcelain` and pass the output through the environment-drift filter (see *Environment drift* above). If any unfiltered line remains, the smith left real work uncommitted — abort the whole run: roll back with `git -C <workspace> reset --hard HEAD` to clear the stray edits, then surface the unfiltered paths in the report. Do **not** push. Leave the workspace intact (skip the release step) so the human can inspect what the smith left behind.
 
-  Drift that the filter dropped does not count as scope-miss. It stays on the working tree across dispatches (the smith's next call sees it but the smith does not touch xcconfig or lockfiles, so it is invisible to the work). On a clean run the user clears it after.
+  Drift that the filter dropped does not count as scope-miss. It stays inside the workspace across dispatches (the smith's next call sees it but the smith does not touch xcconfig or lockfiles, so it is invisible to the work). On the success path the workspace is torn down by the release step at the end, drift and all.
 
 ### 7. Push
 
-If any entry returned `[FORGED]`, push the branch:
+If any entry returned `[FORGED]`, push the branch from the workspace:
 
 ```bash
-git push
+git -C <workspace> push
 ```
 
-If `git push` fails (e.g. the remote moved during the run), surface the error in the report. The commits stand locally; the human can reconcile.
+In worktree mode the push reaches origin (the human's real remote) because the workspace shares the source repo's object store and remotes. In clone-fallback mode the helper re-pointed the clone's origin at the source repo's origin during acquire, so the push reaches the same remote either way.
+
+If `git push` fails (e.g. the remote moved during the run), surface the error in the report. The commits stand locally inside the workspace; do not release the workspace in that case — the human inspects it and reconciles by hand.
 
 If no entry returned `[FORGED]` (all aborted or all malformed), skip the push. Nothing landed on the branch.
 
@@ -308,7 +328,7 @@ d. The hook prints `replied: forge=<f> ...` on success or `{"error":"..."}` on f
 
 If step 7's push was skipped (no FORGED entries) or failed, skip this whole step — the commits referenced by the replies are not on the remote, so the links would 404.
 
-### 9. Report
+### 9. Report and release
 
 Render one block:
 
@@ -322,9 +342,22 @@ Narvi at <url> — <branch>
 | 3 | inline   | <path>:<line> by @<author>  | aborted | <reason> | — |
 
 Pushed: yes / no (<reason>)
+Workspace: released / kept at <path> (<reason>)
 ```
 
 Each comment-cell is a markdown link to the comment URL. Each forged-row's `<sha7>` is a markdown link to the commit on the forge (compose the URL from the PR/MR base — `<repo-url>/commit/<sha>` for GitHub, `<repo-url>/-/commit/<sha>` for GitLab).
+
+After rendering, decide the workspace fate:
+
+- **Release on the success path.** If the push succeeded and no scope-miss tripped the post-dispatch porcelain gate, release the workspace:
+
+  ```bash
+  ~/.claude/hooks/skadi-worktree.sh release <workspace>
+  ```
+
+  The helper handles both worktree and temp-clone modes silently. The `Workspace:` row reads `released`.
+
+- **Keep on abort or failure.** If step 6d found scope-miss, step 7's push failed, or pre-flight's `pull --ff-only` rejected (handled in step e before any workspace activity), leave the workspace intact under `$TMPDIR` and name the reason. The human can inspect, recover any salvageable work, and release by hand with the same helper verb when done. The `Workspace:` row reads `kept at <path> (<reason>)`.
 
 ## After Narvi
 
@@ -338,12 +371,13 @@ Narvi does not auto-invoke either. The verbs stay separate so the human chooses 
 ## Rules
 
 - One URL per invocation. No sweep across multiple PRs.
-- The PR/MR branch must be checked out and clean before any amendment is dispatched — *clean* meaning "no unfiltered porcelain lines after the environment-drift denylist is applied." Drift listed in the default denylist or the project's `.narvi-ignore` is tolerated.
+- Narvi works inside an **isolated workspace** acquired in pre-flight — a `git worktree` of the source repo (or, on fallback, a temp clone under `$TMPDIR`). The human's source-repo checkout is never modified, never committed against, never required to be clean. The smith reads and writes only in the workspace.
 - One commit per comment. The smith does not bundle, does not amend, does not rebase. An overview comment with three asks still lands as one commit (the comment is the unit).
 - Each commit footer must carry `See: <comment-url>` on its own line — that line is the trail marker Narvi greps on re-runs.
-- The smith does not push, does not edit the PR body, does not post on the thread, does not react. The skill body owns the single `git push` at the end and the one short ack per addressed comment.
+- The smith does not push, does not edit the PR body, does not post on the thread, does not react. The skill body owns the single `git -C <workspace> push` at the end and the one short ack per addressed comment.
 - Narvi never resolves a review thread, never reacts. The single per-thread ack after a successful push is the only forge-write beyond the push itself. Reply-hook failures are recorded but do not roll back commits — the trail-marker footer remains the canonical record.
 - An abort on one comment does not stop the run. Other comments still get their turn; the report names which succeeded and which did not.
-- If the smith leaves real work uncommitted (after the environment-drift filter), the run halts and rolls back with `git reset --hard HEAD`. The commits already on the branch stay; nothing is pushed. Files matched by the denylist do not count — they are noise, not scope-miss.
+- If the smith leaves real work uncommitted (after the environment-drift filter), the run halts and rolls back with `git -C <workspace> reset --hard HEAD`. The commits already on the branch stay; nothing is pushed; the workspace is **kept**, not released, so the human can inspect.
+- The workspace is **released on the success path** (push succeeded, no scope-miss) and **kept on any abort or failure**. The release verb is idempotent; the human may re-run it at any time to clean up a kept workspace.
 - Do not surface forge tokens in logs, responses, or saved files.
 - Aborts are first-class outcomes, not failures. Name the flaw plainly; do not retry.

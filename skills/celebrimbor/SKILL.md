@@ -103,15 +103,15 @@ In order:
 
 a. **Tracker** — apply the council hybrid dispatch (see `skills/council/SKILL.md`, "Tracker routing") to bind `<fetch-hook>`, `<comment-hook>`, and `<list-hook>` to YouTrack or Jira.
 
-b. **Repo path** — read `repo_routing.md` for `<tracker>:<project>`. If absent or `(no repo)`, stop with an error — Celebrimbor cannot forge without code.
+b. **Source repo** — read `repo_routing.md` for `<tracker>:<project>`. If absent or `(no repo)`, stop with an error — Celebrimbor cannot forge without code. This is the **source repo** the human anchors to; the forge will happen in an isolated workspace, not in this tree.
 
 c. **Forge** — read `forge_routing.md` for `<tracker>:<project>`. If absent, AskUserQuestion (options: `github`, `gitlab`) and save the answer. Resolve the matching forge hook.
 
-d. **Base branch** — `--base` overrides everything. Otherwise read `base_branch.md` keyed by the resolved repo path. If absent, AskUserQuestion (options: `master`, `main`, plus "Other" affordance) and save.
+d. **Base branch** — `--base` overrides everything. Otherwise read `base_branch.md` keyed by the resolved source repo path. If absent, AskUserQuestion (options: `master`, `main`, plus "Other" affordance) and save.
 
-e. **Working tree** — `cd` to the resolved repo path. Run `git status --porcelain`. If it returns any line, stop with an error: *"The working tree is not clean. Celebrimbor will not forge atop another's work."* Name the dirty paths.
+e. **Forge auth sanity** — `gh auth status` (for github) or `glab auth status` (for gitlab). If either fails, surface the hook's auth-missing error and stop.
 
-f. **Forge auth sanity** — `gh auth status` (for github) or `glab auth status` (for gitlab). If either fails, surface the hook's auth-missing error and stop.
+There is **no clean-tree gate on the source repo** — Celebrimbor never commits there. The human may be mid-edit on a wholly unrelated branch in the source repo while Celebrimbor forges; the two trees do not collide.
 
 ### 2. Build the qualifying-ticket set
 
@@ -143,11 +143,25 @@ Re-read the selected ticket's thread. Locate the **latest** `[COUNSEL vN]` follo
 
 Inspect its **Open questions** section. If any question has no follow-up answer from Elrond in subsequent comments, abort with a clear note: *"`[COUNSEL vN]` carries unresolved Open questions; Celebrimbor will not guess where the counsellor would not. Resolve and re-approve, or invoke `/council` to draft a new counsel that closes them."* Stop. Do not branch.
 
-### 5. Branch
+### 5. Workspace and branch
 
 - Compute the branch name: `<TICKET-ID>-<slug>` where slug is the ticket summary, lowercased, ASCII-only, hyphen-separated, capped at ~40 chars. Example: `MET-3-add-session-summary-hook`.
-- Check for existing remote branch: `git ls-remote --exit-code --heads origin <branch>`. If it exists, abort: *"Branch `<branch>` already exists on origin — refuse to overwrite."*
-- `git fetch origin <base>` then `git checkout -B <branch> origin/<base>` (or `git checkout <base> && git pull && git checkout -b <branch>` — choose what is safe and idempotent on a clean tree).
+- Check for existing remote branch from the source repo: `git -C <source-repo> ls-remote --exit-code --heads origin <branch>`. If it exists, abort: *"Branch `<branch>` already exists on origin — refuse to overwrite."*
+- Acquire an isolated workspace at the base branch via the shared helper:
+
+  ```bash
+  ~/.claude/hooks/skadi-worktree.sh acquire <source-repo> <base>
+  ```
+
+  The helper prints the workspace path on stdout. It tries `git worktree add` first; on failure (e.g. the human has `<base>` checked out in the source repo) it falls back to a temp clone under `$TMPDIR` and re-points origin at the real remote. Either way the workspace lands on `<base>`, freshly checked out and clean. Hold the path for steps 6 through 9.
+- Bring `<base>` to the remote's tip inside the workspace, then cut the new branch off it:
+
+  ```bash
+  git -C <workspace> pull --ff-only
+  git -C <workspace> checkout -b <branch>
+  ```
+
+  If the pull is non-fast-forward, release the workspace and abort with the error.
 
 ### 6. Summon Celebrimbor (subagent)
 
@@ -158,10 +172,10 @@ Load the smith prompt from `<skill-dir>/celebrimbor.md`. Dispatch a subagent via
   - The ticket id, summary, description.
   - The full comment thread (chronological, with author labels).
   - The approved `[COUNSEL vN]` body, called out explicitly under a header like `## Approved counsel (your contract)`.
-  - The repo root (resolved in step 1b).
+  - The **repo root** — the workspace path acquired in step 5, not the source repo path. The smith reads, writes, and commits there.
   - The base branch.
-  - The branch name.
-  - The instruction: *"Implement the Steps of the approved counsel into the repo on the named branch. Commit your work. Do not push, do not open a PR/MR — the hook does that. Return either a `[FORGED]` block or an `[ABORT]` line per your prompt."*
+  - The branch name (already created on the workspace by step 5).
+  - The instruction: *"Implement the Steps of the approved counsel into the repo on the named branch. The branch is already checked out in your working directory — an isolated workspace, not the human's live tree. Commit your work. Do not push, do not open a PR/MR — the hook does that. Return either a `[FORGED]` block or an `[ABORT]` line per your prompt."*
 
 The subagent returns either:
 
@@ -172,19 +186,27 @@ Anything else: treat as drafting failure. Go to step 9, surface the malformed re
 
 ### 7. Posting/creation gate
 
-- `--dry-run`: print the parsed branch / title / body length. Skip steps 8 and the `[GWAITH]` post. Go to step 9 (cleanup: leave the branch local; do not delete since the user may want to inspect it). Tell the user: *"Dry run — branch `<branch>` exists locally with the smith's commits, no push, no PR, no comment."*
-- `--confirm`: AskUserQuestion showing the branch, title, and the first ~10 lines of the body. On no, go to step 9 (cleanup with branch deletion). On yes, proceed.
+- `--dry-run`: print the parsed branch / title / body length. Skip steps 8 and the `[GWAITH]` post. Go to step 9 — keep the workspace so the user may inspect the smith's commits at `<workspace>/<branch>`; do not release it. Tell the user: *"Dry run — branch `<branch>` exists in the workspace at `<workspace>` with the smith's commits, no push, no PR, no comment. Release the workspace by hand when done with `~/.claude/hooks/skadi-worktree.sh release <workspace>`."*
+- `--confirm`: AskUserQuestion showing the branch, title, and the first ~10 lines of the body. On no, go to step 9 (release the workspace; the smith's commits are torn down with it). On yes, proceed.
 - Otherwise: proceed.
 
 ### 8. Open the PR/MR and post `[GWAITH]`
 
-a. **Open.** Pipe the body into the resolved forge hook:
+First push the new branch from the workspace so the forge can see it:
+
+```bash
+git -C <workspace> push -u origin <branch>
+```
+
+In worktree mode the push reaches origin (the human's real remote) because the workspace shares the source repo's remotes. In clone-fallback mode the helper re-pointed origin at the source repo's origin during acquire, so the push reaches the same remote either way. If the push fails, surface the error and go to step 9 (keep the workspace so the human can inspect; no PR has been opened, no `[GWAITH]` posted).
+
+a. **Open.** Pipe the body into the resolved forge hook (run from inside the workspace so any forge CLI config is consistent):
 
 ```bash
 printf '%s' "$BODY" | <forge-hook> <branch> <base> <title> <draft-flag>
 ```
 
-`<draft-flag>` is `--draft` unless `--ready` was set. On success the hook prints `opened: forge=<f> url=<u> number=<n>`. On failure surface the JSON error and go to step 9 (cleanup with branch deletion).
+`<draft-flag>` is `--draft` unless `--ready` was set. On success the hook prints `opened: forge=<f> url=<u> number=<n>`. On failure surface the JSON error and go to step 9 — keep the workspace; the branch is on the remote already, the human reconciles by hand.
 
 b. **Post `[GWAITH]`.** Build the comment body:
 
@@ -215,9 +237,20 @@ The hook is idempotent — `noop:` is a normal outcome. On JSON error, surface t
 
 ### 9. Cleanup and report
 
-- Switch back to base: `git checkout <base>` so the user is not left on the forge branch.
-- If Celebrimbor aborted before opening the PR, delete the local branch: `git branch -D <branch>`.
-- If everything succeeded, the local branch may stay (the user may want to inspect it).
+Decide the workspace fate by outcome:
+
+- **Forged successfully** (PR/MR opened, `[GWAITH]` posted): release the workspace. The branch lives on the remote; the human can fetch it into the source repo if they want to inspect it locally.
+
+  ```bash
+  ~/.claude/hooks/skadi-worktree.sh release <workspace>
+  ```
+
+- **Smith aborted before any commit**: release the workspace; nothing of value was made.
+- **Declined at `--confirm`**: release the workspace; the smith's commits are discarded with it.
+- **`--dry-run`**: keep the workspace so the user can inspect the smith's commits.
+- **PR-open or push failed after the smith forged**: keep the workspace. The branch may already be on the remote (push succeeded but PR-open failed); the smith's commits at minimum live in the workspace. The user reconciles by hand.
+
+No `git checkout <base>` on the source repo is needed — Celebrimbor never modified its HEAD. No `git branch -D <branch>` on the source repo either — the branch lives in the workspace (and on the remote once pushed), not in the source repo.
 
 Report — one short block:
 
@@ -225,16 +258,18 @@ Report — one short block:
 - The branch name.
 - The PR/MR URL (if opened).
 - The action taken: `forged` / `aborted (<reason>)` / `dry-run` / `skipped (declined at confirm)` / `error (<reason>)`.
+- The workspace disposition: `released` / `kept at <path> (<reason>)`.
 
 Do not reproduce the smith's full diff — it lives on the PR now.
 
 ## Rules
 
 - Single ticket per invocation. No sweep mode.
-- Working tree must be clean before the forge starts. Do not stash, do not commit dangling changes.
+- Celebrimbor forges inside an **isolated workspace** acquired in step 5 — a `git worktree` of the source repo (or, on fallback, a temp clone under `$TMPDIR`). The human's source-repo checkout is never modified, never branched on, never required to be clean. The smith reads, writes, and commits only in the workspace.
 - Branch name is `<TICKET-ID>-<slug>`. Refuse to overwrite an existing remote branch of that name.
-- The smith subagent never pushes and never posts on the ticket. The skill body owns those network writes via the forge hook and the council comment hook.
+- The smith subagent never pushes and never posts on the ticket. The skill body owns those network writes — the `git push` from the workspace, the forge hook for the PR/MR, the council comment hook for `[GWAITH]`.
 - `--dry-run` overrides `--confirm` — nothing to confirm if nothing is posted.
+- The workspace is **released on the success path** (PR opened, `[GWAITH]` posted) and **kept on any abort or failure** (including `--dry-run` and `--confirm` declined where the user may want to inspect). The release verb is idempotent; the human may re-run it at any time.
 - `[GWAITH]` post failure does not roll back the PR. Surface the error and let the user reconcile.
 - Do not surface tracker or forge tokens in logs, responses, or saved files.
 - Aborts are first-class outcomes, not failures. Name the flaw plainly; do not retry.
