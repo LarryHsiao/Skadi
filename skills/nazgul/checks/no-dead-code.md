@@ -51,3 +51,5 @@ n/a when:
 - The diff scope is non-empty but touches only non-code files (READMEs, asset binaries, JSON config without logic, lockfiles).
 
 On fail, name each finding as `file:line — <kind>` with a four-word note (e.g. `lib/foo.dart:42 — unreachable after return`, `src/util.ts:8 — unused import 'lodash'`). Quote no more than the offending line itself; do not echo full function bodies.
+
+See `~/.claude/docs/style/general.md` § Maintainability for the authoring-time framing of the same concern.
