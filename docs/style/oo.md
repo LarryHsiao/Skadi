@@ -163,6 +163,26 @@ final user = SafeUser(JsonUser(json));
 user.isAdult; // resolves on User; works through any layered wrapping
 ```
 
+## Domain Objects Do Not Throw
+
+A domain object — the seam, exposed to a caller — answers without raising. A `User`'s `name()` returns a string; it does not signal failure. The concept this carries: a domain object *is* a thing in the world, and "failing to be" is not part of its identity. Throws are for objects whose role is *action*, not *being* — repositories, controllers, widgets, fetchers, anything whose primary purpose is to do work against the world rather than to expose properties.
+
+This does not mean every concrete is internally guarded. A `JsonUser` may still cast `_json['age'] as int` and let that cast blow up when the source malforms — the concrete stays narrow, reading its source plainly. The no-throw guarantee is enforced one rung higher: **a domain seam crosses to a caller wrapped**, and the wrapper catches and substitutes a type-natural default (`""`, `0`, `[]`, `false`).
+
+```dart
+// Wrong — bare concrete exposes throws to the caller.
+final user = JsonUser(json);
+
+// Right — the wrapper makes the no-throw guarantee real.
+final user = SafeUser(JsonUser(json));
+```
+
+`SafeUser` defaults to type-natural zeros. When the call site needs a *different* default — `'anonymous'` rather than `''`, `-1` rather than `0` — that is what `SafeUser`'s constructor parameters are for. The decorator's purpose sharpens: not "catch surprises" but "name the call-site default".
+
+For objects whose role *is* action — `UserRepo.fetch(id)`, `SubmitButton.onPressed`, `HttpUserSource.read()` — throws belong. They report real events: the network failed, the row was missing, the disk is gone. The caller of an action expects to handle the failure; the caller of a domain object expects an answer.
+
+A test for which side a class falls on: *is its primary purpose to **be** something (answer about itself), or to **do** something (act against the world)?* The first wears no-throw; the second wears throws-allowed.
+
 ## Mixins — Scaffolding, Not the Seam
 
 A **mixin** is a bundle of methods stitched into a class without inheritance — implementation-bearing, but no parent and no type of its own.
