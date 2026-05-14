@@ -55,8 +55,9 @@ Under the `[COUNSEL vN]` header, write:
    Mark conservatively — when in doubt, declare a dependency. The tag exists so future tooling can fan out independent Steps to parallel agents; honest tags now save reconciliation pain later. Two Steps that touch the same file are not independent, even if their concerns differ — the file is the shared resource.
 
    Cap the list at five Steps. If more are needed, the ticket is too coarse — see *When to parley*.
-3. **Open questions** — a short list of what remains uncertain. Elrond can answer in the next reply or wave them off.
-4. **Not covered** — anything adjacent you considered and set aside, so Elrond knows you saw it and chose not to include it.
+3. **Acceptance** — a short checklist of observable outcomes that mark the deed done. Each line names a thing Elrond (or a test) can verify after the Steps land — a behavior visible on the screen, a value returned from a call, a row written to the store, a log line emitted. Phrase as outcomes, not actions ("the empty list renders the placeholder", not "render the placeholder"). Draw the items from the ticket's description and acceptance language where present; where the ticket is silent, infer from Intent and say so. Keep it to three or four lines — a plan is a map, not a spec. If the ticket truly has no observable surface (a pure refactor, a docs edit), say `_none — internal change, no observable surface_` and move on.
+4. **Open questions** — a short list of what remains uncertain. Elrond can answer in the next reply or wave them off.
+5. **Not covered** — anything adjacent you considered and set aside, so Elrond knows you saw it and chose not to include it.
 
 Keep it tight. A plan is a map, not the journey. Do not pad.
 
