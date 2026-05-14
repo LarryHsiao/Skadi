@@ -23,6 +23,10 @@
 
 - When editing a file meant to be a general-purpose widget (a shared component, a utility, a base class), do not add domain-specific logic. Keep it general. If the change needs domain knowledge, lift it to the caller — leave the widget unaware.
 
+## Mutability
+
+- **Prefer `final` by default — fields, locals, parameters.** A variable that never reassigns reads as a single value, not a slot; an object whose fields never change cannot drift mid-call, so the reader need not track *which* call last touched it. Reach for mutability only when the object's identity *is* its changing state (a counter, a buffer, a cursor) — and even then, prefer rebuilding over mutating where the cost permits.
+
 ## Maintainability
 
 Code is read more often than written. These rules guard the next reader against unearned cost.
