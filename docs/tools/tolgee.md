@@ -1,5 +1,11 @@
 # Tolgee
 
+## Source of truth
+
+When a project is wired to Tolgee, **every i18n change starts in Tolgee** — adding a key, editing a value, renaming, deleting. The local resource files (`*.arb`, `*.json`, `messages.properties`, and the like) are downstream artifacts: pulled from Tolgee, never edited by hand. A direct edit to the local file is a phantom — the next pull overwrites it, and the translators on Tolgee never see the change.
+
+The order is: edit in Tolgee → pull → commit the regenerated files. Code that *references* a key (using it in a widget, a template, a string lookup) is ordinary source and edits as such; only the **definition** of the key and its translated values lives upstream.
+
 ## Pushing values
 
 When pushing a translation value to Tolgee, the value must keep its line separators as raw newlines. Do not escape them into `\n` (or `\r\n`) sequences in the payload.
