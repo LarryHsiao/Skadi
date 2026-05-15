@@ -6,6 +6,12 @@ When a project is wired to Tolgee, **every i18n change starts in Tolgee** — ad
 
 The order is: edit in Tolgee → pull → commit the regenerated files. Code that *references* a key (using it in a widget, a template, a string lookup) is ordinary source and edits as such; only the **definition** of the key and its translated values lives upstream.
 
+## All languages move together
+
+When adding or updating a key in Tolgee, **every supported language must move with it** — translate (or at least seed) each locale in the same change. Leave a language out and the UI degrades silently for its users: the missing locale shows the key id, the English fallback, or an empty cell, depending on the consumer.
+
+The rule yields only when the user says so explicitly — "skip Japanese, the translator handles it on Friday", "EN-only for now". When a locale is left behind by intent, name what is owed so it does not ship forgotten.
+
 ## Pushing values
 
 When pushing a translation value to Tolgee, the value must keep its line separators as raw newlines. Do not escape them into `\n` (or `\r\n`) sequences in the payload.
