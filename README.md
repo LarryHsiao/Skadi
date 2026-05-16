@@ -2,6 +2,8 @@
 
 My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) configuration. Global instructions, settings, custom skills, and hooks — all version-controlled and copied into `~/.claude/` (and any other configured roots) by `install.sh`.
 
+![Skadi — Plan · Forge · Review](docs/flow.png)
+
 ## What's Inside
 
 | Path | Purpose |
