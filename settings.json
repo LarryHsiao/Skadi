@@ -86,6 +86,8 @@
       "Bash(~/.claude/hooks/narvi-gitlab-comments.sh:*)",
       "Bash(~/.claude/hooks/narvi-github-reply.sh:*)",
       "Bash(~/.claude/hooks/narvi-gitlab-reply.sh:*)",
+      "Bash(~/.claude/hooks/durin-github-list.sh:*)",
+      "Bash(~/.claude/hooks/durin-gitlab-list.sh:*)",
       "Bash(~/.claude/hooks/youtrack-state.sh:*)",
       "Bash(~/.claude/hooks/jira-state.sh:*)",
       "Bash(glab:*)",

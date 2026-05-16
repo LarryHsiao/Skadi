@@ -19,8 +19,9 @@ Where Mithrandir leaves his counsel upon the work and Celebrimbor forges from a 
 ## Argument parsing
 
 ```
-/narvi <pr-or-mr-url>            # forge the amendments after a single confirm
-/narvi <pr-or-mr-url> --dry-run  # list the unaddressed comments, do not touch the tree
+/narvi <pr-or-mr-url>              # forge the amendments after a single confirm
+/narvi <pr-or-mr-url> --dry-run    # list the unaddressed comments, do not touch the tree
+/narvi <pr-or-mr-url> --no-confirm # forge straight through, no gate (sweep-mode entry)
 ```
 
 Dispatch on the **first positional argument**:
@@ -28,7 +29,7 @@ Dispatch on the **first positional argument**:
 - If absent, stop with: *"Narvi needs a PR or MR URL — without a forge there is no doorway to inscribe."*
 - If it does not match either URL pattern in the dispatch table, stop with: *"Narvi does not know that URL — it bears no PR or MR mark."*
 
-The `--dry-run` flag may appear anywhere after the URL. No other flags are honoured.
+The `--dry-run` and `--no-confirm` flags may appear anywhere after the URL. `--no-confirm` bypasses the confirm-once gate in step 5 — used by `/durin` when an outer gate has already taken the user's word for the whole sweep. The flag is honoured for direct `/narvi` calls too, but the burden of intent shifts to the human typing it. No other flags are honoured.
 
 ## URL dispatch
 
@@ -200,9 +201,10 @@ Each row's `<author>` is the first comment's author; the kind tag lets the user 
 
 ### 5. Confirm-once gate
 
-AskUserQuestion (options: `forge all <N>` / `abort`). The slash invocation is not authority for a forge write; the gate is always on.
+AskUserQuestion (options: `forge all <N>` / `abort`). The slash invocation is not authority for a forge write; the gate is always on for bare `/narvi`.
 
 - `--dry-run` overrides the gate — render the manifest and stop. No dispatch, no commit, no push.
+- `--no-confirm` overrides the gate — skip the AskUserQuestion and proceed straight to step 6. Used by `/durin` when an outer gate has already taken the user's word for the whole sweep.
 - On `abort`, stop.
 - On `forge all`, proceed.
 
