@@ -15,11 +15,22 @@ install_file() {
   [ -L "$dst" ] && rm "$dst"
 
   if [ -e "$dst" ] && diff -q "$src" "$dst" &>/dev/null; then
-    echo "up to date:     $dst"
+    # Content matches; ensure the executable bit matches too.
+    # cp without -p drops mode, so older installs of hook scripts ended up
+    # non-executable in dst even when source was +x.
+    if [ -x "$src" ] && [ ! -x "$dst" ]; then
+      chmod +x "$dst"
+      echo "chmod +x:       $dst"
+    elif [ ! -x "$src" ] && [ -x "$dst" ]; then
+      chmod -x "$dst"
+      echo "chmod -x:       $dst"
+    else
+      echo "up to date:     $dst"
+    fi
     return
   fi
 
-  cp "$src" "$dst"
+  cp -p "$src" "$dst"
   echo "installed:      $dst"
 }
 

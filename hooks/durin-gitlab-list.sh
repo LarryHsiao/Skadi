@@ -60,14 +60,12 @@ fi
 
 project_path=""
 gl_host=""
-if [[ "$ORIGIN_URL" =~ ^git@([^:]+):(.+?)(\.git)?$ ]]; then
+if [[ "$ORIGIN_URL" =~ ^git@([^:]+):(.+)$ ]]; then
   gl_host="${BASH_REMATCH[1]}"
-  project_path="${BASH_REMATCH[2]}"
-  project_path="${project_path%.git}"
-elif [[ "$ORIGIN_URL" =~ ^https?://([^/]+)/(.+?)(\.git)?$ ]]; then
+  project_path="${BASH_REMATCH[2]%.git}"
+elif [[ "$ORIGIN_URL" =~ ^https?://([^/]+)/(.+)$ ]]; then
   gl_host="${BASH_REMATCH[1]}"
-  project_path="${BASH_REMATCH[2]}"
-  project_path="${project_path%.git}"
+  project_path="${BASH_REMATCH[2]%.git}"
 fi
 
 if [[ -z "$project_path" || -z "$gl_host" ]]; then
