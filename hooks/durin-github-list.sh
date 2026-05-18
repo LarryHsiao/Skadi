@@ -71,7 +71,7 @@ fi
 raw_log=$(mktemp)
 trap 'rm -f "$raw_log"' EXIT
 
-args=( pr list --repo "$repo_slug" --state open --limit 100 --json url,number,title,headRefName,baseRefName )
+args=( pr list --repo "$repo_slug" --state open --limit 100 --json url,number,title,body,headRefName,baseRefName )
 if [[ "$SCOPE" == "mine" ]]; then
   args+=( --author "@me" )
 fi
@@ -83,11 +83,15 @@ if ! gh "${args[@]}" >"$raw_log" 2>&1; then
 fi
 
 jq '
-  map({
-    url: .url,
-    number: .number,
-    title: .title,
-    head: .headRefName,
-    base: .baseRefName
-  })
+  map(select(
+    ((.title // "") | test("\\[pending\\]"; "i") | not) and
+    ((.body  // "") | test("pending";       "i") | not)
+  ))
+  | map({
+      url: .url,
+      number: .number,
+      title: .title,
+      head: .headRefName,
+      base: .baseRefName
+    })
 ' "$raw_log"

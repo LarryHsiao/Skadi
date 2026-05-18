@@ -14,6 +14,7 @@ Narvi was the dwarf-smith who wrought the West-gate of Khazad-dûm; Durin the De
 - **One repo per invocation.** The sweep scopes to the cwd's `origin` remote — the same source-repo contract Narvi enforces, just applied across many PR/MR URLs.
 - **One outer gate, not N inner ones.** The human approves the whole sweep once after seeing the manifest; per-URL confirm prompts would make the sweep painful at scale. The gate is always on for non-dry-run runs.
 - **Silent skip on quiet PRs.** A PR with zero unaddressed comments (after Narvi's trail-marker dedup) is dropped from the manifest before the gate. Durin shows only what merits work.
+- **Silent skip on pending PRs.** A PR whose title bears the bracketed tag `[PENDING]` (case-insensitive) or whose body/description contains the word `pending` is dropped at the list step — the author has marked the door closed for now, and Durin does not knock.
 
 ## Argument parsing
 
@@ -62,6 +63,7 @@ Invoke the resolved list hook:
 
 - If the hook prints `{"error":"..."}`, surface the error and stop.
 - If the array is empty, stop with: *"The road lies empty — no open PR/MR matching the scope."*
+- The list hook itself drops entries whose title bears `[PENDING]` (case-insensitive) or whose description contains `pending`; the skill body never sees them. If every open PR/MR is pending, the array arrives empty and the "road lies empty" message stands.
 
 ### 3. Build the manifest
 

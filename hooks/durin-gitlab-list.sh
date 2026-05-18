@@ -92,10 +92,15 @@ if ! glab api --paginate "${api_args[@]}" >"$raw_log" 2>&1; then
   exit 1
 fi
 
-jq -s 'add // [] | map({
-  url: .web_url,
-  number: .iid,
-  title: .title,
-  head: .source_branch,
-  base: .target_branch
-})' "$raw_log"
+jq -s 'add // []
+  | map(select(
+      ((.title       // "") | test("\\[pending\\]"; "i") | not) and
+      ((.description // "") | test("pending";       "i") | not)
+    ))
+  | map({
+      url: .web_url,
+      number: .iid,
+      title: .title,
+      head: .source_branch,
+      base: .target_branch
+    })' "$raw_log"
