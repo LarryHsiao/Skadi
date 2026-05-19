@@ -99,6 +99,18 @@ The review reads, it does not write. The lighter model keeps the gate cheap to s
 
 Surface findings in the end-of-task summary alongside what was completed. Treat each item as a known debt, not a silent flaw: fix it before reporting done, or name it plainly as a knowing exception with a one-line why.
 
+## Delegation Discipline
+
+When a task warrants a subagent — research that would clutter the main context, parallel investigations, a code-review pass against the diff — observe the rules that keep delegation honest. The subagent is a stranger walking into the room: it has not seen this conversation, it does not know why the task matters, and its report describes what it *intended* to do, not what it *did*.
+
+Hand the task whole. Brief it as you would a skilled colleague: state the goal, the constraints, the files to read or write, what success looks like. Do not point it at a plan file or a memory entry and tell it to find its piece — it will load the whole thing, may misread which slice is yours, and will spend context on what was supposed to be saved. Hand the text directly.
+
+Match the model to the role. Haiku for mechanical work (search, grep, structured review, list reduction); Sonnet for medium-depth implementation; Opus held back for design judgment and broad refactors. The default Agent call inherits the parent's model — name a lighter one explicitly when the role does not need it. The cheapest spawn is the one that does not happen; the next cheapest is the one done at Haiku.
+
+One worker per writable seam. Two implementation subagents on overlapping files race, and the merge is yours to untangle. Read-only investigations parallelize freely; when uncertain whether two tasks touch the same seam, dispatch them serially.
+
+Trust the agent's report, but verify the tree. When the agent writes or edits, read the diff yourself before treating the work as done. When it reports it is blocked or asks for context it lacks, answer plainly and re-dispatch — do not retry the same prompt at the same model and expect a different result.
+
 ## Simplicity
 
 Write the minimum code that answers the problem at hand — no more. No features beyond what was asked; no abstractions raised for a single caller; no scaffolding for a future the request did not name. Three lines that read true beat a class hierarchy anticipating a need no one has yet voiced.
