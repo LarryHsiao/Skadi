@@ -91,9 +91,13 @@ The loop closes only when the verification produces what the plan called for. Do
 
 ## Compliance Review
 
-Before the "done" report is rendered, spawn a lighter read-only agent (Haiku for an Opus session) to audit the cumulative diff against the project's standing rules: the linked style guides (`docs/style/*.md`), the tool guides (`docs/tools/*.md`), and the conventions of the codebase at hand. The audit's task is narrow — name what does not conform, name what looks missing (a test absent, a fallback unwritten, a public API undocumented) — and return a punch list.
+Before the "done" report is rendered, spawn a lighter read-only agent (Haiku for an Opus session) and ask it to run two checks against the cumulative diff, in order — spec compliance first, code quality second. The over-built code is as much a failure as the under-built; both stray from what was named, and the spec pass must clear before quality issues are weighed.
 
-For tasks whose gauge reads **heavy** — broad reach, deep thought, or hard to reverse — also fire a per-step audit after each step's verification clears, before the next step begins. The reasoning is matched to the tier: drift compounds fastest on heavy work, and catching it inside the loop pays back the spawn cost. Medium and minimum tasks take the one end-of-task pass only.
+**Spec compliance** asks: did the change build what the plan named, nothing more, nothing less? Name anything missing — a step half-finished, a branch unexercised, a feature requested but not built — and anything *added* beyond the plan — a flag the user did not ask for, an abstraction raised for a single caller, a helper no spec required.
+
+**Code quality** asks: does the change read true against the project's standing rules — the linked style guides (`docs/style/*.md`), the tool guides (`docs/tools/*.md`), and the conventions of the codebase at hand? Name what does not conform, and what looks missing of the project's craft — a test absent, a fallback decorator unwritten, a public API undocumented.
+
+For tasks whose gauge reads **heavy** — broad reach, deep thought, or hard to reverse — also fire a per-step audit after each step's verification clears, before the next step begins. The reasoning is matched to the tier: drift compounds fastest on heavy work, and catching it inside the loop pays back the spawn cost. Medium and minimum tasks take the one end-of-task review only.
 
 The review reads, it does not write. The lighter model keeps the gate cheap to swing; the read-only constraint keeps the audit from touching the tree it is grading. When the harness offers a dedicated code-review subagent, reach for that; otherwise spawn `general-purpose` with explicit read-only instructions.
 
