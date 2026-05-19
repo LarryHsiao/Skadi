@@ -70,7 +70,7 @@ colorize() {
     remaining=$(( 100 - used_num ))
 
     local color
-    if [ "$remaining" -ge 75 ]; then
+    if [ "$remaining" -ge 50 ]; then
         color="$GREEN"
     elif [ "$remaining" -ge 30 ]; then
         color="$YELLOW"
