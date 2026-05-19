@@ -89,6 +89,8 @@ If a step turns out heavier than its gauge billed — reach widens, depth deepen
 
 The loop closes only when the verification produces what the plan called for. Do not bend the verification to fit the slip — return to the code.
 
+**Verification must be fresh.** When the time comes to report the task done, run the verification once more in the current turn — prior runs do not count. A passing test from three messages ago, a build that succeeded before the last edit, a Compliance Review fix applied after the last green run: none of these prove the *current* state of the tree. The evidence the user reads must come from the same turn as the claim it backs; a claim without a same-turn run is a guess wearing the clothes of a fact.
+
 ## Compliance Review
 
 Before the "done" report is rendered, spawn a lighter read-only agent (Haiku for an Opus session) and ask it to run two checks against the cumulative diff, in order — spec compliance first, code quality second. The over-built code is as much a failure as the under-built; both stray from what was named, and the spec pass must clear before quality issues are weighed.
