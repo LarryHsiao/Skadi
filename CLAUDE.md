@@ -81,6 +81,24 @@ When a change touches UI layout — a new screen, a rearranged panel, a rethough
 
 When Frame0 is **not** available, render a console wireframe (Unicode box-drawing, ASCII) inline as a fallback, and inform the user once — a single line, never a prompt — that `frame0-mcp-server` would render a richer preview if installed. The console sketch lands in the same response either way; the absence of Frame0 must never block the working flow.
 
+## Implementation Loop
+
+Once the breakdown is approved, work the steps in order — one at a time, each closed by a verification before the next begins. The verification is whatever proves the step's correctness: a unit test, a script run end-to-end, a page rendered, an install swept. Name the path before the step begins, so success and failure are recognizable when they come. When the verification cannot be automated — a wireframe to eye, a tone to feel — say so plainly and describe the manual check that stands in its place; the silent skip is the bug that compounds.
+
+If a step turns out heavier than its gauge billed — reach widens, depth deepens, reversibility shrinks — stop, re-render the gauge, re-summarize, and wait for the user's word again. The breakdown's word covers the breakdown that was named; it does not cover a step that has grown beyond it.
+
+The loop closes only when the verification produces what the plan called for. Do not bend the verification to fit the slip — return to the code.
+
+## Compliance Review
+
+Before the "done" report is rendered, spawn a lighter read-only agent (Haiku for an Opus session) to audit the cumulative diff against the project's standing rules: the linked style guides (`docs/style/*.md`), the tool guides (`docs/tools/*.md`), and the conventions of the codebase at hand. The audit's task is narrow — name what does not conform, name what looks missing (a test absent, a fallback unwritten, a public API undocumented) — and return a punch list.
+
+For tasks whose gauge reads **heavy** — broad reach, deep thought, or hard to reverse — also fire a per-step audit after each step's verification clears, before the next step begins. The reasoning is matched to the tier: drift compounds fastest on heavy work, and catching it inside the loop pays back the spawn cost. Medium and minimum tasks take the one end-of-task pass only.
+
+The review reads, it does not write. The lighter model keeps the gate cheap to swing; the read-only constraint keeps the audit from touching the tree it is grading. When the harness offers a dedicated code-review subagent, reach for that; otherwise spawn `general-purpose` with explicit read-only instructions.
+
+Surface findings in the end-of-task summary alongside what was completed. Treat each item as a known debt, not a silent flaw: fix it before reporting done, or name it plainly as a knowing exception with a one-line why.
+
 ## Simplicity
 
 Write the minimum code that answers the problem at hand — no more. No features beyond what was asked; no abstractions raised for a single caller; no scaffolding for a future the request did not name. Three lines that read true beat a class hierarchy anticipating a need no one has yet voiced.
