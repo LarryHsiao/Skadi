@@ -83,17 +83,17 @@ When Frame0 is **not** available, render a console wireframe (Unicode box-drawin
 
 ## Implementation Loop
 
-Once the breakdown is approved, work the steps in order — one at a time, each closed by a verification before the next begins. The verification is whatever proves the step's correctness: a unit test, a script run end-to-end, a page rendered, an install swept. Name the path before the step begins, so success and failure are recognizable when they come. When the verification cannot be automated — a wireframe to eye, a tone to feel — say so plainly and describe the manual check that stands in its place; the silent skip is the bug that compounds.
+Once the change is approved, work the steps in order — the breakdown's steps for medium and heavy work, the single step for minimum work. Each step is closed by a verification before the next begins (or before "done", for a one-step task). The verification is whatever proves the step's correctness: a unit test, a script run end-to-end, a page rendered, an install swept. Name the path before the step begins, so success and failure are recognizable when they come. When the verification cannot be automated — a wireframe to eye, a tone to feel — say so plainly and describe the manual check that stands in its place; the silent skip is the bug that compounds.
 
 If a step turns out heavier than its gauge billed — reach widens, depth deepens, reversibility shrinks — stop, re-render the gauge, re-summarize, and wait for the user's word again. The breakdown's word covers the breakdown that was named; it does not cover a step that has grown beyond it.
 
 The loop closes only when the verification produces what the plan called for. Do not bend the verification to fit the slip — return to the code.
 
-**Verification must be fresh.** When the time comes to report the task done, run the verification once more in the current turn — prior runs do not count. A passing test from three messages ago, a build that succeeded before the last edit, a Compliance Review fix applied after the last green run: none of these prove the *current* state of the tree. The evidence the user reads must come from the same turn as the claim it backs; a claim without a same-turn run is a guess wearing the clothes of a fact.
+**Verification must be fresh.** When the time comes to report the task done, run the verification once more in the current turn — prior runs do not count. A passing test from three messages ago, a build that succeeded before the last edit, a Compliance Review fix applied after the last green run: none of these prove the *current* state of the tree. The evidence the user reads must come from the same turn as the claim it backs; a claim without a same-turn run is a guess wearing the clothes of a fact. The end-of-task gates run in order: Compliance Review first, then its fixes, then this fresh verification — the Iron Law's run is the last gate before "done".
 
 ## Compliance Review
 
-Before the "done" report is rendered, spawn a lighter read-only agent (Haiku for an Opus session) and ask it to run two checks against the cumulative diff, in order — spec compliance first, code quality second. The over-built code is as much a failure as the under-built; both stray from what was named, and the spec pass must clear before quality issues are weighed.
+Before the "done" report is rendered, spawn a lighter read-only agent (Sonnet for the spec pass, Haiku for the quality pass — or a single Sonnet call carrying both, when the spawn cost matters more than the granularity) and ask it to run two checks against the cumulative diff, in order — spec compliance first, code quality second. The over-built code is as much a failure as the under-built; both stray from what was named, and the spec pass must clear before quality issues are weighed.
 
 **Spec compliance** asks: did the change build what the plan named, nothing more, nothing less? Name anything missing — a step half-finished, a branch unexercised, a feature requested but not built — and anything *added* beyond the plan — a flag the user did not ask for, an abstraction raised for a single caller, a helper no spec required.
 
