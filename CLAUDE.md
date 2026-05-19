@@ -158,6 +158,7 @@ When a needed command is missing on the current shell, do not reach for a differ
 - General: @docs/style/general.md
 - Flutter: @docs/style/flutter.md
 - OO: @docs/style/oo.md
+- React: @docs/style/react.md
 
 ## Tools
 
