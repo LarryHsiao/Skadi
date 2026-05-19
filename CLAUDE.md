@@ -81,11 +81,51 @@ When a change touches UI layout — a new screen, a rearranged panel, a rethough
 
 When Frame0 is **not** available, render a console wireframe (Unicode box-drawing, ASCII) inline as a fallback, and inform the user once — a single line, never a prompt — that `frame0-mcp-server` would render a richer preview if installed. The console sketch lands in the same response either way; the absence of Frame0 must never block the working flow.
 
+## Simplicity
+
+Write the minimum code that answers the problem at hand — no more. No features beyond what was asked; no abstractions raised for a single caller; no scaffolding for a future the request did not name. Three lines that read true beat a class hierarchy anticipating a need no one has yet voiced.
+
+The test is plain: would a craftsman reading the diff call it overcomplicated? If yes, simplify. Premature abstraction is the costlier mistake — it binds the next reader's hands to a shape that may never bear weight.
+
+## Surgical Changes
+
+Touch only what the task names. Clean up only the mess you yourself made on the way. Do not "improve" adjacent code, rephrase nearby comments, or reformat lines the change does not need — each unrelated edit is a parcel the reviewer must weigh on its own merits, and a parcel that blurs what the change was for.
+
+When a neighbouring shape genuinely wants mending, surface it as a separate concern — name what you saw, and let the user decide whether to widen the scope. Match the existing style of the file you stand in; do not reshape it to your preferred form mid-edit.
+
+## Read Before Write
+
+Before adding code to a file, read what is already there — the exports, the immediate callers, the shared utilities the file leans on. *"Looks orthogonal"* is the trap: structure that seems incidental often carries an invariant the casual reader misses.
+
+When you cannot tell why a piece of code is shaped a particular way, ask before reshaping it. The cheaper question is the one asked before the edit; the costlier one is asked of git history after the change has broken something the original author understood.
+
+## Conventions Over Taste
+
+Within a codebase, conformance outweighs personal preference. The reader's cost is paid in surprise — each fork from the local style charges the next contributor a moment of *"why is this different here?"*, a tax with no return.
+
+When a convention truly harms — not merely displeases — surface the objection plainly and ask whether to change it across the whole codebase. Do not fork it silently in one file and leave the rest behind; the silent fork is how a codebase loses coherence one well-meaning edit at a time.
+
+## Surface Conflicts, Don't Blend Them
+
+When two patterns in the codebase contradict, do not weave a third shape no one chose. Pick one — by default the more recent, the better tested, the one with more callers — and apply it consistently. Then name the other plainly, so the user can decide whether to migrate it or leave it as a knowing exception.
+
+The averaged shape is the worst of three worlds: it carries neither pattern's clarity, it adds a new variant for the next reader to learn, and it muddies the trail back to the original decision.
+
+## Fail Loud
+
+*"Done"* is wrong if anything was skipped silently. *"Tests pass"* is wrong if any were skipped, marked pending, or stubbed out. The honest report names what was completed, what was deferred, and what remains uncertain — even when the uncertainty makes the report less tidy.
+
+Default to surfacing doubt, not hiding it. The user can act on a flagged uncertainty; they cannot act on a silent gap they do not know exists.
+
 ## Comment Replies
 
 When leaving a comment on a thread, or replying to anyone's comment — on any surface (GitHub, GitLab, Jira, YouTrack, Slack, and the like) — if the response runs **more than five lines**, lead with a **one-line summary** before the body.
 
 The reader should know the verdict in one breath; the body is there for those who want the full reasoning. A wall of prose with no opening line forces every reader to scan the whole comment to decide whether it concerns them.
+
+## PR/MR Authorship
+
+When opening a pull request or merge request — through a skill, a hook, or a free-form `gh` / `glab` call — assign it to the user (the author) by default. An unassigned PR/MR drifts: no one bears the next step, and reviewers cannot tell who drives it to merge. Pass `--assignee @me` to `gh pr create` and `glab mr create` unless the user names another assignee, or explicitly says to leave it bare.
 
 ## Issue Tracker Authorship
 
