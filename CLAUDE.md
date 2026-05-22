@@ -81,6 +81,14 @@ When a change touches UI layout — a new screen, a rearranged panel, a rethough
 
 When Frame0 is **not** available, render a console wireframe (Unicode box-drawing, ASCII) inline as a fallback, and inform the user once — a single line, never a prompt — that `frame0-mcp-server` would render a richer preview if installed. The console sketch lands in the same response either way; the absence of Frame0 must never block the working flow.
 
+## UML Review
+
+When a change calls for a UML diagram — a class diagram, sequence diagram, state machine, ER model, or the like — render the diagram alongside the summary, so the shape of the thing can be judged before a line of code is written. Keep it simple: classes, methods, relations, cardinalities. One diagram per distinct concern. The same session-level opt-out as Change Approval applies.
+
+**Tool order.** Reach for **StarUML** first when its MCP server is wired into the session (any `mcp__staruml__*` tool present). StarUML's MCP exposes write primitives — class, association, sequence frame, export — built for LLM authorship; the output is a true `.mdj` model (and exported PNG/SVG), not a text approximation.
+
+When StarUML is **not** available, render a console UML diagram (Unicode box-drawing, ASCII) inline as a fallback, and inform the user once — a single line, never a prompt — that the StarUML MCP server would render a richer diagram if installed. The console sketch lands in the same response either way; the absence of StarUML must never block the working flow.
+
 ## Implementation Loop
 
 Once the change is approved, work the steps in order — the breakdown's steps for medium and heavy work, the single step for minimum work. Each step is closed by a verification before the next begins (or before "done", for a one-step task). The verification is whatever proves the step's correctness: a unit test, a script run end-to-end, a page rendered, an install swept. Name the path before the step begins, so success and failure are recognizable when they come. When the verification cannot be automated — a wireframe to eye, a tone to feel — say so plainly and describe the manual check that stands in its place; the silent skip is the bug that compounds.
