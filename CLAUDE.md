@@ -73,21 +73,33 @@ The gate depends on how the action was summoned:
 
 Session-level opt-out still applies ("just do it", "skip the summary", or the like).
 
+## Local Preview
+
+When a section calls for a visual preview — a wireframe (UI Review), a UML diagram (UML Review) — write it as an HTML file and serve it locally so the user can open it in a browser.
+
+**Where files land.** A session-scoped subdirectory under `~/.claude/previews/` — one folder per session, one file per distinct preview, each named for what it shows (`wireframe-login.html`, `class-diagram-user.html`). The directory persists across turns, so earlier previews stay browsable.
+
+**Serving the file.** Once per session, bind `python -m http.server <port>` in the previews directory as a background process — Python is universal, no install. Pick a free port; surface the URL inline (e.g. `http://localhost:8765/wireframe-login.html`) so the user can click through. Subsequent previews drop into the same directory under fresh filenames; the running server picks them up without restart.
+
+**File shape.** Inline CSS and SVG keep the page simple. External scripts loaded over HTTP — Mermaid from a CDN, for instance — are acceptable, since the server unlocks `fetch()` and ES modules. No build step.
+
+**Fallback.** When the port cannot bind or Python is absent on PATH, fall through to the ASCII sketch named in each section below. The preview lands in the same response either way; the absence of a server must never block the working flow.
+
 ## UI Review
 
 When a change touches UI layout — a new screen, a rearranged panel, a rethought component — render a wireframe alongside the summary, so the shape of the thing can be judged before a line of code is written. Keep it simple: boxes, labels, proportions. One sketch per distinct layout. The same session-level opt-out as Change Approval applies.
 
-**Tool order.** Reach for **Frame0** first when its MCP server is wired into the session (any `mcp__frame0__*` tool present). Frame0's first-party MCP exposes write primitives — frame, rectangle, text, export — built for LLM authorship; the output is a true PNG or SVG, not a text approximation.
+**Primary path.** Write an HTML wireframe under the previews directory and serve it per the [Local Preview](#local-preview) rules. HTML/CSS handles boxes and proportions natively; inline SVG covers what CSS strains at.
 
-When Frame0 is **not** available, render a console wireframe (Unicode box-drawing, ASCII) inline as a fallback, and inform the user once — a single line, never a prompt — that `frame0-mcp-server` would render a richer preview if installed. The console sketch lands in the same response either way; the absence of Frame0 must never block the working flow.
+**Fallback.** A console wireframe in Unicode box-drawing (ASCII) inline.
 
 ## UML Review
 
 When a change calls for a UML diagram — a class diagram, sequence diagram, state machine, ER model, or the like — render the diagram alongside the summary, so the shape of the thing can be judged before a line of code is written. Keep it simple: classes, methods, relations, cardinalities. One diagram per distinct concern. The same session-level opt-out as Change Approval applies.
 
-**Tool order.** Reach for **StarUML** first when its MCP server is wired into the session (any `mcp__staruml__*` tool present). StarUML's MCP exposes write primitives — class, association, sequence frame, export — built for LLM authorship; the output is a true `.mdj` model (and exported PNG/SVG), not a text approximation.
+**Primary path.** Write an HTML diagram under the previews directory and serve it per the [Local Preview](#local-preview) rules. Mermaid (via `<script type="module">`) renders class, sequence, state, and ER diagrams from terse text; inline SVG covers what Mermaid does not.
 
-When StarUML is **not** available, render a console UML diagram (Unicode box-drawing, ASCII) inline as a fallback, and inform the user once — a single line, never a prompt — that the StarUML MCP server would render a richer diagram if installed. The console sketch lands in the same response either way; the absence of StarUML must never block the working flow.
+**Fallback.** A console UML diagram in Unicode box-drawing (ASCII) inline.
 
 ## Implementation Loop
 
