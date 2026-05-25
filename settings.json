@@ -156,6 +156,7 @@
       {
         "matcher": "Bash",
         "hooks": [
+          { "type": "command", "command": "rtk hook claude" },
           {
             "type": "command",
             "command": "~/.claude/hooks/dir-guard.sh",
