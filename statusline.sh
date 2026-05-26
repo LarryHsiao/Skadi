@@ -478,42 +478,8 @@ esac
 # Line 4: divider
 printf "%s\n" "──────────────────────────────────────────────────"
 
-# Line 5: weather + disk free
-disk_free_num=$(df / | awk 'NR==2 {printf "%.2f", $4/1024/1024}')
-disk_free_int=$(df / | awk 'NR==2 {print int($4/1024/1024)}')
-if [ "$disk_free_int" -ge 50 ]; then
-    disk_color="$GREEN"
-elif [ "$disk_free_int" -ge 20 ]; then
-    disk_color="$YELLOW"
-else
-    disk_color="$RED"
-fi
-disk_str="💾 ${disk_color}${disk_free_num}GB${RESET}"
-
-# CPU load (cross-platform)
-os_type=$(uname -s 2>/dev/null)
-case "$os_type" in
-    Darwin*)
-        cpu_load=$(top -l 1 -n 0 | awk '/CPU usage/{gsub(/%,?/,""); idle=$(NF-1); printf "%.0f", 100-idle}')
-        ;;
-    Linux*)
-        cpu_load=$(top -bn1 | awk '/^%Cpu/{for(i=1;i<=NF;i++) if($i~/^[0-9]/ && $(i+1)~/id/) {printf "%.0f", 100-$i; break}}')
-        ;;
-    MINGW*|MSYS*|CYGWIN*)
-        cpu_load=$(powershell.exe -NoProfile -Command "(Get-CimInstance -ClassName Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average" 2>/dev/null | tr -d '[:space:]')
-        ;;
-esac
-cpu_load=${cpu_load:-0}
-if [ "$cpu_load" -le 40 ]; then
-    cpu_color="$GREEN"
-elif [ "$cpu_load" -le 70 ]; then
-    cpu_color="$YELLOW"
-else
-    cpu_color="$RED"
-fi
-cpu_str="📈 ${cpu_color}Load: ${cpu_load}%${RESET}"
-
-printf "%s  %s  %s\n" "$weather" "$cpu_str" "$disk_str"
+# Line 5: weather
+printf "%s\n" "$weather"
 
 # Line 6: quote (wrap at 64 columns; continuation lines hang under the opening ")
 # Lead with '|' — Claude Code's statusline trims leading whitespace, so anchor with a visible char.
