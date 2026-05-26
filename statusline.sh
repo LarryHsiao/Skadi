@@ -456,6 +456,28 @@ band_of_brothers_quotes=(
     "We're all replacements, Private, one way or another. — Ronald Speirs"
 )
 
+# Person of Interest quotes
+person_of_interest_quotes=(
+    "You are being watched. — Harold Finch"
+    "The government has a secret system: a machine that spies on you every hour of every day. — Harold Finch"
+    "I know, because I built it. — Harold Finch"
+    "I find it best to assume the worst. — John Reese"
+    "Everyone is relevant to someone. — Root"
+    "Can you hear me? — Root"
+    "If you can hear this, you're alone. The only thing left of us is the sound of my voice. — The Machine"
+    "Mr. Reese. — Harold Finch"
+    "I have a job for you, Mr. Reese. — Harold Finch"
+    "I'm a concerned third party. — John Reese"
+    "We were never here. — John Reese"
+    "There are no good or bad coders. There's just code. — Root (paraphrased)"
+    "Everyone dies alone. But if you meant something to someone, then maybe you never really die. — John Reese (paraphrased)"
+    "She's my friend, and she's going to save us all. — Root (paraphrased)"
+    "You taught me to see everyone. — The Machine (paraphrased)"
+    "We all have a part to play. — The Machine (paraphrased)"
+    "Goodbye, Harold. Thank you for creating me. — The Machine (paraphrased)"
+    "People are going to die, and I can stop it. — Harold Finch (paraphrased)"
+)
+
 # Build pool of available categories
 pool=("wick" "mentalist")
 [ ${#proverbs[@]} -gt 0 ] && pool+=("proverb")
@@ -463,6 +485,7 @@ pool=("wick" "mentalist")
 [ ${#suits_quotes[@]} -gt 0 ] && pool+=("suits")
 [ ${#lotr_quotes[@]} -gt 0 ] && pool+=("lotr")
 [ ${#band_of_brothers_quotes[@]} -gt 0 ] && pool+=("band")
+[ ${#person_of_interest_quotes[@]} -gt 0 ] && pool+=("poi")
 chosen="${pool[$RANDOM % ${#pool[@]}]}"
 
 case "$chosen" in
@@ -473,6 +496,7 @@ case "$chosen" in
     suits)      display_quote="👔 \"${suits_quotes[$RANDOM % ${#suits_quotes[@]}]}\"";;
     lotr)       display_quote="💍 \"${lotr_quotes[$RANDOM % ${#lotr_quotes[@]}]}\"";;
     band)       display_quote="🎖️ \"${band_of_brothers_quotes[$RANDOM % ${#band_of_brothers_quotes[@]}]}\"";;
+    poi)        display_quote="👁️ \"${person_of_interest_quotes[$RANDOM % ${#person_of_interest_quotes[@]}]}\"";;
 esac
 
 # Line 4: divider
