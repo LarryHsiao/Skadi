@@ -478,8 +478,34 @@ esac
 # Line 4: divider
 printf "%s\n" "──────────────────────────────────────────────────"
 
-# Line 5: weather
-printf "%s\n" "$weather"
+# Sunset + moon phase from wttr.in, refreshed once per day (they shift only daily)
+SUN_CACHE="/tmp/.claude_sun_cache"
+sun_raw=""
+today=$(date +%Y-%m-%d)
+if [ -f "$SUN_CACHE" ] && [ "$(head -1 "$SUN_CACHE" 2>/dev/null)" = "$today" ]; then
+    sun_raw=$(tail -1 "$SUN_CACHE")
+fi
+if [ -z "$sun_raw" ]; then
+    fetched=$(curl -s --max-time 3 "wttr.in/?format=%s+%m" 2>/dev/null)
+    if echo "$fetched" | grep -qE '[0-9]{2}:[0-9]{2}'; then
+        sun_raw="$fetched"
+        printf "%s\n%s\n" "$today" "$sun_raw" > "$SUN_CACHE"
+    elif [ -f "$SUN_CACHE" ]; then
+        sun_raw=$(tail -1 "$SUN_CACHE")
+    fi
+fi
+
+# sun_raw is "HH:MM:SS 🌔" — take HH:MM and the moon glyph
+sunset_full=$(echo "$sun_raw" | awk '{print $1}')
+sunset_time="${sunset_full%:*}"
+moon_glyph=$(echo "$sun_raw" | awk '{print $NF}')
+
+# Line 5: weather + sunset & moon
+if [ -n "$sunset_time" ]; then
+    printf "%s  🌇 %s  %s\n" "$weather" "$sunset_time" "$moon_glyph"
+else
+    printf "%s\n" "$weather"
+fi
 
 # Line 6: quote (wrap at 64 columns; continuation lines hang under the opening ")
 # Lead with '|' — Claude Code's statusline trims leading whitespace, so anchor with a visible char.
