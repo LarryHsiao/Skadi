@@ -155,7 +155,14 @@ e. **Acquire the isolated workspace.** Invoke the read hook (`<read-hook> <url>`
 
    The human's source-repo checkout is **not** disturbed by any of this — the worktree (or temp clone) is its own isolated tree, and the human may keep editing, building, or running tests in the source repo while Narvi works. There is no pre-flight clean-tree gate on the source repo for the same reason: the source repo's working state is irrelevant to Narvi's commits.
 
-   Hold the workspace path and the resolved `base` for steps 2 through 8.
+   Then resolve a **base ref** usable in this workspace — the steps below log and diff against it. Prefer the local branch `<base>`; a clone-fallback workspace (a temp clone under `$TMPDIR`) often carries only the remote-tracking ref, not a local `<base>` branch, so fall back to `origin/<base>`:
+
+   ```bash
+   base_ref=$(git -C <workspace> rev-parse --verify --quiet <base> \
+     || git -C <workspace> rev-parse --verify --quiet origin/<base>)
+   ```
+
+   A bare `<base>..HEAD` errors when the local branch is absent — the de-dup grep (step 3) and the overview diff (step 6) then come back empty, which would re-forge already-addressed comments and hand the smith no diff. Hold the workspace path and the resolved `<base-ref>` for steps 2 through 8.
 
 ### 2. Fetch every comment
 
@@ -175,7 +182,7 @@ The hook prints a JSON array (possibly `[]`). Parse it.
 For each entry, extract the **first comment's URL** (the anchor). Then check the branch's commit log in the workspace for any commit whose message references that URL in a `See: <url>` footer:
 
 ```bash
-git -C <workspace> log <base>..HEAD --format=%H --grep="See: <url>" --fixed-strings
+git -C <workspace> log <base-ref>..HEAD --format=%H --grep="See: <url>" --fixed-strings
 ```
 
 If the grep returns any commit, drop the entry — Narvi already addressed it on a prior run. Keep the remaining entries.
@@ -240,11 +247,11 @@ For `kind: inline`, append:
 For `kind: overview`, append:
 
 ```
-- Path: (overview — read the PR diff with `git -C <workspace> diff <base>..HEAD`)
+- Path: (overview — read the PR diff with `git -C <workspace> diff <base-ref>..HEAD`)
 
 ### PR diff (truncated to first 200 lines)
 
-<first 200 lines of `git -C <workspace> diff <base>..HEAD`>
+<first 200 lines of `git -C <workspace> diff <base-ref>..HEAD`>
 ```
 
 Then the thread:
