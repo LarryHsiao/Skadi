@@ -264,15 +264,22 @@ When a needed command is missing on the current shell, do not reach for a differ
 
 ## Code Style
 
+Always loaded:
+
 - General: @docs/style/general.md
-- Flutter: @docs/style/flutter.md
 - OO: @docs/style/oo.md
-- React: @docs/style/react.md
+
+Read when the project calls for it (not auto-loaded; reach for them when the language is in play):
+
+- Flutter: `docs/style/flutter.md`
+- React: `docs/style/react.md`
 
 ## Tools
 
-- Tolgee: @docs/tools/tolgee.md
-- GitLab: @docs/tools/gitlab.md
+Read when the tool is in play (not auto-loaded):
+
+- Tolgee: `docs/tools/tolgee.md`
+- GitLab: `docs/tools/gitlab.md`
 
 ## Grammar Check
 
