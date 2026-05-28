@@ -14,7 +14,7 @@ Where Mithrandir leaves his counsel upon the work and Celebrimbor forges from a 
 - **The reviewer is the contract.** Narvi addresses what was asked, no more. A nit is not a chance to refactor; an overview rename is not a chance to redesign.
 - **Confirm once before any write.** The slash invocation alone is not authority to write to the forge. Narvi names every comment it intends to address and waits for the word.
 - **The trail is the record.** Each commit footer carries `See: <comment-url>`. On a re-run, Narvi greps the log and skips comments whose URLs are already in it — no forge-side `isResolved` flag needed.
-- **One short ack, then silence.** After each addressed comment, Narvi posts a single short reply on the thread — *Addressed in `<sha7>`* with a commit link, nothing more. It never resolves the thread, never reacts, never starts a conversation. Resolution stays the human's hand; the bot writes once per amendment and no more.
+- **One terse ack, then silence.** After each addressed comment, Narvi posts a **short confirmation in the thread's language plus the commit link** — `Done in [`<sha7>`](<url>)` for English, `已處理 [`<sha7>`](<url>)` for Chinese, the equivalent elsewhere. The link is the trail the reviewer can click; the verb is just the signal. **Write more only when there is something the reviewer would not already know** — a disagreement with the suggestion, an addition beyond the ask, a partial address, or an answer to a question they raised. Otherwise the confirmation stands as the entire body. Narvi never resolves the thread, never reacts, never starts a conversation. Resolution stays the human's hand; the bot writes once per amendment and no more.
 
 ## Argument parsing
 
@@ -299,21 +299,23 @@ a. Compose the commit URL from the PR/MR base and the smith's sha:
 - GitHub: `<repo-url>/commit/<sha>`
 - GitLab: `<repo-url>/-/commit/<sha>`
 
-b. Compose the body. The shape depends on (forge, kind):
+b. Compose the body. The default is a **short confirmation in the thread's language plus the commit link** — the reviewer knows what they asked, so the commit is the answer. Match the thread's language: `Done` for English, `已處理` for Chinese, the equivalent elsewhere.
 
-- **(github, inline)** and **(gitlab, inline | overview)** — the reply threads under the original on the forge, so the bare ack stands:
-
-  ```
-  Addressed in [`<sha7>`](<commit-url>).
-  ```
-
-- **(github, overview)** — issue-comments and review bodies have no thread-reply primitive on GitHub, so the reply lands as a fresh top-level issue-comment. Include a `(Reply to <url>)` footer for visual linkage:
+- **(github, inline)** and **(gitlab, inline | overview)** — the bare confirmation stands as the entire body:
 
   ```
-  Addressed in [`<sha7>`](<commit-url>).
+  Done in [`<sha7>`](<commit-url>).
+  ```
+
+- **(github, overview)** — issue-comments and review bodies have no thread-reply primitive on GitHub, so the reply lands as a fresh top-level issue-comment. Add a `(Reply to <url>)` footer for visual linkage:
+
+  ```
+  Done in [`<sha7>`](<commit-url>).
 
   (Reply to <comment-url>)
   ```
+
+**Write more only when there is something the reviewer would not already know** — a disagreement with the suggestion, a step added beyond the ask, a partial address, or an answer to a question. In those cases, lead the longer body with a one-line summary if it runs over five lines (per `CLAUDE.md` comment-replies).
 
 c. Pipe the body to the reply hook for the forge:
 
@@ -363,7 +365,7 @@ After rendering, decide the workspace fate:
 
 ## After Narvi
 
-The threads remain open on the forge; the overview comments remain on the page. Narvi leaves only the one short ack per addressed comment (*Addressed in `<sha7>`*); it does not resolve, does not react, does not start a conversation. The reviewer eyeballs each amendment with their own hand. Two next steps stand:
+The threads remain open on the forge; the overview comments remain on the page. Narvi leaves only the one terse ack per addressed comment (a short confirmation in the thread's language plus the commit link, e.g. *`Done in [`<sha7>`](<url>)`* / *`已處理 [`<sha7>`](<url>)`*); it does not resolve, does not react, does not start a conversation. The reviewer eyeballs each amendment with their own hand. Two next steps stand:
 
 - **Re-weigh.** Once the branch settles, `/mithrandir bless <url>` (alias `/mithrandir recheck <url>`) re-weighs the PR/MR fresh, finds Mithrandir's prior counsel on the thread, and threads a follow-up — *All resolve*, *Partial okay*, or counsel withheld. Built exactly for amended PRs.
 - **Resolve.** The reviewer walks each thread, eyeballs the amendment against their note, and clicks `Resolve` (GitHub) or `Resolve thread` (GitLab) by hand. Overview comments on GitHub have no forge-side resolution; the per-thread ack and the trail marker (`See: <url>` in the commit footer) are the records.
