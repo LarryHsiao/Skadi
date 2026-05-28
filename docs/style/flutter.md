@@ -32,3 +32,11 @@ The UI thread paints frames every 16 ms. Any work that holds it past that mark d
   The threshold is empirical: if a profile-mode run shows a frame drop on the work, it was CPU work that should have been off-thread. When in doubt, measure with the DevTools timeline before deciding.
 
 - **State management does not absolve blocking.** Riverpod's `FutureProvider` / `AsyncValue`, flutter_bloc's `Cubit` / `Bloc`, raw `StreamBuilder` — these are *presentation* conventions for displaying an in-flight async value without manual `setState` plumbing. They do not move work off the main thread. A `FutureProvider` whose body parses a 5 MB payload on the main isolate blocks just as hard as a bare `setState` would. The off-thread decision is upstream of the observer pattern, not absorbed by it.
+
+## Routing
+
+Before any routing change — adding a route, listening to the current path, popping to a named root, wiring a deep link — read the project's routing setup first. The router (`go_router`, `auto_route`, `Navigator 2.0`, or whatever the project stands on) carries the conventions for path matching, guards, and nested shells; touching navigation without that grounding ends in duplication.
+
+The common slip: a nested `Navigator` raised inside a page to handle in-page transitions when the router already exposes a nested route, a shell, or `StatefulShellRoute`. The private navigator carries its own stack, its own back behaviour, its own URL detachment — and the page that bore it gains nothing the router did not already offer.
+
+When the router already supports the shape, lean on it; when it does not, extend the router rather than forking a private navigator inside a page.
