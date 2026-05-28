@@ -39,4 +39,6 @@ Before any routing change — adding a route, listening to the current path, pop
 
 The common slip: a nested `Navigator` raised inside a page to handle in-page transitions when the router already exposes a nested route, a shell, or `StatefulShellRoute`. The private navigator carries its own stack, its own back behaviour, its own URL detachment — and the page that bore it gains nothing the router did not already offer.
 
+A second slip: a page that listens for the current path by string-matching a hardcoded literal — `if (location == '/home/settings')`, `if (uri.path.startsWith('/cart'))`. The literal binds the page to one mount point; move the route under a parent, rename a segment, or reuse the page elsewhere, and the listener falls silent — no warning, just dead behaviour. Read the page's own route from the router's context (`GoRouterState.of(context).matchedLocation`, `context.routeData`, or the equivalent the project stands on), or watch for the change you care about, not the path that happens to carry it.
+
 When the router already supports the shape, lean on it; when it does not, extend the router rather than forking a private navigator inside a page.
