@@ -61,8 +61,136 @@ def scan(directory):
     return entries
 
 
-PAGE = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Henneth</title></head>" \
-       "<body><h1>HENNETH</h1><p>gallery template — filled in Task 3</p></body></html>"
+PAGE = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Henneth</title>
+<style>
+  :root { --line:#3a3a3a; --muted:#8a8a8a; --bg:#1e1e1e; --panel:#262626; --ink:#e6e6e6; --accent:#7aa2f7; --side-w:260px; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  .frame { display:grid; grid-template-columns:var(--side-w) 1fr; height:100vh; }
+  .side { border-right:1px solid var(--line); background:var(--panel); overflow:auto; display:flex; flex-direction:column; }
+  .brand { font-weight:700; letter-spacing:.04em; padding:14px 16px; color:var(--accent); border-bottom:1px solid var(--line); }
+  #list { flex:1; }
+  .item { padding:9px 16px; cursor:pointer; border-left:3px solid transparent; }
+  .item:hover { background:#2f2f2f; }
+  .item.active { background:#30364d; border-left-color:var(--accent); color:#fff; }
+  .item .lbl { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .item small { color:var(--muted); font-size:11px; }
+  .item.empty { color:var(--muted); font-style:italic; cursor:default; }
+  .main { display:flex; flex-direction:column; overflow:hidden; }
+  .bar { display:flex; align-items:center; gap:12px; padding:10px 18px; border-bottom:1px solid var(--line); }
+  .bar h1 { font-size:15px; margin:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bar h1.empty { color:var(--muted); font-weight:400; font-style:italic; }
+  .bar .note { color:var(--muted); font-size:12px; }
+  .pin { font:12px sans-serif; cursor:pointer; background:none; color:var(--accent); border:1px solid var(--line); border-radius:5px; padding:4px 10px; }
+  .pin.on { background:#30364d; border-color:var(--accent); color:#fff; }
+  .stage { flex:1; overflow:auto; display:flex; align-items:center; justify-content:center; padding:18px; }
+  .stage img { max-width:100%; max-height:100%; object-fit:contain; }
+  .stage iframe { width:100%; height:100%; border:0; background:#fff; border-radius:6px; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <aside class="side">
+    <div class="brand">&#9788; HENNETH</div>
+    <div id="list"></div>
+  </aside>
+  <main class="main">
+    <div class="bar">
+      <h1 id="title" class="empty">Waiting for artifacts&hellip;</h1>
+      <span class="note" id="note"></span>
+      <button class="pin" id="pin" title="Pin the current view">Pin</button>
+    </div>
+    <div class="stage" id="stage"></div>
+  </main>
+</div>
+<script>
+const REFRESH_MS = 3000;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let artifacts = [];
+let current = localStorage.getItem("henneth-current") || null;
+let pinned = localStorage.getItem("henneth-pinned") === "1";
+let newestSeen = null;
+
+function ago(mtime){
+  const s = Math.max(0, Math.floor(Date.now()/1000 - mtime));
+  if(s < 5) return "just now";
+  if(s < 60) return s + "s ago";
+  if(s < 3600) return Math.floor(s/60) + "m ago";
+  if(s < 86400) return Math.floor(s/3600) + "h ago";
+  return Math.floor(s/86400) + "d ago";
+}
+
+function renderList(){
+  const list = document.getElementById("list");
+  if(!artifacts.length){ list.innerHTML = '<div class="item empty">No artifacts yet.</div>'; return; }
+  list.innerHTML = artifacts.map(a =>
+    `<div class="item${a.name===current?' active':''}" data-name="${esc(a.name)}">` +
+    `<span class="lbl">${esc(a.label)}</span><small>${ago(a.mtime)}</small></div>`).join("");
+  list.querySelectorAll(".item[data-name]").forEach(el =>
+    el.onclick = () => select(el.dataset.name));
+}
+
+function renderStage(){
+  const a = artifacts.find(x => x.name === current);
+  const stage = document.getElementById("stage");
+  const title = document.getElementById("title");
+  const note = document.getElementById("note");
+  if(!a){
+    stage.innerHTML = ""; note.textContent = "";
+    title.textContent = "Waiting for artifacts…"; title.className = "empty";
+    return;
+  }
+  title.textContent = a.label; title.className = "";
+  note.textContent = a.note || "";
+  stage.innerHTML = a.type === "image"
+    ? `<img src="${esc(a.url)}" alt="${esc(a.label)}">`
+    : `<iframe src="${esc(a.url)}" sandbox="allow-scripts"></iframe>`;
+}
+
+function select(name){
+  current = name;
+  localStorage.setItem("henneth-current", current);
+  renderList(); renderStage();
+}
+
+function setPin(on){
+  pinned = on;
+  localStorage.setItem("henneth-pinned", on ? "1" : "0");
+  const btn = document.getElementById("pin");
+  btn.classList.toggle("on", on);
+  btn.textContent = on ? "Pinned" : "Pin";
+}
+document.getElementById("pin").onclick = () => setPin(!pinned);
+setPin(pinned);
+
+async function poll(){
+  try {
+    artifacts = await (await fetch("/index.json", {cache:"no-store"})).json();
+  } catch(_) { return; }
+  const newest = artifacts.length ? artifacts[0] : null;
+  const haveCurrent = current && artifacts.some(a => a.name === current);
+  if(newest){
+    const isNew = newestSeen === null || newest.mtime > newestSeen;
+    if(!haveCurrent) current = newest.name;          // nothing valid selected -> newest
+    else if(!pinned && isNew) current = newest.name; // a fresh artifact arrived -> follow it
+    newestSeen = Math.max(newestSeen === null ? 0 : newestSeen, newest.mtime);
+  } else {
+    current = null;
+  }
+  if(current) localStorage.setItem("henneth-current", current);
+  else localStorage.removeItem("henneth-current");
+  renderList(); renderStage();
+}
+poll();
+setInterval(poll, REFRESH_MS);
+</script>
+</body>
+</html>
+"""
 
 
 class Handler(SimpleHTTPRequestHandler):
