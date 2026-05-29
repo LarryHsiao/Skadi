@@ -38,7 +38,7 @@ def sidecar(path):
             "title": str(data["title"]) if "title" in data else "",
             "note": str(data["note"]) if "note" in data else "",
         }
-    except (OSError, ValueError, TypeError, KeyError):
+    except (OSError, ValueError, TypeError):
         return {}
 
 
@@ -197,7 +197,7 @@ class Handler(SimpleHTTPRequestHandler):
     """Serves the gallery at /, the folder scan at /index.json, files otherwise."""
 
     def do_GET(self):
-        if self.path == "/":
+        if self.path.split("?")[0] == "/":
             return self._send(PAGE.encode("utf-8"), "text/html; charset=utf-8")
         if self.path.split("?")[0] == "/index.json":
             body = json.dumps(scan(self.directory)).encode("utf-8")

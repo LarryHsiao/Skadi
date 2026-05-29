@@ -90,6 +90,7 @@ class ServerTest(unittest.TestCase):
             self.assertEqual("x", file_body)
         finally:
             server.shutdown()
+            server.server_close()
             tmp.cleanup()
 
 
