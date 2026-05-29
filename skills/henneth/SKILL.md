@@ -15,14 +15,23 @@ study it. The page reads, never writes.
 
 ### 1. Resolve the session folder
 
-`~/.claude/previews/<session>/` — the same directory the Local Preview / UI Review
-conventions drop mockups into. Create it if absent.
+The folder is pinned to the Claude session id, so every step this session — the
+boot here and every render later — resolves the **same** path with no drift:
+
+    SID="${CLAUDE_CODE_SESSION_ID:-default}"
+    DIR="$HOME/.claude/previews/$SID"
+    mkdir -p "$DIR"
+
+`$DIR` is the one folder henneth serves **and** the one folder you render into for
+the rest of the session (see "Where renders go" below). `default` is the fallback
+when the env var is absent (an older harness) — the folder still works, it just
+isn't session-unique.
 
 ### 2. Reuse a running server before booting a new one
 
-Read `~/.claude/previews/<session>/.henneth-port`. If it names a port and that
-port answers a quick GET to `http://localhost:<port>/index.json`, the server is
-already up — print the URL and launch nothing.
+Read `$DIR/.henneth-port`. If it names a port and that port answers a quick GET to
+`http://localhost:<port>/index.json`, the server is already up — print the URL and
+launch nothing.
 
 ### 3. Otherwise boot the server in the background
 
@@ -32,15 +41,23 @@ Pick a free port:
 
 Launch the server detached so it outlives the turn (run in the background):
 
-    ~/.claude/hooks/mirror-server.py ~/.claude/previews/<session>/ <port>
+    ~/.claude/hooks/mirror-server.py "$DIR" <port>
 
-The server records its own port in `.henneth-port` on boot.
+The server records its own port in `$DIR/.henneth-port` on boot.
 
 ### 4. Surface the URL
 
 Print `http://localhost:<port>/` inline. Tell the user plainly: drop any image or
 HTML into the folder — or ask you to render one there — and the open screen follows
 on its own. To hold a view while studying it, click **Pin**.
+
+### 5. Where renders go
+
+Every artifact you render for the screen this session must be written into `$DIR`
+— that exact path is the binding henneth watches. Resolve it the same way each
+time (`$HOME/.claude/previews/${CLAUDE_CODE_SESSION_ID:-default}`); render anywhere
+else and it will not appear on the window. This is what lets a fresh session know
+where to write without remembering a path: the session id *is* the address.
 
 ## Artifact labels — optional sidecar
 
@@ -52,8 +69,9 @@ Both fields optional. Absent, the gallery shows the humanized filename.
 
 ## Notes
 
-- **Per session.** Each session has its own folder, port, and URL; a fresh session
-  starts a clean board. No cross-session history is kept.
+- **Per session.** The folder is keyed by `CLAUDE_CODE_SESSION_ID`, so each session
+  has its own folder, port, and URL; a fresh session starts a clean board. No
+  cross-session history is kept.
 - **Read-only.** The page displays; it never edits artifacts. You render or drop
   files in chat; the screen reflects them.
 - **Reuse, don't multiply.** Re-running /henneth in the same session reuses the
