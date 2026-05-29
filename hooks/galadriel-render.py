@@ -138,13 +138,15 @@ def lifecycle_of(steps):
         return "draft"
     if all(s["status"] == "done" for s in steps):
         return "done"
-    return "active"
+    if any(s["status"] in ("done", "doing") for s in steps):
+        return "active"
+    return "planned"
 
 
 def collect(plans_dir, repo):
     files = sorted(Path(plans_dir).glob("*.md"))
     concepts = [parse_concept(f, repo) for f in files]
-    order = {"draft": 0, "active": 1, "done": 2}
+    order = {"draft": 0, "planned": 1, "active": 2, "done": 3}
     concepts.sort(key=lambda c: (order[c["lifecycle"]], c["title"].lower()))
     return concepts
 
@@ -253,7 +255,7 @@ TEMPLATE = r"""<!DOCTYPE html>
 </div>
 <script>
 const CONCEPTS = /*__DATA__*/null;
-const GROUPS = [["draft","Shaping (draft)"],["active","Active"],["done","Done"]];
+const GROUPS = [["draft","Shaping (draft)"],["planned","Planned"],["active","Active"],["done","Done"]];
 const esc = s => s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 // A safe subset of inline markdown: escape first, then wrap already-escaped text
 // in code/strong/em — the delimiters survive escaping, the content cannot inject.
@@ -393,10 +395,11 @@ function resizable(handle, toSize){
     handle.addEventListener("pointerup", up);
   });
 }
+const MIN_SIDE_PX = 160, MAX_SIDE_FRAC = 0.6, MIN_DASH_PX = 90, MAX_DASH_FRAC = 0.7;
 resizable(document.getElementById("vsplit"),
-  e => ["--side-w", "galadriel-side-w", clamp(e.clientX, 160, window.innerWidth*0.6) + "px"]);
+  e => ["--side-w", "galadriel-side-w", clamp(e.clientX, MIN_SIDE_PX, window.innerWidth*MAX_SIDE_FRAC) + "px"]);
 resizable(document.getElementById("hsplit"),
-  e => ["--dash-h", "galadriel-dash-h", clamp(window.innerHeight - e.clientY, 90, window.innerHeight*0.7) + "px"]);
+  e => ["--dash-h", "galadriel-dash-h", clamp(window.innerHeight - e.clientY, MIN_DASH_PX, window.innerHeight*MAX_DASH_FRAC) + "px"]);
 </script>
 </body>
 </html>
