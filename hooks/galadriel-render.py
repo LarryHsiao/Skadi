@@ -174,7 +174,6 @@ TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="refresh" content="3">
 <title>Plan Mirror</title>
 <style>
   :root { --line:#3a3a3a; --muted:#8a8a8a; --bg:#1e1e1e; --panel:#262626; --ink:#e6e6e6; --accent:#7aa2f7;
@@ -401,6 +400,29 @@ resizable(document.getElementById("vsplit"),
   e => ["--side-w", "galadriel-side-w", clamp(e.clientX, MIN_SIDE_PX, window.innerWidth*MAX_SIDE_FRAC) + "px"]);
 resizable(document.getElementById("hsplit"),
   e => ["--dash-h", "galadriel-dash-h", clamp(window.innerHeight - e.clientY, MIN_DASH_PX, window.innerHeight*MAX_DASH_FRAC) + "px"]);
+
+// Auto-refresh — poll the rendered file; when its bytes change, the plan was
+// re-rendered, so reload to show it. A reload only fires on an actual change,
+// not every tick, so a still page never loses its place. Scroll position is the
+// one piece of view state a reload would drop that does not already persist
+// (concept selection, split sizes, and dash-collapse ride in localStorage), so
+// it crosses the reload in sessionStorage.
+const main = document.getElementById("main");
+const SCROLL_KEY = "galadriel-scroll", REFRESH_MS = 3000;
+const savedScroll = sessionStorage.getItem(SCROLL_KEY);
+if(savedScroll){ main.scrollTop = +savedScroll; sessionStorage.removeItem(SCROLL_KEY); }
+let snapshot = null;
+async function poll(){
+  try {
+    const text = await (await fetch(location.href, {cache:"no-store"})).text();
+    if(snapshot === null){ snapshot = text; return; }
+    if(text !== snapshot){
+      sessionStorage.setItem(SCROLL_KEY, main.scrollTop);
+      location.reload();
+    }
+  } catch(_) { /* server briefly absent mid-render; retry next tick */ }
+}
+setInterval(poll, REFRESH_MS);
 </script>
 </body>
 </html>
