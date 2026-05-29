@@ -114,6 +114,7 @@ let artifacts = [];
 let current = localStorage.getItem("henneth-current") || null;
 let pinned = localStorage.getItem("henneth-pinned") === "1";
 let newestSeen = null;
+let lastStageKey = null;
 
 function ago(mtime){
   const s = Math.max(0, Math.floor(Date.now()/1000 - mtime));
@@ -136,17 +137,28 @@ function renderList(){
 
 function renderStage(){
   const a = artifacts.find(x => x.name === current);
-  const stage = document.getElementById("stage");
   const title = document.getElementById("title");
   const note = document.getElementById("note");
   if(!a){
-    stage.innerHTML = ""; note.textContent = "";
     title.textContent = "Waiting for artifacts…"; title.className = "empty";
+    note.textContent = "";
+    paintStage("", null);
     return;
   }
   title.textContent = a.label; title.className = "";
   note.textContent = a.note || "";
-  stage.innerHTML = a.type === "image"
+  paintStage(a.name + ":" + a.mtime, a);
+}
+
+// Rebuild the stage only when the shown artifact changes — recreating the
+// <iframe> on every poll reloads it and flashes white, so an unchanged key
+// must leave the existing element untouched.
+function paintStage(key, a){
+  if(key === lastStageKey) return;
+  lastStageKey = key;
+  const stage = document.getElementById("stage");
+  stage.innerHTML = !a ? ""
+    : a.type === "image"
     ? `<img src="${esc(a.url)}" alt="${esc(a.label)}">`
     : `<iframe src="${esc(a.url)}" sandbox="allow-scripts"></iframe>`;
 }
