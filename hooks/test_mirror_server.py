@@ -56,5 +56,42 @@ class ScanTest(unittest.TestCase):
         self.assertEqual(expected, result)
 
 
+class ServerTest(unittest.TestCase):
+    def test_routes_serve_page_scan_and_files(self):
+        import http.client
+        import threading
+        from functools import partial
+        from http.server import ThreadingHTTPServer
+
+        tmp = tempfile.TemporaryDirectory()
+        directory = Path(tmp.name)
+        (directory / "a.png").write_text("x", encoding="utf-8")
+        server = ThreadingHTTPServer(("127.0.0.1", 0), partial(mirror.Handler, directory=str(directory)))
+        port = server.server_address[1]
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            conn = http.client.HTTPConnection("127.0.0.1", port)
+
+            conn.request("GET", "/")
+            page = conn.getresponse()
+            page_body = page.read().decode("utf-8")
+            self.assertEqual(200, page.status)
+            self.assertIn("HENNETH", page_body)
+
+            conn.request("GET", "/index.json")
+            index = conn.getresponse()
+            index_names = [e["name"] for e in json.loads(index.read())]
+            self.assertEqual(["a.png"], index_names)
+
+            conn.request("GET", "/a.png")
+            file_resp = conn.getresponse()
+            file_body = file_resp.read().decode("utf-8")
+            self.assertEqual(200, file_resp.status)
+            self.assertEqual("x", file_body)
+        finally:
+            server.shutdown()
+            tmp.cleanup()
+
+
 if __name__ == "__main__":
     unittest.main()
