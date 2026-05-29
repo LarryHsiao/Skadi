@@ -92,8 +92,10 @@ install_file "$REPO/statusline.sh" "$CLAUDE_DIR/statusline.sh"
 
 # Hooks
 mkdir -p "$CLAUDE_DIR/hooks"
-for hook in "$REPO/hooks/"*.sh; do
-  [ -f "$hook" ] && install_file "$hook" "$CLAUDE_DIR/hooks/$(basename "$hook")"
+for hook in "$REPO/hooks/"*; do
+  [ -f "$hook" ] || continue
+  [[ "$(basename "$hook")" == ".gitkeep" ]] && continue
+  install_file "$hook" "$CLAUDE_DIR/hooks/$(basename "$hook")"
 done
 prune_tree "$REPO/hooks" "$CLAUDE_DIR/hooks"
 
