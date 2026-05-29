@@ -189,7 +189,8 @@ TEMPLATE = r"""<!DOCTYPE html>
   .vsplit { grid-area:vsplit; cursor:col-resize; background:var(--line); }
   .hsplit { grid-area:hsplit; cursor:row-resize; background:var(--line); }
   .vsplit:hover, .hsplit:hover, .vsplit.drag, .hsplit.drag { background:var(--accent); }
-  .brand { font-weight:700; letter-spacing:.04em; padding:0 16px 12px; color:var(--accent); border-bottom:1px solid var(--line); margin-bottom:8px; }
+  .brand { font-weight:700; letter-spacing:.04em; padding:0 16px 12px; color:var(--accent); border-bottom:1px solid var(--line); margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+  .brand-txt { flex:1; white-space:nowrap; overflow:hidden; }
   .sect  { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); padding:10px 16px 4px; }
   .item  { padding:7px 16px; cursor:pointer; border-left:3px solid transparent; }
   .item:hover { background:#2f2f2f; }
@@ -223,6 +224,13 @@ TEMPLATE = r"""<!DOCTYPE html>
   body.dash-collapsed .frame { grid-template-rows:1fr 0 auto; }
   body.dash-collapsed .hsplit { display:none; }
   body.dash-collapsed .cols { display:none; }
+  body.side-collapsed .frame { grid-template-columns:38px 0 1fr; }
+  body.side-collapsed .vsplit { display:none; }
+  body.side-collapsed .side { padding:14px 6px; }
+  body.side-collapsed .side .brand { padding:0 0 12px; justify-content:center; }
+  body.side-collapsed .side .brand-txt,
+  body.side-collapsed .side #nav,
+  body.side-collapsed .side .note { display:none; }
   .bar { height:8px; background:#333; border-radius:5px; overflow:hidden; margin:6px 0 12px; }
   .bar > span { display:block; height:100%; background:linear-gradient(90deg,#7ad08a,#7aa2f7); }
   .cols { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; flex:1; min-height:0; }
@@ -245,7 +253,7 @@ TEMPLATE = r"""<!DOCTYPE html>
 </head>
 <body>
 <div class="frame">
-  <aside class="side"><div class="brand">&#9681; PLAN MIRROR</div><div id="nav"></div>
+  <aside class="side"><div class="brand"><span class="brand-txt">&#9681; PLAN MIRROR</span><button class="collapse" id="sideToggle" title="Collapse / expand sidebar">&#9666;</button></div><div id="nav"></div>
     <div class="note">read-only viewer &middot; edits via chat &middot; re-render to refresh<br><span id="folder">__FOLDER__</span></div>
   </aside>
   <div class="vsplit" id="vsplit"></div>
@@ -374,9 +382,20 @@ function draw(){
 }
 
 let dashCollapsed = localStorage.getItem("galadriel-dash-collapsed") === "1";
-function applyCollapse(){ document.body.classList.toggle("dash-collapsed", dashCollapsed); }
+let sideCollapsed = localStorage.getItem("galadriel-side-collapsed") === "1";
+function applyCollapse(){
+  document.body.classList.toggle("dash-collapsed", dashCollapsed);
+  document.body.classList.toggle("side-collapsed", sideCollapsed);
+  const sb = document.getElementById("sideToggle");
+  if(sb) sb.innerHTML = sideCollapsed ? "&#9656;" : "&#9666;";
+}
 applyCollapse();
 draw();
+document.getElementById("sideToggle").onclick = () => {
+  sideCollapsed = !sideCollapsed;
+  localStorage.setItem("galadriel-side-collapsed", sideCollapsed ? "1" : "0");
+  applyCollapse();
+};
 
 // Resizable panels — drag the splitters to set sidebar width / dashboard height,
 // clamped to sane bounds and remembered across re-renders via localStorage.
