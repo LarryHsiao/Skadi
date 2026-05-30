@@ -74,10 +74,13 @@ PAGE = r"""<!DOCTYPE html>
   .side { border-right:1px solid var(--line); background:var(--panel); overflow:auto; display:flex; flex-direction:column; }
   .brand { font-weight:700; letter-spacing:.04em; padding:14px 16px; color:var(--accent); border-bottom:1px solid var(--line); }
   #list { flex:1; }
-  .item { padding:9px 16px; cursor:pointer; border-left:3px solid transparent; }
+  .item { position:relative; padding:9px 16px; cursor:pointer; border-left:3px solid transparent; }
   .item:hover { background:#2f2f2f; }
   .item.active { background:#30364d; border-left-color:var(--accent); color:#fff; }
-  .item .lbl { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .item .lbl { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:22px; }
+  .del { position:absolute; right:10px; top:50%; transform:translateY(-50%); display:none; background:none; border:0; color:var(--muted); font-size:16px; line-height:1; cursor:pointer; padding:2px 6px; border-radius:4px; }
+  .item:hover .del { display:block; }
+  .del:hover { color:#f7768e; background:#3a2a2e; }
   .item small { color:var(--muted); font-size:11px; }
   .item.empty { color:var(--muted); font-style:italic; cursor:default; }
   .main { display:flex; flex-direction:column; overflow:hidden; }
@@ -130,9 +133,20 @@ function renderList(){
   if(!artifacts.length){ list.innerHTML = '<div class="item empty">No artifacts yet.</div>'; return; }
   list.innerHTML = artifacts.map(a =>
     `<div class="item${a.name===current?' active':''}" data-name="${esc(a.name)}">` +
-    `<span class="lbl">${esc(a.label)}</span><small>${ago(a.mtime)}</small></div>`).join("");
+    `<span class="lbl">${esc(a.label)}</span><small>${ago(a.mtime)}</small>` +
+    `<button class="del" data-del="${esc(a.name)}" title="Delete">&times;</button></div>`).join("");
   list.querySelectorAll(".item[data-name]").forEach(el =>
     el.onclick = () => select(el.dataset.name));
+  list.querySelectorAll(".del[data-del]").forEach(el =>
+    el.onclick = e => { e.stopPropagation(); remove(el.dataset.del); });
+}
+
+async function remove(name){
+  if(!confirm("Delete this artifact?")) return;
+  try { await fetch("/" + encodeURIComponent(name), {method:"DELETE"}); }
+  catch(_) { return; }
+  if(current === name) current = null;
+  poll();
 }
 
 function renderStage(){
@@ -215,6 +229,27 @@ class Handler(SimpleHTTPRequestHandler):
             body = json.dumps(scan(self.directory)).encode("utf-8")
             return self._send(body, "application/json")
         return super().do_GET()
+
+    def do_DELETE(self):
+        target = Path(self.translate_path(self.path))
+        root = Path(self.directory).resolve()
+        if not self._deletable(target, root):
+            return self.send_error(404)
+        try:
+            target.unlink()
+        except FileNotFoundError:
+            return self.send_error(404)  # vanished between guard and unlink
+        side = target.with_suffix(".json")
+        side.unlink(missing_ok=True)
+        self.send_response(204)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _deletable(self, target, root):
+        """True when target is an artifact file living inside the watched root."""
+        if target.suffix.lower() not in ARTIFACT_EXTS or not target.is_file():
+            return False
+        return root in target.resolve().parents
 
     def _send(self, body, content_type):
         self.send_response(200)

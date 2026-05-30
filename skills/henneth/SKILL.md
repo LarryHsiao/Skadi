@@ -1,6 +1,6 @@
 ---
 name: henneth
-description: Use when the user runs /henneth. Boots (or reuses) a per-session background web server that serves a live gallery of the session's rendered artifacts — wireframes, mockups, images, diagrams dropped into ~/.claude/previews/<session>/. The page lists every artifact newest-first and follows the latest in its main pane unless pinned. Read-only window; drop a file and the open screen updates on its own. Henneth Annûn — the Window of the Sunset, a window one looks through.
+description: Use when the user runs /henneth. Boots (or reuses) a per-session background web server that serves a live gallery of the session's rendered artifacts — wireframes, mockups, images, diagrams dropped into ~/.claude/previews/<session>/. The page lists every artifact newest-first and follows the latest in its main pane unless pinned. Drop a file and the open screen updates on its own; a row's delete button removes an artifact from the folder. Henneth Annûn — the Window of the Sunset, a window one looks through.
 user_invocable: true
 ---
 
@@ -9,7 +9,8 @@ user_invocable: true
 A standing window onto the artifacts you render this session. One folder is
 watched; anything dropped in — an image or an HTML mockup — appears in the
 gallery, newest first. The open screen follows the latest unless you pin one to
-study it. The page reads, never writes.
+study it. The page displays and may delete an artifact from the folder; it never
+edits one.
 
 ## Workflow
 
@@ -49,7 +50,9 @@ The server records its own port in `$DIR/.henneth-port` on boot.
 
 Print `http://localhost:<port>/` inline. Tell the user plainly: drop any image or
 HTML into the folder — or ask you to render one there — and the open screen follows
-on its own. To hold a view while studying it, click **Pin**.
+on its own. To hold a view while studying it, click **Pin**. To drop an artifact
+from the folder, hover its row and click **&times;** — it asks once, then unlinks
+the file and its sidecar.
 
 ### 5. Where renders go
 
@@ -72,7 +75,8 @@ Both fields optional. Absent, the gallery shows the humanized filename.
 - **Per session.** The folder is keyed by `CLAUDE_CODE_SESSION_ID`, so each session
   has its own folder, port, and URL; a fresh session starts a clean board. No
   cross-session history is kept.
-- **Read-only.** The page displays; it never edits artifacts. You render or drop
-  files in chat; the screen reflects them.
+- **Displays, deletes, never edits.** The page shows artifacts and can delete one
+  from the folder (the row's **&times;**, after a confirm); it never edits their
+  contents. You render or drop files in chat; the screen reflects them.
 - **Reuse, don't multiply.** Re-running /henneth in the same session reuses the
   bound server via `.henneth-port` rather than spawning a second one.
