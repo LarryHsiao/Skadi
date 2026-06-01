@@ -73,7 +73,11 @@ PAGE = r"""<!DOCTYPE html>
   body { margin:0; font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
   .frame { display:grid; grid-template-columns:var(--side-w) 1fr; height:100vh; }
   .side { border-right:1px solid var(--line); background:var(--panel); overflow:auto; display:flex; flex-direction:column; }
-  .brand { font-weight:700; letter-spacing:.04em; padding:14px 16px; color:var(--accent); border-bottom:1px solid var(--line); }
+  .brand { display:flex; align-items:center; gap:8px; font-weight:700; letter-spacing:.04em; padding:14px 16px; color:var(--accent); border-bottom:1px solid var(--line); }
+  .iconbtn { margin-left:auto; display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; padding:0; background:none; border:1px solid var(--line); border-radius:6px; color:var(--muted); cursor:pointer; }
+  .iconbtn:hover { color:var(--ink); }
+  .iconbtn.on { background:#30364d; border-color:var(--accent); color:#fff; }
+  .iconbtn svg { width:15px; height:15px; }
   #list { flex:1; }
   .item { position:relative; padding:9px 16px; cursor:pointer; border-left:3px solid transparent; }
   .item:hover { background:#2f2f2f; }
@@ -91,6 +95,16 @@ PAGE = r"""<!DOCTYPE html>
   .bar .note { color:var(--muted); font-size:12px; }
   .pin { font:12px sans-serif; cursor:pointer; background:none; color:var(--accent); border:1px solid var(--line); border-radius:5px; padding:4px 10px; }
   .pin.on { background:#30364d; border-color:var(--accent); color:#fff; }
+  .tools { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--line); }
+  .tools:empty { display:none; }
+  .tool { font:12px sans-serif; cursor:pointer; background:none; color:var(--accent); border:1px solid var(--line); border-radius:5px; padding:3px 9px; }
+  .tool.danger { color:#f7768e; }
+  .tool[disabled] { opacity:.45; cursor:default; }
+  .tools .all { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; margin-right:auto; cursor:pointer; }
+  .chk { position:absolute; left:14px; top:12px; display:none; accent-color:var(--accent); pointer-events:none; }
+  .selecting .item { padding-left:38px; }
+  .selecting .chk { display:block; }
+  .selecting .item .del { display:none !important; }
   .stage { flex:1; overflow:auto; display:flex; align-items:center; justify-content:center; padding:18px; }
   .stage img { max-width:100%; max-height:100%; object-fit:contain; }
   .stage iframe { width:100%; height:100%; border:0; background:#fff; border-radius:6px; }
@@ -99,7 +113,12 @@ PAGE = r"""<!DOCTYPE html>
 <body>
 <div class="frame">
   <aside class="side">
-    <div class="brand">&#9788; HENNETH</div>
+    <div class="brand">&#9788; HENNETH
+      <button class="iconbtn" id="select" title="Select to delete">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="3"/><path d="M5 8.2l2 2 4-4.4"/></svg>
+      </button>
+    </div>
+    <div class="tools" id="tools"></div>
     <div id="list"></div>
   </aside>
   <main class="main">
@@ -119,6 +138,8 @@ let current = localStorage.getItem("henneth-current") || null;
 let pinned = localStorage.getItem("henneth-pinned") === "1";
 let newestSeen = null;
 let lastStageKey = null;
+let selecting = false;
+const selected = new Set();
 
 function ago(mtime){
   const s = Math.max(0, Math.floor(Date.now()/1000 - mtime));
@@ -134,10 +155,11 @@ function renderList(){
   if(!artifacts.length){ list.innerHTML = '<div class="item empty">No artifacts yet.</div>'; return; }
   list.innerHTML = artifacts.map(a =>
     `<div class="item${a.name===current?' active':''}" data-name="${esc(a.name)}">` +
+    `<input type="checkbox" class="chk" tabindex="-1"${selected.has(a.name)?' checked':''}>` +
     `<span class="lbl">${esc(a.label)}</span><small>${ago(a.mtime)}</small>` +
     `<button class="del" data-del="${esc(a.name)}" title="Delete">&times;</button></div>`).join("");
   list.querySelectorAll(".item[data-name]").forEach(el =>
-    el.onclick = () => select(el.dataset.name));
+    el.onclick = () => selecting ? toggleSel(el.dataset.name) : select(el.dataset.name));
   list.querySelectorAll(".del[data-del]").forEach(el =>
     el.onclick = e => { e.stopPropagation(); remove(el.dataset.del); });
 }
@@ -147,6 +169,60 @@ async function remove(name){
   try { await fetch("/" + encodeURIComponent(name), {method:"DELETE"}); }
   catch(_) { return; }
   if(current === name) current = null;
+  poll();
+}
+
+// The bulk-selection toolbar. Empty (hidden) off; on, it offers a select-all
+// box and a Delete (n) action. The Select icon in the brand toggles the mode.
+function renderTools(){
+  const tools = document.getElementById("tools");
+  if(!selecting){ tools.innerHTML = ""; return; }
+  const allOn = artifacts.length > 0 && selected.size === artifacts.length;
+  tools.innerHTML =
+    `<label class="all"><input type="checkbox" id="all"${allOn?" checked":""}>All</label>` +
+    `<button class="tool danger" id="delsel"${selected.size?"":" disabled"}>Delete (${selected.size})</button>`;
+  document.getElementById("all").onclick = e => toggleAll(e.target.checked);
+  document.getElementById("delsel").onclick = deleteSelected;
+}
+
+function setSelectIcon(on){
+  const btn = document.getElementById("select");
+  btn.classList.toggle("on", on);
+  btn.title = on ? "Exit selection" : "Select to delete";
+}
+
+function enterSelect(){
+  selecting = true; selected.clear();
+  document.body.classList.add("selecting");
+  setSelectIcon(true);
+  renderTools(); renderList();
+}
+
+function exitSelect(){
+  selecting = false; selected.clear();
+  document.body.classList.remove("selecting");
+  setSelectIcon(false);
+  renderTools(); renderList();
+}
+
+function toggleAll(on){
+  selected.clear();
+  if(on) artifacts.forEach(a => selected.add(a.name));
+  renderTools(); renderList();
+}
+
+function toggleSel(name){
+  if(selected.has(name)) selected.delete(name); else selected.add(name);
+  renderTools(); renderList();
+}
+
+async function deleteSelected(){
+  if(!selected.size) return;
+  if(!confirm(`Delete ${selected.size} artifact${selected.size>1?"s":""}?`)) return;
+  await Promise.all([...selected].map(n =>
+    fetch("/" + encodeURIComponent(n), {method:"DELETE"}).catch(() => {})));
+  if(selected.has(current)) current = null;
+  exitSelect();
   poll();
 }
 
@@ -193,6 +269,8 @@ function setPin(on){
 }
 document.getElementById("pin").onclick = () => setPin(!pinned);
 setPin(pinned);
+document.getElementById("select").onclick = () => selecting ? exitSelect() : enterSelect();
+renderTools();
 
 async function poll(){
   try {
@@ -210,6 +288,10 @@ async function poll(){
   }
   if(current) localStorage.setItem("henneth-current", current);
   else localStorage.removeItem("henneth-current");
+  if(selecting){
+    for(const n of [...selected]) if(!artifacts.some(a => a.name === n)) selected.delete(n);
+    renderTools();
+  }
   renderList(); renderStage();
 }
 poll();

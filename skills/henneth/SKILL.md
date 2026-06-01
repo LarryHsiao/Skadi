@@ -51,7 +51,8 @@ Print `http://localhost:<port>/` inline. Tell the user plainly: drop any image o
 HTML into the folder — or ask you to render one there — and the open screen follows
 on its own. To hold a view while studying it, click **Pin**. To drop an artifact
 from the folder, hover its row and click **&times;** — it asks once, then unlinks
-the file and its sidecar.
+the file and its sidecar. To clear several at once, click **Select**, tick the rows
+(or **All**), and **Delete (n)** — one confirm, then all chosen are unlinked.
 
 ### 5. Where renders go
 

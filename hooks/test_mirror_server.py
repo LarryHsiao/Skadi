@@ -77,6 +77,8 @@ class ServerTest(unittest.TestCase):
             page_body = page.read().decode("utf-8")
             self.assertEqual(200, page.status)
             self.assertIn("HENNETH", page_body)
+            self.assertIn('id="tools"', page_body)
+            self.assertIn("deleteSelected", page_body)
 
             conn.request("GET", "/favicon.svg")
             favicon = conn.getresponse()
