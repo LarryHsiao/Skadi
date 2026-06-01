@@ -1,38 +1,37 @@
 ---
 name: henneth
-description: Use when the user runs /henneth. Boots (or reuses) a per-session background web server that serves a live gallery of the session's rendered artifacts — wireframes, mockups, images, diagrams dropped into ~/.claude/previews/<session>/. The page lists every artifact newest-first and follows the latest in its main pane unless pinned. Drop a file and the open screen updates on its own; a row's delete button removes an artifact from the folder. Henneth Annûn — the Window of the Sunset, a window one looks through.
+description: Use when the user runs /henneth. Boots (or reuses) one standing background web server, shared across all sessions, that serves a live gallery of rendered artifacts — wireframes, mockups, images, diagrams dropped into ~/.claude/previews/henneth/. The page lists every artifact newest-first and follows the latest in its main pane unless pinned. Drop a file and the open screen updates on its own; a row's delete button removes an artifact from the folder. Henneth Annûn — the Window of the Sunset, a window one looks through.
 user_invocable: true
 ---
 
 # Henneth
 
-A standing window onto the artifacts you render this session. One folder is
-watched; anything dropped in — an image or an HTML mockup — appears in the
-gallery, newest first. The open screen follows the latest unless you pin one to
+A standing window onto the artifacts you render. One folder is watched — shared
+across every session; anything dropped in — an image or an HTML mockup — appears in
+the gallery, newest first. The open screen follows the latest unless you pin one to
 study it. The page displays and may delete an artifact from the folder; it never
 edits one.
 
 ## Workflow
 
-### 1. Resolve the session folder
+### 1. Resolve the shared folder
 
-The folder is pinned to the Claude session id, so every step this session — the
-boot here and every render later — resolves the **same** path with no drift:
+Henneth runs one standing instance for all sessions, so the folder is fixed — no
+session id, no drift. Every session resolves the **same** path:
 
-    SID="${CLAUDE_CODE_SESSION_ID:-default}"
-    DIR="$HOME/.claude/previews/$SID"
+    DIR="$HOME/.claude/previews/henneth"
     mkdir -p "$DIR"
 
-`$DIR` is the one folder henneth serves **and** the one folder you render into for
-the rest of the session (see "Where renders go" below). `default` is the fallback
-when the env var is absent (an older harness) — the folder still works, it just
-isn't session-unique.
+`$DIR` is the one folder henneth serves **and** the one folder you render into (see
+"Where renders go" below). It is shared across every session: whichever session
+runs `/henneth` first boots the server, and all others reuse it.
 
 ### 2. Reuse a running server before booting a new one
 
-Read `$DIR/.henneth-port`. If it names a port and that port answers a quick GET to
-`http://localhost:<port>/index.json`, the server is already up — print the URL and
-launch nothing.
+Read `$DIR/.henneth-port` (one global lockfile, since the folder is shared). If it
+names a port and that port answers a quick GET to
+`http://localhost:<port>/index.json`, the one instance is already up — perhaps
+booted by an earlier session — so print the URL and launch nothing.
 
 ### 3. Otherwise boot the server in the background
 
@@ -56,11 +55,11 @@ the file and its sidecar.
 
 ### 5. Where renders go
 
-Every artifact you render for the screen this session must be written into `$DIR`
-— that exact path is the binding henneth watches. Resolve it the same way each
-time (`$HOME/.claude/previews/${CLAUDE_CODE_SESSION_ID:-default}`); render anywhere
-else and it will not appear on the window. This is what lets a fresh session know
-where to write without remembering a path: the session id *is* the address.
+Every artifact you render for the screen must be written into `$DIR` — that exact
+path is the binding henneth watches. Resolve it the same way each time
+(`$HOME/.claude/previews/henneth`); render anywhere else and it will not appear on
+the window. The path is fixed and shared, so any session writes to the one window
+without remembering a path.
 
 ## Artifact labels — optional sidecar
 
@@ -72,11 +71,12 @@ Both fields optional. Absent, the gallery shows the humanized filename.
 
 ## Notes
 
-- **Per session.** The folder is keyed by `CLAUDE_CODE_SESSION_ID`, so each session
-  has its own folder, port, and URL; a fresh session starts a clean board. No
-  cross-session history is kept.
+- **One instance, shared.** The folder is fixed at `~/.claude/previews/henneth`, so
+  every session shares one folder, one port, one URL. The first session to run
+  `/henneth` boots the server; the rest reuse it. Artifacts accrue across sessions
+  — there is no per-session board.
 - **Displays, deletes, never edits.** The page shows artifacts and can delete one
   from the folder (the row's **&times;**, after a confirm); it never edits their
   contents. You render or drop files in chat; the screen reflects them.
-- **Reuse, don't multiply.** Re-running /henneth in the same session reuses the
-  bound server via `.henneth-port` rather than spawning a second one.
+- **Reuse, don't multiply.** Re-running /henneth — in this session or any other —
+  reuses the standing server via `.henneth-port` rather than spawning a second one.

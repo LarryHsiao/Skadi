@@ -78,6 +78,14 @@ class ServerTest(unittest.TestCase):
             self.assertEqual(200, page.status)
             self.assertIn("HENNETH", page_body)
 
+            conn.request("GET", "/favicon.svg")
+            favicon = conn.getresponse()
+            favicon_body = favicon.read().decode("utf-8")
+            expected_favicon_type = "image/svg+xml"
+            self.assertEqual(200, favicon.status)
+            self.assertEqual(expected_favicon_type, favicon.headers["Content-Type"])
+            self.assertIn("<svg", favicon_body)
+
             conn.request("GET", "/index.json")
             index = conn.getresponse()
             index_names = [e["name"] for e in json.loads(index.read())]

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Henneth — a standing window onto a session's rendered artifacts.
+"""Henneth — a standing window onto a caller-chosen folder of rendered artifacts.
 
 Usage: mirror-server.py <artifacts-dir> <port>
 
 Serves a gallery page that watches one folder. Any image or HTML dropped into
 the folder appears in the gallery, newest first; the page polls and follows the
-latest unless pinned. The folder is the only state — session-bound, restart-safe.
+latest unless pinned. The folder is the only state — caller-chosen, restart-safe.
 """
 
 import json
@@ -66,6 +66,7 @@ PAGE = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <title>Henneth</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>
   :root { --line:#3a3a3a; --muted:#8a8a8a; --bg:#1e1e1e; --panel:#262626; --ink:#e6e6e6; --accent:#7aa2f7; --side-w:260px; }
   * { box-sizing:border-box; }
@@ -219,12 +220,33 @@ setInterval(poll, REFRESH_MS);
 """
 
 
+# Henneth Annûn — the Window of the Sunset: a setting sun over a horizon band.
+FAVICON = r"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs><linearGradient id="warm" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffd479"/><stop offset="1" stop-color="#ff8a4c"/>
+  </linearGradient></defs>
+  <rect width="32" height="32" rx="7" fill="#1b2030"/>
+  <g stroke="#ffb35c" stroke-width="1.8" stroke-linecap="round">
+    <line x1="16" y1="3.5" x2="16" y2="7"/><line x1="6.5" y1="7.5" x2="9" y2="10"/>
+    <line x1="25.5" y1="7.5" x2="23" y2="10"/><line x1="3.5" y1="16" x2="7" y2="16"/>
+    <line x1="28.5" y1="16" x2="25" y2="16"/>
+  </g>
+  <clipPath id="cD"><rect x="2" y="2" width="28" height="20.5"/></clipPath>
+  <circle cx="16" cy="17" r="7" fill="url(#warm)" clip-path="url(#cD)"/>
+  <rect x="3" y="22" width="26" height="2.4" rx="1.2" fill="#7aa2f7"/>
+</svg>
+"""
+
+
 class Handler(SimpleHTTPRequestHandler):
-    """Serves the gallery at /, the folder scan at /index.json, files otherwise."""
+    """Serves the gallery at /, the favicon at /favicon.svg, the folder scan at
+    /index.json, files otherwise."""
 
     def do_GET(self):
         if self.path.split("?")[0] == "/":
             return self._send(PAGE.encode("utf-8"), "text/html; charset=utf-8")
+        if self.path.split("?")[0] == "/favicon.svg":
+            return self._send(FAVICON.encode("utf-8"), "image/svg+xml")
         if self.path.split("?")[0] == "/index.json":
             body = json.dumps(scan(self.directory)).encode("utf-8")
             return self._send(body, "application/json")

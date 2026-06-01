@@ -68,9 +68,9 @@ Session-level opt-out still applies ("just do it", "skip the summary", or the li
 
 When a section calls for a visual preview — a wireframe (UI Review), a UML diagram (UML Review) — write it as an HTML file and serve it locally so the user can open it in a browser.
 
-**Where files land.** A session-scoped subdirectory under `~/.claude/previews/` — one folder per session, one file per distinct preview, each named for what it shows (`wireframe-login.html`, `class-diagram-user.html`). The directory persists across turns, so earlier previews stay browsable.
+**Where files land.** The shared Henneth folder, `~/.claude/previews/henneth/` — one file per distinct preview, each named for what it shows (`wireframe-login.html`, `class-diagram-user.html`). The folder is shared across all sessions and persists across turns, so earlier previews stay browsable in the one standing window.
 
-**Serving the file.** Once per session, bind `python -m http.server <port>` in the previews directory as a background process — Python is universal, no install. Pick a free port; surface the URL inline (e.g. `http://localhost:8765/wireframe-login.html`) so the user can click through. Subsequent previews drop into the same directory under fresh filenames; the running server picks them up without restart.
+**Serving the file.** The Henneth window already watches this folder, so the preview appears there on its own — boot it once with `/henneth` if it is not yet running. Should you need a standalone server instead, bind `python -m http.server <port>` in that folder as a background process — Python is universal, no install. Pick a free port; surface the URL inline (e.g. `http://localhost:8765/wireframe-login.html`) so the user can click through. Subsequent previews drop into the same folder under fresh filenames; the running server picks them up without restart.
 
 **File shape.** Inline CSS and SVG keep the page simple. External scripts loaded over HTTP — Mermaid from a CDN, for instance — are acceptable, since the server unlocks `fetch()` and ES modules. No build step.
 
