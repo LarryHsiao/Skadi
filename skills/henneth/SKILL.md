@@ -66,9 +66,29 @@ without remembering a path.
 
 Beside an artifact `wireframe-login.html`, an optional `wireframe-login.json`:
 
-    {"title": "Login wireframe", "note": "second pass, dark variant"}
+    {"title": "Login wireframe", "note": "second pass, dark variant", "group": "nav-rail"}
 
-Both fields optional. Absent, the gallery shows the humanized filename.
+All three fields optional. Absent a `title`, the gallery shows the humanized
+filename; absent a `group`, the artifact falls into the **Ungrouped** bucket.
+
+## Grouping — stamp the session's work
+
+The folder is shared across every session, so renders from different sessions pile
+into one list. The gallery groups them by the sidecar `group` field — collapsible
+sections in the sidebar, the group bearing the newest artifact leading and
+following active work.
+
+The session-id fallback is **automatic**: a `PostToolUse` hook
+(`hooks/henneth-group.py`, wired in `settings.json` under the `Write|Edit` group)
+stamps every artifact rendered into the folder with the last 6 of the session id,
+so renders from one session cluster without anyone remembering to stamp. The hook
+never clobbers an explicit `group` — it only fills one that is absent.
+
+So to give a group a **readable name** (`"nav-rail"`, `"carpo-drag"`) rather than
+the bare id, write the sidecar `group` yourself when you render; the hook then
+leaves it be. Re-stamping a sidecar with a different `group` moves the artifact. A
+file dropped into the folder by hand (no `Write`/`Edit` tool call) bypasses the
+hook and gathers under Ungrouped until given a sidecar.
 
 ## Notes
 

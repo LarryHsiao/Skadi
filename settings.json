@@ -141,6 +141,11 @@
             "type": "command",
             "command": "~/.claude/hooks/eslint-check.sh",
             "statusMessage": "Running ESLint..."
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/henneth-group.py",
+            "statusMessage": "Stamping Henneth group..."
           }
         ]
       },

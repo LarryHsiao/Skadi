@@ -47,6 +47,19 @@ class ScanTest(unittest.TestCase):
         ]
         self.assertEqual(expected, result)
 
+    def test_group_from_sidecar_with_ungrouped_fallback(self):
+        self._write("rail.html", 2000)
+        (self.dir / "rail.json").write_text(
+            json.dumps({"title": "Nav rail", "group": "nav-rail"}), encoding="utf-8")
+        self._write("stray.png", 1000)
+
+        expected = [
+            {"name": "rail.html", "group": "nav-rail"},
+            {"name": "stray.png", "group": "Ungrouped"},
+        ]
+        result = [{"name": e["name"], "group": e["group"]} for e in mirror.scan(self.dir)]
+        self.assertEqual(expected, result)
+
     def test_non_artifacts_skipped(self):
         self._write("notes.txt", 1000)
         self._write("data.json", 1000)
@@ -79,6 +92,7 @@ class ServerTest(unittest.TestCase):
             self.assertIn("HENNETH", page_body)
             self.assertIn('id="tools"', page_body)
             self.assertIn("deleteSelected", page_body)
+            self.assertIn("groupsOf", page_body)
 
             conn.request("GET", "/favicon.svg")
             favicon = conn.getresponse()

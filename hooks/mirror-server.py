@@ -17,6 +17,7 @@ from pathlib import Path
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
 HTML_EXTS = {".html", ".htm"}
 ARTIFACT_EXTS = IMAGE_EXTS | HTML_EXTS
+UNGROUPED = "Ungrouped"
 
 
 def humanize(stem):
@@ -30,13 +31,14 @@ def type_of(suffix):
 
 
 def sidecar(path):
-    """Read `<stem>.json` beside an artifact for {title, note}; {} on any error."""
+    """Read `<stem>.json` beside an artifact for {title, note, group}; {} on any error."""
     side = path.with_suffix(".json")
     try:
         data = json.loads(side.read_text(encoding="utf-8"))
         return {
             "title": str(data["title"]) if "title" in data else "",
             "note": str(data["note"]) if "note" in data else "",
+            "group": str(data["group"]) if "group" in data else "",
         }
     except (OSError, ValueError, TypeError):
         return {}
@@ -56,6 +58,7 @@ def scan(directory):
             "mtime": path.stat().st_mtime,
             "label": meta.get("title") or humanize(path.stem),
             "note": meta.get("note", ""),
+            "group": meta.get("group") or UNGROUPED,
         })
     entries.sort(key=lambda e: e["mtime"], reverse=True)
     return entries
@@ -79,7 +82,12 @@ PAGE = r"""<!DOCTYPE html>
   .iconbtn.on { background:#30364d; border-color:var(--accent); color:#fff; }
   .iconbtn svg { width:15px; height:15px; }
   #list { flex:1; }
-  .item { position:relative; padding:9px 16px; cursor:pointer; border-left:3px solid transparent; }
+  .ghead { display:flex; align-items:center; gap:8px; padding:8px 14px; cursor:pointer; background:#222; border-bottom:1px solid var(--line); user-select:none; }
+  .ghead:hover { background:#2a2a2a; }
+  .ghead .chev { color:var(--muted); width:10px; font-size:10px; }
+  .ghead .gname { font-weight:600; font-size:12.5px; letter-spacing:.02em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ghead .gcount { margin-left:auto; color:var(--muted); font-size:11px; background:#2c2c2c; border:1px solid var(--line); border-radius:10px; padding:0 7px; }
+  .item { position:relative; padding:9px 16px 9px 26px; cursor:pointer; border-left:3px solid transparent; }
   .item:hover { background:#2f2f2f; }
   .item.active { background:#30364d; border-left-color:var(--accent); color:#fff; }
   .item .lbl { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:22px; }
@@ -140,6 +148,7 @@ let newestSeen = null;
 let lastStageKey = null;
 let selecting = false;
 const selected = new Set();
+const collapsed = new Set(JSON.parse(localStorage.getItem("henneth-collapsed") || "[]"));
 
 function ago(mtime){
   const s = Math.max(0, Math.floor(Date.now()/1000 - mtime));
@@ -150,18 +159,48 @@ function ago(mtime){
   return Math.floor(s/86400) + "d ago";
 }
 
+// Bucket the (already newest-first) artifacts by group, preserving first-seen
+// order — so the group bearing the newest artifact leads, and follows active work.
+function groupsOf(items){
+  const order = [];
+  const byName = new Map();
+  for(const a of items){
+    if(!byName.has(a.group)){ byName.set(a.group, []); order.push(a.group); }
+    byName.get(a.group).push(a);
+  }
+  return order.map(name => ({name, items: byName.get(name)}));
+}
+
+function itemHtml(a){
+  return `<div class="item${a.name===current?' active':''}" data-name="${esc(a.name)}">` +
+    `<input type="checkbox" class="chk" tabindex="-1"${selected.has(a.name)?' checked':''}>` +
+    `<span class="lbl">${esc(a.label)}</span><small>${ago(a.mtime)}</small>` +
+    `<button class="del" data-del="${esc(a.name)}" title="Delete">&times;</button></div>`;
+}
+
 function renderList(){
   const list = document.getElementById("list");
   if(!artifacts.length){ list.innerHTML = '<div class="item empty">No artifacts yet.</div>'; return; }
-  list.innerHTML = artifacts.map(a =>
-    `<div class="item${a.name===current?' active':''}" data-name="${esc(a.name)}">` +
-    `<input type="checkbox" class="chk" tabindex="-1"${selected.has(a.name)?' checked':''}>` +
-    `<span class="lbl">${esc(a.label)}</span><small>${ago(a.mtime)}</small>` +
-    `<button class="del" data-del="${esc(a.name)}" title="Delete">&times;</button></div>`).join("");
+  list.innerHTML = groupsOf(artifacts).map(g => {
+    const closed = collapsed.has(g.name);
+    const head = `<div class="ghead" data-group="${esc(g.name)}">` +
+      `<span class="chev">${closed ? "&#9656;" : "&#9662;"}</span>` +
+      `<span class="gname">${esc(g.name)}</span>` +
+      `<span class="gcount">${g.items.length}</span></div>`;
+    return head + (closed ? "" : g.items.map(itemHtml).join(""));
+  }).join("");
   list.querySelectorAll(".item[data-name]").forEach(el =>
     el.onclick = () => selecting ? toggleSel(el.dataset.name) : select(el.dataset.name));
   list.querySelectorAll(".del[data-del]").forEach(el =>
     el.onclick = e => { e.stopPropagation(); remove(el.dataset.del); });
+  list.querySelectorAll(".ghead[data-group]").forEach(el =>
+    el.onclick = () => toggleGroup(el.dataset.group));
+}
+
+function toggleGroup(name){
+  if(collapsed.has(name)) collapsed.delete(name); else collapsed.add(name);
+  localStorage.setItem("henneth-collapsed", JSON.stringify([...collapsed]));
+  renderList();
 }
 
 async function remove(name){
@@ -206,6 +245,8 @@ function exitSelect(){
 }
 
 function toggleAll(on){
+  // Spans every artifact, including those inside collapsed groups — selection
+  // tracks names, not visible checkboxes, so the count may exceed what is shown.
   selected.clear();
   if(on) artifacts.forEach(a => selected.add(a.name));
   renderTools(); renderList();
