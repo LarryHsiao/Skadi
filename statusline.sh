@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
 
+# Never take git's optional index.lock from this statusline's read-only git
+# calls (branch, diff --cached, status --porcelain, rev-list). The statusline
+# refreshes constantly, and `git status` otherwise grabs index.lock to refresh
+# the index — racing foreground rebases/commits in the watched repo and
+# leaving "Unable to create index.lock: File exists". Required locks (commit,
+# rebase) are unaffected; only the optional read-side refresh is suppressed.
+export GIT_OPTIONAL_LOCKS=0
+
 # Read JSON from stdin
 input=$(cat)
 
