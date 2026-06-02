@@ -36,6 +36,8 @@ Every class and object — seam, concrete, decorator, mixin, value type — is a
 
 Outside these seams, the rule holds. If a class cannot be named without a verb, it is probably a method on something else. See [`general.md`](general.md) for the broader rule.
 
+**A read source that yields a collection takes the model's plural — and the near-twin of the singular is intended, not a collision.** When an object's role is to *produce* a list of a domain model — a read seam over `Source<T>` / `SourceAsync<List<Model>>` whose `value()` returns the collection — name it the plural of the model it yields: `VerdandiAccounts` yields `List<VerdandiAccount>`, `Rates` yields `List<Rate>`. The single letter between the source and its model is the design, not an accident: the plural names the **producer**, the singular names the **thing produced**. A reader meets the pair once and holds it; the disambiguating alternatives — `VerdandiAccountList`, `AccountsSource`, `GetAccounts` — each buy clarity the domain did not ask for, trading a noun for a suffix or a verb. Reach for a distinct noun only when the plural genuinely misleads: a source that yields something other than a straight list of the model (a summary, a page, a single composed view — there `VerdandiDailyDashboard` over `VerdandiDashboards`).
+
 ## Source as Separate Concrete
 
 Each construction path is its own concrete class, each implementing the interface:
