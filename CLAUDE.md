@@ -244,6 +244,12 @@ Read when the tool is in play (not auto-loaded):
 - GitLab: `docs/tools/gitlab.md`
 - Secrets: `docs/tools/secrets.md`
 
+## Workflow
+
+Read when the activity is in play (not auto-loaded):
+
+- PR/MR descriptions: `docs/workflow/pr-mr-description.md`
+
 ## Grammar Check
 
 After every user message, silently check for grammar and phrasing issues. If any are found, append a brief correction at the end of your response in this format:
