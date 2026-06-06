@@ -66,7 +66,7 @@ Session-level opt-out still applies ("just do it", "skip the summary", or the li
 
 ## Local Preview
 
-When a section calls for a visual preview — a wireframe (UI Review), a UML diagram (UML Review) — write it as an HTML file and serve it locally so the user can open it in a browser.
+When a section calls for a visual preview — a wireframe (UI Review), a UML diagram (UML Review), a plan (Plan Preview) — write it as an HTML file and serve it locally so the user can open it in a browser.
 
 **Where files land.** The shared Henneth folder, `~/.claude/previews/henneth/` — one file per distinct preview, each named for what it shows (`wireframe-login.html`, `class-diagram-user.html`). The folder is shared across all sessions and persists across turns, so earlier previews stay browsable in the one standing window.
 
@@ -91,6 +91,12 @@ When a change calls for a UML diagram — a class diagram, sequence diagram, sta
 **Primary path.** Write an HTML diagram under the previews directory and serve it per the [Local Preview](#local-preview) rules. Mermaid (via `<script type="module">`) renders class, sequence, state, and ER diagrams from terse text; inline SVG covers what Mermaid does not.
 
 **Fallback.** A console UML diagram in Unicode box-drawing (ASCII) inline.
+
+## Plan Preview
+
+When a plan is generated — a task breakdown, an implementation plan, plan-mode output — whether it lands in markdown or only in the console, also write it as an HTML page under the previews directory per the [Local Preview](#local-preview) rules (`plan-<topic>.html`), so it appears in the standing Henneth window. The chat or markdown copy stays the source of truth; the HTML is a mirror for the eye.
+
+If the Henneth server is not running, render the preview file all the same and hint the user to boot the window with `/henneth` — the hint, not an auto-launch, is the assistant's part.
 
 ## Implementation Loop
 
