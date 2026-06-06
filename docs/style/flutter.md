@@ -4,6 +4,19 @@
 
 - Always use `fvm` for the Flutter SDK. Run commands as `fvm flutter <cmd>` so they target the project's pinned SDK version.
 
+## Running the App
+
+The assistant must **not** launch the app itself. A `flutter run` started from the assistant is a dead session: its stdin is unreachable, so no hot reload (`r`) or hot restart (`R`) can ever be sent — every code change would demand a full relaunch. Worse, each launch reinstalls and restarts the app on the device, trampling whatever session the user has open mid-test.
+
+The same hands-off rule covers the emulator and every process around it. The user boots and owns the emulator; the assistant must **never** kill it, nor `adb`, nor the running app, nor any `dart`/`flutter` process the user started — an unbidden kill tramples the user's live session and hot-reload state. Launch and kill alike happen only at the user's explicit ask.
+
+What the assistant does instead:
+
+- **Ask the user to run it**, handing them the exact command — e.g. `fvm flutter run -d <device-id>` (device ids via `fvm flutter devices`). The user's own terminal holds the stdin; hot reload stays in their hands.
+- **Arm a passive log watcher** — that is the assistant's whole share of the run. `adb logcat` filtered to the failure signatures (Crashlytics banners, exceptions, the widget under suspicion) reads without touching; it works regardless of who launched the app and survives the user's restarts.
+
+The division of labour is plain: the user drives the app and the emulator; the assistant watches the log and reads the wreckage.
+
 ## Dependencies
 
 - When the user asks to "update" a dependency that is pinned to a source reference (git branch, tag, commit, or path) rather than a semver version, the version string won't change — the underlying ref will. Run `dart pub upgrade <package>` (prefix with `fvm` if the project uses FVM) so pub fetches the latest commit on that ref instead of reusing the cached one. Example: a library the project references via `master` adds a new commit — `pub get` alone will keep the cached commit; `pub upgrade <package>` pulls the new one.
