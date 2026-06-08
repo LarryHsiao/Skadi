@@ -28,6 +28,7 @@ Celebrimbor was the master smith of Eregion, lord of the Gwaith-i-Mírdain, who 
 | `--ready` | no | Open PR/MR as ready-for-review (default: draft) |
 | `--dry-run` | no | Plan everything; never push, never open, never post |
 | `--confirm` | no | Ask once before opening the PR/MR |
+| `--skeleton` | no | Carve the skeleton rung (stubs + diagram PNG + `[SKELETON]` comment) and stop. Does not forge code or open a PR. |
 
 *If `--ticket` is set, `--filter` is ignored. Otherwise `--filter` follows the same resolution order as Glorfindel: explicit > `default_filters.md` > error.
 
@@ -97,6 +98,43 @@ The state hook lives at `~/.claude/hooks/youtrack-state.sh` (YouTrack) or `~/.cl
 
 ## Workflow
 
+### Mode: `--skeleton` (the middle rung)
+
+When `--skeleton` is set, celebrimbor carves bones instead of forging code.
+
+1. **Pre-flight** — resolve tracker + source repo only (steps 1a, 1b). No forge,
+   no base-branch, no auth check.
+2. **Decide + verify rung.** Fetch the thread, run `skeleton-rung.py`. Proceed
+   only if the action is `draft_skeleton` or `redraft_skeleton`; otherwise stop
+   with the action reported (e.g. "awaiting plan approval"). Locate the latest
+   `[PLAN]` body — it is the contract.
+3. **Acquire a read worktree** (`skadi-worktree.sh acquire <source-repo>`).
+4. **Summon the skeleton smith.** Load `<skill-dir>/skeleton-smith.md`; dispatch a
+   `general-purpose` subagent with the plan body, the worktree path, and a target
+   diagram path under `$TMPDIR` (e.g. `$TMPDIR/skel-<ticket>.mmd` or `.html`).
+   It returns a `[FRAME]` block (diagram path + tree/stubs) or `[ABORT]`.
+   **`[FRAME]` is the smith's return envelope; the posted comment's token is
+   `[SKELETON]` — the same return-vs-comment split celebrimbor already uses for
+   `[FORGED]`→`[GWAITH]`. Strip the `[FRAME]`/`diagram:` lines and wrap the
+   tree/stubs as the `[SKELETON]` comment.**
+5. **Render the PNG.**
+   - `.mmd` → `npx -y @mermaid-js/mermaid-cli -i <path>.mmd -o $TMPDIR/skel-<ticket>.png`
+   - `.html` → headless screenshot (`npx -y playwright screenshot <path>.html $TMPDIR/skel-<ticket>.png`)
+   If the renderer is absent on PATH, stop and report — do not post a skeleton with no diagram.
+6. **Attach the PNG:** `~/.claude/hooks/youtrack-attach.sh <ticket> $TMPDIR/skel-<ticket>.png`.
+7. **Write the `[SKELETON]` comment** with marker, watermark (= newest human
+   `created`), and the smith's tree/stubs:
+   - `draft_skeleton` → create via `council-youtrack-comment.sh`.
+   - `redraft_skeleton` → edit the existing one via `youtrack-comment-edit.sh <ticket> <skeleton_id>`.
+
+   ```
+   [SKELETON] — awaiting [FORTH]
+   <!-- consumed: <newest-human-created> -->
+
+   <tree + stubs>
+   ```
+8. **Release the worktree.** Report the ticket, the action taken, and the attachment.
+
 ### 1. Pre-flight resolution
 
 In order:
@@ -120,6 +158,18 @@ If `--ticket <id>` is set, the candidate set is just that one ticket. Otherwise:
 - Resolve `--filter` per Glorfindel's filter rules.
 - Invoke `<list-hook> <project> [<filter>]` to get the open tickets.
 - For each ticket in the list, fetch its thread via `<fetch-hook> <ticket-id>` and apply the **forge gate**:
+
+**YouTrack forge gate (skeleton-stage).** When the tracker is YouTrack, a ticket
+qualifies to forge iff `skeleton-rung.py` returns `action=forge` for it:
+
+```bash
+~/.claude/hooks/council-youtrack-fetch.sh <ticket> | ~/.claude/hooks/skeleton-rung.py
+```
+
+This means: a `[SKELETON]` comment exists and a `[FORTH]` sits past its watermark,
+and no `[GWAITH]` yet. The contract the smith implements is the latest `[PLAN]`
+body plus the approved `[SKELETON]` body. The Jira path keeps the `[COUNSEL vN]`
+gate below.
 
 **Forge gate.** A ticket qualifies iff *all* of:
 
@@ -164,6 +214,10 @@ Inspect its **Open questions** section. If any question has no follow-up answer 
   If the pull is non-fast-forward, release the workspace and abort with the error.
 
 ### 6. Summon Celebrimbor (subagent)
+
+> **YouTrack path:** the smith's contract is the latest `[PLAN]` body **plus** the
+> approved `[SKELETON]` body (pass it under a header `## Approved skeleton (your shape)`),
+> not a `[COUNSEL vN]`. Everything else in this step is unchanged.
 
 Load the smith prompt from `<skill-dir>/celebrimbor.md`. Dispatch a subagent via the Agent tool, `subagent_type: general-purpose`, passing:
 

@@ -72,6 +72,25 @@ For each ticket in the list, fetch its thread:
 <fetch-hook> <ticket-id>
 ```
 
+**YouTrack rung dispatch.** For each listed ticket, run the decider:
+
+```bash
+~/.claude/hooks/council-youtrack-fetch.sh <ticket> | ~/.claude/hooks/skeleton-rung.py
+```
+
+Map the action to a dispatch:
+
+| action | Dispatch |
+|---|---|
+| `draft_skeleton`, `redraft_skeleton` | `/celebrimbor youtrack <project> --ticket <id> --skeleton` |
+| `forge` | `/celebrimbor youtrack <project> --ticket <id>` |
+| `draft_plan`, `redraft_plan` | `/council youtrack:<id>` (plan rung — or leave to `/glorfindel`) |
+| `await_plan`, `await_skeleton`, `done` | skip (no-op) |
+
+A ticket whose action is a no-op is dropped from the manifest silently — exactly
+the loop-safety the watermark buys. (The `[COUNSEL vN]` forge gate below still
+governs the Jira path.)
+
 Apply the **forge gate** (identical to `/celebrimbor` step 2):
 
 A ticket qualifies iff *all* of:

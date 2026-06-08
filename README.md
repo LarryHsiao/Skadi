@@ -87,6 +87,13 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **publish-macos-target** — Remember whether a macOS project publishes to GitHub Releases or the Mac App Store
 - **vocab-cards** — Emit every vocab card with SRS state and days-until-due as TSV for `/vocab review` and `/vocab list`
 - **nazgul-checks-mark-reviewed** — Stamp the rubric-review state file consumed by `/preflight`; called by `/nazgul reviewed`
+- **skeleton-rung** — Derives the loop's next action for a skeleton-stage YouTrack issue
+- **youtrack-comment-edit** — Edits a YouTrack comment in place
+- **youtrack-attach** — Attaches or replaces a PNG on a YouTrack issue
+
+## Skeleton-stage pipeline
+
+`/council` has a YouTrack modify-only path for skeleton-stage planning, and `/celebrimbor` carries a `--skeleton` mode that carves the skeleton (stubs + a diagram PNG, posted as a `[SKELETON]` comment) before the forge. `/aule` and `/glorfindel` drive the rungs under `/loop`: each tick derives a ticket's rung from its thread via `hooks/skeleton-rung.py` and dispatches the plan, skeleton, or forge work accordingly. Two `[FORTH]`s gate the arc — one to approve the plan, one to approve the skeleton — and the code arrives as a draft PR with `[GWAITH]`.
 
 ## Council → Forge
 
@@ -98,7 +105,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 
 ### Comment grammar
 
-Seven tokens carry state. Everything else is counsel. Matching is case-insensitive; English aliases are recognized everywhere their Tolkien primaries are.
+Seven tokens carry state on the append path. Everything else is counsel. Matching is case-insensitive; English aliases are recognized everywhere their Tolkien primaries are.
 
 | Token | Alias | Author | Meaning |
 |---|---|---|---|
@@ -109,6 +116,13 @@ Seven tokens carry state. Everything else is counsel. Matching is case-insensiti
 | `[NAY]` | `[REJECT]` | Elrond | The plan is abandoned; council adjourns without approval |
 | `[NAMARIE]` | `[FAREWELL]` | Elrond | *Farewell* — adjourn without verdict (out-of-band resolution, ticket subsumed, etc.) |
 | `[GWAITH]` | `[FORGED]`, `[SHIPPED]` | Celebrimbor | The deed is wrought; PR/MR opened on the approved counsel; body carries the URL |
+
+On the **YouTrack modify-only path** (skeleton-stage pipeline), two further markers head living comments that are *edited in place* — one each, never versioned. Distinct from the `[PLAN vN]` alias above, which is the append path's versioned counsel.
+
+| Token | Author | Meaning |
+|---|---|---|
+| `[PLAN]` | Council | The living plan — one comment, modified in place; carries a `<!-- consumed: … -->` watermark |
+| `[SKELETON]` | Celebrimbor | The living skeleton — file tree + stubbed signatures — one comment, modified in place; the diagram PNG is attached to the issue |
 
 ### When the council adjourns
 

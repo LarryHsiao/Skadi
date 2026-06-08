@@ -51,7 +51,7 @@ fetch_to_file() {
 if ! fetch_to_file "issue" "/api/issues/$TICKET_ID?fields=summary,description" "$issue_file"; then
   exit 1
 fi
-if ! fetch_to_file "comments" "/api/issues/$TICKET_ID/comments?fields=text,author(name,login),created&\$top=200" "$comments_file"; then
+if ! fetch_to_file "comments" "/api/issues/$TICKET_ID/comments?fields=id,text,author(name,login),created,updated&\$top=200" "$comments_file"; then
   exit 1
 fi
 
@@ -62,9 +62,11 @@ jq -n \
     summary: ($issue.summary // ""),
     description: ($issue.description // ""),
     comments: ($comments | map({
+      id: (.id // ""),
       author: (.author.name // ""),
       login: (.author.login // ""),
       text: (.text // ""),
-      created: (.created // 0)
+      created: (.created // 0),
+      updated: (.updated // 0)
     }))
   }'
