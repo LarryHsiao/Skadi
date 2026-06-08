@@ -159,6 +159,18 @@ If `--ticket <id>` is set, the candidate set is just that one ticket. Otherwise:
 - Invoke `<list-hook> <project> [<filter>]` to get the open tickets.
 - For each ticket in the list, fetch its thread via `<fetch-hook> <ticket-id>` and apply the **forge gate**:
 
+**YouTrack forge gate (skeleton-stage).** When the tracker is YouTrack, a ticket
+qualifies to forge iff `skeleton-rung.py` returns `action=forge` for it:
+
+```bash
+~/.claude/hooks/council-youtrack-fetch.sh <ticket> | ~/.claude/hooks/skeleton-rung.py
+```
+
+This means: a `[SKELETON]` comment exists and a `[FORTH]` sits past its watermark,
+and no `[GWAITH]` yet. The contract the smith implements is the latest `[PLAN]`
+body plus the approved `[SKELETON]` body. The Jira path keeps the `[COUNSEL vN]`
+gate below.
+
 **Forge gate.** A ticket qualifies iff *all* of:
 
 1. The thread contains at least one `[COUNSEL vN]` (or alias `[PLAN vN]`) from the bot.
@@ -202,6 +214,10 @@ Inspect its **Open questions** section. If any question has no follow-up answer 
   If the pull is non-fast-forward, release the workspace and abort with the error.
 
 ### 6. Summon Celebrimbor (subagent)
+
+> **YouTrack path:** the smith's contract is the latest `[PLAN]` body **plus** the
+> approved `[SKELETON]` body (pass it under a header `## Approved skeleton (your shape)`),
+> not a `[COUNSEL vN]`. Everything else in this step is unchanged.
 
 Load the smith prompt from `<skill-dir>/celebrimbor.md`. Dispatch a subagent via the Agent tool, `subagent_type: general-purpose`, passing:
 
