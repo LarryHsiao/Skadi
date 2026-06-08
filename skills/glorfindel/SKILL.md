@@ -186,6 +186,10 @@ A mid-sweep crash that bypasses this step leaves the workspace under `$TMPDIR` f
   comes from `~/.claude/hooks/skeleton-rung.py` returning `await_plan` (nothing new
   since the last edit) rather than the old append "no fresh counsel" check. The Jira
   path keeps the append behavior.
+  On the YouTrack path the enrolment gate (step 3) is the decider's own work: a
+  planless ticket with no `[MELLON]`/`[FRIEND]` summons yields `await_start`, which
+  Glorfindel records as `untouched` — the same outcome the skill-level gate gave,
+  now derived in one place. The Jira path keeps its skill-level engagement gate.
 
 - Glorfindel never posts more than the council would. Per-ticket behavior matches `/council` exactly.
 - `--dry-run` overrides `--confirm` — nothing to confirm if nothing is posted.

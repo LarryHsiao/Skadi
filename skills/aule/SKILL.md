@@ -85,6 +85,7 @@ Map the action to a dispatch:
 | `draft_skeleton`, `redraft_skeleton` | `/celebrimbor youtrack <project> --ticket <id> --skeleton` |
 | `forge` | `/celebrimbor youtrack <project> --ticket <id>` |
 | `draft_plan`, `redraft_plan` | `/council youtrack:<id>` (plan rung — or leave to `/glorfindel`) |
+| `await_start` | skip — dormant, no `[MELLON]` summons yet (counted in the report) |
 | `await_plan`, `await_skeleton`, `done` | skip (no-op) |
 
 A ticket whose action is a no-op is dropped from the manifest silently — exactly
@@ -161,7 +162,10 @@ Aulë at <tracker>:<project> — sweep complete
 
 Total: 3 ticket(s) — 1 forged, 1 aborted, 1 error.
 <Q-K> qualifier(s) remain for the next sweep.
+<D> ticket(s) await [MELLON] — dormant until summoned.
 ```
+
+The dormant tally `<D>` counts tickets the decider returned `await_start` for — planless and un-summoned. They are dropped from the work manifest, surfaced only as this count so a backlog of un-summoned tickets does not read as an empty project.
 
 Outcome vocabulary:
 
