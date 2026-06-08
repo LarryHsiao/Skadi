@@ -106,10 +106,13 @@ path instead of steps 1–7 below. (Jira keeps the append flow.)
    Parse `action=` and `plan_id=` from `action_line`.
 
 2. **Branch on the action:**
-   - `draft_plan` — summon Erestor (worktree per the Working-directory contract);
-     he drafts the plan body. Erestor still returns his `[COUNSEL vN]` envelope;
-     strip that envelope and wrap his body as the `[PLAN]` comment. **Create** the
-     comment with the marker, watermark, and body:
+   - `draft_plan` **or** `await_start` — summon Erestor (worktree per the
+     Working-directory contract); he drafts the plan body. `await_start` means the
+     thread bears no `[MELLON]` summons, but reaching `/council` directly **is** the
+     summons (the invocation is consent), so it drafts exactly as `draft_plan` does.
+     Erestor still returns his `[COUNSEL vN]` envelope; strip that envelope and wrap
+     his body as the `[PLAN]` comment. **Create** the comment with the marker,
+     watermark, and body:
 
      ```
      [PLAN] — awaiting [FORTH]
@@ -123,8 +126,10 @@ path instead of steps 1–7 below. (Jira keeps the append flow.)
      instruction); he redrafts. **Edit the same comment** in place via
      `~/.claude/hooks/youtrack-comment-edit.sh <TICKET-ID> <plan_id>`, with the
      watermark advanced to the newest human comment's `created`.
-   - `await_plan` / `draft_skeleton` / anything else — **no-op**. Council's job is
-     the plan rung only; later rungs belong to celebrimbor. Report "awaiting" and stop.
+   - `await_plan` / `draft_skeleton` / `redraft_skeleton` / `forge` / `done` —
+     **no-op**. Council's job is the plan rung only; later rungs belong to celebrimbor.
+     Report "awaiting" and stop. (`await_start` is handled by the draft clause above —
+     a direct invocation is consent.)
 
 3. **Watermark rule.** Whenever council writes the `[PLAN]` comment, set
    `<!-- consumed: N -->` to the `created` of the newest human comment in the
