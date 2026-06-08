@@ -15,6 +15,7 @@ import sys, json, re
 BOT_LOGIN = "claude"  # service-account login; matches council's bot-login config
 WATERMARK = re.compile(r"<!--\s*consumed:\s*(\d+)\s*-->")
 VERDICT = ("[FORTH]", "[APPROVE]")
+SUMMONS = ("[MELLON]", "[FRIEND]")
 
 
 def _token(text):
@@ -36,6 +37,11 @@ def _watermark(text):
 def _is_forth(text):
     up = (text or "").upper()
     return any(v in up for v in VERDICT)
+
+
+def _is_mellon(text):
+    up = (text or "").upper()
+    return any(s in up for s in SUMMONS)
 
 
 def decide(data):
@@ -79,7 +85,8 @@ def decide(data):
         if newest_human > wm:
             return out("redraft_plan")
         return out("await_plan")
-    return out("draft_plan")
+    has_mellon = any(_is_mellon(c.get("text", "")) for c in humans)
+    return out("draft_plan") if has_mellon else out("await_start")
 
 
 def main():
