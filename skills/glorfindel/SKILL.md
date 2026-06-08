@@ -181,6 +181,12 @@ A mid-sweep crash that bypasses this step leaves the workspace under `$TMPDIR` f
 
 ## Rules
 
+- **YouTrack path is modify-only.** On YouTrack, Glorfindel drives the converted
+  `/council` (one living `[PLAN]` comment, no `[COUNSEL vN]` versions). Loop-safety
+  comes from `~/.claude/hooks/skeleton-rung.py` returning `await_plan` (nothing new
+  since the last edit) rather than the old append "no fresh counsel" check. The Jira
+  path keeps the append behavior.
+
 - Glorfindel never posts more than the council would. Per-ticket behavior matches `/council` exactly.
 - `--dry-run` overrides `--confirm` — nothing to confirm if nothing is posted.
 - Errors on one ticket do not stop the sweep. Record and continue.
