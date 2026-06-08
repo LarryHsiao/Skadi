@@ -90,6 +90,46 @@ Apply the **Hybrid dispatch rule** from "Tracker routing" above to choose betwee
 
 If any credential cannot be resolved, the hook prints `{"error":"jira credentials missing"}` (or YouTrack equivalent) — surface it and stop.
 
+### YouTrack modify-only path (skeleton-stage pipeline)
+
+When the resolved tracker is **YouTrack**, council maintains a single living
+`[PLAN]` comment instead of appended `[COUNSEL vN]` versions, and follows this
+path instead of steps 1–7 below. (Jira keeps the append flow.)
+
+1. **Fetch + decide.** Run the fetch hook, pipe to the decider:
+
+   ```bash
+   ~/.claude/hooks/council-youtrack-fetch.sh <TICKET-ID> > /tmp/thread.json
+   action_line=$(~/.claude/hooks/skeleton-rung.py < /tmp/thread.json)
+   ```
+
+   Parse `action=` and `plan_id=` from `action_line`.
+
+2. **Branch on the action:**
+   - `draft_plan` — summon Erestor (worktree per the Working-directory contract);
+     he drafts the plan body. Erestor still returns his `[COUNSEL vN]` envelope;
+     strip that envelope and wrap his body as the `[PLAN]` comment. **Create** the
+     comment with the marker, watermark, and body:
+
+     ```
+     [PLAN] — awaiting [FORTH]
+     <!-- consumed: <newest-human-created-or-0> -->
+
+     <Erestor's plan>
+     ```
+
+     Post it via `~/.claude/hooks/council-youtrack-comment.sh <TICKET-ID>`.
+   - `redraft_plan` — summon Erestor with the thread (including the human's new
+     instruction); he redrafts. **Edit the same comment** in place via
+     `~/.claude/hooks/youtrack-comment-edit.sh <TICKET-ID> <plan_id>`, with the
+     watermark advanced to the newest human comment's `created`.
+   - `await_plan` / `draft_skeleton` / anything else — **no-op**. Council's job is
+     the plan rung only; later rungs belong to celebrimbor. Report "awaiting" and stop.
+
+3. **Watermark rule.** Whenever council writes the `[PLAN]` comment, set
+   `<!-- consumed: N -->` to the `created` of the newest human comment in the
+   thread (0 if none). This is what makes the loop quiet between instructions.
+
 ### 1. Fetch the ticket and its comment thread
 
 Invoke the chosen tracker's fetch script with just the ticket ID — credentials are resolved inside:
@@ -114,6 +154,9 @@ The script prints a single JSON object:
 ```
 
 If the script prints `{"error": "..."}`, tell the user the error and stop.
+
+> **The steps below (versioned `[COUNSEL vN]` append) apply to the Jira path only.**
+> The YouTrack path is handled by the modify-only section above and does not reach here.
 
 ### 2. Parse the thread
 
