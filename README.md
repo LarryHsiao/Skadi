@@ -95,6 +95,8 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 
 `/council` has a YouTrack modify-only path for skeleton-stage planning, and `/celebrimbor` carries a `--skeleton` mode that carves the skeleton (stubs + a diagram PNG, posted as a `[SKELETON]` comment) before the forge. `/aule` and `/glorfindel` drive the rungs under `/loop`: each tick derives a ticket's rung from its thread via `hooks/skeleton-rung.py` and dispatches the plan, skeleton, or forge work accordingly. Two `[FORTH]`s gate the arc — one to approve the plan, one to approve the skeleton — and the code arrives as a draft PR with `[GWAITH]`.
 
+![Skeleton stage — the working flow](docs/skeleton-stage-flow.png)
+
 ## Council → Forge
 
 `/council`, `/glorfindel`, and `/celebrimbor` work as one machine for turning a ticket into a PR/MR — the ticket thread is the record, no side channels.
