@@ -264,7 +264,7 @@ Six tokens carry state. Everything else is counsel.
 |---|---|---|---|
 | `[COUNSEL vN]` | `[PLAN vN]` | Erestor | A draft of the plan. N increments each round. The counsellor's counsel. |
 | `[PARLEY]` | `[AGENT-ASK]` | Erestor | A single clarifying question — speech between sides to come to terms. |
-| `[MELLON]` | `[FRIEND]` | Elrond | Summons. *Speak, friend, and enter* — enrolls a ticket in `/glorfindel` sweeps. Ignored by single-ticket `/council` (the invocation itself is consent). |
+| `[MELLON]` | `[FRIEND]` | Elrond | Summons. *Speak, friend, and enter* — enrols a planless ticket in the skeleton-stage sweeps (`/glorfindel`, `/aule`); the decider yields `await_start` without it. Ignored by single-ticket `/council` (the invocation itself is consent). |
 | `[FORTH]` | `[APPROVE]` | Elrond | The plan stands. *Forth, Eorlingas!* Council adjourns. |
 | `[NAY]` | `[REJECT]` | Elrond | The plan is abandoned. Council adjourns. |
 | `[NAMARIE]` | `[FAREWELL]` | Elrond | *Farewell.* Adjourn without verdict — when the thread closes for reasons other than approval or rejection (resolved out-of-band, ticket subsumed by another, etc.). |

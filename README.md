@@ -102,7 +102,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 `/council`, `/glorfindel`, and `/celebrimbor` work as one machine for turning a ticket into a PR/MR — the ticket thread is the record, no side channels.
 
 1. **Plan** — `/council TICKET-ID`. Erestor (subagent) reads the ticket and drafts `[COUNSEL vN]` as a comment. Elrond (the human) replies in prose; each `/council TICKET-ID` turns the wheel another round, weaving Elrond's reply into `[COUNSEL v(N+1)]`. Read-only — never writes code or opens PRs.
-2. **Sweep** — `/glorfindel TRACKER PROJECT --filter <filter>`. Visits every ticket the filter returns and runs the council on each. Loop-safe — quiet on threads with no fresh counsel since the bot last spoke. A ticket only enrolls in the sweep once it carries either an existing `[COUNSEL v…]` or a `[MELLON]` summons from Elrond, so a fresh project is not flooded with v1 drafts on the first ride.
+2. **Sweep** — `/glorfindel TRACKER PROJECT --filter <filter>`. Visits every ticket the filter returns and runs the council on each. Loop-safe — quiet on threads with no fresh counsel since the bot last spoke. A ticket only enrolls in the sweep once it carries either an existing `[COUNSEL v…]` or a `[MELLON]` summons from Elrond, so a fresh project is not flooded with v1 drafts on the first ride. The same `[MELLON]` summons gates plan-drafting in `/aule`; the gate is derived once, in `hooks/skeleton-rung.py` (`await_start`).
 3. **Forge** — `/celebrimbor TRACKER PROJECT [--filter <filter>] [--ticket <id>]`. Picks one ticket bearing `[FORTH]` without `[GWAITH]`, branches off the project's base, dispatches the smith subagent to implement the approved counsel, opens a draft PR/MR via the forge hook, and posts `[GWAITH] <url>` back on the ticket. Single-shot — one ticket per invocation; `/loop` covers throughput.
 
 ### Comment grammar
@@ -113,7 +113,7 @@ Seven tokens carry state on the append path. Everything else is counsel. Matchin
 |---|---|---|---|
 | `[COUNSEL vN]` | `[PLAN vN]` | Erestor | Draft of the plan; N increments each round |
 | `[PARLEY]` | `[AGENT-ASK]` | Erestor | A single clarifying question — speech between sides to come to terms |
-| `[MELLON]` | `[FRIEND]` | Elrond | Summons — *speak, friend, and enter*; enrolls a ticket in `/glorfindel` sweeps |
+| `[MELLON]` | `[FRIEND]` | Elrond | Summons — *speak, friend, and enter*; enrols a planless ticket in the skeleton-stage sweeps (`/glorfindel` and `/aule`). Un-summoned planless tickets stay dormant; direct single-ticket `/council` drafts without it |
 | `[FORTH]` | `[APPROVE]` | Elrond | The plan stands; council adjourns with approval |
 | `[NAY]` | `[REJECT]` | Elrond | The plan is abandoned; council adjourns without approval |
 | `[NAMARIE]` | `[FAREWELL]` | Elrond | *Farewell* — adjourn without verdict (out-of-band resolution, ticket subsumed, etc.) |
