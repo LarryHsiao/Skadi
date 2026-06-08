@@ -87,6 +87,13 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **publish-macos-target** — Remember whether a macOS project publishes to GitHub Releases or the Mac App Store
 - **vocab-cards** — Emit every vocab card with SRS state and days-until-due as TSV for `/vocab review` and `/vocab list`
 - **nazgul-checks-mark-reviewed** — Stamp the rubric-review state file consumed by `/preflight`; called by `/nazgul reviewed`
+- **skeleton-rung** — Derives the loop's next action for a skeleton-stage YouTrack issue
+- **youtrack-comment-edit** — Edits a YouTrack comment in place
+- **youtrack-attach** — Attaches or replaces a PNG on a YouTrack issue
+
+## Skeleton-stage pipeline
+
+`/council` has a YouTrack modify-only path for skeleton-stage planning, and `/celebrimbor` carries a `--skeleton` mode for the skeleton-stage forging pipeline (branch off base, implement, open PR/MR, post `[GWAITH]` on the ticket).
 
 ## Council → Forge
 
