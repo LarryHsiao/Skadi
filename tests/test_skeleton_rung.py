@@ -15,9 +15,19 @@ def human(text, created): return {"login": "elrond", "text": text, "created": cr
 def bot(text, created, cid): return {"login": BOT, "text": text, "created": created, "id": cid}
 
 class DecideTest(unittest.TestCase):
-    def test_empty_thread_drafts_plan(self):
-        expected = "draft_plan"
+    def test_empty_thread_awaits_start(self):
+        expected = "await_start"
         self.assertEqual(decide({"comments": []})["action"], expected)
+
+    def test_mellon_drafts_plan(self):
+        expected = "draft_plan"
+        data = {"comments": [human("[MELLON]", 100)]}
+        self.assertEqual(decide(data)["action"], expected)
+
+    def test_friend_alias_drafts_plan(self):
+        expected = "draft_plan"
+        data = {"comments": [human("please look at this [FRIEND]", 100)]}
+        self.assertEqual(decide(data)["action"], expected)
 
     def test_plan_present_awaits(self):
         expected = "await_plan"

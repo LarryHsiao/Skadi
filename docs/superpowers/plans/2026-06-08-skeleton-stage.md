@@ -35,6 +35,7 @@
 
 | action | Meaning | Who acts |
 |---|---|---|
+| `await_start` | No `[PLAN]` and no `[MELLON]`/`[FRIEND]` summons | noop (sweep skips; direct `/council` drafts) |
 | `draft_plan` | No `[PLAN]` yet | agent: council drafts |
 | `redraft_plan` | Human instruction newer than plan watermark, no fresh `[FORTH]` | agent: council edits `[PLAN]` |
 | `await_plan` | `[PLAN]` exists, nothing newer | noop |
