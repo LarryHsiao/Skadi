@@ -113,7 +113,7 @@ Seven tokens carry state on the append path. Everything else is counsel. Matchin
 |---|---|---|---|
 | `[COUNSEL vN]` | `[PLAN vN]` | Erestor | Draft of the plan; N increments each round |
 | `[PARLEY]` | `[AGENT-ASK]` | Erestor | A single clarifying question — speech between sides to come to terms |
-| `[MELLON]` | `[FRIEND]` | Elrond | Summons — *speak, friend, and enter*; enrols a planless ticket in the skeleton-stage sweeps (`/glorfindel` and `/aule`). Un-summoned planless tickets stay dormant; direct single-ticket `/council` drafts without it |
+| `[MELLON]` | `[FRIEND]` | Elrond | Summons — *speak, friend, and enter*; enrolls a planless ticket in the skeleton-stage sweeps (`/glorfindel` and `/aule`). Un-summoned planless tickets stay dormant; direct single-ticket `/council` drafts without it |
 | `[FORTH]` | `[APPROVE]` | Elrond | The plan stands; council adjourns with approval |
 | `[NAY]` | `[REJECT]` | Elrond | The plan is abandoned; council adjourns without approval |
 | `[NAMARIE]` | `[FAREWELL]` | Elrond | *Farewell* — adjourn without verdict (out-of-band resolution, ticket subsumed, etc.) |

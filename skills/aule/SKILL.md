@@ -89,8 +89,9 @@ Map the action to a dispatch:
 | `await_plan`, `await_skeleton`, `done` | skip (no-op) |
 
 A ticket whose action is a no-op is dropped from the manifest silently — exactly
-the loop-safety the watermark buys. (The `[COUNSEL vN]` forge gate below still
-governs the Jira path.)
+the loop-safety the watermark buys. The one exception is `await_start`: it too is
+dropped from the work manifest, but is surfaced as the dormant tally below rather
+than silently. (The `[COUNSEL vN]` forge gate below still governs the Jira path.)
 
 Apply the **forge gate** (identical to `/celebrimbor` step 2):
 
