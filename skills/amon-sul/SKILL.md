@@ -1,6 +1,6 @@
 ---
 name: amon-sul
-description: Use when the user runs /amon-sul <sweep> <tracker> <project> [flags…], where <sweep> is glorfindel (council-stage) or aule (forge-stage). An adaptive in-session watcher — it runs one sweep, reads the result, then self-schedules its next ride via ScheduleWakeup, tightening to 5 minutes when work moves and stretching out to 6 hours as the road stays quiet. Session-bound: the vigil dies when the session closes. Say "stop the vigil" (or stop /amon-sul) to end it.
+description: Use when the user runs /amon-sul <sweep> <tracker> <project> [flags…], where <sweep> is glorfindel (council-stage) or aule (forge-stage). An adaptive in-session watcher — it runs one sweep, reads the result, then self-schedules its next ride via ScheduleWakeup, tightening to 5 minutes when work moves and stretching out to 1 hour as the road stays quiet. Session-bound: the vigil dies when the session closes. Say "stop the vigil" (or stop /amon-sul) to end it.
 user_invocable: true
 ---
 
@@ -10,7 +10,7 @@ Amon Sûl, the watchtower of Weathertop, kept the road under its eye through
 the long years. So this skill: it keeps one watch over a tracker's tickets,
 sending a rider out to sweep, then choosing for itself how long to wait before
 sending the next — close watch when work moves, an ever-longer quiet as the road
-sleeps, out to a six-hour span.
+sleeps, out to an hour.
 
 The rider is yours to name. **Glorfindel** rides the council stage (draft and
 refine plans on open tickets); **Aulë** rides the forge stage (open PRs for
@@ -25,12 +25,15 @@ whichever you summon.
 - **The cadence answers the road, not the clock.** The longer the road stays
   unchanged, the longer the wait climbs; the moment work stirs, it snaps back to
   a close watch. The watch spends its attention where the work is.
+- **The hour is the ceiling, by design.** `ScheduleWakeup` clamps a single wait
+  to one hour, and that is where the ladder stops — past it, an in-session watch
+  cannot truly sleep, only wake hourly to re-arm, which saves nothing. For
+  genuinely rare checks on a long-dead board, reach for a durable cron
+  (`0 */6 * * *` and the like) instead — it sleeps where this watch only hops.
 - **It is `/loop` with a rubric.** Mechanically this is `/loop` in dynamic mode
   wrapped around one sweep. Its reason to exist is the escalating cadence below —
   a named, consistent back-off ladder so neither watcher nor user re-derives it
-  each session. For a *fixed* interval, reach for `/loop <interval> /<sweep> …`
-  instead; to survive a session restart, no in-session watcher can — use a
-  durable cron and accept the fixed clock.
+  each session.
 
 ## Argument parsing
 
@@ -51,35 +54,27 @@ of its own; it only wraps the sweep in an adaptive schedule.
 If `<sweep>` is missing or is not one of the two riders, stop and show the usage
 line above — do not default to a rider the user did not name.
 
-**The bookkeeping tokens.** Two trailing tokens may appear — `::streak=N` and
-`::sleep=S` — written by the watch into its own re-arm prompt so the next wake
-knows how long the road has stayed quiet (`streak`) and whether it is mid-way
-through a multi-hour wait (`sleep`, in seconds remaining). Parse both off the
-**end** of the arguments, hold the integers (default `0` each if absent), and
-**strip them** before handing the remainder to the sweep — the sweep must never
-see them. The user does not type these; if they do, honour them as the starting
-state.
+**The streak token.** A trailing `::streak=N` may appear on the invocation — this
+is Amon Sûl's own bookkeeping, written by the watch into its re-arm prompt so the
+next ride knows how long the road has stayed quiet (see *Read the road*). Parse
+it off the **end** of the arguments, hold the integer (default `0` if absent),
+and **strip it** before handing the remainder to the sweep — the sweep must never
+see it. The user does not type this; if they do, honour it as the starting count.
 
 ## Workflow
 
-### 1. Hop or ride
+### 1. Ride
 
-Parse `::streak=N` and `::sleep=S` (see above).
-
-- **If `S > 0`** — the watch is mid-way through a long wait the 1-hour clamp could
-  not serve in one sleep. This wake is a **hop**, not a sweep: do *not* run the
-  rider. Skip straight to *Arm* (step 3) and serve the next chunk.
-- **If `S == 0`** — it is time to act. Invoke `/<sweep> <rest>` through the Skill
-  tool, passing the remaining arguments exactly as received. Let the sweep do its
-  whole job — listing, the per-ticket machinery, posting, transitions or forging,
-  and its own aggregate report. Amon Sûl reads the report; it duplicates none of
-  the work. Then continue to *Read the road* (step 2).
+Parse `::streak=N` (see above), then invoke `/<sweep> <rest>` through the Skill
+tool, passing the remaining arguments exactly as received. Let the sweep do its
+whole job — listing, the per-ticket machinery, posting, transitions or forging,
+and its own aggregate report. Amon Sûl reads the report; it duplicates none of
+the work.
 
 ### 2. Read the road
 
-(Only on a real ride — skip when hopping.) From the sweep's aggregate report,
-decide whether the board **stirred** or stayed **quiet**. The triggers differ by
-rider:
+From the sweep's aggregate report, decide whether the board **stirred** or stayed
+**quiet**. The triggers differ by rider:
 
 | Outcome | Glorfindel trigger | Aulë trigger |
 |---|---|---|
@@ -93,35 +88,24 @@ Then set the streak:
 
 ### 3. Arm the next watch
 
-First, find the **target interval** from the streak ladder:
+Find the next wait from the streak ladder, capped at the one-hour ceiling:
 
-| Streak | Target | Streak | Target |
-|---|---|---|---|
-| 0 (stirring) | 300s (5 min) | 4 | 3600s (1 hr) |
-| 1 | 600s (10 min) | 5 | 7200s (2 hr) |
-| 2 | 1200s (20 min) | 6 | 10800s (3 hr) |
-| 3 | 1800s (30 min) | ≥7 | 21600s (6 hr — ceiling) |
+| Streak | Next delay |
+|---|---|
+| 0 (stirring) | 300s (5 min) |
+| 1 | 600s (10 min) |
+| 2 | 1200s (20 min) |
+| 3 | 1800s (30 min) |
+| ≥4 | 3600s (1 hr — ceiling) |
 
-On a **hop** (step 1, `S > 0`), the target is the remaining `S` instead — keep the
-streak unchanged.
-
-Then serve it within the 1-hour clamp:
-
-- Let `remaining` = the target (on a real ride) or `S` (on a hop).
-- `chunk = min(remaining, 3600)`.
-- `next_sleep = remaining - chunk`.
 - Announce one short line — the rider, whether it stirred or stayed quiet, the
-  streak, and the *effective* wait (e.g. *"Glorfindel — quiet, streak 5; next
-  real sweep in 2 hr (served as 2 hourly hops)."*). The turn ends the instant
-  `ScheduleWakeup` returns, so announce first.
+  streak, and the wait (e.g. *"Glorfindel — quiet, streak 4; next sweep in 1 hr."*).
+  The turn ends the instant `ScheduleWakeup` returns, so announce first.
 - As the **last action of the turn**, call `ScheduleWakeup` with:
-  - `delaySeconds`: `chunk`.
-  - `reason`: one short sentence — rider, road state, effective wait.
-  - `prompt`: the original invocation verbatim, with the bookkeeping tokens
-    re-appended — `/amon-sul <sweep> <tracker> <project> [flags…] ::streak=<streak> ::sleep=<next_sleep>`.
-
-When `next_sleep` is `0`, the next wake is a real ride; when it is positive, the
-next wake is another hop that serves the following chunk.
+  - `delaySeconds`: the delay from the ladder.
+  - `reason`: one short sentence — rider, road state, wait.
+  - `prompt`: the original invocation verbatim, with the streak token
+    re-appended — `/amon-sul <sweep> <tracker> <project> [flags…] ::streak=<streak>`.
 
 ### 4. Ending the watch
 
@@ -139,11 +123,6 @@ Stop — omit the `ScheduleWakeup` call — when:
 - **Amon Sûl never posts or forges of its own.** It owns only the schedule. All
   tracker writes and PRs are the named sweep's, gated exactly as that sweep gates
   them — `--dry-run`, `--confirm`, `--auto`, `--max` pass straight through.
-- **The long tiers hop, they do not slumber.** The 1-hour `ScheduleWakeup` clamp
-  means a 2-, 3-, or 6-hour wait is served as that many hourly wakes — each a
-  cheap re-arm that runs no sweep. The saving of a long tier is the *sweep work*
-  skipped (hooks, subagents, posts), not the per-wake cost; the watch still stirs
-  hourly to re-arm. If even that is too much, stop the watch and re-run it by hand.
 - **Watching with Aulë carries real blast radius.** A watch is unattended by
   nature, yet Aulë opens PRs and posts `[GWAITH]`. Amon Sûl injects no flags, so
   the user chooses deliberately:
@@ -157,9 +136,9 @@ Stop — omit the `ScheduleWakeup` call — when:
   you mean to re-pace; do not double-arm. Two *different* riders (a Glorfindel
   watch and an Aulë watch) are distinct watches and may run together — that is how
   one pipelines council → forge across two cadences.
-- **The streak answers the recent past only.** Each real ride re-reads the road
-  and re-chooses; a long-quiet board that finally stirs resets to a 5-minute watch
-  on the very next ride, and a busy board that falls silent climbs the ladder one
+- **The streak answers the recent past only.** Each ride re-reads the road and
+  re-chooses; a long-quiet board that finally stirs resets to a 5-minute watch on
+  the very next ride, and a busy board that falls silent climbs the ladder one
   rung per quiet ride.
 - **Session-bound.** The watch lives only in this session. When it closes, the
   vigil ends — there is no durable record. Say so if the user expects otherwise.
