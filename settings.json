@@ -177,6 +177,16 @@
             "command": "~/.claude/hooks/pre-commit-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/worktree-guard.sh",
+            "statusMessage": "Checking worktree..."
+          }
+        ]
       }
     ],
     "Stop": [
