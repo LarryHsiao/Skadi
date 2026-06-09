@@ -1,6 +1,6 @@
 ---
 name: aule
-description: Use when the user runs /aule <tracker> <project> [--filter <id-or-jql>] [--max N] [--ready] [--dry-run] [--confirm]. Sweeps a project for tickets bearing an approved counsel awaiting the forge ([COUNSEL] + [FORTH], no [GWAITH]), takes the first N qualifiers (default 3), and dispatches /celebrimbor per ticket. Each invocation forges N; re-running picks up the next N, with the tracker itself as the bookmark via the no-[GWAITH] gate. Hard cap by default — bulk-forge has a real blast radius.
+description: Use when the user runs /aule <tracker> <project> [--filter <id-or-jql>] [--max N] [--ready] [--auto] [--dry-run] [--confirm]. Sweeps a project for tickets bearing an approved counsel awaiting the forge ([COUNSEL] + [FORTH], no [GWAITH]), takes the first N qualifiers (default 3), and dispatches /celebrimbor per ticket. Each invocation forges N; re-running picks up the next N, with the tracker itself as the bookmark via the no-[GWAITH] gate. Hard cap by default — bulk-forge has a real blast radius. --auto forges the manifest without the outer confirmation.
 user_invocable: true
 ---
 
@@ -13,11 +13,11 @@ Aulë the Vala wrought the world's bones and taught the elven smiths their craft
 - **Aulë directs; Celebrimbor still forges.** Per-ticket behavior matches `/celebrimbor --ticket <id>` exactly. Aulë never opens a PR/MR Celebrimbor would not.
 - **Bounded by default.** `--max N` defaults to **3**. Bulk-forge writes to four places per ticket (branch, PR/MR, ticket comment, optional state transition); a runaway sweep multiplies fast.
 - **The tracker is the bookmark.** Celebrimbor posts `[GWAITH]` after each forge; the gate excludes already-forged tickets on the next run. No state file, no offset — re-run `/aule` to pick up the next N.
-- **One outer gate, always on.** The manifest stands before the user, who approves the whole sweep once. The slash invocation alone is not authority; `--dry-run` is the only way past the gate without a word from the human.
+- **One outer gate, on by default.** The manifest stands before the user, who approves the whole sweep once. The slash invocation alone is not authority; `--dry-run` passes the gate by dispatching nothing, and `--auto` passes it by the user's explicit word at invocation — the flag itself is the approval, given in advance for whatever the manifest holds.
 
 ## Argument parsing
 
-`/aule <tracker> <project> [--filter <filter>] [--max N] [--ready] [--dry-run] [--confirm]`
+`/aule <tracker> <project> [--filter <filter>] [--max N] [--ready] [--auto] [--dry-run] [--confirm]`
 
 | Argument | Required | Meaning |
 |---|---|---|
@@ -26,6 +26,7 @@ Aulë the Vala wrought the world's bones and taught the elven smiths their craft
 | `--filter <filter>` | no* | Same semantics as `/glorfindel` and `/celebrimbor` |
 | `--max N` | no | Cap on forges per invocation. Default 3. Refuse `N < 1`; cap at 10 with a warning. |
 | `--ready` | no | Open each PR/MR as ready-for-review (default: draft). Propagated to every `/celebrimbor` dispatch. |
+| `--auto` | no | Forge the manifest without the outer confirmation — render it, then dispatch straight through. The flag is the approval, given in advance. Refuse when combined with `--dry-run` or `--confirm` (they contradict it). |
 | `--dry-run` | no | Render the manifest, never dispatch Celebrimbor. |
 | `--confirm` | no | Propagate `--confirm` to each `/celebrimbor` dispatch (per-ticket prompt before PR-open). Use to stop mid-sweep. |
 
@@ -52,7 +53,9 @@ b. **Filter resolution.** Per `/glorfindel`'s rule — explicit `--filter` wins;
 
 c. **`--max` sanity.** If `--max N` was passed: refuse `N < 1` with *"--max must be a positive integer."* Cap at 10 silently with a one-line warning if `N > 10` (*"Aulë holds the bellows steady — capped at 10 per sweep; pass --max again or re-run."*); the default of 3 stands when `--max` is omitted.
 
-d. **Jira post-safety warning.** Same rule as `/glorfindel` — if `<tracker>` is `jira` and neither `--dry-run` nor `--confirm` is set, AskUserQuestion before proceeding with three options (proceed unattended / re-run with `--confirm` / re-run with `--dry-run`). Forge writes are public on Jira; the warning is hard-earned. Stop unless the user picks "proceed unattended".
+d. **Flag-conflict check.** If `--auto` is combined with `--dry-run` or `--confirm`, stop with *"--auto contradicts --dry-run/--confirm — pick one intent."* One flag asks to forge unattended; the others ask to hold back. Aulë does not guess which the user meant.
+
+e. **Jira post-safety warning.** Same rule as `/glorfindel` — if `<tracker>` is `jira` and none of `--auto`, `--dry-run`, or `--confirm` is set, AskUserQuestion before proceeding with three options (proceed unattended / re-run with `--confirm` / re-run with `--dry-run`). Forge writes are public on Jira; the warning is hard-earned. Stop unless the user picks "proceed unattended". `--auto` skips the prompt — the flag *is* the deliberate intent the warning exists to confirm.
 
 There is **no clean-tree gate** on the source repo — Celebrimbor acquires its own isolated workspace per ticket inside its own dispatch.
 
@@ -132,6 +135,7 @@ Aulë at <tracker>:<project> — picked <K> of <Q> qualifier(s), max <N>
 Then:
 
 - **`--dry-run`**: stop. The manifest is the deliverable.
+- **`--auto`**: proceed straight to step 5. The manifest is still rendered first — the record of what was forged, even when no one stood at the gate.
 - **Otherwise**: AskUserQuestion (options: `forge all <K>` / `abort`). On `abort`, stop. On `forge all`, proceed to step 5.
 
 ### 5. Per-ticket Celebrimbor dispatch
@@ -187,9 +191,10 @@ The closing line — *"<Q-K> qualifier(s) remain for the next sweep"* — names 
 - The qualifier set is the order returned by the list hook; Aulë does not re-sort. Re-run order follows the same hook's order.
 - The forge gate is the cursor. Do not maintain a separate "already-forged" memory — the tracker's `[GWAITH]` post is the only record needed, and the only one that survives a memory wipe.
 - `--dry-run` overrides the outer gate; nothing to confirm if nothing is dispatched.
+- `--auto` skips the outer gate and the Jira post-safety prompt; everything else stands unchanged — the `--max` cap, the forge gate, and Celebrimbor's own per-ticket workflow. `--auto` is never combined with `--dry-run` or `--confirm`.
 - `--confirm` propagates to every `/celebrimbor` dispatch (per-ticket prompt before PR-open). Use to stop mid-sweep without aborting prior forges.
 - A Celebrimbor-side abort or error on one ticket does not halt the sweep. Record the outcome and proceed.
 - Aulë never invokes the forge hooks (`celebrimbor-github-pr.sh`, `celebrimbor-gitlab-mr.sh`) directly. All PR-open writes flow through `/celebrimbor`. One source of truth for the per-ticket forge.
 - Aulë never invokes the council comment hook directly. All `[GWAITH]` posts flow through `/celebrimbor`.
 - Do not surface tracker or forge tokens in logs, responses, or saved files.
-- **Jira sweeps require deliberate intent** — when tracker is `jira` without `--dry-run` or `--confirm`, prompt before proceeding (step 1d).
+- **Jira sweeps require deliberate intent** — when tracker is `jira` without `--auto`, `--dry-run`, or `--confirm`, prompt before proceeding (step 1e).
