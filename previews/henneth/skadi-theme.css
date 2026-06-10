@@ -1,0 +1,187 @@
+/* Skadi preview theme — the parchment look shared across Henneth previews.
+ *
+ * Canonical source: skadi repo `previews/henneth/skadi-theme.css`.
+ * Installed (one file, never pruned) into <root>/previews/henneth/ by install.sh,
+ * so the Henneth server serves it over HTTP and previews can link it co-located:
+ *
+ *     <link rel="stylesheet" href="skadi-theme.css">
+ *
+ * Keep page-specific tweaks inline in the preview; evolve the shared look here.
+ *
+ * Utility vocabulary a preview may lean on:
+ *   layout   .wrap (2-col grid) · .panel · .panel.full (span both columns)
+ *   heading  h1 · .sub (italic subtitle) · h2 (panel heading)
+ *   status   .badge (pill) · .done/.yes (green) · .no (red)
+ *   blocks   .gauge (task-size bar) · .prec (mono call-out) · .note / .open (left-rule callouts)
+ *   inline   code · .name (mono accent span, e.g. a token)
+ *   table    plain <table> is themed; .v is a green italic verify line
+ */
+
+:root {
+  --ink: #2b2419;
+  --bg: #f4ecd9;
+  --panel: #fbf6ea;
+  --line: #cdbfa0;
+  --accent: #7a5a2e;
+  --green: #3f6b3a;
+  --red: #9a3b2e;
+  --blue: #34597a;
+  --th: #ece0c3;
+  --raise: #efe4c9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+  padding: 2.4rem;
+}
+
+h1 {
+  font-size: 1.7rem;
+  margin: 0 0 0.2rem;
+}
+.sub {
+  color: var(--accent);
+  font-style: italic;
+  margin: 0 0 1.2rem;
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin: 0.1rem 0 0.8rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.35rem;
+}
+
+/* Status pill — e.g. an "as built" stamp. */
+.badge {
+  display: inline-block;
+  background: var(--green);
+  color: var(--bg);
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 12px;
+  margin-bottom: 1.4rem;
+}
+
+/* Task-size gauge bar. */
+.gauge {
+  font-family: ui-monospace, Menlo, monospace;
+  background: var(--raise);
+  border: 1px solid var(--line);
+  padding: 0.7rem 1rem;
+  border-radius: 6px;
+  display: block;
+  margin-bottom: 1.6rem;
+  white-space: pre;
+  font-size: 0.84rem;
+}
+
+/* Two-column panel grid. */
+.wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.4rem;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1.1rem 1.3rem;
+}
+.panel.full {
+  grid-column: 1 / 3;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.92rem;
+}
+th,
+td {
+  border: 1px solid var(--line);
+  padding: 0.4rem 0.55rem;
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  background: var(--th);
+}
+
+code {
+  font-family: ui-monospace, Menlo, monospace;
+  background: var(--th);
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  font-size: 0.86em;
+}
+
+ol {
+  padding-left: 1.2rem;
+  margin: 0.3rem 0;
+}
+ol.steps > li {
+  margin-bottom: 0.7rem;
+}
+
+/* A green italic verification line. */
+.v {
+  color: var(--green);
+  font-style: italic;
+  font-size: 0.86rem;
+}
+
+.done {
+  color: var(--green);
+  font-weight: 700;
+}
+.yes {
+  color: var(--green);
+  font-weight: 600;
+}
+.no {
+  color: var(--red);
+  font-weight: 600;
+}
+
+/* Left-rule call-outs: .note (accent) for asides, .open (red) for held items. */
+.note {
+  background: #f6efe0;
+  border-left: 4px solid var(--accent);
+  padding: 0.7rem 1rem;
+  border-radius: 0 6px 6px 0;
+}
+.open {
+  background: #f6e7d6;
+  border-left: 4px solid var(--red);
+  padding: 0.7rem 1rem;
+  border-radius: 0 6px 6px 0;
+}
+
+/* Mono call-out block — e.g. a precedence ladder or terse rule. */
+.prec {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.85rem;
+  background: var(--raise);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.8rem 1rem;
+  white-space: pre-wrap;
+}
+
+/* Mono accent span — e.g. a token name set apart from prose. */
+.name {
+  font-family: ui-monospace, Menlo, monospace;
+  color: var(--blue);
+  font-weight: 600;
+}

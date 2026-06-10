@@ -133,5 +133,13 @@ if [ -d "$REPO/docs" ]; then
   prune_tree "$REPO/docs" "$CLAUDE_DIR/docs"
 fi
 
+# Preview theme — a single shared stylesheet for Henneth previews to link.
+# Copy the one file only; never prune the previews folder — it holds the user's
+# rendered artifacts, which are runtime, not ours to delete.
+if [ -f "$REPO/previews/henneth/skadi-theme.css" ]; then
+  mkdir -p "$CLAUDE_DIR/previews/henneth"
+  install_file "$REPO/previews/henneth/skadi-theme.css" "$CLAUDE_DIR/previews/henneth/skadi-theme.css"
+fi
+
 echo ""
 echo "Done."

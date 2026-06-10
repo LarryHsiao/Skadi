@@ -72,7 +72,9 @@ When a section calls for a visual preview — a wireframe (UI Review), a UML dia
 
 **Serving the file.** The Henneth window already watches this folder, so the preview appears there on its own — boot it once with `/henneth` if it is not yet running. Should you need a standalone server instead, bind `python -m http.server <port>` in that folder as a background process — Python is universal, no install. Pick a free port; surface the URL inline (e.g. `http://localhost:8765/wireframe-login.html`) so the user can click through. Subsequent previews drop into the same folder under fresh filenames; the running server picks them up without restart.
 
-**File shape.** Inline CSS and SVG keep the page simple. External scripts loaded over HTTP — Mermaid from a CDN, for instance — are acceptable, since the server unlocks `fetch()` and ES modules. No build step.
+**File shape.** Inline SVG keeps the page simple. External scripts loaded over HTTP — Mermaid from a CDN, for instance — are acceptable, since the server unlocks `fetch()` and ES modules. No build step.
+
+**Shared theme.** Previews wear one parchment look — the shared stylesheet `skadi-theme.css`, which `install.sh` lays alongside the artifacts in the Henneth folder. Link it co-located at the top of every preview — `<link rel="stylesheet" href="skadi-theme.css">` — and lean on its utility classes (`.wrap`, `.panel`, `.gauge`, `.badge`, `.note`, `.open`, `.prec`, `.name`; see the file's header for the full vocabulary). Keep only page-specific tweaks in a small inline `<style>`. The theme evolves in that one file, so every preview moves with it. When a preview is opened off the server (no `skadi-theme.css` beside it), inline the theme instead — the link would dangle.
 
 **Fallback.** When the port cannot bind or Python is absent on PATH, fall through to the ASCII sketch named in each section below. The preview lands in the same response either way; the absence of a server must never block the working flow.
 
