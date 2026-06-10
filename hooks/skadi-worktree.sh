@@ -94,15 +94,25 @@ case "$verb" in
 
     if [ -f "$path/.git" ]; then
       common_dir=$(git -C "$path" rev-parse --git-common-dir 2>/dev/null || true)
+      main_repo=""
       if [ -n "$common_dir" ]; then
-        # rev-parse may return a relative path; resolve it.
+        # rev-parse may return a relative path; resolve it. Both unix
+        # (/foo) and Windows (C:/foo, C:\foo) absolute forms are already
+        # resolved — only a genuinely relative path gets the $path prefix.
         case "$common_dir" in
-          /*) ;;
+          /* | [A-Za-z]:[\\/]*) ;;
           *) common_dir="$path/$common_dir" ;;
         esac
-        main_repo=$(cd "$common_dir/.." && pwd)
+        main_repo=$(cd "$common_dir/.." 2>/dev/null && pwd) || main_repo=""
+      fi
+      if [ -n "$main_repo" ]; then
         git -C "$main_repo" worktree remove --force "$path" 2>/dev/null \
           || rm -rf "$path"
+        # Always prune: on some platforms `git worktree add` records the
+        # path in a form that `remove` above will not match (e.g. Windows
+        # native vs. MSYS path), leaving a dangling registration the rm
+        # cannot clear. Prune sweeps any such stale entry.
+        git -C "$main_repo" worktree prune 2>/dev/null || true
       else
         rm -rf "$path"
       fi
