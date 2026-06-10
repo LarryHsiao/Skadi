@@ -1,6 +1,6 @@
 ---
 name: mithrandir
-description: Use when the user runs /mithrandir, /mithrandir branch, /mithrandir <url>, /mithrandir comment <url>, or /mithrandir bless <url> (alias /mithrandir recheck <url>). With no argument or the `branch` verb, weighs the current local branch against its base; with a URL, weighs a pull request or merge request. Renders a multi-axis verdict — five always-on (stability, performance, coding style, maintainability, correctness) plus seven conditional (test coverage, security, documentation, backward compatibility, observability, dependency hygiene, accessibility & i18n) that fire only when the diff touches their domain — followed by an optional `Worth keeping` section (concrete bright spots) and an optional `To pass` action list grouped by severity (Blocker / Nice to have / Nit), closing with a tier (sound | wavering | off) and a short reasoning paragraph. A blockquote header at the top distils the bottom line — Merge / Hold / Refuse. The default and `branch` paths render to chat; the `comment` verb posts a URL-path verdict to the forge after a confirm-once gate. The `bless` verb (alias `recheck`) re-weighs an amended PR/MR, finds its prior `comment`-verb post, and threads a follow-up reply — All resolve / Partial okay if the work has earned it; counsel withheld (chat-only) if not. Branch-path bears no `comment` or `bless` — local diffs have no PR to write on. Tone defaults differ by audience — read leans Tolkien (private counsel); comment and bless lean plain (public note). The `--plain` and `--lore` flags override either default. Host-agnostic; routes to GitHub or GitLab from the URL.
+description: Use when the user runs /mithrandir, /mithrandir branch, /mithrandir <url>, /mithrandir comment <url>, or /mithrandir bless <url> (alias /mithrandir recheck <url>). With no argument or the `branch` verb, weighs the current local branch against its base; with a URL, weighs a pull request or merge request. Renders a multi-axis verdict — five always-on (stability, performance, coding style, maintainability, correctness) plus seven conditional (test coverage, security, documentation, backward compatibility, observability, dependency hygiene, accessibility & i18n) that fire only when the diff touches their domain — followed by an optional `Worth keeping` section (concrete bright spots) and an optional `To pass` action list grouped by severity (Blocker / Nice to have / Nit), closing with a tier (sound | wavering | off) and a short reasoning paragraph. A blockquote header at the top distils the bottom line — Merge / Hold / Refuse. The default and `branch` paths render to chat; the `comment` verb posts a URL-path verdict to the forge after a confirm-once gate. The `bless` verb (alias `recheck`) re-weighs an amended PR/MR, finds its prior `comment`-verb post, and threads a follow-up reply — All resolve / Partial okay if the work has earned it; counsel withheld (chat-only) if not. Branch-path bears no `comment` or `bless` — local diffs have no PR to write on. Tone defaults differ by audience — read leans Tolkien (private counsel); comment and bless lean plain (public note). The `--plain` and `--lore` flags override either default. The `--deep` flag weighs each changed file on its own via a per-file subagent fan-out — watchowl-style depth that catches subtle per-file flaws a holistic pass dilutes; it composes with branch and read paths and with either tone. Host-agnostic; routes to GitHub or GitLab from the URL.
 user_invocable: true
 ---
 
@@ -24,6 +24,8 @@ Where Lindir reads what is written, Mithrandir weighs it. The Grey Pilgrim has w
 /mithrandir branch --plain         # branch, plain tone
 /mithrandir <url>                  # read, lore tone
 /mithrandir <url> --plain          # read, plain tone
+/mithrandir branch --deep          # branch, per-file fan-out (watchowl-style depth)
+/mithrandir <url> --deep           # read, per-file fan-out
 /mithrandir comment <url>          # post, plain tone (default)
 /mithrandir comment <url> --lore   # post, lore tone (opt-in)
 /mithrandir bless <url>            # re-weigh + thread reply, plain tone (default)
@@ -42,6 +44,8 @@ Dispatch on the **first positional argument**:
 
 The flags `--plain` and `--lore` may appear anywhere after the verb/URL; they are mutually exclusive. If both are passed, stop with: *"`--plain` and `--lore` cannot stand together; choose one tongue."*
 
+The `--deep` flag may also appear anywhere after the verb/URL. It composes with either tone flag (or neither) — it changes the *depth* of the weighing, not the voice — and rides the branch-path and read-path alike (and so the `comment` / `bless` verbs that build on read). See *Deep mode* below.
+
 ## Tone modes
 
 | Mode | Read default | Forge-write default | What changes |
@@ -58,6 +62,29 @@ What stays the same in both modes:
 - The gauge glyphs (`▰▱▱`, `▰▰▱`, `▰▰▰`) — visual, not lore.
 
 The four-axis structure is the substance of the skill; only the *voice* shifts.
+
+## Deep mode (`--deep`) — per-file fan-out
+
+The default weighing reads the whole diff in one pass and renders one holistic verdict — strong at judging the *shape* of a change, but a subtle per-file flaw (a dropped key, an unguarded edge in one widget among thirty) can fall below the waterline when one reader's attention is spread across many files. `--deep` trades that breadth for depth: it weighs **each changed file on its own**, so no file's close read is diluted by its neighbours. This is the watchowl temper — the focused per-file pass that catches what a broad sweep glides past.
+
+`--deep` is a flag, not a verb: it changes *how* the diff is weighed, never *which* surface is touched. It rides the branch-path and the read-path (and so the `comment` / `bless` verbs that build on read), and may stand with `--plain`, `--lore`, or neither.
+
+### Mechanism — one focused reviewer per file
+
+After the diff is captured (branch step 3, read step 3):
+
+1. **Partition** the captured diff into its changed files. Keep hand-written source; drop generated and low-signal files — `*.g.dart`, `*.freezed.dart`, anything under a `generated/` path, `messages_*.dart`, lockfiles, and other build output. If nothing hand-written remains, fall back to the holistic weigh (step 4) and note it in the brief.
+2. **Fan out.** Dispatch one read-only subagent (`general-purpose`) per kept file, in parallel — cap the concurrent count to a sane handful and queue the rest. Hand each agent **only its own file's hunks**, the per-symbol close-pass patterns (step 4's close pass), and the axis definitions. Brief it to read that one file as if it were the whole review: name every symbol the change adds or alters, hunt the high-signal patterns, and return per-file findings — each with a `path:line`, a one-line description, and a severity (Blocker / Nice to have / Nit) — plus a one-line per-file verdict. The agent reads only; it does not edit, commit, or post.
+3. **Aggregate.** Collect every agent's findings. Fold them into the axis verdicts — a Blocker in any file pulls its axis to `off`, a Nice-to-have to `wavering` — and into the `## To pass` section, grouped by severity across all files. The overall tier aggregates as before: the highest concern among the rendered axes.
+
+### Render delta
+
+The brief keeps its shape — blockquote header, axis lines, overall tier, closing paragraph. Two differences:
+
+- A one-line tail sits under the blockquote header naming the breadth: *"Deep mode — N files weighed each on its own."*
+- The `## To pass` section is the heart of a deep run: it carries **every** file's findings, severity-grouped, not merely the few a holistic pass would surface. Each row still leads with its `path:line`.
+
+A deep run costs more — one agent per file — so reach for it when a diff is broad and subtle correctness matters, not for a two-file tweak the holistic pass already reads line by line.
 
 ## URL dispatch
 
@@ -168,6 +195,8 @@ If the diff call fails, render the verdict on metadata alone (description and fi
 ### 4. Weigh the axes
 
 Twelve axes are defined. **Five are always rendered** (Stability, Performance, Coding style, Maintainability, Correctness); the other seven are **conditional** — they render only when the diff touches their domain, and are silently omitted from the brief otherwise (no `n/a` row).
+
+**If `--deep` is active**, do not weigh the whole diff in one pass — fan out one focused reviewer per changed file per *Deep mode* above, then aggregate the per-file findings into the axis verdicts and the `## To pass` section. The axis definitions, conditional-fire rules, and render shape are otherwise unchanged.
 
 #### First, read close — the per-symbol pass
 
@@ -483,6 +512,8 @@ One short block:
 - Counsel is offered; the decision rests with Elrond. Mithrandir does not insist.
 - Tone defaults follow the audience: lore for chat, plain for forge. The flags override either default.
 - `--plain` and `--lore` are mutually exclusive; passing both stops the run.
+- `--deep` composes with any weighing path (branch / read / comment / bless) and with either tone flag; it is not a write path of its own. When it leaves no hand-written file to weigh, fall back to the holistic pass and say so.
+- Deep-mode subagents are read-only — they find and report; they do not edit, commit, or post. The skill body owns aggregation and any forge write, exactly as in the holistic pass.
 - Do not surface forge tokens in logs, responses, or saved files.
 - Host-agnostic — the URL chooses the forge; the host portion is not pinned.
 - Do not edit `~/.claude/`, `~/.bashrc`, or anything outside the repo root.
