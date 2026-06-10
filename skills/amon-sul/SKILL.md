@@ -1,6 +1,6 @@
 ---
 name: amon-sul
-description: Use when the user runs /amon-sul <sweep> <tracker> <project> [flags…], where <sweep> is glorfindel (council-stage) or aule (forge-stage). An adaptive in-session watcher — it runs one sweep, reads the result, then self-schedules its next ride via ScheduleWakeup, tightening to 5 minutes when work moves and stretching out to 1 hour as the road stays quiet. Session-bound: the vigil dies when the session closes. Say "stop the vigil" (or stop /amon-sul) to end it.
+description: Use when the user runs /amon-sul <sweep> <tracker> <project> [flags…], where <sweep> is glorfindel (council-stage), aule (forge-stage), or anduin (both stages in sequence — the council→forge pipeline under one watch). An adaptive in-session watcher — it runs one sweep, reads the result, then self-schedules its next ride via ScheduleWakeup, tightening to 5 minutes when work moves and stretching out to 1 hour as the road stays quiet. Session-bound: the vigil dies when the session closes. Say "stop the vigil" (or stop /amon-sul) to end it.
 user_invocable: true
 ---
 
@@ -14,8 +14,9 @@ sleeps, out to an hour.
 
 The rider is yours to name. **Glorfindel** rides the council stage (draft and
 refine plans on open tickets); **Aulë** rides the forge stage (open PRs for
-tickets whose counsel is approved and awaiting the smith). Amon Sûl watches with
-whichever you summon.
+tickets whose counsel is approved and awaiting the smith); **Anduin** rides both
+in sequence (council then forge, one pass) for those who want the whole pipeline
+under one watch. Amon Sûl watches with whichever you summon.
 
 ## Ethos
 
@@ -41,7 +42,7 @@ whichever you summon.
 
 | Token | Meaning |
 |---|---|
-| `<sweep>` | The rider: `glorfindel` (aliases `council`, `sweep`) or `aule` (alias `forge`). Required — Amon Sûl will not guess. |
+| `<sweep>` | The rider: `glorfindel` (aliases `council`, `sweep`), `aule` (alias `forge`), or `anduin` (alias `pipeline`) for both stages in sequence. Required — Amon Sûl will not guess. |
 | everything after `<sweep>` | Passed **verbatim** to `/<sweep>`. |
 
 The remainder — `<tracker> <project>` and any flags — is handed straight to the
@@ -50,8 +51,9 @@ of its own; it only wraps the sweep in an adaptive schedule.
 
 - `glorfindel` grammar: `<tracker> <project> [--filter …] [--dry-run] [--confirm]`.
 - `aule` grammar: `<tracker> <project> [--filter …] [--max N] [--ready] [--auto] [--dry-run] [--confirm]`.
+- `anduin` grammar: `<tracker> <project> [--filter …] [--max N] [--ready] [--dry-run] [--confirm]` — rides `/glorfindel` then `/aule` in one pass. **The forge runs unattended by default** (`--auto --max 3`); there is no `--auto` to type — pass `--dry-run` or `--confirm` to gate it. The filter should straddle Open *and* the `forth` state (e.g. `--filter "#Unresolved"`), else the forge stage misses council-advanced tickets.
 
-If `<sweep>` is missing or is not one of the two riders, stop and show the usage
+If `<sweep>` is missing or is not one of the three riders, stop and show the usage
 line above — do not default to a rider the user did not name.
 
 **The streak token.** A trailing `::streak=N` may appear on the invocation — this
@@ -76,10 +78,13 @@ the work.
 From the sweep's aggregate report, decide whether the board **stirred** or stayed
 **quiet**. The triggers differ by rider:
 
-| Outcome | Glorfindel trigger | Aulë trigger |
-|---|---|---|
-| **Stirring** | Any ticket was `drafted`, `forth`, `forged`, `nay`, `farewell`, or `talked-out` | Any ticket `forged`, **or** qualifiers remain for the next sweep |
-| **Quiet** | All tickets `quiet` / `untouched`, or the road lay empty | None forged and no qualifiers remain, or no tickets in scope |
+| Outcome | Glorfindel trigger | Aulë trigger | Anduin trigger |
+|---|---|---|---|
+| **Stirring** | Any ticket was `drafted`, `forth`, `forged`, `nay`, `farewell`, or `talked-out` | Any ticket `forged`, **or** qualifiers remain for the next sweep | Anduin's combined report ends in `Anduin — STIRRED` |
+| **Quiet** | All tickets `quiet` / `untouched`, or the road lay empty | None forged and no qualifiers remain, or no tickets in scope | Anduin's combined report ends in `Anduin — QUIET` |
+
+Anduin already folds both stages' road-reading into its own verdict line, so for
+the `anduin` rider Amon Sûl simply reads that token — no need to re-derive it.
 
 Then set the streak:
 
@@ -131,6 +136,12 @@ Stop — omit the `ScheduleWakeup` call — when:
   - With `--auto`, Aulë forges unattended up to its `--max` cap (default 3) per
     ride. The cap is the only brake; set it with intent. Prefer a `--dry-run`
     pass first to see what *would* forge before arming the real thing.
+  - The **`anduin`** rider forges unattended **by default** — its second stage
+    *is* Aulë, and Anduin gives Aulë `--auto --max 3` unless gated. So
+    `/amon-sul anduin youtrack URD --filter "#Unresolved"` opens PRs every tick the
+    pipeline stirs, with no `--auto` in the line to signal it. The brakes are
+    `--dry-run` (forge nothing) and `--confirm` (prompt per PR); prefer a
+    `--dry-run` watch first to see what would forge.
 - **One watch per invocation.** Re-running `/amon-sul` with the same rider and
   args while a watch is already armed stacks a second wake-up. Stop the first if
   you mean to re-pace; do not double-arm. Two *different* riders (a Glorfindel
