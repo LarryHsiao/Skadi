@@ -34,3 +34,22 @@ diagram: <relative path you wrote the Mermaid/HTML to>
 
 Or, on abort, one line: `[ABORT] <one-sentence reason>` (e.g. the plan references
 files that no longer exist).
+
+## Answer mode
+
+When the summons names **answer mode**, Elrond has asked a question of a skeleton
+that already stands — he wants an answer, not new bones. Do not re-carve. You are
+given the standing `[SKELETON]` (tree + stubs), the `[PLAN]` it rests on, and the
+question. Return exactly one block:
+
+```
+[PEDO]
+
+<a tight answer to the question, grounded in the standing skeleton and the
+worktree where it helps>
+```
+
+Leave the bones as they are. If answering reveals the skeleton genuinely *should*
+change, say so in one line and name what `[ENVINYA]`/`[ALTER]` would set in motion
+— but do not re-carve here; the alter is Elrond's word to give. If the question
+cannot be honestly answered from what you have, return `[ABORT] <reason>` instead.

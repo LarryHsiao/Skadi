@@ -85,11 +85,16 @@ Map the action to a dispatch:
 
 | action | Dispatch |
 |---|---|
-| `draft_skeleton`, `redraft_skeleton` | `/celebrimbor youtrack <project> --ticket <id> --skeleton` |
+| `draft_skeleton`, `redraft_skeleton`, `answer_skeleton` | `/celebrimbor youtrack <project> --ticket <id> --skeleton` |
 | `forge` | `/celebrimbor youtrack <project> --ticket <id>` |
-| `draft_plan`, `redraft_plan` | `/council youtrack:<id>` (plan rung — or leave to `/glorfindel`) |
+| `draft_plan`, `redraft_plan`, `answer_plan` | `/council youtrack:<id>` (plan rung — or leave to `/glorfindel`) |
 | `await_start` | skip — dormant, no `[MELLON]` summons yet (counted in the report) |
 | `await_plan`, `await_skeleton`, `done` | skip (no-op) |
+
+The `answer_*` actions route to the same sub-skill as their rung's draft/redraft;
+the sub-skill re-runs the decider and takes its own answer path (post `[PEDO]`,
+advance the watermark, leave the plan/skeleton standing). Aulë needs no special
+case beyond the routing above.
 
 A ticket whose action is a no-op is dropped from the manifest silently — exactly
 the loop-safety the watermark buys. The one exception is `await_start`: it too is
@@ -179,6 +184,7 @@ Outcome vocabulary:
 | `forged` | Smith committed, push succeeded, PR/MR opened, `[GWAITH]` posted. (State transition outcome appears in `Detail` if non-trivial.) |
 | `aborted` | Celebrimbor stopped before opening — counsel had unresolved Open questions, smith returned `[ABORT]`, or `--confirm` was declined. No PR. |
 | `dry-run` | Reached only when Aulë's `--dry-run` was set — not present in this report; the dry-run path stops at step 4. |
+| `answered` | A rung-dispatch ticket bore a question (`[CEIST]`/`[ASK]`, or bare prose); the sub-skill posted a `[PEDO]` answer and left the plan/skeleton standing. No PR. |
 | `error` | A hook failed (push, PR-open, `[GWAITH]` post). Detail names which step. The PR may exist if the failure was downstream of PR-open; check the URL field. |
 
 Do not reproduce smith diffs in this report — they live on the PRs/MRs now, and Celebrimbor's per-ticket report block is the authoritative narrative for each forge.

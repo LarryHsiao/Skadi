@@ -16,6 +16,9 @@ BOT_LOGIN = "claude"  # service-account login; matches council's bot-login confi
 WATERMARK = re.compile(r"<!--\s*consumed:\s*(\d+)\s*-->")
 VERDICT = ("[FORTH]", "[APPROVE]")
 SUMMONS = ("[MELLON]", "[FRIEND]")
+ALTER = ("[ENVINYA]", "[ALTER]")
+# [CEIST]/[ASK] bears no constant: a question behaves as bare prose — it answers,
+# never redrafts — so the answer branch (any fresh human comment) already covers it.
 
 
 def _token(text):
@@ -44,6 +47,11 @@ def _is_mellon(text):
     return any(s in up for s in SUMMONS)
 
 
+def _is_alter(text):
+    up = (text or "").upper()
+    return any(a in up for a in ALTER)
+
+
 def decide(data):
     comments = data.get("comments", [])
     plan = skeleton = gwaith = None
@@ -60,8 +68,10 @@ def decide(data):
 
     humans = [c for c in comments if c.get("login") != BOT_LOGIN]
     forths = [c for c in humans if _is_forth(c.get("text", ""))]
+    alters = [c for c in humans if _is_alter(c.get("text", ""))]
     newest_human = max((c.get("created", 0) for c in humans), default=0)
     newest_forth = max((c.get("created", 0) for c in forths), default=0)
+    newest_alter = max((c.get("created", 0) for c in alters), default=0)
 
     plan_id = plan.get("id") if plan else "-"
     skel_id = skeleton.get("id") if skeleton else "-"
@@ -75,15 +85,19 @@ def decide(data):
         wm = _watermark(skeleton.get("text", ""))
         if newest_forth > wm:
             return out("forge")
-        if newest_human > wm:
+        if newest_alter > wm:
             return out("redraft_skeleton")
+        if newest_human > wm:
+            return out("answer_skeleton")
         return out("await_skeleton")
     if plan:
         wm = _watermark(plan.get("text", ""))
         if newest_forth > wm:
             return out("draft_skeleton")
-        if newest_human > wm:
+        if newest_alter > wm:
             return out("redraft_plan")
+        if newest_human > wm:
+            return out("answer_plan")
         return out("await_plan")
     has_mellon = any(_is_mellon(c.get("text", "")) for c in humans)
     return out("draft_plan") if has_mellon else out("await_start")

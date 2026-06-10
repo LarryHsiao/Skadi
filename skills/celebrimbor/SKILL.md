@@ -105,9 +105,25 @@ When `--skeleton` is set, celebrimbor carves bones instead of forging code.
 1. **Pre-flight** — resolve tracker + source repo only (steps 1a, 1b). No forge,
    no base-branch, no auth check.
 2. **Decide + verify rung.** Fetch the thread, run `skeleton-rung.py`. Proceed
-   only if the action is `draft_skeleton` or `redraft_skeleton`; otherwise stop
-   with the action reported (e.g. "awaiting plan approval"). Locate the latest
-   `[PLAN]` body — it is the contract.
+   only if the action is `draft_skeleton`, `redraft_skeleton`, or `answer_skeleton`;
+   otherwise stop with the action reported (e.g. "awaiting plan approval"). Locate
+   the latest `[PLAN]` body — it is the contract. **`answer_skeleton` takes the
+   answer path below, not the carve path** (steps 3–8).
+
+   **Answer path (`answer_skeleton`).** Elrond has asked a question of the standing
+   `[SKELETON]` (`[CEIST]`/`[ASK]`, or bare prose), not directed a change. Acquire a
+   read worktree, summon the skeleton smith in **answer mode** (load
+   `skeleton-smith.md`; pass the standing `[SKELETON]` body, the `[PLAN]` body, the
+   worktree, and the question). It returns a `[PEDO]` body (or `[ABORT]`).
+   - On `[PEDO]`: **append** it as a new comment via `council-youtrack-comment.sh
+     <ticket>`, then **edit the `[SKELETON]` comment** via `youtrack-comment-edit.sh
+     <ticket> <skeleton_id>`, advancing only its watermark to the newest human
+     `created` (body unchanged) — this consumes the question so the next ride stays
+     quiet. Report the answer. The bones are never re-carved; only `[ENVINYA]`/`[ALTER]` does that.
+   - On `[ABORT]`: post nothing, leave the watermark untouched, and report the
+     smith's one-line reason — the question stays open for the next ride.
+
+   Release the worktree on **either** branch. Do **not** continue to steps 3–8.
 3. **Acquire a read worktree** (`skadi-worktree.sh acquire <source-repo>`).
 4. **Summon the skeleton smith.** Load `<skill-dir>/skeleton-smith.md`; dispatch a
    `general-purpose` subagent with the plan body, the worktree path, and a target

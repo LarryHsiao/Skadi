@@ -91,6 +91,20 @@ the modify-only world.
 - The sweep (`/glorfindel`, `/aule`) **fetches each candidate's thread** to derive the rung,
   exactly as those skills already fetch threads today — no new cost over current behavior.
 
+### Amendment — Ask / Answer / Alter (both rungs)
+
+A later turn refined how a rung reacts to fresh human comments **above its watermark**.
+Before: any fresh prose redrafted. Now three Elrond intents are distinguished, by
+this precedence (mirrored in `skeleton-rung.py` and the Jira append flow):
+
+1. `[FORTH]`/`[APPROVE]` → advance (`draft_skeleton` / `forge`) — verdict stays terminal.
+2. `[ENVINYA]`/`[ALTER]` → redraft (`redraft_plan` / `redraft_skeleton`) — the **one** word that redraws the plan.
+3. any other fresh prose, including `[CEIST]`/`[ASK]` → **answer** (`answer_plan` / `answer_skeleton`): the rung's author posts a `[PEDO]`/`[ANSWER]` reply and advances the watermark, leaving the living comment standing.
+
+So a question is answered without churning the plan; only an explicit alter redrafts.
+`[PEDO]` is loop-neutral — uncounted toward the Jira turn limit — and the watermark
+advance keeps the next sweep quiet.
+
 ## Two actors, two habits
 
 - **The human appends, never edits** — instruction comments and the `[FORTH]` verdict.

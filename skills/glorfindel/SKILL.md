@@ -160,6 +160,7 @@ Action vocabulary:
 | `untouched` | No `[COUNSEL vN]` exists yet AND no `[MELLON]`/`[FRIEND]` summons in the thread. Skipped to avoid mass-drafting on first sweeps. |
 | `quiet` | Loop-safe no-op — bot's last word stands; no fresh Elrond counsel. |
 | `drafted` | Erestor wrote a `[COUNSEL vN]` or `[PARLEY]` and the post landed. |
+| `answered` | Elrond asked a question (`[CEIST]`/`[ASK]`, or bare prose); Erestor posted a `[PEDO]` answer and the plan stands unchanged. |
 | `dry-run` | Erestor's draft prepared; not posted per `--dry-run`. |
 | `forth` | `[FORTH]` (or alias `[APPROVE]`) found — plan stands. Council adjourned with approval. |
 | `forged` | `[GWAITH]` (or alias `[FORGED]` / `[SHIPPED]`) found — Celebrimbor has opened the PR/MR; the deed is wrought. Detail carries the PR/MR URL. Takes precedence over `forth` and `quiet` when `[GWAITH]` is present in the thread. |
