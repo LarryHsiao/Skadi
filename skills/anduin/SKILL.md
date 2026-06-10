@@ -54,13 +54,17 @@ on one current, never two boats jostling.
 
 Anduin parses these once and routes them to the two riders:
 
-- **Council (`/glorfindel`)** receives `<tracker> <project>` and the **shared** flags it understands: `--filter`, `--dry-run`, `--confirm`. It ignores `--max` / `--ready` (forge-only).
+- **Council (`/glorfindel`)** receives `<tracker> <project> --filter <filter>`, plus:
+  - **No gate flag given** → append `--auto`. On Jira this skips Glorfindel's post-safety prompt so the council ride runs unattended; on YouTrack it is a harmless no-op (no such gate). This is what keeps the **Jira** pipeline hands-off — without it, the council stage would halt at its post-safety prompt every tick.
+  - **`--dry-run` given** → append `--dry-run`. Plans, posts nothing.
+  - **`--confirm` given** → append `--confirm`. Prompts before each post.
+  - It ignores `--max` / `--ready` (forge-only).
 - **Forge (`/aule`)** receives `<tracker> <project> --filter <filter>`, plus:
   - **No gate flag given** → append `--auto --max <N, default 3>` and `--ready` if set. The forge runs unattended.
   - **`--dry-run` given** → append `--dry-run` (and `--max` / `--ready` if set). No `--auto`. Nothing forges.
   - **`--confirm` given** → append `--confirm` (and `--max` / `--ready` if set). No `--auto`. Each PR-open prompts.
 
-  `--dry-run` and `--confirm` are mutually exclusive with the default auto, and with each other (`--dry-run` wins if both somehow appear). They are the only way to disable unattended forging.
+  `--dry-run` and `--confirm` are mutually exclusive with the default auto, and with each other (`--dry-run` wins if both somehow appear). They are the only way to disable unattended operation on either stage.
 
 *Filter resolution follows `/glorfindel`'s rule — explicit `--filter` wins; else
 `default_filters.md` keyed by `<tracker>:<project>`; else stop with that skill's
@@ -86,14 +90,37 @@ If the resolved filter is `state:Open` (or any single-state scope that excludes 
 tickets, and suggest the broad filter above. Proceed if they confirm; the council
 stage still works, only the hand-off stalls.
 
+### On Jira
+
+Both stages support Jira — Anduin passes `<tracker>` straight through. Two
+differences from YouTrack to know:
+
+- **Two rungs, not three.** The skeleton rung (diagram + `[SKELETON]`) is a
+  YouTrack-only stage of the underlying skills. On Jira the flow is council → forge
+  directly: Glorfindel drafts `[COUNSEL vN]`, the human posts `[FORTH]`, and Aulë
+  forges on `[COUNSEL]+[FORTH]` (no skeleton in between). Anduin sequences the two
+  the same way; there is simply no middle rung to run.
+- **Unattended is smoothed by `--auto`.** Glorfindel and Aulë each guard Jira with a
+  post-safety prompt; Anduin's default appends `--auto` to **both** stages, so an
+  unattended `/anduin jira PSG` (or `/amon-sul anduin jira PSG`) runs hands-off
+  rather than halting at those prompts each tick. Pass `--dry-run` / `--confirm` to
+  put the guards back. State mapping and filters use Jira's vocabulary (numeric
+  transition IDs for `forth` / `forged`; JQL for the filter).
+
 ## Workflow
 
 ### 1. Ride the council (Glorfindel)
 
-Invoke `/glorfindel <tracker> <project> [--filter <filter>] [--dry-run] [--confirm]`
-through the Skill tool, with the shared flags only. Let it do its whole job —
-list, per-ticket council machinery, post `[PLAN]` / refine, transition on
-`[FORTH]`, and its own aggregate report. Hold that report.
+Invoke `/glorfindel` through the Skill tool with the gate flag resolved per the
+defaulting rule above:
+
+- **No gate flag** → `/glorfindel <tracker> <project> --filter <filter> --auto` — unattended (the `--auto` skips Jira's post-safety prompt; no-op on YouTrack).
+- **`--dry-run`** → `/glorfindel <tracker> <project> --filter <filter> --dry-run`.
+- **`--confirm`** → `/glorfindel <tracker> <project> --filter <filter> --confirm`.
+
+Let it do its whole job — list, per-ticket council machinery, post `[PLAN]` /
+`[COUNSEL]` / refine, transition on `[FORTH]`, and its own aggregate report. Hold
+that report.
 
 ### 2. Ride the forge (Aulë)
 

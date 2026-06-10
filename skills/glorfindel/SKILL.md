@@ -25,6 +25,7 @@ Glorfindel rode out from Rivendell to seek the Ringbearer, and visited each road
 | `--filter <filter>` | no | Tracker-aware extra scope (see below) |
 | `--dry-run` | no | List what would happen; never post |
 | `--confirm` | no | Ask before each post (default off) |
+| `--auto` | no | Proceed unattended on Jira — skip the post-safety prompt (step 1b). The flag is the deliberate "I accept unattended Jira posting", symmetric with `/aule --auto`. No-op on YouTrack (no such gate). |
 
 **Filter is required.** Glorfindel will not sweep without one — sweeping a whole project is too broad to be useful and too costly to be safe. The skill enforces this; the list hooks enforce it too.
 
@@ -83,12 +84,12 @@ If the resolved value is a real path (not `(no repo)`), acquire **one** isolated
 
 Every ticket in the sweep hands the same workspace path to its Erestor subagent — one acquire per sweep, not per ticket, since worktree setup carries a non-trivial cost and Glorfindel may visit dozens of tickets. The workspace is released in step 4 (after the aggregate report) on the success path. If the resolved value is `(no repo)`, skip the acquire — Erestor drafts from ticket text alone on every ticket.
 
-**b. Jira post-safety warning.** If `<tracker>` is `jira` and neither `--dry-run` nor `--confirm` is set: warn the user via AskUserQuestion that Glorfindel is about to sweep Jira and may post automatically to many real tickets. Offer three options:
+**b. Jira post-safety warning.** If `<tracker>` is `jira` and none of `--auto`, `--dry-run`, or `--confirm` is set: warn the user via AskUserQuestion that Glorfindel is about to sweep Jira and may post automatically to many real tickets. Offer three options:
 - Proceed unattended (risky on Jira).
 - Re-run with `--confirm` (recommended).
 - Re-run with `--dry-run` (safest).
 
-If the user picks "proceed unattended" explicitly, continue. Otherwise stop and tell them how to re-invoke.
+If the user picks "proceed unattended" explicitly, continue. Otherwise stop and tell them how to re-invoke. **`--auto` skips this prompt** — the flag *is* the deliberate intent the warning exists to confirm, given in advance (e.g. when Glorfindel rides under an unattended `/anduin` / `/amon-sul` watch). YouTrack never reaches this gate.
 
 ### 2. List the open tickets
 
