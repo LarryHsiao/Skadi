@@ -132,7 +132,9 @@ defaulting rule above:
 - **`--confirm`** → `/aule <tracker> <project> --filter <filter> --confirm [--max N] [--ready]`.
 
 Let it do its whole job — list, rung-dispatch each qualifier to `/celebrimbor`
-(skeleton or forge), its gate, and its aggregate report. Hold that report.
+(skeleton or forge), close any already-forged ticket whose PR/MR has merged (step
+5b — move to the `merged=` state, thread a `[METTA]` note), its gate, and its
+aggregate report. Hold that report.
 
 Council first is deliberate: a plan or skeleton approved earlier this pass is
 transitioned and ready, so the forge stage can pick it up in the **same** pass
@@ -156,9 +158,11 @@ Decide the verdict:
 
 - **STIRRED** if *either* the council stirred (any ticket `drafted`, `forth`,
   `forged`, `nay`, `farewell`, or `talked-out`) *or* the forge moved (any ticket
-  `forged` / skeleton-drafted, **or** qualifiers remain for the next forge pass).
+  `forged` / `closed` / skeleton-drafted, **or** qualifiers remain for the next
+  forge pass). A `closed` outcome — Aulë laying a merged ticket to rest — is
+  movement as much as a forge is.
 - **QUIET** if both stages were quiet — council all `quiet` / `untouched` or empty,
-  and forge forged nothing with no qualifiers remaining.
+  and forge forged and closed nothing with no qualifiers remaining.
 
 The verdict line is the contract `/amon-sul` reads to set its streak. Always emit
 exactly one of the two tokens.

@@ -1,6 +1,6 @@
 ---
 name: aule
-description: Use when the user runs /aule <tracker> <project> [--filter <id-or-jql>] [--max N] [--ready] [--auto] [--dry-run] [--confirm]. Sweeps a project for tickets bearing an approved counsel awaiting the forge ([COUNSEL] + [FORTH], no [GWAITH]), takes the first N qualifiers (default 3), and dispatches /celebrimbor per ticket. Each invocation forges N; re-running picks up the next N, with the tracker itself as the bookmark via the no-[GWAITH] gate. Hard cap by default — bulk-forge has a real blast radius. --auto forges the manifest without the outer confirmation.
+description: Use when the user runs /aule <tracker> <project> [--filter <id-or-jql>] [--max N] [--ready] [--auto] [--dry-run] [--confirm]. Sweeps a project for tickets bearing an approved counsel awaiting the forge ([COUNSEL] + [FORTH], no [GWAITH]), takes the first N qualifiers (default 3), and dispatches /celebrimbor per ticket. Also closes already-forged tickets whose PR/MR has since merged — moving them to the project's merged= state and threading a [METTA] note. Each invocation forges N; re-running picks up the next N, with the tracker itself as the bookmark via the no-[GWAITH] gate. Hard cap by default — bulk-forge has a real blast radius. --auto forges the manifest without the outer confirmation.
 user_invocable: true
 ---
 
@@ -88,8 +88,9 @@ Map the action to a dispatch:
 | `draft_skeleton`, `redraft_skeleton`, `answer_skeleton` | `/celebrimbor youtrack <project> --ticket <id> --skeleton` |
 | `forge` | `/celebrimbor youtrack <project> --ticket <id>` |
 | `draft_plan`, `redraft_plan`, `answer_plan` | `/council youtrack:<id>` (plan rung — or leave to `/glorfindel`) |
+| `done` | close-watch — forged, not yet closed; check the PR/MR for merge (step 5b) |
 | `await_start` | skip — dormant, no `[MELLON]` summons yet (counted in the report) |
-| `await_plan`, `await_skeleton`, `done` | skip (no-op) |
+| `await_plan`, `await_skeleton`, `at_rest` | skip (no-op) |
 
 The `answer_*` actions route to the same sub-skill as their rung's draft/redraft;
 the sub-skill re-runs the decider and takes its own answer path (post `[PEDO]`,
@@ -97,9 +98,12 @@ advance the watermark, leave the plan/skeleton standing). Aulë needs no special
 case beyond the routing above.
 
 A ticket whose action is a no-op is dropped from the manifest silently — exactly
-the loop-safety the watermark buys. The one exception is `await_start`: it too is
-dropped from the work manifest, but is surfaced as the dormant tally below rather
-than silently. (The `[COUNSEL vN]` forge gate below still governs the Jira path.)
+the loop-safety the watermark buys. Two exceptions: `await_start` is dropped from
+the work manifest but surfaced as the dormant tally below rather than silently;
+`done` is not dropped at all — it enters the **close-watch set** for step 5b,
+where a merged PR/MR closes the ticket. (`at_rest` — a `[METTA]` already posted —
+is the true terminal no-op: the ticket is forged *and* closed, nothing left to do.)
+(The `[COUNSEL vN]` forge gate below still governs the Jira path.)
 
 Apply the **forge gate** (identical to `/celebrimbor` step 2):
 
@@ -157,6 +161,62 @@ The `--ticket` flag bypasses Celebrimbor's own qualifier-pick prompt (see Celebr
 
 Capture each Celebrimbor run's outcome for the report. A Celebrimbor-side abort (counsel bears unresolved Open questions, smith returned `[ABORT]`, push or PR-open failed) does not stop the sweep — Aulë records the row and proceeds to the next ticket.
 
+### 5b. Close the merged
+
+Step 5 forges the unforged. This step closes the *already* forged: a ticket the
+decider returned `done` for bears a `[GWAITH]` whose PR/MR may since have merged.
+When it has, the ticket is laid to rest — its State moved to the project's closed
+value and a `[METTA]` (Quenya *"the end"*) note threaded — so the tracker reflects
+the deed without a human hand.
+
+The decider's `done` / `at_rest` split is the idempotency guard: a `done` ticket
+has no `[METTA]` yet (a posted `[METTA]` yields `at_rest`, which step 2 skips), so
+this step never double-closes.
+
+For each `done` ticket from the close-watch set (step 2), in list order:
+
+1. **Extract the forge URL.** From the latest bot `[GWAITH]` comment in the
+   fetched thread, take the first URL on its first line.
+2. **Ask the forge if it merged.** Look up the forge in `forge_routing.md`
+   (`<tracker>:<project>`), then invoke the matching hook:
+
+   ```bash
+   ~/.claude/hooks/aule-github-merged.sh <pr-url>     # github
+   ~/.claude/hooks/aule-gitlab-merged.sh <mr-url>     # gitlab
+   ```
+
+   - `merged: commit=<sha> url=<url>` → it merged; proceed.
+   - `unmerged: state=<…>` → still open; leave the ticket untouched and record
+     nothing — it re-checks next sweep.
+   - `{"error":…}` → record the ticket `error` with the message; continue.
+3. **Resolve the close state.** Read `merged=` for `<tracker>:<project>` from
+   `state_mapping.md`. If the row is absent or the `merged` key is missing,
+   **lazy-bootstrap once per sweep** via AskUserQuestion — the same shape as
+   Glorfindel's `forth` bootstrap: offer the project's State names (or an "Other"
+   free-text affordance), plus a `(skip — never close on merge for this project)`
+   option that seeds `merged=` empty so the prompt does not return. Save the answer.
+   If the value is empty, do not transition or post — record `closed` with detail
+   `merged; close-state skipped`.
+4. **Transition the ticket** (idempotent — already-closed yields `noop`):
+
+   ```bash
+   ~/.claude/hooks/youtrack-state.sh <ticket-id> <merged-state>
+   ```
+
+5. **Post the closing note** via the council comment hook, naming the merge:
+
+   ```
+   [METTA] — closed on merge
+   PR merged: <url> (commit <sha>)
+   State: <from> -> <merged-state>
+   ```
+
+   Record outcome `closed`, carrying the PR/MR URL and the state transition.
+
+Under `--dry-run`, render what *would* close (ticket, URL, merge state) and post
+nothing — symmetric with the forge manifest. Under `--confirm`, prompt once per
+ticket before the transition-and-`[METTA]` post.
+
 ### 6. Aggregate the report
 
 Print one block:
@@ -169,8 +229,9 @@ Aulë at <tracker>:<project> — sweep complete
 | 1 | [MET-3](<ticket-url>)  | forged    | <pr-url> | branch <name>; workspace released |
 | 2 | [MET-7](<ticket-url>)  | aborted   | —        | counsel had unresolved Open questions |
 | 3 | [MET-12](<ticket-url>) | error     | —        | gh push failed: branch already exists on origin |
+| 4 | [MET-1](<ticket-url>)  | closed    | <pr-url> | PR merged; state In Progress -> Done; [METTA] posted |
 
-Total: 3 ticket(s) — 1 forged, 1 aborted, 1 error.
+Total: 4 ticket(s) — 1 forged, 1 closed, 1 aborted, 1 error.
 <Q-K> qualifier(s) remain for the next sweep.
 <D> ticket(s) await [MELLON] — dormant until summoned.
 ```
@@ -182,6 +243,7 @@ Outcome vocabulary:
 | Outcome | Meaning |
 |---|---|
 | `forged` | Smith committed, push succeeded, PR/MR opened, `[GWAITH]` posted. (State transition outcome appears in `Detail` if non-trivial.) |
+| `closed` | A `done` ticket's PR/MR had merged (step 5b) — the ticket was moved to its `merged=` state and a `[METTA]` note threaded. Detail carries the merge and the state transition. (When `merged=` is empty, the ticket is recorded `closed` with `close-state skipped` and no write lands.) |
 | `aborted` | Celebrimbor stopped before opening — counsel had unresolved Open questions, smith returned `[ABORT]`, or `--confirm` was declined. No PR. |
 | `dry-run` | Reached only when Aulë's `--dry-run` was set — not present in this report; the dry-run path stops at step 4. |
 | `answered` | A rung-dispatch ticket bore a question (`[CEIST]`/`[ASK]`, or bare prose); the sub-skill posted a `[PEDO]` answer and left the plan/skeleton standing. No PR. |
@@ -201,6 +263,7 @@ The closing line — *"<Q-K> qualifier(s) remain for the next sweep"* — names 
 - `--confirm` propagates to every `/celebrimbor` dispatch (per-ticket prompt before PR-open). Use to stop mid-sweep without aborting prior forges.
 - A Celebrimbor-side abort or error on one ticket does not halt the sweep. Record the outcome and proceed.
 - Aulë never invokes the forge hooks (`celebrimbor-github-pr.sh`, `celebrimbor-gitlab-mr.sh`) directly. All PR-open writes flow through `/celebrimbor`. One source of truth for the per-ticket forge.
-- Aulë never invokes the council comment hook directly. All `[GWAITH]` posts flow through `/celebrimbor`.
+- Aulë never invokes the council comment hook for **forge** posts — every `[GWAITH]` flows through `/celebrimbor`. The one comment Aulë posts of its own is the close-on-merge `[METTA]` note (step 5b), which has no forge stage to route through: the deed it records is the *merge*, watched by Aulë, not a PR-open.
+- Close-on-merge (step 5b) is bounded by the tracker, not by `--max`. `--max` caps forges, which write to four places each; closing a merged ticket writes one transition and one comment, and the merge itself is the gate — every `done` ticket whose PR/MR has merged is closed in the pass it is seen.
 - Do not surface tracker or forge tokens in logs, responses, or saved files.
 - **Jira sweeps require deliberate intent** — when tracker is `jira` without `--auto`, `--dry-run`, or `--confirm`, prompt before proceeding (step 1e).

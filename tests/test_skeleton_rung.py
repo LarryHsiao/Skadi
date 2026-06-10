@@ -143,5 +143,16 @@ class DecideTest(unittest.TestCase):
             bot("[GWAITH] https://pr", 500, "c3")]}
         self.assertEqual(decide(data)["action"], expected)
 
+    def test_metta_is_at_rest(self):
+        expected = "at_rest"
+        data = {"comments": [
+            bot("[PLAN]\n<!-- consumed: 100 -->\nplan", 100, "c1"),
+            human("[FORTH]", 200),
+            bot("[SKELETON]\n<!-- consumed: 200 -->\nstubs", 300, "c2"),
+            human("[FORTH]", 400),
+            bot("[GWAITH] https://pr", 500, "c3"),
+            bot("[METTA] closed on merge", 600, "c4")]}
+        self.assertEqual(decide(data)["action"], expected)
+
 if __name__ == "__main__":
     unittest.main()

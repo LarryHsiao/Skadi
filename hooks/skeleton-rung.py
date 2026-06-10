@@ -8,6 +8,9 @@ id, login, text, created) and prints one line:
 
 The thread is the record: which living comments exist (their first-line token),
 and where the latest [FORTH] sits relative to each comment's watermark, decide it.
+A bot [METTA] (closed on merge) is the terminal mark — its presence yields
+`at_rest`, distinct from `done` (forged, not yet closed), so Aulë's close-on-merge
+sweep never re-closes a ticket already laid to rest.
 See docs/superpowers/specs/2026-06-08-skeleton-stage-design.md.
 """
 import sys, json, re
@@ -26,7 +29,7 @@ def _token(text):
     if not body:
         return ""
     head = body.splitlines()[0].strip().upper()
-    for tok in ("[PLAN]", "[SKELETON]", "[GWAITH]"):
+    for tok in ("[PLAN]", "[SKELETON]", "[GWAITH]", "[METTA]"):
         if head.startswith(tok):
             return tok
     return ""
@@ -54,7 +57,7 @@ def _is_alter(text):
 
 def decide(data):
     comments = data.get("comments", [])
-    plan = skeleton = gwaith = None
+    plan = skeleton = gwaith = metta = None
     for c in comments:
         if c.get("login") != BOT_LOGIN:
             continue
@@ -65,6 +68,8 @@ def decide(data):
             skeleton = c
         elif tok == "[GWAITH]":
             gwaith = c
+        elif tok == "[METTA]":
+            metta = c
 
     humans = [c for c in comments if c.get("login") != BOT_LOGIN]
     forths = [c for c in humans if _is_forth(c.get("text", ""))]
@@ -79,6 +84,8 @@ def decide(data):
     def out(action):
         return {"action": action, "plan_id": plan_id, "skeleton_id": skel_id}
 
+    if metta:
+        return out("at_rest")
     if gwaith:
         return out("done")
     if skeleton:
