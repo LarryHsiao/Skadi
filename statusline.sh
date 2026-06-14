@@ -106,6 +106,9 @@ colorize_temp() {
 
     temp_num=$(echo "$temp_match" | grep -oE '[+-]?[0-9]+')
 
+    # Drop the leading + on positive temps; keep the - on negatives.
+    local temp_display="${temp_match#+}"
+
     if [ "$temp_num" -ge 30 ]; then
         color="$RED"
     elif [ "$temp_num" -ge 28 ]; then
@@ -116,7 +119,7 @@ colorize_temp() {
         color="$BLUE"
     fi
 
-    echo "${str/${temp_match}/ ${color}${temp_match}${RESET}}"
+    echo "${str/${temp_match}/ ${color}${temp_display}${RESET}}"
 }
 
 # Weather with 30-minute cache
