@@ -1,6 +1,6 @@
 ---
 name: amon-sul
-description: Use when the user runs /amon-sul <sweep> <tracker> <project> [flags…], where <sweep> is glorfindel (council-stage), aule (forge-stage), or anduin (both stages in sequence — the council→forge pipeline under one watch). An adaptive in-session watcher — it runs one sweep, reads the result, then self-schedules its next ride via ScheduleWakeup, tightening to 5 minutes when work moves and stretching out to 1 hour as the road stays quiet. Session-bound: the vigil dies when the session closes. Say "stop the vigil" (or stop /amon-sul) to end it.
+description: Use when the user runs /amon-sul <sweep> <tracker> <project> [flags…], where <sweep> is glorfindel (council-stage), aule (forge-stage), or anduin (both stages in sequence — the council→forge pipeline under one watch). An adaptive in-session watcher — it runs one sweep, reads the result, then self-schedules its next ride via ScheduleWakeup, tightening to 5 minutes when work moves and stretching out to 1 hour as the road stays quiet. Honors an optional working-hours window (`--active HH-HH`, or a per-project `working_hours.md` default) so off-hours wakes skip the ride entirely — no sweep forged while the keeper sleeps. Session-bound: the vigil dies when the session closes. Say "stop the vigil" (or stop /amon-sul) to end it.
 user_invocable: true
 ---
 
@@ -43,11 +43,12 @@ under one watch. Amon Sûl watches with whichever you summon.
 | Token | Meaning |
 |---|---|
 | `<sweep>` | The rider: `glorfindel` (aliases `council`, `sweep`), `aule` (alias `forge`), or `anduin` (alias `pipeline`) for both stages in sequence. Required — Amon Sûl will not guess. |
-| everything after `<sweep>` | Passed **verbatim** to `/<sweep>`. |
+| everything after `<sweep>` | Passed to `/<sweep>`, **less Amon Sûl's own tokens** (`--active …`, `::streak=N`), which are parsed off and stripped first. |
 
 The remainder — `<tracker> <project>` and any flags — is handed straight to the
 named sweep, whose own argument grammar then governs. Amon Sûl adds no arguments
-of its own; it only wraps the sweep in an adaptive schedule.
+of its own; it only wraps the sweep in an adaptive schedule and, where bidden,
+holds that schedule to the keeper's working hours.
 
 - `glorfindel` grammar: `<tracker> <project> [--filter …] [--dry-run] [--confirm]`.
 - `aule` grammar: `<tracker> <project> [--filter …] [--max N] [--ready] [--auto] [--dry-run] [--confirm]`.
@@ -63,9 +64,36 @@ it off the **end** of the arguments, hold the integer (default `0` if absent),
 and **strip it** before handing the remainder to the sweep — the sweep must never
 see it. The user does not type this; if they do, honour it as the starting count.
 
+**The active-hours flag.** An optional `--active <window>` may appear among the
+flags — Amon Sûl's own, never the sweep's. Parse it off, **strip it** before
+handing the remainder to the sweep, and let it govern the *working hours* gate
+(see *Ride*). The window takes three forms:
+
+- `--active 09-18` — a daytime span (rides only between 09:00 and 18:00 local).
+- `--active 22-06` — a span that **wraps midnight** (rides 22:00 through 06:00).
+- `--active off` — force always-on, overriding any memory default.
+
+Resolution runs **flag → memory → always-on**: the flag wins when present; absent
+it, read the per-project default from `working_hours.md` (keyed by the `<project>`
+token, the same one handed to the sweep — read it, do not strip it); absent both,
+the watch rides every tick as it always has. The window is read in **local machine
+time**, for it is the keeper's sleep it answers to.
+
 ## Workflow
 
 ### 1. Ride
+
+**The working-hours gate, first.** Resolve the active window (flag → memory →
+none, per *The active-hours flag*). If a window is in force, read the current
+**local** time — a small `date` call on wake — and test it against the span (a
+midnight-wrapping span like `22-06` holds when the hour is ≥ start *or* < end).
+
+- **Now lies outside the window** → **do not ride.** Send no sweep; read no
+  tracker; forge nothing. Announce one line — *"off-hours, holding; next look at
+  HH:MM."* — leave the streak **frozen** (a skipped ride read no road, so it is
+  neither stir nor quiet), and arm the next wake at `min(3600s, seconds until the
+  window next opens)`. Re-append `::streak=N` unchanged. Skip steps 2–3 this turn.
+- **Now lies inside the window, or no window is in force** → ride, as below.
 
 Parse `::streak=N` (see above), then invoke `/<sweep> <rest>` through the Skill
 tool, passing the remaining arguments exactly as received. Let the sweep do its
@@ -142,6 +170,13 @@ Stop — omit the `ScheduleWakeup` call — when:
     pipeline stirs, with no `--auto` in the line to signal it. The brakes are
     `--dry-run` (forge nothing) and `--confirm` (prompt per PR); prefer a
     `--dry-run` watch first to see what would forge.
+- **The watch holds outside its keeper's hours.** When a window is in force
+  (`--active`, or a `working_hours.md` default), an off-hours wake skips the ride
+  whole — no sweep, no forge, no tracker write — and only re-arms for the next
+  open. The streak freezes across the dark; it neither climbs nor resets, for no
+  road was read. This is the brake against PRs forged at 3 a.m. under `--auto`.
+  Note the 1-hour ceiling still bites: a long night is *hopped*, not slept — each
+  hop a bare clock-check. For a truly silent night, reach for a durable cron.
 - **One watch per invocation.** Re-running `/amon-sul` with the same rider and
   args while a watch is already armed stacks a second wake-up. Stop the first if
   you mean to re-pace; do not double-arm. Two *different* riders (a Glorfindel
