@@ -1,6 +1,6 @@
 ---
 name: durin
-description: Use when the user runs /durin [--scope mine|all] [--dry-run] [--confirm]. Sweeps every open PR/MR in the current repo's forge that bears unaddressed comments, dispatches /narvi per URL with --no-confirm, and aggregates one report. The forge is auto-detected from the cwd repo's origin remote (github | gitlab). One repo per invocation — the human cd's into the project tree first, exactly as for /narvi.
+description: Use when the user runs /durin [--scope mine|all] [--dry-run] [--auto] [--confirm]. Sweeps every open PR/MR in the current repo's forge that bears unaddressed comments, dispatches /narvi per URL with --no-confirm, and aggregates one report. --auto skips the outer confirm gate and forges the manifest unattended. The forge is auto-detected from the cwd repo's origin remote (github | gitlab). One repo per invocation — the human cd's into the project tree first, exactly as for /narvi.
 user_invocable: true
 ---
 
@@ -12,19 +12,20 @@ Narvi was the dwarf-smith who wrought the West-gate of Khazad-dûm; Durin the De
 
 - **Durin walks; Narvi still answers.** Per-URL behavior matches `/narvi --no-confirm` exactly. Durin never amends more than Narvi would.
 - **One repo per invocation.** The sweep scopes to the cwd's `origin` remote — the same source-repo contract Narvi enforces, just applied across many PR/MR URLs.
-- **One outer gate, not N inner ones.** The human approves the whole sweep once after seeing the manifest; per-URL confirm prompts would make the sweep painful at scale. The gate is always on for non-dry-run runs.
+- **One outer gate, not N inner ones.** The human approves the whole sweep once after seeing the manifest; per-URL confirm prompts would make the sweep painful at scale. The gate is on for non-dry-run runs unless `--auto` is passed, which stands in for the human's word up front.
 - **Silent skip on quiet PRs.** A PR with zero unaddressed comments (after Narvi's trail-marker dedup) is dropped from the manifest before the gate. Durin shows only what merits work.
 - **Silent skip on pending PRs.** A PR whose title bears the bracketed tag `[PENDING]` (case-insensitive) or whose body/description contains the word `pending` is dropped at the list step — the author has marked the door closed for now, and Durin does not knock.
 
 ## Argument parsing
 
-`/durin [--scope mine|all] [--dry-run] [--confirm]`
+`/durin [--scope mine|all] [--dry-run] [--auto] [--confirm]`
 
 | Argument | Required | Meaning |
 |---|---|---|
 | `--scope mine\|all` | no | `mine` (default) — PRs/MRs the user authored. `all` — every open PR/MR in the repo. |
-| `--dry-run` | no | Render the manifest, never write to the forge. |
-| `--confirm` | no | Redundant with the always-on outer gate; included for parallel with `/glorfindel`. |
+| `--dry-run` | no | Render the manifest, never write to the forge. Overrides `--auto` — a dry run writes nothing. |
+| `--auto` | no | Skip the outer confirm gate; forge the manifest unattended. Mirrors `/aule --auto`. |
+| `--confirm` | no | Redundant with the default-on outer gate; included for parallel with `/glorfindel`. |
 
 The forge is **not** an argument — it is auto-detected from `git remote get-url origin` (host containing `gitlab` → gitlab, otherwise github). If the origin URL matches neither pattern, Durin stops with a plain error.
 
@@ -110,9 +111,10 @@ Total: 3 PR/MR(s), 7 unaddressed comment(s).
 Then:
 
 - **`--dry-run`**: stop. The manifest is the deliverable; nothing further.
+- **`--auto`** (and not `--dry-run`): skip the gate; proceed straight to step 5. The flag is the user's word for the whole sweep, given up front.
 - **Otherwise**: AskUserQuestion (options: `forge all <N>` / `abort`). On `abort`, stop. On `forge all`, proceed to step 5.
 
-The slash invocation alone is not authority for a forge-write across N PRs/MRs; the outer gate is always on unless `--dry-run`.
+The slash invocation alone is not authority for a forge-write across N PRs/MRs; the outer gate is always on unless `--dry-run` or `--auto`.
 
 ### 5. Per-URL Narvi dispatch
 
@@ -160,7 +162,7 @@ Do not reproduce per-comment commit shas in this report — they live on Narvi's
 - One repo per invocation. The sweep scopes to the cwd's `origin` remote only. Cross-repo sweeps are out of scope for v1.
 - Forge is auto-detected from the origin host. The skill does not accept a forge argument.
 - `--dry-run` stops at the manifest. No outer confirm, no per-URL dispatch.
-- The outer confirm gate is always on for non-dry-run runs. The slash invocation alone is not authority.
+- The outer confirm gate is always on for non-dry-run runs, unless `--auto` is passed. The slash invocation alone is not authority; `--auto` is the explicit word that stands in for the gate.
 - Per-URL Narvi dispatch uses `--no-confirm`. Durin owns the gate; Narvi answers without re-asking.
 - A Narvi-side abort or error on one URL does not halt the sweep. Record and continue.
 - Do not duplicate Narvi's per-comment commit-and-push logic — dispatch the skill instead. One source of truth for the per-URL workflow.
