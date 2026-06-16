@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Skadi Work Loop</title>
+    <link rel="stylesheet" href="../previews/henneth/skadi-theme.css" />
+    <style>
+      .flow {
+        max-width: 920px;
+        margin: 0 auto;
+      }
+      .backnav {
+        max-width: 920px;
+        margin: 0 auto 0.6rem;
+      }
+      .backnav a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 0.9rem;
+      }
+      .backnav a:hover {
+        text-decoration: underline;
+      }
+      .stage {
+        position: relative;
+        margin: 0 0 0.4rem 0;
+      }
+      .stage .panel {
+        margin: 0;
+      }
+      .num {
+        display: inline-block;
+        min-width: 1.6rem;
+        font-weight: 700;
+        color: var(--accent);
+      }
+      .arrow {
+        text-align: center;
+        color: var(--accent);
+        font-size: 1.2rem;
+        line-height: 1;
+        margin: 0.15rem 0;
+      }
+      .gate {
+        color: var(--blue);
+        font-style: italic;
+      }
+      .new-tag {
+        background: var(--green);
+        color: #fbf6ea;
+        border-radius: 0.6rem;
+        padding: 0.05rem 0.5rem;
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+        vertical-align: middle;
+        margin-left: 0.4rem;
+      }
+      .loopback {
+        border-left: 3px solid var(--red);
+        background: var(--raise);
+        padding: 0.5rem 0.8rem;
+        margin: 0.4rem 0;
+        border-radius: 0 0.4rem 0.4rem 0;
+      }
+      .loopback b {
+        color: var(--red);
+      }
+      ul.tight {
+        margin: 0.3rem 0 0 0;
+        padding-left: 1.1rem;
+      }
+      ul.tight li {
+        margin: 0.15rem 0;
+      }
+      .small {
+        font-size: 0.85rem;
+        color: #6b5d44;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="backnav"><a href="index.html">← Skadi Handbook</a></div>
+
+    <div class="flow">
+      <h1>The Skadi Work Loop</h1>
+      <p class="sub">
+        From the weighing of a task to the word “done” — the free-form cycle,
+        with <b>Acceptance</b> now named up front.
+      </p>
+
+      <!-- 1 -->
+      <div class="stage">
+        <div class="panel">
+          <h2><span class="num">1.</span> Task Sizing</h2>
+          Weigh the craftsman’s triad and render the gauge
+          <b>before a line is written</b>.
+          <div class="prec">
+            Size ▰▱▱ minimum · ▰▰▱ medium · ▰▰▰ heavy &nbsp;—&nbsp; reach ·
+            depth · reversibility
+          </div>
+          <span class="small"
+            >Medium or heavy → offer a best-effort breakdown into minimum-sized
+            steps.</span
+          >
+        </div>
+      </div>
+      <div class="arrow">↓</div>
+
+      <!-- 2 -->
+      <div class="stage">
+        <div class="panel">
+          <h2>
+            <span class="num">2.</span> Acceptance
+            <span class="new-tag">NEW</span>
+          </h2>
+          Name what <i>done</i> looks like — two or three
+          <b>observable outcomes</b>, phrased as outcomes not actions, rendered
+          <b>alongside the gauge</b>.
+          <ul class="tight">
+            <li>
+              “the empty list renders the placeholder”, not “render the
+              placeholder”
+            </li>
+            <li>
+              no observable surface (pure refactor, docs) →
+              <span class="name">none — internal change</span>
+            </li>
+            <li>this is the target every later gate measures against</li>
+          </ul>
+        </div>
+      </div>
+      <div class="arrow">↓</div>
+
+      <!-- 3 -->
+      <div class="stage">
+        <div class="panel">
+          <h2>
+            <span class="num">3.</span> Change Approval
+            <span class="gate">— gate</span>
+          </h2>
+          <ul class="tight">
+            <li>
+              <b>Free-form work</b> → lay out the summary (files, intent,
+              acceptance), then <b>await the user’s word</b>.
+            </li>
+            <li>
+              <b>Slash-invoked skill</b> → the invocation <i>is</i> the word;
+              run it.
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="arrow">↓</div>
+
+      <!-- 4 -->
+      <div class="stage">
+        <div class="panel">
+          <h2><span class="num">4.</span> Implementation Loop</h2>
+          Work the steps in order.
+          <b
+            >Each step is closed by a named verification before the next
+            begins.</b
+          >
+          <ul class="tight">
+            <li>
+              Name the verification path <i>before</i> the step, so success and
+              failure are recognizable.
+            </li>
+            <li>
+              Step grew heavier than its gauge? Stop, re-gauge, re-summarize,
+              await word.
+            </li>
+            <li>
+              <b>Heavy</b> tasks: a per-step Compliance audit fires after each
+              step clears.
+            </li>
+          </ul>
+          <div class="loopback">
+            <b>↺ Divergence returns to the code.</b> When the result diverges
+            from what the plan called for, return to the code —
+            <b>do not bend the verification to fit the slip</b>.
+          </div>
+        </div>
+      </div>
+      <div class="arrow">↓</div>
+
+      <!-- 5 -->
+      <div class="stage">
+        <div class="panel">
+          <h2>
+            <span class="num">5.</span> Compliance Review
+            <span class="gate">— gate, before “done”</span>
+          </h2>
+          Spawn a lighter <b>read-only</b> agent over the cumulative diff, two
+          passes in order:
+          <ul class="tight">
+            <li>
+              <b>Spec compliance</b> — built what the plan named, nothing more,
+              nothing less.
+            </li>
+            <li>
+              <b>Code quality</b> — reads true against the style/tool guides and
+              local convention.
+            </li>
+          </ul>
+          <span class="small"
+            >Findings: fix before “done”, or name plainly as a knowing
+            exception. Fixes happen <i>before</i> the fresh verification.</span
+          >
+        </div>
+      </div>
+      <div class="arrow">↓</div>
+
+      <!-- 6 -->
+      <div class="stage">
+        <div class="panel">
+          <h2>
+            <span class="num">6.</span> Fresh Verification
+            <span class="gate">— the last gate</span>
+          </h2>
+          Run the verification <b>once more in the current turn</b> — prior runs
+          do not count.
+          <div
+            class="loopback"
+            style="border-left-color: var(--green); background: #eef3ea"
+          >
+            <b style="color: var(--green)">✓ Walk each Acceptance line.</b> Name
+            the evidence that meets it — a passing test, a rendered screen, a
+            logged value.
+            <b
+              >An acceptance line with no evidence beside it is not met, and the
+              loop is not closed.</b
+            >
+          </div>
+        </div>
+      </div>
+      <div class="arrow">↓</div>
+
+      <!-- 7 -->
+      <div class="stage">
+        <div class="panel">
+          <h2><span class="num">7.</span> Done — spoken loud</h2>
+          Report what was <b>completed</b>, what was <b>deferred</b>, what
+          remains <b>uncertain</b>. “Done” is wrong if anything was skipped
+          silently.
+        </div>
+      </div>
+
+      <p class="note" style="margin-top: 1rem">
+        <b>Where Acceptance bites:</b> stage&nbsp;2 names the mark;
+        stage&nbsp;5’s spec pass reads it as “what the plan named”; stage&nbsp;6
+        ticks it off line by line with evidence. Without it, stages 5 &amp; 6
+        fall back to a target assembled after the fact — the one most easily
+        bent to fit the slip.
+      </p>
+      <p class="small">
+        Slash-invoked skills that name their own acceptance (e.g.
+        <span class="name">/council</span>’s Erestor) have already paid
+        stage&nbsp;2; the section binds free-form work.
+      </p>
+    </div>
+  </body>
+</html>

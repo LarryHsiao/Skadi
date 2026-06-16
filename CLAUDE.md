@@ -55,6 +55,14 @@ Show the gauge above the change summary, so the weight is known before a line is
 
 **When the gauge reads medium or heavy**, offer a best-effort breakdown — how the task might be split into several **minimum**-sized steps, each small of reach, shallow in depth, easy to undo. Give it an honest try; do not belabor it. If the task truly will not cleave, say so plainly and move on. See `docs/style/task-sizing-example.md` for a worked cleavage.
 
+## Acceptance
+
+Before the first edit, name what *done* looks like — two or three observable outcomes that mark the work succeeded. Each is a thing you, or a test, can check once the change lands: a behavior visible on the screen, a value returned from a call, a row written to the store, a test that was red turned green. Phrase them as outcomes, not actions — "the empty list renders the placeholder", not "render the placeholder". Render them alongside the gauge and the change summary, so the mark to hit is known before a line is written.
+
+The acceptance is what the [Implementation Loop](#implementation-loop)'s verification measures against, and what the [Compliance Review](#compliance-review)'s spec pass reads as "what the plan named". Left unnamed up front, both gates fall back to a target assembled after the fact — and a target inferred late is the one most easily bent to fit the slip. Before "done" is reported, the Implementation Loop's fresh verification walks **each acceptance line** in turn and names the evidence that meets it — a passing test, a rendered screen, a logged value. An acceptance line with no evidence beside it is not met, and the loop is not closed.
+
+Keep it to a line or three; a target is a mark, not a specification. When the change truly has no observable surface — a pure refactor, a docs edit — say so plainly (`none — internal change`) and let the verification path stand in its place. Slash-invoked skills that name their own acceptance (e.g. `/council`'s Erestor, in every plan he drafts) have already paid this; the section binds **free-form** work, where no plan frame names the target otherwise.
+
 ## Change Approval
 
 The gate depends on how the action was summoned:
