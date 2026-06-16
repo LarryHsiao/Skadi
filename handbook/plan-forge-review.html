@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Plan · Forge · Review</title>
+    <link rel="stylesheet" href="../previews/henneth/skadi-theme.css" />
+    <style>
+      .flow {
+        max-width: 920px;
+        margin: 0 auto;
+      }
+      .backnav {
+        max-width: 920px;
+        margin: 0 auto 0.6rem;
+      }
+      .backnav a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 0.9rem;
+      }
+      .backnav a:hover {
+        text-decoration: underline;
+      }
+      .cast {
+        margin: 0.4rem 0 1.2rem;
+      }
+      .cast li {
+        margin: 0.25rem 0;
+      }
+      .cast .who {
+        font-family: ui-monospace, Menlo, monospace;
+        color: var(--blue);
+        font-weight: 600;
+        display: inline-block;
+        min-width: 7.5rem;
+      }
+      .diagram {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 1rem 0.6rem;
+        margin: 0.6rem 0 1.2rem;
+        overflow-x: auto;
+      }
+      .diagram pre {
+        margin: 0;
+        text-align: center;
+      }
+      .small {
+        font-size: 0.85rem;
+        color: #6b5d44;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="backnav"><a href="index.html">← Skadi Handbook</a></div>
+
+    <div class="flow">
+      <h1>Plan · Forge · Review</h1>
+      <p class="sub">
+        Told from the actors' side — who speaks, to whom, and in what order, as
+        a ticket becomes a merged change.
+      </p>
+
+      <p class="note">
+        Every line below is a comment on the ticket thread or a note on the
+        PR/MR — <b>the thread is the whole record, no side channels</b>. The
+        bracketed tokens are the gates; their grammar is the table at the foot.
+      </p>
+
+      <h2>The cast</h2>
+      <ul class="cast">
+        <li>
+          <span class="who">Elrond</span> the human — opens the ticket, summons,
+          and renders every verdict.
+        </li>
+        <li>
+          <span class="who">Erestor</span> the council (<span class="name"
+            >/council</span
+          >, <span class="name">/glorfindel</span>) — drafts and refines the
+          plan.
+        </li>
+        <li>
+          <span class="who">Celebrimbor</span> the forge (<span class="name"
+            >/celebrimbor</span
+          >, <span class="name">/aule</span>) — branches, smiths, opens the PR,
+          closes it on merge.
+        </li>
+        <li>
+          <span class="who">Mithrandir</span> the review (<span class="name"
+            >/mithrandir</span
+          >, <span class="name">/lindir</span>,
+          <span class="name">/nazgul</span>) — weighs the PR and renders a
+          verdict.
+        </li>
+        <li>
+          <span class="who">Narvi</span> the amends (<span class="name"
+            >/narvi</span
+          >, <span class="name">/durin</span>) — answers each comment, one
+          commit at a time.
+        </li>
+      </ul>
+
+      <h2>The standard arc</h2>
+      <div class="diagram">
+        <pre class="mermaid">
+graph TD
+    A(["Elrond opens a ticket<br/>with requirements"]) --> B
+
+    subgraph PLAN["I. PLAN · /council"]
+      direction TB
+      B["Elrond — &lsqb;MELLON&rsqb;<br/>speak, friend, and enter"] --> C["Erestor — &lsqb;COUNSEL v1&rsqb;<br/>drafts the plan"]
+      C --> D["Elrond replies in prose"]
+      D -. refine .-> C
+      C --> V{"Elrond's verdict"}
+    end
+
+    subgraph FORGE["II. FORGE · /celebrimbor"]
+      direction TB
+      F["Celebrimbor — branch off base,<br/>the smith implements"] --> G["Celebrimbor — &lsqb;GWAITH&rsqb; url<br/>draft PR/MR opened"]
+    end
+
+    subgraph REVIEW["III. REVIEW"]
+      direction TB
+      H["Mithrandir — verdict<br/>Merge / Hold / Refuse"] --> I["Narvi — one commit per<br/>comment, then push"]
+      I --> J["Mithrandir — bless<br/>re-weighs the amended PR"]
+    end
+
+    V -->|FORTH| F
+    V -->|NAY| X(["Plan abandoned"])
+    G --> H
+    J --> K(["Elrond merges the PR/MR"])
+    K --> L["Celebrimbor — &lsqb;METTA&rsqb;<br/>ticket moved to merged · /aule"]
+
+    style PLAN fill:#ece0c3,stroke:#cdbfa0
+    style FORGE fill:#dfeade,stroke:#cdbfa0
+    style REVIEW fill:#dde7f0,stroke:#cdbfa0
+        </pre>
+      </div>
+
+      <h2>The longer road — skeleton stage</h2>
+      <p class="small" style="margin-top: 0">
+        For work too large to plan in one leap, a <b>skeleton</b> is carved
+        before the forge. Two <span class="name">[FORTH]</span>s gate the arc —
+        one to approve the plan, one to approve the skeleton.
+      </p>
+      <div class="diagram">
+        <pre class="mermaid">
+graph TD
+    A["Elrond — &lsqb;MELLON&rsqb;<br/>summons into the skeleton sweep"] --> B["Erestor — &lsqb;PLAN&rsqb;<br/>the living plan, edited in place"]
+    B --> V1{"Elrond's verdict"}
+    V1 -->|FORTH · plan| S["Celebrimbor — &lsqb;SKELETON&rsqb;<br/>stubs + diagram PNG"]
+    S --> V2{"Elrond's verdict"}
+    V2 -->|FORTH · skeleton| G["Celebrimbor — &lsqb;GWAITH&rsqb;<br/>the code arrives as a draft PR"]
+        </pre>
+      </div>
+      <p class="small">
+        <span class="name">/aule</span> and
+        <span class="name">/glorfindel</span> drive these rungs under
+        <span class="name">/loop</span>: each tick derives a ticket's rung from
+        its thread via <code>hooks/skeleton-rung.py</code> and dispatches the
+        plan, skeleton, or forge work accordingly.
+      </p>
+
+      <h2>The comment grammar</h2>
+      <p class="small" style="margin-top: 0">
+        Seven tokens carry state; everything else is counsel. Matching is
+        case-insensitive; English aliases are recognized everywhere their
+        Tolkien primaries are.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Token</th>
+            <th>Alias</th>
+            <th>Author</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="name">[COUNSEL vN]</span></td>
+            <td><span class="name">[PLAN vN]</span></td>
+            <td>Erestor</td>
+            <td>Draft of the plan; N increments each round</td>
+          </tr>
+          <tr>
+            <td><span class="name">[PARLEY]</span></td>
+            <td><span class="name">[AGENT-ASK]</span></td>
+            <td>Erestor</td>
+            <td>A single clarifying question — speech to come to terms</td>
+          </tr>
+          <tr>
+            <td><span class="name">[MELLON]</span></td>
+            <td><span class="name">[FRIEND]</span></td>
+            <td>Elrond</td>
+            <td>
+              Summons — enrols a planless ticket in the skeleton-stage sweeps
+            </td>
+          </tr>
+          <tr>
+            <td><span class="name">[FORTH]</span></td>
+            <td><span class="name">[APPROVE]</span></td>
+            <td>Elrond</td>
+            <td>The plan stands; council adjourns with approval</td>
+          </tr>
+          <tr>
+            <td><span class="name">[NAY]</span></td>
+            <td><span class="name">[REJECT]</span></td>
+            <td>Elrond</td>
+            <td>The plan is abandoned; council adjourns without approval</td>
+          </tr>
+          <tr>
+            <td><span class="name">[NAMARIE]</span></td>
+            <td><span class="name">[FAREWELL]</span></td>
+            <td>Elrond</td>
+            <td>Farewell — adjourn without verdict</td>
+          </tr>
+          <tr>
+            <td><span class="name">[GWAITH]</span></td>
+            <td>
+              <span class="name">[FORGED]</span>,
+              <span class="name">[SHIPPED]</span>
+            </td>
+            <td>Celebrimbor</td>
+            <td>The deed is wrought; PR/MR opened, body carries the URL</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="small">
+        Verdict precedence is <i>by token, not by chronology</i>:
+        <span class="name">[FORTH]</span> &gt;
+        <span class="name">[NAY]</span> &gt;
+        <span class="name">[NAMARIE]</span>. Safe to overrule yourself in the
+        same thread.
+      </p>
+
+      <h2 style="margin-top: 1.6rem">Run whole — /anduin and the watch</h2>
+      <p>
+        The arc above is a stage at a time, run by hand. Two skills run it
+        <i>whole</i>.
+      </p>
+
+      <p>
+        <span class="name">/anduin &lt;tracker&gt; &lt;project&gt;</span> rides
+        the pipeline in one pass — <span class="name">/glorfindel</span> for the
+        plan stage, then <span class="name">/aule</span> for the forge stage,
+        <b>sequential by construction</b> so the two never contend. It prints
+        one combined report closing in a plain
+        <span class="name">STIRRED</span> /
+        <span class="name">QUIET</span> verdict. The forge runs
+        <b>unattended by default</b> (<span class="name">--auto --max 3</span>)
+        — there is no <span class="name">--auto</span> to type; pass
+        <span class="name">--dry-run</span> (forge nothing) or
+        <span class="name">--confirm</span> (prompt per PR) to gate it.
+      </p>
+
+      <p>
+        <span class="name">/amon-sul</span> — Amon Sûl, the Watch — wraps a
+        sweep in an <b>adaptive, in-session loop</b>. Name the rider and it
+        rides:
+        <span class="name"
+          >/amon-sul anduin youtrack URD --filter "#Unresolved"</span
+        >
+        watches the whole pipeline. Each tick it runs one pass, reads the road,
+        and self-schedules the next ride — tightening when work stirs,
+        stretching as the road stays quiet.
+      </p>
+
+      <div class="diagram">
+        <pre class="mermaid">
+graph TD
+    R["/amon-sul anduin …<br/>runs one /anduin pass"] --> Q{"Did the road<br/>stir?"}
+    Q -->|STIRRED| T["streak = 0<br/>watch closely"]
+    Q -->|QUIET| C["streak + 1<br/>let the wait climb"]
+    T --> W["ScheduleWakeup<br/>arm the next ride"]
+    C --> W
+    W -. next tick .-> R
+
+    O["Off-hours wake<br/>(outside --active window)"] -. skip the ride,<br/>freeze the streak .-> W
+
+    style O fill:#f6e7d6,stroke:#9a3b2e
+        </pre>
+      </div>
+
+      <p class="small" style="margin-top: 0">
+        The cadence answers the road, not the clock — a named back-off ladder,
+        capped at one hour (the <code>ScheduleWakeup</code> ceiling):
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Streak (quiet rides)</th>
+            <th>Next ride in</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>0 — the road stirred</td>
+            <td>5 min</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>10 min</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>20 min</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>30 min</td>
+          </tr>
+          <tr>
+            <td>≥ 4</td>
+            <td>1 hr — the ceiling</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="small">
+        An optional working-hours window (<span class="name"
+          >--active 09-18</span
+        >, or a per-project <code>working_hours.md</code> default) holds the
+        watch through the dark: an off-hours wake skips the ride whole — no
+        sweep, no forge — and the streak freezes until the window next opens.
+        The watch is <b>session-bound</b>: the vigil dies when the session
+        closes. Say <i>“stop the vigil”</i> to end it. For a truly silent night
+        on a long-dead board, reach for a durable cron instead — this watch only
+        hops the hours, it does not sleep them.
+      </p>
+    </div>
+
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "base",
+        themeVariables: {
+          fontFamily: "Iowan Old Style, Palatino Linotype, Georgia, serif",
+          primaryColor: "#fbf6ea",
+          primaryBorderColor: "#cdbfa0",
+          primaryTextColor: "#2b2419",
+          lineColor: "#7a5a2e",
+          actorBkg: "#fbf6ea",
+          actorBorder: "#7a5a2e",
+          actorTextColor: "#2b2419",
+          actorLineColor: "#cdbfa0",
+          signalColor: "#7a5a2e",
+          signalTextColor: "#2b2419",
+          noteBkgColor: "#f6efe0",
+          noteBorderColor: "#7a5a2e",
+          noteTextColor: "#2b2419",
+          sequenceNumberColor: "#fbf6ea",
+          labelBoxBkgColor: "#ece0c3",
+          labelBoxBorderColor: "#cdbfa0",
+          labelTextColor: "#2b2419",
+        },
+      });
+    </script>
+  </body>
+</html>
