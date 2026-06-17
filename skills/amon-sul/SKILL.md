@@ -1,6 +1,6 @@
 ---
 name: amon-sul
-description: Use when the user runs /amon-sul <sweep> <tracker> <project> [flags…], where <sweep> is glorfindel (council-stage), aule (forge-stage), or anduin (both stages in sequence — the council→forge pipeline under one watch). An adaptive in-session watcher — it runs one sweep, reads the result, then self-schedules its next ride via ScheduleWakeup, tightening to 5 minutes when work moves and stretching out to 1 hour as the road stays quiet. Honors an optional working-hours window (`--active HH-HH`, or a per-project `working_hours.md` default) so off-hours wakes skip the ride entirely — no sweep forged while the keeper sleeps. Session-bound: the vigil dies when the session closes. Say "stop the vigil" (or stop /amon-sul) to end it.
+description: Use when the user runs /amon-sul <sweep> <tracker> <project> [flags…], where <sweep> is glorfindel (council-stage), aule (forge-stage), anduin (both stages in sequence — the council→forge pipeline under one watch), or moria (mend-stage — sweep your repos for unaddressed PR/MR comments and answer them with code; takes no tracker/project). An adaptive in-session watcher — it runs one sweep, reads the result, then self-schedules its next ride via ScheduleWakeup, tightening to 5 minutes when work moves and stretching out to 1 hour as the road stays quiet. Honors an optional working-hours window (`--active HH-HH`, or a per-project `working_hours.md` default) so off-hours wakes skip the ride entirely — no sweep forged while the keeper sleeps. Session-bound: the vigil dies when the session closes. Say "stop the vigil" (or stop /amon-sul) to end it.
 user_invocable: true
 ---
 
@@ -16,7 +16,9 @@ The rider is yours to name. **Glorfindel** rides the council stage (draft and
 refine plans on open tickets); **Aulë** rides the forge stage (open PRs for
 tickets whose counsel is approved and awaiting the smith); **Anduin** rides both
 in sequence (council then forge, one pass) for those who want the whole pipeline
-under one watch. Amon Sûl watches with whichever you summon.
+under one watch; **Moria** rides the mend stage — sweeping your repos for unaddressed
+PR/MR comments and answering them with code — and carries no tracker or project, only
+its own flags. Amon Sûl watches with whichever you summon.
 
 ## Ethos
 
@@ -42,7 +44,7 @@ under one watch. Amon Sûl watches with whichever you summon.
 
 | Token | Meaning |
 |---|---|
-| `<sweep>` | The rider: `glorfindel` (aliases `council`, `sweep`), `aule` (alias `forge`), or `anduin` (alias `pipeline`) for both stages in sequence. Required — Amon Sûl will not guess. |
+| `<sweep>` | The rider: `glorfindel` (aliases `council`, `sweep`), `aule` (alias `forge`), `anduin` (alias `pipeline`) for both stages in sequence, or `moria` (alias `mend`) to sweep your repos for unaddressed PR/MR comments. Required — Amon Sûl will not guess. |
 | everything after `<sweep>` | Passed to `/<sweep>`, **less Amon Sûl's own tokens** (`--active …`, `::streak=N`), which are parsed off and stripped first. |
 
 The remainder — `<tracker> <project>` and any flags — is handed straight to the
@@ -50,11 +52,17 @@ named sweep, whose own argument grammar then governs. Amon Sûl adds no argument
 of its own; it only wraps the sweep in an adaptive schedule and, where bidden,
 holds that schedule to the keeper's working hours.
 
+**Moria is the exception to the `<tracker> <project>` shape.** Its form is
+`/amon-sul moria [--scope mine|all] [--dry-run] [--auto] [--confirm]` — no tracker, no
+project; Moria reads the repos to sweep from `mend_repos.md`. Everything after `moria`
+(less Amon Sûl's own `--active …` / `::streak=N`) is handed straight to `/moria`.
+
 - `glorfindel` grammar: `<tracker> <project> [--filter …] [--dry-run] [--confirm]`.
 - `aule` grammar: `<tracker> <project> [--filter …] [--max N] [--ready] [--auto] [--dry-run] [--confirm]`.
 - `anduin` grammar: `<tracker> <project> [--filter …] [--max N] [--ready] [--dry-run] [--confirm]` — rides `/glorfindel` then `/aule` in one pass. **The forge runs unattended by default** (`--auto --max 3`); there is no `--auto` to type — pass `--dry-run` or `--confirm` to gate it. The filter should straddle Open *and* the `forth` state (e.g. `--filter "#Unresolved"`), else the forge stage misses council-advanced tickets.
+- `moria` grammar: `[--scope mine|all] [--dry-run] [--auto] [--confirm]` — no tracker/project; sweeps every repo in `mend_repos.md`. **Mends unattended only with `--auto`** — without it, Moria halts at its outer gate each ride and the watch freezes (see the blast-radius rule). Prefer a `--dry-run` watch first to see what would be mended.
 
-If `<sweep>` is missing or is not one of the three riders, stop and show the usage
+If `<sweep>` is missing or is not one of the four riders, stop and show the usage
 line above — do not default to a rider the user did not name.
 
 **The streak token.** A trailing `::streak=N` may appear on the invocation — this
@@ -78,6 +86,10 @@ it, read the per-project default from `working_hours.md` (keyed by the `<project
 token, the same one handed to the sweep — read it, do not strip it); absent both,
 the watch rides every tick as it always has. The window is read in **local machine
 time**, for it is the keeper's sleep it answers to.
+
+For the **`moria`** rider, which carries no `<project>` token, the memory default has
+no project to key on — so only an explicit `--active` window governs; absent it, the
+Moria watch is always-on.
 
 ## Workflow
 
@@ -111,8 +123,11 @@ From the sweep's aggregate report, decide whether the board **stirred** or staye
 | **Stirring** | Any ticket was `drafted`, `forth`, `forged`, `nay`, `farewell`, or `talked-out` | Any ticket `forged`, **or** qualifiers remain for the next sweep | Anduin's combined report ends in `Anduin — STIRRED` |
 | **Quiet** | All tickets `quiet` / `untouched`, or the road lay empty | None forged and no qualifiers remain, or no tickets in scope | Anduin's combined report ends in `Anduin — QUIET` |
 
-Anduin already folds both stages' road-reading into its own verdict line, so for
-the `anduin` rider Amon Sûl simply reads that token — no need to re-derive it.
+Anduin and Moria each fold their road-reading into their own verdict line, so for
+those riders Amon Sûl simply reads the token — `Anduin — STIRRED`/`QUIET`, or
+`Moria — STIRRED`/`QUIET` (stirred when any repo's sweep landed a commit) — no need to
+re-derive it. Moria is absent from the table above for that reason: its verdict line
+*is* the trigger.
 
 Then set the streak:
 
@@ -138,7 +153,8 @@ Find the next wait from the streak ladder, capped at the one-hour ceiling:
   - `delaySeconds`: the delay from the ladder.
   - `reason`: one short sentence — rider, road state, wait.
   - `prompt`: the original invocation verbatim, with the streak token
-    re-appended — `/amon-sul <sweep> <tracker> <project> [flags…] ::streak=<streak>`.
+    re-appended — `/amon-sul <sweep> <tracker> <project> [flags…] ::streak=<streak>`
+    (for `moria`, `/amon-sul moria [flags…] ::streak=<streak>` — no tracker/project).
 
 ### 4. Ending the watch
 
@@ -170,6 +186,13 @@ Stop — omit the `ScheduleWakeup` call — when:
     pipeline stirs, with no `--auto` in the line to signal it. The brakes are
     `--dry-run` (forge nothing) and `--confirm` (prompt per PR); prefer a
     `--dry-run` watch first to see what would forge.
+- **Watching with Moria carries its own blast radius.** Moria mends unattended only
+  with `--auto` — without it the outer gate freezes the watch each ride, waiting for a
+  word no one is there to give. With `--auto`, Moria answers unaddressed comments
+  across every repo in `mend_repos.md` with real commits, every tick a comment stands;
+  `--scope all` widens that to PRs you did not author. The brakes are `--dry-run`
+  (write nothing) and `--scope mine` (your PRs only); prefer a `--dry-run` watch first
+  to see what would be mended.
 - **The watch holds outside its keeper's hours.** When a window is in force
   (`--active`, or a `working_hours.md` default), an off-hours wake skips the ride
   whole — no sweep, no forge, no tracker write — and only re-arms for the next

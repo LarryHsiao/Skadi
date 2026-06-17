@@ -1,6 +1,6 @@
 ---
 name: durin
-description: Use when the user runs /durin [--scope mine|all] [--dry-run] [--auto] [--confirm]. Sweeps every open PR/MR in the current repo's forge that bears unaddressed comments, dispatches /narvi per URL with --no-confirm, and aggregates one report. --auto skips the outer confirm gate and forges the manifest unattended. The forge is auto-detected from the cwd repo's origin remote (github | gitlab). One repo per invocation — the human cd's into the project tree first, exactly as for /narvi.
+description: Use when the user runs /durin [--repo <path>] [--scope mine|all] [--dry-run] [--auto] [--confirm]. Sweeps every open PR/MR in a repo's forge that bears unaddressed comments, dispatches /narvi per URL with --no-confirm, and aggregates one report. --auto skips the outer confirm gate and forges the manifest unattended. The forge is auto-detected from the repo's origin remote (github | gitlab). One repo per invocation — cd into the project tree first, or name it with --repo <path>.
 user_invocable: true
 ---
 
@@ -11,17 +11,18 @@ Narvi was the dwarf-smith who wrought the West-gate of Khazad-dûm; Durin the De
 ## Ethos
 
 - **Durin walks; Narvi still answers.** Per-URL behavior matches `/narvi --no-confirm` exactly. Durin never amends more than Narvi would.
-- **One repo per invocation.** The sweep scopes to the cwd's `origin` remote — the same source-repo contract Narvi enforces, just applied across many PR/MR URLs.
+- **One repo per invocation.** The sweep scopes to one repo — the cwd's git tree, or the `--repo <path>` tree when that flag is given — read through its `origin` remote, the same source-repo contract Narvi enforces, just applied across many PR/MR URLs. `--repo` retargets the single sweep; it does not enable a multi-repo sweep. Fanning out across many repos is `/moria`, which calls `/durin --repo <root>` once per repo in your global mend list.
 - **One outer gate, not N inner ones.** The human approves the whole sweep once after seeing the manifest; per-URL confirm prompts would make the sweep painful at scale. The gate is on for non-dry-run runs unless `--auto` is passed, which stands in for the human's word up front.
 - **Silent skip on quiet PRs.** A PR with zero unaddressed comments (after Narvi's trail-marker dedup) is dropped from the manifest before the gate. Durin shows only what merits work.
 - **Silent skip on pending PRs.** A PR whose title bears the bracketed tag `[PENDING]` (case-insensitive) or whose body/description contains the word `pending` is dropped at the list step — the author has marked the door closed for now, and Durin does not knock.
 
 ## Argument parsing
 
-`/durin [--scope mine|all] [--dry-run] [--auto] [--confirm]`
+`/durin [--repo <path>] [--scope mine|all] [--dry-run] [--auto] [--confirm]`
 
 | Argument | Required | Meaning |
 |---|---|---|
+| `--repo <path>` | no | Sweep the repo at `<path>` instead of the cwd's git tree. The path must be a git tree; its `origin` decides the forge. Absent → the cwd, as before. |
 | `--scope mine\|all` | no | `mine` (default) — PRs/MRs the user authored. `all` — every open PR/MR in the repo. |
 | `--dry-run` | no | Render the manifest, never write to the forge. Overrides `--auto` — a dry run writes nothing. |
 | `--auto` | no | Skip the outer confirm gate; forge the manifest unattended. Mirrors `/aule --auto`. |
@@ -44,7 +45,7 @@ Both list hooks emit the same JSON shape — `[{url, number, title, head, base},
 
 In order:
 
-a. **Source repo.** Run `git rev-parse --show-toplevel` from cwd to find the source repo. If cwd is not in a git tree, stop with: *"Durin cannot ride from here — there is no git tree at this place."*
+a. **Source repo.** If `--repo <path>` was given, the source repo is that path — validate it with `git -C <path> rev-parse --show-toplevel`; if that fails, stop with: *"Durin cannot ride from there — <path> is no git tree."* Otherwise run `git rev-parse --show-toplevel` from cwd; if cwd is not in a git tree, stop with: *"Durin cannot ride from here — there is no git tree at this place."*
 
 b. **Forge detection.** Run `git -C <source-repo> remote get-url origin`. If absent, stop with: *"This repo has no `origin` remote — Durin has no road to walk."* If the host portion contains `gitlab` (case-insensitive), resolve forge as `gitlab`; otherwise as `github`. Bind the matching list hook and per-URL skill from the dispatch table.
 
@@ -159,7 +160,7 @@ Do not reproduce per-comment commit shas in this report — they live on Narvi's
 
 ## Rules
 
-- One repo per invocation. The sweep scopes to the cwd's `origin` remote only. Cross-repo sweeps are out of scope for v1.
+- One repo per invocation. The sweep scopes to one repo — the cwd's git tree, or the `--repo <path>` tree when given — via its `origin` remote only. `--repo` retargets that single sweep; it does not make the sweep span repos. Many repos are swept by calling Durin once per root (what `/moria` does).
 - Forge is auto-detected from the origin host. The skill does not accept a forge argument.
 - `--dry-run` stops at the manifest. No outer confirm, no per-URL dispatch.
 - The outer confirm gate is always on for non-dry-run runs, unless `--auto` is passed. The slash invocation alone is not authority; `--auto` is the explicit word that stands in for the gate.
