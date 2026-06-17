@@ -74,15 +74,19 @@ Save the answer to `state_mapping.md`, then proceed. Future sweeps consult the f
 
 ### 1. Pre-flight checks
 
-**a. Resolve the repo path and acquire a sweep-wide workspace.** Same rule as `/council` — see the council skill's "Working-directory contract" section. Look up `<tracker>:<project>` in `repo_routing.md`; if absent, ask once, save, proceed. The resolution happens once for the whole sweep.
+**a. Resolve the repo path and acquire a workspace.** Same rule as `/council` — see the council skill's "Working-directory contract" section, including its single-repo / multi-repo split. The acquire strategy follows which kind the project is:
 
-If the resolved value is a real path (not `(no repo)`), acquire **one** isolated workspace for the entire ride via the shared helper:
+- **Single-repo project (bare key).** Resolution happens **once for the whole sweep**. Look up `<tracker>:<project>` in `repo_routing.md`; if absent, ask once, save, proceed. If the resolved value is a real path (not `(no repo)`), acquire **one** isolated workspace for the entire ride via the shared helper:
 
-```bash
-~/.claude/hooks/skadi-worktree.sh acquire <source-repo>
-```
+  ```bash
+  ~/.claude/hooks/skadi-worktree.sh acquire <source-repo>
+  ```
 
-Every ticket in the sweep hands the same workspace path to its Erestor subagent — one acquire per sweep, not per ticket, since worktree setup carries a non-trivial cost and Glorfindel may visit dozens of tickets. The workspace is released in step 4 (after the aggregate report) on the success path. If the resolved value is `(no repo)`, skip the acquire — Erestor drafts from ticket text alone on every ticket.
+  Every ticket in the sweep hands the same workspace path to its Erestor subagent — one acquire per sweep, not per ticket, since worktree setup carries a non-trivial cost and Glorfindel may visit dozens of tickets. If the resolved value is `(no repo)`, skip the acquire — Erestor drafts from ticket text alone on every ticket.
+
+- **Multi-repo project (sub-keyed).** The repo depends on each ticket's summary tag, so resolution is **per ticket**, deferred into the sweep loop. For each ticket, derive its layer tag and resolve `<tracker>:<project>:<tag>` per the council contract. Acquire that repo's workspace lazily, **caching by source-repo path** so each distinct tree is acquired at most once per sweep — a sweep touching ten `[APP]` and three `[WEB]` tickets acquires two workspaces, not thirteen. A ticket whose summary bears no matching sub-key resolves to `(no repo)` — its Erestor drafts from ticket text alone.
+
+All workspaces acquired — the one sweep-wide tree, or the several cached multi-repo trees — are released in step 4 (after the aggregate report) on the success path.
 
 **b. Jira post-safety warning.** If `<tracker>` is `jira` and none of `--auto`, `--dry-run`, or `--confirm` is set: warn the user via AskUserQuestion that Glorfindel is about to sweep Jira and may post automatically to many real tickets. Offer three options:
 - Proceed unattended (risky on Jira).
@@ -173,7 +177,7 @@ Action vocabulary:
 
 Do not reproduce Erestor's full drafts in the report — they live on the tickets (or stayed in dry-run memory). Print one URL per ticket only when the action carries an id (drafted / talked-out).
 
-After the report, release the sweep-wide workspace acquired in step 1a, if any:
+After the report, release every workspace acquired in step 1a — the single sweep-wide tree for a single-repo project, or each cached multi-repo tree:
 
 ```bash
 ~/.claude/hooks/skadi-worktree.sh release <workspace-path>

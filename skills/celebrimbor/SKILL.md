@@ -157,7 +157,7 @@ In order:
 
 a. **Tracker** — apply the council hybrid dispatch (see `skills/council/SKILL.md`, "Tracker routing") to bind `<fetch-hook>`, `<comment-hook>`, and `<list-hook>` to YouTrack or Jira.
 
-b. **Source repo** — read `repo_routing.md` for `<tracker>:<project>`. If absent or `(no repo)`, stop with an error — Celebrimbor cannot forge without code. This is the **source repo** the human anchors to; the forge will happen in an isolated workspace, not in this tree.
+b. **Source repo** — read `repo_routing.md` per the council contract's single-repo / multi-repo split (see `skills/council/SKILL.md`, "Working-directory contract", step 1). For a single-repo project, look up the bare `<tracker>:<project>`. For a **multi-repo** project (sub-keyed entries exist), derive the layer tag from the ticket summary and look up `<tracker>:<project>:<tag>`. If the resolved value is absent or `(no repo)` — including a multi-repo ticket whose summary bears no matching sub-key tag — stop with an error: Celebrimbor cannot forge without code. This is the **source repo** the human anchors to; the forge will happen in an isolated workspace, not in this tree.
 
 c. **Forge** — read `forge_routing.md` for `<tracker>:<project>`. If absent, AskUserQuestion (options: `github`, `gitlab`) and save the answer. Resolve the matching forge hook.
 
