@@ -58,8 +58,13 @@ gate flags are how you turn it off.
 
 ## The two memory files
 
-Both live in the **project memory directory** — the same place `default_filters.md`,
-`repo_routing.md`, and `mend_repos.md` live.
+Both live under `~/.skadi/rhovanion/` — the global skadi store, beside `/vocab`'s and
+`/moria`'s own state. They are **not** in the per-project memory directory (where
+`default_filters.md` and `repo_routing.md` live): the watershed is yours across every
+project, and — crucially — the cursor is persistent state. Were it keyed per working
+directory, summoning Rhovanion from a different folder would find no cursor, read every
+project as cold-start, and re-forge the whole watershed. A fixed global path reads the
+same from anywhere.
 
 ### `pipeline_projects.md` — the list, set once
 
