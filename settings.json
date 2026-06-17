@@ -93,6 +93,8 @@
       "Bash(~/.claude/hooks/durin-gitlab-list.sh:*)",
       "Bash(~/.claude/hooks/youtrack-state.sh:*)",
       "Bash(~/.claude/hooks/jira-state.sh:*)",
+      "Bash(~/.claude/hooks/rhovanion-youtrack-probe.sh:*)",
+      "Bash(~/.claude/hooks/rhovanion-jira-probe.sh:*)",
       "Bash(~/.claude/hooks/skeleton-rung.py:*)",
       "Bash(~/.claude/hooks/youtrack-comment-edit.sh:*)",
       "Bash(~/.claude/hooks/youtrack-attach.sh:*)",

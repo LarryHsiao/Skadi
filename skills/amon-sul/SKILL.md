@@ -1,6 +1,6 @@
 ---
 name: amon-sul
-description: Use when the user runs /amon-sul <sweep> <tracker> <project> [flags…], where <sweep> is glorfindel (council-stage), aule (forge-stage), anduin (both stages in sequence — the council→forge pipeline under one watch), or moria (mend-stage — sweep your repos for unaddressed PR/MR comments and answer them with code; takes no tracker/project). An adaptive in-session watcher — it runs one sweep, reads the result, then self-schedules its next ride via ScheduleWakeup, tightening to 5 minutes when work moves and stretching out to 1 hour as the road stays quiet. Honors an optional working-hours window (`--active HH-HH`, or a per-project `working_hours.md` default) so off-hours wakes skip the ride entirely — no sweep forged while the keeper sleeps. Session-bound: the vigil dies when the session closes. Say "stop the vigil" (or stop /amon-sul) to end it.
+description: Use when the user runs /amon-sul <sweep> <tracker> <project> [flags…], where <sweep> is glorfindel (council-stage), aule (forge-stage), anduin (both stages in sequence — the council→forge pipeline under one watch), moria (mend-stage — sweep your repos for unaddressed PR/MR comments and answer them with code; takes no tracker/project), or rhovanion (the council→forge pipeline across every project in pipeline_projects.md, each gated by a cheap per-project movement probe; takes no tracker/project). An adaptive in-session watcher — it runs one sweep, reads the result, then self-schedules its next ride via ScheduleWakeup, tightening to 5 minutes when work moves and stretching out to 1 hour as the road stays quiet. Honors an optional working-hours window (`--active HH-HH`, or a per-project `working_hours.md` default) so off-hours wakes skip the ride entirely — no sweep forged while the keeper sleeps. Session-bound: the vigil dies when the session closes. Say "stop the vigil" (or stop /amon-sul) to end it.
 user_invocable: true
 ---
 
@@ -18,7 +18,10 @@ tickets whose counsel is approved and awaiting the smith); **Anduin** rides both
 in sequence (council then forge, one pass) for those who want the whole pipeline
 under one watch; **Moria** rides the mend stage — sweeping your repos for unaddressed
 PR/MR comments and answering them with code — and carries no tracker or project, only
-its own flags. Amon Sûl watches with whichever you summon.
+its own flags; **Rhovanion** rides the whole watershed — the council→forge pipeline
+across every project in `pipeline_projects.md`, each ride gated behind a cheap
+movement probe so still projects cost a single query — and likewise carries no tracker
+or project. Amon Sûl watches with whichever you summon.
 
 ## Ethos
 
@@ -44,7 +47,7 @@ its own flags. Amon Sûl watches with whichever you summon.
 
 | Token | Meaning |
 |---|---|
-| `<sweep>` | The rider: `glorfindel` (aliases `council`, `sweep`), `aule` (alias `forge`), `anduin` (alias `pipeline`) for both stages in sequence, or `moria` (alias `mend`) to sweep your repos for unaddressed PR/MR comments. Required — Amon Sûl will not guess. |
+| `<sweep>` | The rider: `glorfindel` (aliases `council`, `sweep`), `aule` (alias `forge`), `anduin` (alias `pipeline`) for both stages in sequence, `moria` (alias `mend`) to sweep your repos for unaddressed PR/MR comments, or `rhovanion` (alias `watershed`) for the council→forge pipeline across every project in `pipeline_projects.md`. Required — Amon Sûl will not guess. |
 | everything after `<sweep>` | Passed to `/<sweep>`, **less Amon Sûl's own tokens** (`--active …`, `::streak=N`), which are parsed off and stripped first. |
 
 The remainder — `<tracker> <project>` and any flags — is handed straight to the
@@ -52,17 +55,20 @@ named sweep, whose own argument grammar then governs. Amon Sûl adds no argument
 of its own; it only wraps the sweep in an adaptive schedule and, where bidden,
 holds that schedule to the keeper's working hours.
 
-**Moria is the exception to the `<tracker> <project>` shape.** Its form is
-`/amon-sul moria [--scope mine|all] [--dry-run] [--auto] [--confirm]` — no tracker, no
-project; Moria reads the repos to sweep from `mend_repos.md`. Everything after `moria`
-(less Amon Sûl's own `--active …` / `::streak=N`) is handed straight to `/moria`.
+**Moria and Rhovanion are the exceptions to the `<tracker> <project>` shape.** Each
+reads its own list file, so neither takes a tracker or project. Moria's form is
+`/amon-sul moria [--scope mine|all] [--dry-run] [--auto] [--confirm]` — it reads the
+repos from `mend_repos.md`. Rhovanion's is `/amon-sul rhovanion [--dry-run] [--confirm]`
+— it reads the projects from `pipeline_projects.md`. Everything after the rider name
+(less Amon Sûl's own `--active …` / `::streak=N`) is handed straight to that sweep.
 
 - `glorfindel` grammar: `<tracker> <project> [--filter …] [--dry-run] [--confirm]`.
 - `aule` grammar: `<tracker> <project> [--filter …] [--max N] [--ready] [--auto] [--dry-run] [--confirm]`.
 - `anduin` grammar: `<tracker> <project> [--filter …] [--max N] [--ready] [--dry-run] [--confirm]` — rides `/glorfindel` then `/aule` in one pass. **The forge runs unattended by default** (`--auto --max 3`); there is no `--auto` to type — pass `--dry-run` or `--confirm` to gate it. The filter should straddle Open *and* the `forth` state (e.g. `--filter "#Unresolved"`), else the forge stage misses council-advanced tickets.
 - `moria` grammar: `[--scope mine|all] [--dry-run] [--auto] [--confirm]` — no tracker/project; sweeps every repo in `mend_repos.md`. **Mends unattended only with `--auto`** — without it, Moria halts at its outer gate each ride and the watch freezes (see the blast-radius rule). Prefer a `--dry-run` watch first to see what would be mended.
+- `rhovanion` grammar: `[--dry-run] [--confirm]` — no tracker/project; rides `/anduin` across every project in `pipeline_projects.md`, gated per project by a cheap movement probe. **The forge runs unattended by default** (each ride's `/anduin` forges unless gated); there is no `--auto` to type — pass `--dry-run` or `--confirm` to gate it. Prefer a `--dry-run` watch first to see what would forge.
 
-If `<sweep>` is missing or is not one of the four riders, stop and show the usage
+If `<sweep>` is missing or is not one of the five riders, stop and show the usage
 line above — do not default to a rider the user did not name.
 
 **The streak token.** A trailing `::streak=N` may appear on the invocation — this
@@ -87,9 +93,9 @@ token, the same one handed to the sweep — read it, do not strip it); absent bo
 the watch rides every tick as it always has. The window is read in **local machine
 time**, for it is the keeper's sleep it answers to.
 
-For the **`moria`** rider, which carries no `<project>` token, the memory default has
-no project to key on — so only an explicit `--active` window governs; absent it, the
-Moria watch is always-on.
+For the **`moria`** and **`rhovanion`** riders, which carry no `<project>` token, the
+memory default has no project to key on — so only an explicit `--active` window governs;
+absent it, the watch is always-on.
 
 ## Workflow
 
@@ -123,11 +129,12 @@ From the sweep's aggregate report, decide whether the board **stirred** or staye
 | **Stirring** | Any ticket was `drafted`, `forth`, `forged`, `nay`, `farewell`, or `talked-out` | Any ticket `forged`, **or** qualifiers remain for the next sweep | Anduin's combined report ends in `Anduin — STIRRED` |
 | **Quiet** | All tickets `quiet` / `untouched`, or the road lay empty | None forged and no qualifiers remain, or no tickets in scope | Anduin's combined report ends in `Anduin — QUIET` |
 
-Anduin and Moria each fold their road-reading into their own verdict line, so for
-those riders Amon Sûl simply reads the token — `Anduin — STIRRED`/`QUIET`, or
-`Moria — STIRRED`/`QUIET` (stirred when any repo's sweep landed a commit) — no need to
-re-derive it. Moria is absent from the table above for that reason: its verdict line
-*is* the trigger.
+Anduin, Moria, and Rhovanion each fold their road-reading into their own verdict line,
+so for those riders Amon Sûl simply reads the token — `Anduin — STIRRED`/`QUIET`,
+`Moria — STIRRED`/`QUIET` (stirred when any repo's sweep landed a commit), or
+`Rhovanion — STIRRED`/`QUIET` (stirred when any ridden project's Anduin stirred) — no
+need to re-derive it. They are absent from the table above for that reason: their
+verdict line *is* the trigger.
 
 Then set the streak:
 
@@ -154,7 +161,8 @@ Find the next wait from the streak ladder, capped at the one-hour ceiling:
   - `reason`: one short sentence — rider, road state, wait.
   - `prompt`: the original invocation verbatim, with the streak token
     re-appended — `/amon-sul <sweep> <tracker> <project> [flags…] ::streak=<streak>`
-    (for `moria`, `/amon-sul moria [flags…] ::streak=<streak>` — no tracker/project).
+    (for `moria` and `rhovanion`, `/amon-sul <sweep> [flags…] ::streak=<streak>` — no
+    tracker/project).
 
 ### 4. Ending the watch
 
@@ -193,6 +201,14 @@ Stop — omit the `ScheduleWakeup` call — when:
   `--scope all` widens that to PRs you did not author. The brakes are `--dry-run`
   (write nothing) and `--scope mine` (your PRs only); prefer a `--dry-run` watch first
   to see what would be mended.
+- **Watching with Rhovanion forges unattended by default — across many projects.**
+  Each ride dispatches `/anduin` per *moved* project, and `/anduin` forges unattended
+  unless gated. So `/amon-sul rhovanion` opens PRs in every project that stirs, every
+  tick it stirs, with no `--auto` in the line to signal it — the same default as the
+  `anduin` rider, multiplied across `pipeline_projects.md`. The cursor gate bounds the
+  *cost* (still projects cost only a probe) but not the *blast radius* of a moving one.
+  The brakes are `--dry-run` (forge nothing) and `--confirm` (prompt per PR); prefer a
+  `--dry-run` watch first to see what would forge.
 - **The watch holds outside its keeper's hours.** When a window is in force
   (`--active`, or a `working_hours.md` default), an off-hours wake skips the ride
   whole — no sweep, no forge, no tracker write — and only re-arms for the next
