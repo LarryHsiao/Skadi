@@ -35,6 +35,12 @@ YELLOW=$'\033[43;30m'    # yellow bg, black text
 RED=$'\033[41;97m'       # red bg, white text
 RESET=$'\033[0m'
 
+# Foreground-only colors for the quota gauge — a background highlight would
+# drown the ▰▱ glyphs, so the bar wears its health on the text instead.
+FG_GREEN=$'\033[32m'
+FG_YELLOW=$'\033[33m'
+FG_RED=$'\033[31m'
+
 # rough_eta timestamp — prints rough time until reset (e.g. "~2h", "~30m", "~3d")
 # Accepts Unix epoch (integer) or ISO-8601 string
 rough_eta() {
@@ -62,7 +68,23 @@ rough_eta() {
     fi
 }
 
-# colorize label raw_pct [reset_ts] — prints "label: XX%" with background color + optional reset ETA
+# gauge pct — renders a 10-cell ▰▱ bar filled to pct% (nearest cell)
+GAUGE_WIDTH=10
+gauge() {
+    local pct="$1"
+    local filled=$(( (pct * GAUGE_WIDTH + 50) / 100 ))
+    [ "$filled" -lt 0 ] && filled=0
+    [ "$filled" -gt "$GAUGE_WIDTH" ] && filled="$GAUGE_WIDTH"
+
+    local i out=""
+    for (( i = 0; i < GAUGE_WIDTH; i++ )); do
+        if [ "$i" -lt "$filled" ]; then out+="▰"; else out+="▱"; fi
+    done
+    printf "%s" "$out"
+}
+
+# colorize label raw_pct [reset_ts] — prints "label ▰▰▱▱ XX%" gauge of remaining
+# quota, foreground-colored by threshold, with optional reset ETA as the label
 colorize() {
     local label="$1"
     local val="$2"
@@ -79,11 +101,11 @@ colorize() {
 
     local color
     if [ "$remaining" -ge 50 ]; then
-        color="$GREEN"
+        color="$FG_GREEN"
     elif [ "$remaining" -ge 30 ]; then
-        color="$YELLOW"
+        color="$FG_YELLOW"
     else
-        color="$RED"
+        color="$FG_RED"
     fi
 
     local display_label="$label"
@@ -93,7 +115,7 @@ colorize() {
         [ -n "$eta" ] && display_label="$eta"
     fi
 
-    printf "%s%s: %s%%%s" "$color" "$display_label" "$remaining" "$RESET"
+    printf "%s%s %s %s%%%s" "$color" "$display_label" "$(gauge "$remaining")" "$remaining" "$RESET"
 }
 
 # colorize_temp weather_str — replaces the temperature value with a colored version
