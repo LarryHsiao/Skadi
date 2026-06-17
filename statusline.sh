@@ -244,9 +244,11 @@ printf "📁 %s  🌿 %s\n" "$project_label" "$branch_label"
 # Line 2: branch info
 printf "✏️ %s  %s  %s  %s\n" "$lines_str" "$changed_str" "$unpushed_str" "$grammar_str"
 
-# Line 3: model + context + rate limits
-printf "%s %s  📊 %s  ⚡ %s  📅 %s\n" \
-    "$model_emoji" "$model_short" "$context_str" "$rate_5h_str" "$rate_7d_str"
+# Line 3: model + context gauge
+printf "%s %s  📊 %s\n" "$model_emoji" "$model_short" "$context_str"
+
+# Line 4: quota gauges (5h + 7d) — split off so the three bars don't overrun one line
+printf "⚡ %s  📅 %s\n" "$rate_5h_str" "$rate_7d_str"
 
 # John Wick quotes
 wick_quotes=(
