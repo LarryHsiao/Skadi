@@ -537,16 +537,20 @@ esac
 # Line 4: divider
 printf "%s\n" "──────────────────────────────────────────────────"
 
-# Sunset + moon phase from wttr.in, refreshed once per day (they shift only daily)
+# Sunrise/sunset + moon phase from wttr.in, refreshed once per day (they shift only daily)
 SUN_CACHE="/tmp/.claude_sun_cache"
 sun_raw=""
 today=$(date +%Y-%m-%d)
 if [ -f "$SUN_CACHE" ] && [ "$(head -1 "$SUN_CACHE" 2>/dev/null)" = "$today" ]; then
     sun_raw=$(tail -1 "$SUN_CACHE")
 fi
+# A cache from the old single-clock format lacks the sunrise field — refetch when so
+if [ "$(echo "$sun_raw" | grep -oE '[0-9]{2}:[0-9]{2}' | wc -l | tr -d ' ')" -lt 2 ]; then
+    sun_raw=""
+fi
 if [ -z "$sun_raw" ]; then
-    fetched=$(curl -s --max-time 3 "wttr.in/?format=%s+%m" 2>/dev/null)
-    if echo "$fetched" | grep -qE '[0-9]{2}:[0-9]{2}'; then
+    fetched=$(curl -s --max-time 3 "wttr.in/?format=%S+%s+%m" 2>/dev/null)
+    if [ "$(echo "$fetched" | grep -oE '[0-9]{2}:[0-9]{2}' | wc -l | tr -d ' ')" -ge 2 ]; then
         sun_raw="$fetched"
         printf "%s\n%s\n" "$today" "$sun_raw" > "$SUN_CACHE"
     elif [ -f "$SUN_CACHE" ]; then
@@ -554,14 +558,40 @@ if [ -z "$sun_raw" ]; then
     fi
 fi
 
-# sun_raw is "HH:MM:SS 🌔" — take HH:MM and the moon glyph
-sunset_full=$(echo "$sun_raw" | awk '{print $1}')
-sunset_time="${sunset_full%:*}"
+# sun_raw is "HH:MM:SS HH:MM:SS 🌔" — sunrise, sunset, moon glyph
+sunrise_time=$(echo "$sun_raw" | awk '{print $1}' | cut -d: -f1-2)
+sunset_time=$(echo "$sun_raw" | awk '{print $2}' | cut -d: -f1-2)
 moon_glyph=$(echo "$sun_raw" | awk '{print $NF}')
 
-# Line 5: weather + sunset & moon
-if [ -n "$sunset_time" ]; then
-    printf "%s  🌇 %s  %s\n" "$weather" "$sunset_time" "$moon_glyph"
+# After sunset+3h show the coming sunrise; after sunrise+3h show the coming sunset.
+# The glyph follows the time shown: 🌅 sunrise, 🌇 sunset.
+SUN_SHIFT_MIN=180
+sun_label="$sunset_time"
+sun_glyph="🌇"
+if [ -n "$sunrise_time" ] && [ -n "$sunset_time" ]; then
+    now_min=$(( 10#$(date +%H) * 60 + 10#$(date +%M) ))
+    sunrise_min=$(( 10#${sunrise_time%:*} * 60 + 10#${sunrise_time#*:} ))
+    sunset_min=$(( 10#${sunset_time%:*} * 60 + 10#${sunset_time#*:} ))
+    rise_switch=$(( (sunrise_min + SUN_SHIFT_MIN) % 1440 ))   # sunrise+3h: back to sunset
+    set_switch=$(( (sunset_min + SUN_SHIFT_MIN) % 1440 ))     # sunset+3h: ahead to sunrise
+    # Show sunrise while now lies in the cyclic arc [set_switch, rise_switch)
+    in_rise_arc=0
+    if [ "$set_switch" -le "$rise_switch" ]; then
+        if [ "$now_min" -ge "$set_switch" ] && [ "$now_min" -lt "$rise_switch" ]; then
+            in_rise_arc=1
+        fi
+    elif [ "$now_min" -ge "$set_switch" ] || [ "$now_min" -lt "$rise_switch" ]; then
+        in_rise_arc=1
+    fi
+    if [ "$in_rise_arc" = "1" ]; then
+        sun_label="$sunrise_time"
+        sun_glyph="🌅"
+    fi
+fi
+
+# Line 5: weather + sun time & moon
+if [ -n "$sun_label" ]; then
+    printf "%s  %s %s  %s\n" "$weather" "$sun_glyph" "$sun_label" "$moon_glyph"
 else
     printf "%s\n" "$weather"
 fi
