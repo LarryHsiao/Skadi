@@ -24,7 +24,7 @@ Celebrimbor was the master smith of Eregion, lord of the Gwaith-i-Mírdain, who 
 | `<project>` | yes | Project shortName / key (e.g. `MET`, `PSG`) |
 | `--filter <filter>` | no* | Tracker-aware extra scope (same semantics as `/glorfindel`) |
 | `--ticket <id>` | no | Skip the sweep; forge this exact ticket if it qualifies |
-| `--base <branch>` | no | Override the saved base branch for this run only |
+| `--base <branch>` | no | Override the base branch for this run only — wins over a ticket's `[BASE:]` tag |
 | `--ready` | no | Open PR/MR as ready-for-review (default: draft) |
 | `--dry-run` | no | Plan everything; never push, never open, never post |
 | `--confirm` | no | Ask once before opening the PR/MR |
@@ -66,6 +66,20 @@ type: reference
 
 - C:\Users\mikes\phantom\skadi → master
 ```
+
+### Per-ticket base — the `[BASE:]` tag
+
+A ticket may override the project-default base for its own forge by carrying a
+comment with `[BASE: <branch>]` — e.g.
+`[BASE: ELROND-140/feat/larry/support-multi-group-measurement-devices]`.
+Celebrimbor scans the thread for it (`\[BASE:\s*([^\]]+)\]`, case-insensitive,
+**non-bot comments only**; if several appear, the **last** wins). The resolved
+base governs both the branch's parent and the PR/MR target, so the tag is how a
+ticket asks to stack its work on a feature branch rather than the repo trunk.
+
+Precedence: `--base` flag (this run) > `[BASE:]` tag (this ticket) >
+`base_branch.md` (repo default) > bootstrap prompt. A tag (or `--base`) naming a
+branch absent on origin **aborts** the forge — see step 5.
 
 ## Forge dispatch
 
@@ -161,7 +175,7 @@ b. **Source repo** — read `repo_routing.md` per the council contract's single-
 
 c. **Forge** — read `forge_routing.md` for `<tracker>:<project>`. If absent, AskUserQuestion (options: `github`, `gitlab`) and save the answer. Resolve the matching forge hook.
 
-d. **Base branch** — `--base` overrides everything. Otherwise read `base_branch.md` keyed by the resolved source repo path. If absent, AskUserQuestion (options: `master`, `main`, plus "Other" affordance) and save.
+d. **Base branch (project default)** — `--base` overrides everything. Otherwise read `base_branch.md` keyed by the resolved source repo path. If absent, AskUserQuestion (options: `master`, `main`, plus "Other" affordance) and save. This sets the *default* base; a per-ticket `[BASE: <branch>]` tag in the ticket thread overrides it (step 5) unless `--base` was given.
 
 e. **Forge auth sanity** — `gh auth status` (for github) or `glab auth status` (for gitlab). If either fails, surface the hook's auth-missing error and stop.
 
@@ -213,6 +227,8 @@ Inspect its **Open questions** section. If any question has no follow-up answer 
 
 - Compute the branch name: `<TICKET-ID>-<slug>` where slug is the ticket summary, lowercased, ASCII-only, hyphen-separated, capped at ~40 chars. Example: `MET-3-add-session-summary-hook`.
 - Check for existing remote branch from the source repo: `git -C <source-repo> ls-remote --exit-code --heads origin <branch>`. If it exists, abort: *"Branch `<branch>` already exists on origin — refuse to overwrite."*
+- **Resolve the per-ticket base.** Scan the ticket thread for `[BASE: <branch>]` (regex `\[BASE:\s*([^\]]+)\]`, case-insensitive, **non-bot comments only**; the last such tag wins). If found and `--base` was not given, replace the project-default base (step 1d) with the tag's branch. Note the base's source — `flag`, `[BASE:] tag`, or `repo default` — for the report.
+- **Validate a tag- or flag-sourced base.** When the base came from a `[BASE:]` tag or `--base`, confirm it exists on origin: `git -C <source-repo> ls-remote --exit-code --heads origin <base>`. If absent, abort: *"`[BASE: <branch>]` not found on origin — refuse to forge from a missing base; fix the tag and re-approve."* Do not branch.
 - Acquire an isolated workspace at the base branch via the shared helper:
 
   ```bash
@@ -284,7 +300,7 @@ b. **Post `[GWAITH]`.** Build the comment body:
 [GWAITH] <pr-or-mr-url>
 
 Branch: <branch>
-Base: <base>
+Base: <base> (source: <flag | [BASE:] tag | repo default>)
 Forge: <github|gitlab>
 Approved counsel: [COUNSEL vN]
 ```
