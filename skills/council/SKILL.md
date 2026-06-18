@@ -96,7 +96,10 @@ If any credential cannot be resolved, the hook prints `{"error":"jira credential
 
 When the resolved tracker is **YouTrack**, council maintains a single living
 `[PLAN]` comment instead of appended `[COUNSEL vN]` versions, and follows this
-path instead of steps 1–7 below. (Jira keeps the append flow.)
+path instead of steps 1–7 below. (The Jira path below also maintains a single
+living plan comment, edited in place — it keeps its own thread parser and a
+visible `[COUNSEL vN]` marker, but the plan body is no longer re-appended each
+round.)
 
 1. **Fetch + decide.** Run the fetch hook, pipe to the decider:
 
@@ -128,7 +131,10 @@ path instead of steps 1–7 below. (Jira keeps the append flow.)
      Summon Erestor with the thread (including the alter instruction); he redrafts.
      **Edit the same comment** in place via
      `~/.claude/hooks/youtrack-comment-edit.sh <TICKET-ID> <plan_id>`, with the
-     watermark advanced to the newest human comment's `created`.
+     watermark advanced to the newest human comment's `created`. An in-place edit
+     fires no thread notification, so **append a `[VINYA]` notice** afterwards via
+     `~/.claude/hooks/council-youtrack-comment.sh <TICKET-ID>` (see *The `[VINYA]`
+     change notice* below), so Elrond sees the plan was renewed.
    - `answer_plan` — Elrond has asked a question (`[CEIST]`/`[ASK]`, or bare prose),
      not directed a change. Summon Erestor in **answer mode** (see step 5): give him
      the standing `[PLAN]` body, the thread, and the question; he returns a `[PEDO]`
@@ -173,17 +179,22 @@ The script prints a single JSON object:
 
 If the script prints `{"error": "..."}`, tell the user the error and stop.
 
-> **The steps below (versioned `[COUNSEL vN]` append) apply to the Jira path only.**
-> The YouTrack path is handled by the modify-only section above and does not reach here.
+> **The steps below apply to the Jira path only.** The YouTrack path is handled by
+> the modify-only section above and does not reach here. The Jira path keeps the
+> thread parser and the `[COUNSEL vN]` marker, but maintains a **single living plan
+> comment edited in place** (step 6): the first turn creates `[COUNSEL v1]`; each
+> `[ENVINYA]` redraft edits that same comment (version bumped) and appends a
+> `[VINYA]` change notice. Only `[PEDO]` answers and `[PARLEY]` are still appended.
 
 ### 2. Parse the thread
 
 Walk the `comments` array (already oldest-first). Determine:
 
 - **Latest plan version.** The highest `N` where a comment's first line matches `[COUNSEL vN]` or its alias `[PLAN vN]` (case-insensitive). If no plan exists yet, the next version is `1`.
+- **Plan comment id.** The `id` of that highest-version plan comment (from the fetch hook's `id` field). This is the comment step 6 edits in place on a redraft. If no plan exists yet, there is no id — step 6 creates the comment instead.
 - **Bot identity.** Two modes:
   - **Service-account mode** (e.g. YouTrack with a dedicated `claude` user): a comment is the bot's iff `login == "<bot-login>"`.
-  - **Shared-identity mode** (e.g. Jira where the bot posts as Elrond): no login distinction exists; a comment is the bot's iff its first line carries `[COUNSEL v…]` / `[PLAN v…]` (alias), `[PARLEY]` / `[AGENT-ASK]` (alias), `[PEDO]` / `[ANSWER]` (alias), or `[GWAITH]` / `[FORGED]` / `[SHIPPED]` (Celebrimbor's mark).
+  - **Shared-identity mode** (e.g. Jira where the bot posts as Elrond): no login distinction exists; a comment is the bot's iff its first line carries `[COUNSEL v…]` / `[PLAN v…]` (alias), `[PARLEY]` / `[AGENT-ASK]` (alias), `[PEDO]` / `[ANSWER]` (alias), `[VINYA]` / `[RENEWED]` (alias — the in-place-edit notice), or `[GWAITH]` / `[FORGED]` / `[SHIPPED]` (Celebrimbor's mark).
 
   Detect mode by inspecting the comment thread: if any login carries the configured bot value (today: `claude`), use service-account mode; otherwise use shared-identity mode.
 
@@ -239,26 +250,72 @@ Erestor returns a single markdown body whose first line begins with `[COUNSEL v{
 
 ### 6. Post the comment
 
-Pipe Erestor's body into the chosen tracker's comment script:
+The Jira path keeps **one living plan comment, edited in place**. Branch on what
+Erestor returned and whether a plan already exists (the *plan comment id* from
+step 2):
 
-```bash
-printf '%s' "$EREST_OR_BODY" | <comment-hook> <TICKET-ID>
+- **`[PEDO]` answer** or **`[PARLEY]`** — these are appends, never edits. Pipe the
+  body to the comment hook as a new comment:
+
+  ```bash
+  printf '%s' "$EREST_OR_BODY" | ~/.claude/hooks/council-jira-comment.sh <ISSUE-KEY>
+  ```
+
+- **`[COUNSEL v{NEXT}]` on the first turn** (no plan comment id from step 2) —
+  create the living plan comment:
+
+  ```bash
+  printf '%s' "$EREST_OR_BODY" | ~/.claude/hooks/council-jira-comment.sh <ISSUE-KEY>
+  ```
+
+- **`[COUNSEL v{NEXT}]` on a redraft** (a plan comment id exists) — **edit that
+  comment in place**, then append a `[VINYA]` change notice:
+
+  ```bash
+  printf '%s' "$EREST_OR_BODY" | ~/.claude/hooks/jira-comment-edit.sh <ISSUE-KEY> <plan-comment-id>
+  printf '%s' "$VINYA_BODY"     | ~/.claude/hooks/council-jira-comment.sh <ISSUE-KEY>
+  ```
+
+  Compose `$VINYA_BODY` per *The `[VINYA]` change notice* below. The edit must
+  land before the notice; if the edit hook exits non-zero, surface the error and
+  stop — do **not** post the notice (it would point at an unchanged plan).
+
+The create/append hook prints `posted: id=<comment-id> created=<epoch-ms> url=<full-ticket-url>`;
+the edit hook prints `edited: id=<comment-id> url=<issue-url>`. On failure either
+prints `{"error":"...","response":"..."}` (the `response` field carries the
+server's actual error body). If a script exits non-zero, tell the user the error
+and stop.
+
+#### The `[VINYA]` change notice
+
+This notice serves **both trackers** — the Jira step 6 redraft branch above and
+the YouTrack modify-only `redraft_plan` branch. A redraft edits the plan comment
+silently — Jira and YouTrack fire no thread notification on an in-place edit, so
+Elrond would never learn the plan moved. After the edit, council appends one
+short `[VINYA]` (Quenya *renewed*, kin to Elrond's `[ENVINYA]` *renew it*)
+comment via the tracker's plain comment hook (`council-jira-comment.sh` /
+`council-youtrack-comment.sh`), recognized as the bot's word so the next ride
+reads it as no fresh counsel. Point at the plan with the marker that tracker
+uses — Jira's versioned `[COUNSEL vN]`, YouTrack's bare `[PLAN]`:
+
+```
+# Jira (versioned marker):
+[VINYA] The plan is renewed to v{NEXT} — see the [COUNSEL v{NEXT}] comment above.
+
+# YouTrack (single living [PLAN]):
+[VINYA] The plan is renewed — see the [PLAN] comment above.
 ```
 
-On success the script prints one line in the same shape regardless of tracker:
-
-```
-posted: id=<comment-id> created=<epoch-ms> url=<full-ticket-url>
-```
-
-On failure it prints `{"error":"...","response":"..."}` (the `response` field carries the server's actual error body). If the script exits non-zero, tell the user the error and stop.
+The notice is composed by the skill body, not Erestor. It is the only append a
+redraft makes; the plan body itself is never re-appended. (The first-turn create
+needs no notice — a new comment already notifies.)
 
 ### 7. Report and release
 
 Tell the user, in one short block:
 
 - The ticket ID.
-- Which token was posted (`[COUNSEL vN]`, `[PARLEY]`, or `[PEDO]`).
+- What council did this round — `[COUNSEL vN]` created, `[COUNSEL vN]` edited in place (with the `[VINYA]` notice appended), `[PARLEY]`, or `[PEDO]`.
 - The ticket URL printed on the success line in step 6.
 
 Do not reproduce Erestor's draft in the response — it lives on the ticket now.
@@ -282,6 +339,7 @@ Nine tokens carry state. Everything else is counsel.
 | `[COUNSEL vN]` | `[PLAN vN]` | Erestor | A draft of the plan. N increments each round. The counsellor's counsel. |
 | `[PARLEY]` | `[AGENT-ASK]` | Erestor | A single clarifying question — speech between sides to come to terms. |
 | `[PEDO]` | `[ANSWER]` | Erestor / the smith | *Speak, and answer.* The reply to a `[CEIST]` (or bare question) — the plan stands untouched. Loop-neutral; uncounted toward the turn limit. |
+| `[VINYA]` | `[RENEWED]` | Council | *Renewed.* The notice appended after the living plan comment is edited in place (a silent edit fires no thread notification). Points at the renewed `[COUNSEL vN]`/`[PLAN]` above; the plan body lives there, not here. Loop-neutral. |
 | `[MELLON]` | `[FRIEND]` | Elrond | Summons. *Speak, friend, and enter* — enrolls a planless ticket in the skeleton-stage sweeps (`/glorfindel`, `/aule`); the decider yields `await_start` without it. Ignored by single-ticket `/council` (the invocation itself is consent). |
 | `[CEIST]` | `[ASK]` | Elrond | *A question put to the council.* Draws a `[PEDO]` answer; the plan is untouched. Bare prose is read the same way — it answers, never redrafts. |
 | `[ENVINYA]` | `[ALTER]` | Elrond | *Renew it.* The one human word that redrafts the standing plan or skeleton. Absent it, fresh prose only draws an answer. |
@@ -290,18 +348,18 @@ Nine tokens carry state. Everything else is counsel.
 | `[NAMARIE]` | `[FAREWELL]` | Elrond | *Farewell.* Adjourn without verdict — when the thread closes for reasons other than approval or rejection (resolved out-of-band, ticket subsumed by another, etc.). |
 | `[GWAITH]` | `[FORGED]`, `[SHIPPED]` | Celebrimbor | The Gwaith-i-Mírdain — the smith-guild of Eregion. The deed is wrought; PR/MR opened on the approved counsel. Body carries the URL and branch. Council itself never posts this; `/celebrimbor` does. |
 
-The English aliases (`[PLAN vN]`, `[AGENT-ASK]`, `[ANSWER]`, `[FRIEND]`, `[ASK]`, `[ALTER]`, `[APPROVE]`, `[REJECT]`, `[FAREWELL]`, `[FORGED]`, `[SHIPPED]`) are accepted equivalents, recognized everywhere their Tolkien primaries are. Use either form; the parser treats them identically. User-facing reports prefer the Tolkien token.
+The English aliases (`[PLAN vN]`, `[AGENT-ASK]`, `[ANSWER]`, `[RENEWED]`, `[FRIEND]`, `[ASK]`, `[ALTER]`, `[APPROVE]`, `[REJECT]`, `[FAREWELL]`, `[FORGED]`, `[SHIPPED]`) are accepted equivalents, recognized everywhere their Tolkien primaries are. Use either form; the parser treats them identically. User-facing reports prefer the Tolkien token.
 
 Human replies between these tokens are free-form prose — read as a question and answered with `[PEDO]`, never folded into a redraft. Only `[ENVINYA]`/`[ALTER]` redraws the plan.
 
 ## Rules
 
 - Never act on Elrond's behalf. The skill only reads tickets and posts comments.
-- Never edit or delete existing comments. Every round is a new comment.
+- The living plan comment is **edited in place** on a redraft (both trackers), followed by a `[VINYA]` notice; `[PEDO]` answers, `[PARLEY]`, and the first-turn plan creation are appends. No comment is ever deleted.
 - **Loop-safe.** If no fresh counsel from Elrond has come since the bot's last word, post nothing. Repeated invocations between Elrond's replies must be silent no-ops. The thread, not the invocation count, is the source of truth.
 - If the tracker hook reports a credential is missing, surface the error and stop — do not proceed.
 - Turn limit is five counsels per ticket. On the sixth, post `[PARLEY]` asking to take the thread offline. (Only triggers when fresh counsel exists; otherwise the loop-safe rule keeps the thread quiet.)
 - Case-insensitive matching of all nine tokens and their aliases.
 - Two trackers are wired: YouTrack and Jira. The hybrid dispatch rule above chooses between them.
-- **Jira tickets are real work.** Do not post test or diagnostic comments to Jira during smoke testing. Use `COUNCIL_DRY_RUN=1` env on the Jira comment hook for shape verification, and do write-path smoke tests against YouTrack (MET-1).
+- **Jira tickets are real work.** Do not post test or diagnostic comments to Jira during smoke testing. Use `COUNCIL_DRY_RUN=1` env on the Jira comment **and edit** hooks (`council-jira-comment.sh`, `jira-comment-edit.sh`) for shape verification, and do write-path smoke tests against YouTrack (MET-1).
 - Do not surface tracker tokens in logs, responses, or saved files.

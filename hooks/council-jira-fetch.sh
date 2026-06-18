@@ -133,6 +133,7 @@ out = {
     "description": adf_to_text(fields.get("description")),
     "comments": [
         {
+            "id":     c.get("id") or "",
             "author": ((c.get("author") or {}).get("displayName") or ""),
             "login":  ((c.get("author") or {}).get("emailAddress") or
                        (c.get("author") or {}).get("accountId") or ""),
