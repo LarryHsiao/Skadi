@@ -93,6 +93,9 @@ fi
 
 # Open the MR.
 # glab's draft toggle is --draft (boolean); ready means we omit it.
+# Unlike `gh` (which takes --body-file), `glab mr create` has no file/stdin
+# form for the description — `-` opens an interactive editor — so the body is
+# passed inline. Bounded by ARG_MAX (~1MB); MR bodies never approach that.
 glab_args=(
   mr create
   --source-branch "$BRANCH"
