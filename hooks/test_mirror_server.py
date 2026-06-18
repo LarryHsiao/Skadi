@@ -172,5 +172,17 @@ class DeleteTest(unittest.TestCase):
             outside.unlink()
 
 
+class PageLayoutTest(unittest.TestCase):
+    def test_collapsed_panel_keeps_main_full_width(self):
+        # With the side panel hidden (display:none), a two-track collapsed grid
+        # ("0 1fr") would auto-place the lone .main into the 0-width first track,
+        # blanking the page. The collapsed frame must be a single 1fr column.
+        expected_rule = "body.side-collapsed .frame { grid-template-columns:1fr; }"
+        self.assertIn(expected_rule, mirror.PAGE)
+
+        starved_rule = "grid-template-columns:0 1fr"
+        self.assertNotIn(starved_rule, mirror.PAGE)
+
+
 if __name__ == "__main__":
     unittest.main()

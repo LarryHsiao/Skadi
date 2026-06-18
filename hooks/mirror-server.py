@@ -75,7 +75,7 @@ PAGE = r"""<!DOCTYPE html>
   * { box-sizing:border-box; }
   body { margin:0; font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
   .frame { display:grid; grid-template-columns:var(--side-w) 1fr; height:100vh; }
-  body.side-collapsed .frame { grid-template-columns:0 1fr; }
+  body.side-collapsed .frame { grid-template-columns:1fr; }
   body.side-collapsed .side { display:none; }
   .side { border-right:1px solid var(--line); background:var(--panel); overflow:auto; display:flex; flex-direction:column; }
   .brand { display:flex; align-items:center; gap:8px; font-weight:700; letter-spacing:.04em; padding:14px 16px; color:var(--accent); border-bottom:1px solid var(--line); }
