@@ -75,12 +75,18 @@ PAGE = r"""<!DOCTYPE html>
   * { box-sizing:border-box; }
   body { margin:0; font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
   .frame { display:grid; grid-template-columns:var(--side-w) 1fr; height:100vh; }
+  body.side-collapsed .frame { grid-template-columns:0 1fr; }
+  body.side-collapsed .side { display:none; }
   .side { border-right:1px solid var(--line); background:var(--panel); overflow:auto; display:flex; flex-direction:column; }
   .brand { display:flex; align-items:center; gap:8px; font-weight:700; letter-spacing:.04em; padding:14px 16px; color:var(--accent); border-bottom:1px solid var(--line); }
   .iconbtn { margin-left:auto; display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; padding:0; background:none; border:1px solid var(--line); border-radius:6px; color:var(--muted); cursor:pointer; }
   .iconbtn:hover { color:var(--ink); }
   .iconbtn.on { background:#30364d; border-color:var(--accent); color:#fff; }
   .iconbtn svg { width:15px; height:15px; }
+  .brand .iconbtn, .bar .iconbtn { margin-left:0; }
+  .brand #sidehide { margin-left:auto; }
+  #sideopen { display:none; }
+  body.side-collapsed #sideopen { display:inline-flex; }
   #list { flex:1; }
   .ghead { display:flex; align-items:center; gap:8px; padding:8px 14px; cursor:pointer; background:#222; border-bottom:1px solid var(--line); user-select:none; }
   .ghead:hover { background:#2a2a2a; }
@@ -122,6 +128,9 @@ PAGE = r"""<!DOCTYPE html>
 <div class="frame">
   <aside class="side">
     <div class="brand">&#9788; HENNETH
+      <button class="iconbtn" id="sidehide" title="Hide panel">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="2"/><line x1="6" y1="3" x2="6" y2="13"/><path d="M10.5 6.2l-1.6 1.8 1.6 1.8"/></svg>
+      </button>
       <button class="iconbtn" id="select" title="Select to delete">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="3"/><path d="M5 8.2l2 2 4-4.4"/></svg>
       </button>
@@ -131,6 +140,9 @@ PAGE = r"""<!DOCTYPE html>
   </aside>
   <main class="main">
     <div class="bar">
+      <button class="iconbtn" id="sideopen" title="Show panel">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="2"/><line x1="6" y1="3" x2="6" y2="13"/><path d="M9 6.2l1.6 1.8L9 9.8"/></svg>
+      </button>
       <h1 id="title" class="empty">Waiting for artifacts&hellip;</h1>
       <span class="note" id="note"></span>
       <button class="pin" id="pin" title="Pin the current view">Pin</button>
@@ -312,6 +324,14 @@ document.getElementById("pin").onclick = () => setPin(!pinned);
 setPin(pinned);
 document.getElementById("select").onclick = () => selecting ? exitSelect() : enterSelect();
 renderTools();
+
+function setSide(open){
+  document.body.classList.toggle("side-collapsed", !open);
+  localStorage.setItem("henneth-side", open ? "1" : "0");
+}
+document.getElementById("sidehide").onclick = () => setSide(false);
+document.getElementById("sideopen").onclick = () => setSide(true);
+setSide(localStorage.getItem("henneth-side") !== "0");
 
 async function poll(){
   try {
