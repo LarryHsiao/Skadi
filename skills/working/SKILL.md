@@ -1,6 +1,6 @@
 ---
 name: working
-description: Use when the user runs /working [JIRA-number] [type] to begin a Jira ticket. Resolves the ticket (prompts a list when none given), checks out an existing feature branch or cuts a new one from the chosen base, transitions the ticket to In Progress in Jira, syncs the local todo list, then pushes the branch and opens a draft GitLab MR when the remote is GitLab and `glab` is authenticated.
+description: Use when the user runs /working [JIRA-number] [type] to begin a Jira ticket. Resolves the ticket (prompts a list when none given), checks out an existing feature branch or cuts a new one from the chosen base, transitions the ticket to In Progress in Jira, syncs the local todo list, then pushes the branch and opens a draft PR/MR self-assigned to the author — a GitHub PR via `gh` or a GitLab MR via `glab`, whichever the origin remote points to — when the forge CLI is authenticated.
 ---
 
 # Start Working on a Jira Task
@@ -25,11 +25,11 @@ PROJ-789/fix/larry/cannot-close-emergency-measure-page
 ### 1. Parse command arguments and resolve ticket number
 
 - If `JIRA-NUMBER` was provided (e.g., `PROJ-123`), use it and skip the rest of this step.
-- If `type` was also provided alongside the ticket (`/working PROJ-123 feat`), record it for step 4.
+- If `type` was also provided alongside the ticket (`/working PROJ-123 feat`), record it for step 5 (and skip the prompt there).
 
 **If no ticket number was provided:**
 
-**a. Load Jira config from memory** (`jira_config.md`) and resolve the project key:
+**a. Resolve the project key** (creds are the hook's concern, resolved via `secret.sh`):
 
 1. Check memory file `jira_project.md` for a saved project key.
 2. If not found, search git history and branches for a Jira ticket pattern (`[A-Z]+-[0-9]+`):
@@ -45,17 +45,13 @@ PROJ-789/fix/larry/cannot-close-emergency-measure-page
 **b. Fetch open/in-progress tickets for the project** and present them for selection:
 
 ```bash
-curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  "$JIRA_BASE_URL/rest/api/3/search/jql?jql=project=PROJECT_KEY+AND+statusCategory+in+(\"To+Do\",\"In+Progress\")+ORDER+BY+updated+DESC&fields=summary,status&maxResults=20" \
-  | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-for i in d.get('issues',[]):
-    print(i['key'], '|', i['fields']['status']['name'], '|', i['fields']['summary'])
-"
+~/.claude/hooks/working-jira-open.sh PROJECT_KEY 20
 ```
 
-Present the results via AskUserQuestion (up to 4 options; if more than 4, show the 4 most recently updated and offer "Other" for manual entry). Use the ticket key + summary as the label.
+The hook resolves Jira creds via `secret.sh` and prints a JSON array, most-recently-updated first:
+`[{"key":"ELROND-148","status":"To Do","summary":"..."}]`. On failure it prints `{"error":"..."}`.
+
+Present the results via AskUserQuestion (up to 4 options; if more than 4, show the first 4 — already the most recently updated — and offer "Other" for manual entry). Use the ticket key + summary as the label.
 
 Set the chosen ticket as `JIRA-NUMBER` and continue.
 
@@ -64,8 +60,10 @@ Set the chosen ticket as `JIRA-NUMBER` and continue.
 Before fetching any Jira data, check if a branch for this ticket already exists:
 
 ```bash
-git branch -a | grep -i "JIRA-NUMBER"
+git branch -a --format='%(refname:short)' | grep -iE '(^|/)JIRA-NUMBER/'
 ```
+
+The `(^|/)JIRA-NUMBER/` anchor matches the ticket key only as a whole branch segment — `PROJ-12` will not match `PROJ-123/...`. The trailing `/` is the branch-format separator (`JIRA-NUMBER/type/...`).
 
 - **No matches** → continue to step 3.
 - **Exactly one match** → check it out and stop:
@@ -79,81 +77,46 @@ If the user picks an existing branch, the workflow ends here — no Jira API cal
 
 ### 3. Get Jira ticket description
 
-Fetch the ticket summary from the Jira REST API:
-
-**a. Load Jira config from memory** (`jira_config.md`):
-- `JIRA_BASE_URL` — e.g. `https://company.atlassian.net`
-- `JIRA_EMAIL` — e.g. `user@example.com`
-
-If not saved, ask the user for their Jira domain and email, then save to memory:
-- Write to `/Users/larryhsiao/.claude/projects/-Users-larryhsiao-skadi/memory/jira_config.md`
-- Add pointer to `MEMORY.md`
-
-**b. Fetch the ticket via API** (requires `JIRA_API_TOKEN` env var):
-
-Pull `summary`, `status`, `description`, `priority`, and `issuetype` in one call — the brief in step 8e needs all five. Description arrives as ADF (Atlassian Document Format, JSON); flatten it by walking the tree and concatenating `text` nodes with newlines between block-level nodes.
+Fetch the ticket fields through the hook — it resolves Jira creds via `secret.sh` (Vaultwarden first, env fallback), so no token need live in the skill:
 
 ```bash
-curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  "$JIRA_BASE_URL/rest/api/3/issue/JIRA-NUMBER?fields=summary,status,description,priority,issuetype" \
-  | python3 -c "
-import sys, json
-
-def flatten_adf(node, out):
-    if isinstance(node, dict):
-        if node.get('type') == 'text':
-            out.append(node.get('text', ''))
-        for child in node.get('content', []) or []:
-            flatten_adf(child, out)
-        if node.get('type') in ('paragraph', 'heading', 'bulletList', 'orderedList', 'listItem', 'codeBlock'):
-            out.append('\n')
-    elif isinstance(node, list):
-        for child in node:
-            flatten_adf(child, out)
-
-d = json.load(sys.stdin)
-f = d['fields']
-parts = []
-flatten_adf(f.get('description'), parts)
-desc = ''.join(parts).strip()
-print('SUMMARY:', f['summary'])
-print('STATUS:', f['status']['name'])
-print('TYPE:', (f.get('issuetype') or {}).get('name', ''))
-print('PRIORITY:', (f.get('priority') or {}).get('name', ''))
-print('---DESCRIPTION---')
-print(desc)
-"
+~/.claude/hooks/working-jira-ticket.sh JIRA-NUMBER
 ```
 
-Stash all five values for use in the step 4 transition (status), the step 8e brief (everything), and the step 8f MR title (summary).
+It pulls `summary`, `status`, `description`, `priority`, and `issuetype` in one call and prints a single JSON object — the brief in step 8e needs all five. The description arrives flattened from ADF (Atlassian Document Format) to plain text:
 
-If `JIRA_API_TOKEN` is not set, tell the user:
-> Set `JIRA_API_TOKEN` in your environment (e.g. in `~/.zshrc`) with an Atlassian API token from https://id.atlassian.com/manage-profile/security/api-tokens
+```json
+{"summary":"...","status":"...","type":"...","priority":"...","description":"..."}
+```
 
-If the API call fails (non-zero exit or error in response), fall back to asking:
+On failure it prints `{"error":"...","response":"..."}`.
+
+Stash all five values for use in the step 4 transition (status), the step 8e brief (everything), and the step 8f PR/MR title (summary).
+
+If the hook returns an error, fall back to asking:
 > "What is the Jira ticket title/description for [JIRA-NUMBER]?"
+
+When the error names missing credentials, also tell the user:
+> Jira creds resolve via `secret.sh` — store a Vaultwarden item `jira` (uri / username / password), or set `JIRA_API_TOKEN` in your environment. An Atlassian API token comes from https://id.atlassian.com/manage-profile/security/api-tokens
 
 ### 4. Transition ticket to "in progress"
 
-Skip this step if the current status already contains "progress", "doing", "active", or "started" (case-insensitive).
+Throughout this step the **in-progress keyword set** is `progress`, `doing`, `active`, `start`, `working` (case-insensitive substring match — `start` also catches "started").
+
+Skip this step entirely if the current status (stashed in step 3) already contains one of those keywords.
 
 **a. Check memory for a saved transition** (`jira_transition_PROJECTKEY.md`, where PROJECTKEY is the project part of the ticket number, e.g. `ELROND`):
 - If a transition ID is saved, use it directly — go to step 4c.
 
-**b. Fetch available transitions:**
+**b. Fetch available transitions** through the hook:
 
 ```bash
-curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  "$JIRA_BASE_URL/rest/api/3/issue/JIRA-NUMBER/transitions" \
-  | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-for t in d.get('transitions',[]):
-    print(t['id'], t['name'])
-"
+~/.claude/hooks/working-jira-transitions.sh JIRA-NUMBER
 ```
 
-- Identify candidates whose name contains "progress", "doing", "active", "start", or "working" (case-insensitive).
+It prints a JSON array `[{"id":"42","name":"Doing","to":"Doing"}]` (creds via `secret.sh`); on failure, `{"error":"..."}`.
+
+- Identify candidates whose name contains a keyword from the in-progress set.
 - If exactly one candidate is found, use it automatically.
 - If multiple candidates are found, present them via AskUserQuestion and let the user pick.
 - If no candidates are found, present all available transitions via AskUserQuestion.
@@ -161,17 +124,13 @@ for t in d.get('transitions',[]):
   - Write to `/Users/larryhsiao/.claude/projects/-Users-larryhsiao-skadi/memory/jira_transition_PROJECTKEY.md`
   - Add pointer to `MEMORY.md` (only if not already listed)
 
-**c. Apply the transition:**
+**c. Apply the transition** through the hook — idempotent, so it no-ops when the ticket is already in the target status:
 
 ```bash
-curl -s -X POST \
-  -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"transition\": {\"id\": \"TRANSITION_ID\"}}" \
-  "$JIRA_BASE_URL/rest/api/3/issue/JIRA-NUMBER/transitions"
+~/.claude/hooks/jira-state.sh JIRA-NUMBER TRANSITION_ID
 ```
 
-Confirm success silently (no output to user unless it fails).
+It prints `transitioned: id=… status=…->…` on success, `noop: id=… status=…` when already there, or `{"error":"..."}` on failure. Confirm silently — surface only an error.
 
 **d. Sync the todo list:**
 
@@ -180,7 +139,7 @@ Call **TaskList** and look for a task whose `metadata.jira_key == JIRA-NUMBER`.
 - Found → **TaskUpdate** `status=in_progress`.
 - Not found → **TaskCreate** with:
   - `subject`: `JIRA-NUMBER — SUMMARY` (truncate to ~55 chars)
-  - `description`: `JIRA_BASE_URL/browse/JIRA-NUMBER`
+  - `description`: `<jira-uri>/browse/JIRA-NUMBER` (jira-uri from `~/.claude/hooks/secret.sh jira uri`)
   - `metadata`: `{ "jira_key": "JIRA-NUMBER" }`
   - Then **TaskUpdate** it to `in_progress`.
 
@@ -250,60 +209,36 @@ Render a tight ticket card in chat so the user is oriented before they start cod
 
 Truncate the description at the nearest whitespace at-or-before 800 chars (don't cut mid-word). If any of `type`, `priority`, or `status` is empty, omit it from the metadata line — keep the dots clean.
 
-**f. Push the branch and open a draft MR on GitLab:**
+**f. Push the branch and open a draft PR/MR — host-agnostic:**
 
-First run these preflight checks. If any fail, skip the push and MR creation and tell the user why:
-
-```bash
-# 1. glab is installed
-which glab
-
-# 2. remote URL contains "gitlab"
-git remote get-url origin | grep -qi gitlab
-
-# 3. glab is authenticated
-glab auth status
-```
-
-If all checks pass, push the branch and create the draft MR:
+Detect the forge from the origin remote, then hand the push and draft-open to the matching forge hook. Each hook pushes the branch, opens the PR/MR self-assigned to `@me`, and prints one line — `opened: forge=<github|gitlab> url=<url> number=<n>` — or `{"error":"..."}` on failure. The two hooks share one argument contract, so the skill is forge-blind below the detection.
 
 ```bash
-git push -u origin JIRA-NUMBER/type/name/description-slug
+origin=$(git remote get-url origin)
 ```
 
-Look up the current user's GitLab username — first by email, then by name if email returns no results:
+Pick the hook from the remote — both share one argument contract, so the rest of the step is forge-blind:
+
+- `origin` contains `gitlab` → `FORGE_HOOK=~/.claude/hooks/forge-gitlab-mr.sh`
+- `origin` contains `github` → `FORGE_HOOK=~/.claude/hooks/forge-github-pr.sh`
+- otherwise → skip the push and PR/MR; tell the user the forge wasn't recognized. The feature branch is already created locally regardless.
+
+Build a short draft body (the ticket link and summary — the work isn't done yet, so the body fills out at review time) and invoke the chosen hook with the body on stdin, targeting the base branch from step 8b:
 
 ```bash
-git_email=$(git config user.email)
-git_name=$(git config user.name)
-
-# Try email first
-gitlab_users=$(glab api "users?search=$git_email" | python3 -c "import sys,json; [print(u['username']) for u in json.load(sys.stdin)]")
-
-# Fall back to name if email found nothing
-if [ -z "$gitlab_users" ]; then
-  gitlab_users=$(glab api "users?search=$git_name" | python3 -c "import sys,json; [print(u['username']) for u in json.load(sys.stdin)]")
-fi
+jira_uri=$(~/.claude/hooks/secret.sh jira uri 2>/dev/null)
+printf 'Jira: %s/browse/JIRA-NUMBER\n\n%s\n' "$jira_uri" "TICKET_SUMMARY" \
+  | "$FORGE_HOOK" \
+      JIRA-NUMBER/type/name/description-slug \
+      BASE_BRANCH \
+      "[JIRA-NUMBER] type: Ticket summary" \
+      --draft --assignee @me
 ```
 
-- If exactly one result: use it as `gitlab_user` silently.
-- If multiple results: present them via AskUserQuestion and let the user pick which one is them. Use the picked username as `gitlab_user`.
-- If no results: omit `--assignee`.
-
-Then create the MR assigned to that user (use `--assignee` if a username was found, omit if not):
-
-```bash
-glab mr create \
-  --draft \
-  --title "[JIRA-NUMBER] type: Ticket summary" \
-  --target-branch BASE_BRANCH \
-  --assignee USERNAME \
-  --yes
-```
-
-- Title format: `[JIRA-NUMBER] type: <ticket summary>` — use the original ticket summary (not the slug), sentence-case
-- `--target-branch` is the base branch chosen in step 8b
-- `--yes` skips interactive prompts
+- **Title** format: `[JIRA-NUMBER] type: <ticket summary>` — the original ticket summary (not the slug), sentence-case.
+- **Base**: the branch chosen in step 8b.
+- The hook self-checks that `gh`/`glab` is installed and authenticated; on a missing CLI or failed auth it prints `{"error":"..."}` — surface that and stop. The branch is created locally either way.
+- Read the `opened:` line and show the user the PR/MR URL.
 
 ## Rules
 

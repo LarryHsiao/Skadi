@@ -76,7 +76,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **cleanup-dev-*** — Analyze, report, execute, and mark-run helpers for `/cleanup-dev`
 - **council-youtrack-fetch**, **council-youtrack-comment**, **council-jira-fetch**, **council-jira-comment** — Tracker I/O for `/council` (YouTrack and Jira)
 - **glorfindel-youtrack-list**, **glorfindel-jira-list** — List open tickets matching a filter for `/glorfindel`
-- **celebrimbor-github-pr**, **celebrimbor-gitlab-mr** — Push a branch and open a PR/MR on GitHub or GitLab via `gh`/`glab`; body taken from stdin
+- **forge-github-pr**, **forge-gitlab-mr** — Push a branch and open a PR/MR on GitHub or GitLab via `gh`/`glab`; body taken from stdin, optional `--assignee` (used by `/celebrimbor` and `/working`)
 - **lindir-github-pr**, **lindir-gitlab-mr** — Read a PR/MR via `gh`/`glab` and emit a JSON brief for `/lindir`
 - **lindir-github-approve**, **lindir-gitlab-approve** — Submit an approving review on a PR/MR via `gh`/`glab` for `/lindir approve`
 - **mithrandir-github-comment**, **mithrandir-gitlab-comment** — Post a comment on a PR/MR via `gh`/`glab` for `/mithrandir comment`; body taken from stdin

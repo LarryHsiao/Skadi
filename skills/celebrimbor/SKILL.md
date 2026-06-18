@@ -85,10 +85,10 @@ branch absent on origin **aborts** the forge — see step 5.
 
 | Forge | Hook |
 |---|---|
-| `github` | `~/.claude/hooks/celebrimbor-github-pr.sh` |
-| `gitlab` | `~/.claude/hooks/celebrimbor-gitlab-mr.sh` |
+| `github` | `~/.claude/hooks/forge-github-pr.sh` |
+| `gitlab` | `~/.claude/hooks/forge-gitlab-mr.sh` |
 
-Both hooks honour the same contract — `<branch> <base> <title> [--draft|--ready]` with body on stdin — and print the same success line: `opened: forge=<github|gitlab> url=<url> number=<n>`. The skill body is forge-blind below this line.
+Both hooks honour the same contract — `<branch> <base> <title> [--draft|--ready] [--assignee <user>]` with body on stdin — and print the same success line: `opened: forge=<github|gitlab> url=<url> number=<n>`. The skill body is forge-blind below this line. Celebrimbor passes only the first four positionals; the optional `--assignee` is left to other callers (e.g. `/working`).
 
 ## State transition
 

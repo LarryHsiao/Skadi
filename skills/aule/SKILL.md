@@ -41,7 +41,7 @@ Same as `/glorfindel` and `/celebrimbor`:
 | `youtrack` / `yt` | `~/.claude/hooks/glorfindel-youtrack-list.sh` | `~/.claude/hooks/council-youtrack-fetch.sh` |
 | `jira` | `~/.claude/hooks/glorfindel-jira-list.sh` | `~/.claude/hooks/council-jira-fetch.sh` |
 
-Per-ticket dispatch invokes `/celebrimbor` via the Skill tool; the forge hook (`celebrimbor-github-pr.sh` / `celebrimbor-gitlab-mr.sh`) is Celebrimbor's own concern.
+Per-ticket dispatch invokes `/celebrimbor` via the Skill tool; the forge hook (`forge-github-pr.sh` / `forge-gitlab-mr.sh`) is Celebrimbor's own concern.
 
 ## Workflow
 
@@ -262,7 +262,7 @@ The closing line — *"<Q-K> qualifier(s) remain for the next sweep"* — names 
 - `--auto` skips the outer gate and the Jira post-safety prompt; everything else stands unchanged — the `--max` cap, the forge gate, and Celebrimbor's own per-ticket workflow. `--auto` is never combined with `--dry-run` or `--confirm`.
 - `--confirm` propagates to every `/celebrimbor` dispatch (per-ticket prompt before PR-open). Use to stop mid-sweep without aborting prior forges.
 - A Celebrimbor-side abort or error on one ticket does not halt the sweep. Record the outcome and proceed.
-- Aulë never invokes the forge hooks (`celebrimbor-github-pr.sh`, `celebrimbor-gitlab-mr.sh`) directly. All PR-open writes flow through `/celebrimbor`. One source of truth for the per-ticket forge.
+- Aulë never invokes the forge hooks (`forge-github-pr.sh`, `forge-gitlab-mr.sh`) directly. All PR-open writes flow through `/celebrimbor`. One source of truth for the per-ticket forge.
 - Aulë never invokes the council comment hook for **forge** posts — every `[GWAITH]` flows through `/celebrimbor`. The one comment Aulë posts of its own is the close-on-merge `[METTA]` note (step 5b), which has no forge stage to route through: the deed it records is the *merge*, watched by Aulë, not a PR-open.
 - Close-on-merge (step 5b) is bounded by the tracker, not by `--max`. `--max` caps forges, which write to four places each; closing a merged ticket writes one transition and one comment, and the merge itself is the gate — every `done` ticket whose PR/MR has merged is closed in the pass it is seen.
 - Do not surface tracker or forge tokens in logs, responses, or saved files.

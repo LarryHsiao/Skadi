@@ -1,10 +1,11 @@
 #!/bin/bash
-# Usage: echo "PR body markdown" | celebrimbor-github-pr.sh <branch> <base> <title> [--draft|--ready]
-#   <branch>  local branch carrying the commits to ship
-#   <base>    branch to target the PR at (e.g. master, main)
-#   <title>   one-line PR title
-#   --draft   open as draft (default)
-#   --ready   open as ready-for-review
+# Usage: echo "PR body markdown" | forge-github-pr.sh <branch> <base> <title> [--draft|--ready] [--assignee <user>]
+#   <branch>      local branch carrying the commits to ship
+#   <base>        branch to target the PR at (e.g. master, main)
+#   <title>       one-line PR title
+#   --draft       open as draft (default)
+#   --ready       open as ready-for-review
+#   --assignee U  assign the PR to user U (e.g. @me); omitted = unassigned
 # Pushes the branch to origin, then opens a PR via `gh`.
 # On success prints one line: opened: forge=github url=<pr-url> number=<n>
 # On failure prints {"error":"...","response":"..."} and exits non-zero.
@@ -18,20 +19,35 @@ export LC_ALL=C.UTF-8
 BRANCH="${1:-}"
 BASE="${2:-}"
 TITLE="${3:-}"
-DRAFT_FLAG="${4:---draft}"
 
 if [[ -z "$BRANCH" || -z "$BASE" || -z "$TITLE" ]]; then
-  echo '{"error":"usage: celebrimbor-github-pr.sh <branch> <base> <title> [--draft|--ready] (body on stdin)"}'
+  echo '{"error":"usage: forge-github-pr.sh <branch> <base> <title> [--draft|--ready] [--assignee <user>] (body on stdin)"}'
   exit 1
 fi
+shift 3
 
-case "$DRAFT_FLAG" in
-  --draft|--ready) ;;
-  *)
-    echo '{"error":"fourth arg must be --draft or --ready"}'
-    exit 1
-    ;;
-esac
+DRAFT_FLAG="--draft"
+ASSIGNEE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --draft|--ready)
+      DRAFT_FLAG="$1"
+      shift
+      ;;
+    --assignee)
+      ASSIGNEE="${2:-}"
+      if [[ -z "$ASSIGNEE" ]]; then
+        echo '{"error":"--assignee requires a value"}'
+        exit 1
+      fi
+      shift 2
+      ;;
+    *)
+      jq -cn --arg a "$1" '{error: ("unknown arg: " + $a + " (expected --draft|--ready|--assignee <user>)")}'
+      exit 1
+      ;;
+  esac
+done
 
 if ! command -v gh >/dev/null 2>&1; then
   echo '{"error":"gh CLI not found on PATH"}'
@@ -76,13 +92,24 @@ if ! git push -u origin "$BRANCH" >"$push_log" 2>&1; then
 fi
 
 # Open the PR.
+# gh has a --draft flag but no --ready (ready is the default), so we add
+# --draft only when asked and omit it otherwise — mirroring the gitlab hook.
+gh_args=(
+  pr create
+  --base "$BASE"
+  --head "$BRANCH"
+  --title "$TITLE"
+  --body-file "$body_file"
+)
+if [[ "$DRAFT_FLAG" == "--draft" ]]; then
+  gh_args+=(--draft)
+fi
+if [[ -n "$ASSIGNEE" ]]; then
+  gh_args+=(--assignee "$ASSIGNEE")
+fi
+
 create_log=$(mktemp)
-if ! gh pr create \
-      --base "$BASE" \
-      --head "$BRANCH" \
-      --title "$TITLE" \
-      --body-file "$body_file" \
-      "$DRAFT_FLAG" >"$create_log" 2>&1; then
+if ! gh "${gh_args[@]}" >"$create_log" 2>&1; then
   jq -cn --arg b "$BRANCH" --rawfile r "$create_log" \
     '{error: ("gh pr create failed for " + $b), response: $r}'
   exit 1

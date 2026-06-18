@@ -1,10 +1,11 @@
 #!/bin/bash
-# Usage: echo "MR description markdown" | celebrimbor-gitlab-mr.sh <branch> <base> <title> [--draft|--ready]
-#   <branch>  local branch carrying the commits to ship
-#   <base>    branch to target the MR at
-#   <title>   one-line MR title
-#   --draft   open as draft (default; glab uses Draft: prefix)
-#   --ready   open as ready-for-review
+# Usage: echo "MR description markdown" | forge-gitlab-mr.sh <branch> <base> <title> [--draft|--ready] [--assignee <user>]
+#   <branch>      local branch carrying the commits to ship
+#   <base>        branch to target the MR at
+#   <title>       one-line MR title
+#   --draft       open as draft (default; glab uses Draft: prefix)
+#   --ready       open as ready-for-review
+#   --assignee U  assign the MR to user U (e.g. @me); omitted = unassigned
 # Pushes the branch to origin, then opens an MR via `glab`.
 # On success prints one line: opened: forge=gitlab url=<mr-url> number=<n>
 # On failure prints {"error":"...","response":"..."} and exits non-zero.
@@ -18,20 +19,35 @@ export LC_ALL=C.UTF-8
 BRANCH="${1:-}"
 BASE="${2:-}"
 TITLE="${3:-}"
-DRAFT_FLAG="${4:---draft}"
 
 if [[ -z "$BRANCH" || -z "$BASE" || -z "$TITLE" ]]; then
-  echo '{"error":"usage: celebrimbor-gitlab-mr.sh <branch> <base> <title> [--draft|--ready] (body on stdin)"}'
+  echo '{"error":"usage: forge-gitlab-mr.sh <branch> <base> <title> [--draft|--ready] [--assignee <user>] (body on stdin)"}'
   exit 1
 fi
+shift 3
 
-case "$DRAFT_FLAG" in
-  --draft|--ready) ;;
-  *)
-    echo '{"error":"fourth arg must be --draft or --ready"}'
-    exit 1
-    ;;
-esac
+DRAFT_FLAG="--draft"
+ASSIGNEE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --draft|--ready)
+      DRAFT_FLAG="$1"
+      shift
+      ;;
+    --assignee)
+      ASSIGNEE="${2:-}"
+      if [[ -z "$ASSIGNEE" ]]; then
+        echo '{"error":"--assignee requires a value"}'
+        exit 1
+      fi
+      shift 2
+      ;;
+    *)
+      jq -cn --arg a "$1" '{error: ("unknown arg: " + $a + " (expected --draft|--ready|--assignee <user>)")}'
+      exit 1
+      ;;
+  esac
+done
 
 if ! command -v glab >/dev/null 2>&1; then
   echo '{"error":"glab CLI not found on PATH"}'
@@ -87,6 +103,9 @@ glab_args=(
 )
 if [[ "$DRAFT_FLAG" == "--draft" ]]; then
   glab_args+=(--draft)
+fi
+if [[ -n "$ASSIGNEE" ]]; then
+  glab_args+=(--assignee "$ASSIGNEE")
 fi
 
 create_log=$(mktemp)
