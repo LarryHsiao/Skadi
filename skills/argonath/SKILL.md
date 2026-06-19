@@ -1,6 +1,6 @@
 ---
 name: argonath
-description: Use when the user runs /argonath [project] [--quick]. Default mode weighs the about-to-be-pushed diff; the `project` verb weighs the standing project tree instead. Runs the project's lint/build/test toolchain, scans for secrets, then invokes /nazgul and /mithrandir as advisory rows. Aggregates everything into one Pass / Hold verdict. Report only — never runs `git push`.
+description: Use when the user runs /argonath [project] [--quick]. Default mode weighs the about-to-be-pushed diff; the `project` verb weighs the standing project tree instead. Runs the project's lint/format/build/test toolchain, scans for secrets, then invokes /nazgul and /mithrandir as advisory rows. Aggregates everything into one Pass / Hold verdict. Report only — never runs `git push`.
 user_invocable: true
 ---
 
@@ -43,19 +43,21 @@ If no upstream is configured, mark the header `· no upstream`.
 ~/.claude/hooks/argonath-detect.sh
 ```
 
-Returns JSON: `{stack, lint, build, test, test_scope, source}`. If `stack` is `unknown` and every command is empty, render every artefact row as `⚪ skipped — no command`, run the secret scan and advisory rows, and finish.
+Returns JSON: `{stack, lint, format, build, test, test_scope, source}`. If `stack` is `unknown` and every command is empty, render every artefact row as `⚪ skipped — no command`, run the secret scan and advisory rows, and finish.
 
 When `source` is `override` or `merged`, append `(via .skadi/argonath.yaml)` after the stack name in the header.
 
 ### 3. Run artefact steps
 
-For each non-empty command (`lint`, `build`, `test`), call:
+For each non-empty command (`lint`, `format`, `build`, `test`), call:
 
 ```bash
 ~/.claude/hooks/argonath-run.sh <label> <command...>
 ```
 
-Labels: `Lint`, `Build`, `Tests`. Capture each JSON result. The hook always exits 0; read `ok` from the JSON.
+Labels: `Lint`, `Format`, `Build`, `Tests`. Capture each JSON result. The hook always exits 0; read `ok` from the JSON.
+
+The `format` command is a **check**, not a fix — it carries `--set-exit-if-changed`, so it exits non-zero when files are unformatted and the row fails. Argonath never rewrites the tree it grades.
 
 Empty command → render the row as `⚪ skipped — no command`.
 
@@ -108,14 +110,15 @@ Diff mode:
 
 Argonath  master · 3 commits ahead of origin/master · stack: flutter
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ✅ Lint            fvm flutter analyze            0 issues
-  ✅ Build           fvm flutter build apk --debug  ok
-  🚫 Tests           fvm flutter test               4 failing in test/dos_step3_test.dart
+  ✅ Lint            fvm flutter analyze                          0 issues
+  ✅ Format          fvm dart format --set-exit-if-changed .      clean
+  ✅ Build           fvm flutter build apk --debug                ok
+  🚫 Tests           fvm flutter test                             4 failing in test/dos_step3_test.dart
   ✅ Secret scan     no tokens / .env values in diff
   ✅ Rubric          /nazgul: 9 pass · 0 fail
   ⚠  Verdict        /mithrandir: wavering — proportion drifts wide
 ───────────────────────────────────────
-  3 of 4 gates clear · 1 advisory note
+  4 of 5 gates clear · 1 advisory note
 ```
 
 Project mode:
@@ -125,14 +128,15 @@ Project mode:
 
 Argonath  master · up to date with origin/master · stack: flutter · mode: project
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ✅ Lint            fvm flutter analyze            0 issues
-  ✅ Build           fvm flutter build apk --debug  ok
-  ✅ Tests           fvm flutter test               all green
+  ✅ Lint            fvm flutter analyze                          0 issues
+  ✅ Format          fvm dart format --set-exit-if-changed .      clean
+  ✅ Build           fvm flutter build apk --debug                ok
+  ✅ Tests           fvm flutter test                             all green
   ✅ Secret scan     no tokens / .env values in tracked files
   ✅ Rubric          /nazgul project: 9 pass · 0 fail
   ⚪ Verdict         skipped — no project mode
 ───────────────────────────────────────
-  4 of 4 gates clear · 1 advisory note
+  5 of 5 gates clear · 1 advisory note
 ```
 
 Symbols:
@@ -168,5 +172,5 @@ When `stack: unknown` and every artefact row was skipped, the verdict still reso
 - Artefact commands are taken at the user's word — if `.skadi/argonath.yaml` configures something destructive as the test command, the skill runs it; the override file is the user's responsibility
 - The full step log lives in the tempfile path emitted by `argonath-run.sh`. Do not read it unless the user asks for the failure detail
 - Sub-skills (`/nazgul`, `/mithrandir`) are advisory — never block the Pass/Hold verdict on their findings
-- Sort the body rows in the order: Lint → Build → Tests → Secret scan → Rubric → Verdict. Hide a row only if it is `--quick`-suppressed
+- Sort the body rows in the order: Lint → Format → Build → Tests → Secret scan → Rubric → Verdict. Hide a row only if it is `--quick`-suppressed
 - Project mode scans tracked files only — untracked / `.gitignore`d paths stay out of the secret scan, and the verdict row is always `⚪ skipped` (no `/mithrandir` project verb exists)

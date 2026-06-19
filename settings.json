@@ -141,7 +141,7 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/flutter-analyze.sh",
-            "statusMessage": "Analyzing Dart file..."
+            "statusMessage": "Formatting, analyzing, testing Dart..."
           },
           {
             "type": "command",
