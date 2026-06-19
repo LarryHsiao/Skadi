@@ -14,6 +14,7 @@ GROWTH_PROJECT, GROWTH_DATASET, and GROWTH_ACCOUNT environment variables.
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -32,11 +33,16 @@ OUT_HTML = HENNETH / "metis-growth.html"
 OUT_JSON = HENNETH / "metis-growth.json"
 
 
+def exe(name):
+    """Resolve a CLI name to its full path — finds .cmd shims on Windows via PATHEXT."""
+    return shutil.which(name) or name
+
+
 def account():
     acct = os.environ.get("GROWTH_ACCOUNT")
     if acct:
         return acct
-    out = subprocess.run(["firebase", "login:list"], capture_output=True, text=True).stdout
+    out = subprocess.run([exe("firebase"), "login:list"], capture_output=True, text=True).stdout
     for line in out.splitlines():
         for word in line.replace(",", " ").split():
             if "@" in word:
@@ -47,7 +53,7 @@ def account():
 def bq_rows(sql, acct):
     """Run a BigQuery query as the apps' account; rows as a list of dicts."""
     env = {**os.environ, "CLOUDSDK_CORE_ACCOUNT": acct} if acct else dict(os.environ)
-    cmd = ["bq", "query", f"--project_id={PROJECT}", "--use_legacy_sql=false",
+    cmd = [exe("bq"), "query", f"--project_id={PROJECT}", "--use_legacy_sql=false",
            "--format=json", f"--maximum_bytes_billed={MAX_BYTES}", "--quiet", sql]
     out = subprocess.run(cmd, capture_output=True, text=True, env=env).stdout
     try:
