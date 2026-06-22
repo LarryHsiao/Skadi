@@ -140,7 +140,7 @@ When `--skeleton` is set, celebrimbor carves bones instead of forging code.
    Release the worktree on **either** branch. Do **not** continue to steps 3–8.
 3. **Acquire a read worktree** (`skadi-worktree.sh acquire <source-repo>`).
 4. **Summon the skeleton smith.** Load `<skill-dir>/skeleton-smith.md`; dispatch a
-   `general-purpose` subagent with the plan body, the worktree path, and a target
+   `general-purpose` subagent (`model: opus`) with the plan body, the worktree path, and a target
    diagram path under `$TMPDIR` (e.g. `$TMPDIR/skel-<ticket>.mmd` or `.html`).
    It returns a `[FRAME]` block (diagram path + tree/stubs) or `[ABORT]`.
    **`[FRAME]` is the smith's return envelope; the posted comment's token is
@@ -251,7 +251,7 @@ Inspect its **Open questions** section. If any question has no follow-up answer 
 > approved `[SKELETON]` body (pass it under a header `## Approved skeleton (your shape)`),
 > not a `[COUNSEL vN]`. Everything else in this step is unchanged.
 
-Load the smith prompt from `<skill-dir>/celebrimbor.md`. Dispatch a subagent via the Agent tool, `subagent_type: general-purpose`, passing:
+Load the smith prompt from `<skill-dir>/celebrimbor.md`. Dispatch a subagent via the Agent tool, `subagent_type: general-purpose`, `model: opus`, passing:
 
 - The Celebrimbor prompt as the *system/instruction* portion.
 - A tail block containing:

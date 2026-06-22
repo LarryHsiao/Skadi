@@ -235,7 +235,7 @@ Then stop.
 
 Acquire the isolated workspace per the **Working-directory contract** above (step 3 of the contract). The workspace path is what Erestor sees as his working directory; the source repo is untouched. If the contract's source value is `(no repo)`, skip the acquire and tell Erestor he has no codebase context.
 
-Load the Erestor prompt from `<skill-dir>/erestor.md` (read the file contents). Dispatch a subagent via the Agent tool, `subagent_type: general-purpose`, passing:
+Load the Erestor prompt from `<skill-dir>/erestor.md` (read the file contents). Dispatch a subagent via the Agent tool, `subagent_type: general-purpose`, `model: opus`, passing:
 
 - The Erestor prompt as the *system/instruction* portion of the Agent call's `prompt`.
 - A tail block containing:

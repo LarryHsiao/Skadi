@@ -263,7 +263,7 @@ Then the thread:
 Implement the amendment for thread [1] (the anchor). Commit it. Return [FORGED] or [ABORT].
 ```
 
-b. Dispatch the smith via the Agent tool, `subagent_type: general-purpose`, passing the Narvi prompt as the system/instruction portion and the tail block as the task.
+b. Dispatch the smith via the Agent tool, `subagent_type: general-purpose`, `model: opus`, passing the Narvi prompt as the system/instruction portion and the tail block as the task.
 
 c. The smith returns one of two shapes (see `narvi.md`):
 
