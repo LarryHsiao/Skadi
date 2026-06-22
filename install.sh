@@ -81,8 +81,12 @@ prune_tree() {
   find "$dst" -depth -mindepth 1 -type d -empty -not -name '.*' -delete 2>/dev/null || true
 }
 
-# Global CLAUDE.md
-install_file "$REPO/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
+# Global CLAUDE.md — stub for the default root; full content for profile roots.
+if [ "$CLAUDE_DIR" = "$HOME/.claude" ]; then
+  install_file "$REPO/CLAUDE.stub.md" "$CLAUDE_DIR/CLAUDE.md"
+else
+  install_file "$REPO/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
+fi
 
 # Global settings (with {{SKADI_ROOT}} substitution)
 install_settings "$REPO/settings.json" "$CLAUDE_DIR/settings.json"
