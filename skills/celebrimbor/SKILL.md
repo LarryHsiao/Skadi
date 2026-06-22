@@ -315,6 +315,12 @@ If the comment hook errors, the PR is already open — surface the error but do 
 
 c. **State transition (forged).** After `[GWAITH]` is on the ticket, look up the project's `forged` value in `state_mapping.md` (see "State transition" above). Bootstrap if missing. If the value is empty, skip silently. Otherwise:
 
+**Resolved guard.** Before calling the hook, check the ticket's current state via the fetch hook and inspect the tracker's own resolution flag:
+- **YouTrack**: parse `resolved` (boolean) from the ticket JSON. If `true`, skip the transition and note in the report: `"skipped forged transition — ticket already in resolved state <state-name>; not overriding a hand-resolved ticket."` Do not treat this as an error.
+- **Jira**: fetch `fields.status.statusCategory.key` from the issue. If `"done"`, skip with the same note.
+
+If the ticket is not yet resolved, proceed:
+
 ```bash
 <state-hook> <ticket-id> <forged-value>
 ```

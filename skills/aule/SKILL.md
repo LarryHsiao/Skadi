@@ -197,7 +197,11 @@ For each `done` ticket from the close-watch set (step 2), in list order:
    option that seeds `merged=` empty so the prompt does not return. Save the answer.
    If the value is empty, do not transition or post — record `closed` with detail
    `merged; close-state skipped`.
-4. **Transition the ticket** (idempotent — already-closed yields `noop`):
+4. **Transition the ticket.** Before calling the state hook, check the ticket's current state via the fetch hook and inspect the tracker's own resolution flag:
+   - **YouTrack**: parse `resolved` (boolean) from the ticket JSON. If `true`, skip the transition and record `closed` with detail `"merge detected; state transition skipped — ticket already in resolved state <state-name>; not overriding a hand-resolved ticket."` Proceed to step 5 to post `[METTA]` (the merge is still worth recording even if the state did not move).
+   - **Jira**: fetch `fields.status.statusCategory.key` from the issue. If `"done"`, skip with the same note and proceed to step 5.
+
+   If the ticket is not yet resolved:
 
    ```bash
    ~/.claude/hooks/youtrack-state.sh <ticket-id> <merged-state>
