@@ -235,7 +235,7 @@ Inspect its **Open questions** section. If any question has no follow-up answer 
   ~/.claude/hooks/skadi-worktree.sh acquire <source-repo> <base>
   ```
 
-  The helper prints the workspace path on stdout. It tries `git worktree add` first; on failure (e.g. the human has `<base>` checked out in the source repo) it falls back to a temp clone under `$TMPDIR` and re-points origin at the real remote. Either way the workspace lands on `<base>`, freshly checked out and clean. Hold the path for steps 6 through 9.
+  The helper prints the workspace path on stdout. It tries `git worktree add` first; on failure (e.g. the human has `<base>` checked out in the source repo) it falls back to a temp clone under `$TMPDIR` and re-points origin at the real remote. Either way the workspace lands on `<base>`, freshly checked out and clean. Hold the path for steps 6 through 10.
 - Bring `<base>` to the remote's tip inside the workspace, then cut the new branch off it:
 
   ```bash
@@ -266,17 +266,43 @@ Load the smith prompt from `<skill-dir>/celebrimbor.md`. Dispatch a subagent via
 The subagent returns either:
 
 - `[FORGED]` block — extract `branch:`, `title:`, and the body (everything after the title line).
-- `[ABORT] <reason>` — go to step 9 (cleanup) and stop with the reason.
+- `[ABORT] <reason>` — go to step 10 (cleanup) and stop with the reason.
 
-Anything else: treat as drafting failure. Go to step 9, surface the malformed return.
+Anything else: treat as drafting failure. Go to step 10, surface the malformed return.
 
-### 7. Posting/creation gate
+### 7. Verification rung — analyze and weigh before the forge
 
-- `--dry-run`: print the parsed branch / title / body length. Skip steps 8 and the `[GWAITH]` post. Go to step 9 — keep the workspace so the user may inspect the smith's commits at `<workspace>/<branch>`; do not release it. Tell the user: *"Dry run — branch `<branch>` exists in the workspace at `<workspace>` with the smith's commits, no push, no PR, no comment. Release the workspace by hand when done with `~/.claude/hooks/skadi-worktree.sh release <workspace>`."*
-- `--confirm`: AskUserQuestion showing the branch, title, and the first ~10 lines of the body. On no, go to step 9 (release the workspace; the smith's commits are torn down with it). On yes, proceed.
+The smith has returned `[FORGED]` with commits in the workspace. Before the branch reaches the forge, it is weighed twice — once by the analyzer, once by Mithrandir — and mended until clean. This rung runs in the workspace acquired in step 5; the source repo is never touched.
+
+a. **Analyzer gate (Dart/Flutter only).** If a `pubspec.yaml` sits at the workspace package root, run the analyzer fresh:
+
+- `pubspec.yaml` pulls in the `flutter` SDK → `flutter analyze`
+- otherwise → `dart analyze`
+
+Collect every diagnostic the run reports — errors, warnings, infos. If no `pubspec.yaml` is present, there is no analyzer to run; note `analyzer: n/a (not a Dart project)` and move to (b).
+
+b. **Mithrandir's weighing.** Invoke the `mithrandir` skill (Skill tool, args `branch --plain`) **from the workspace** — its branch-path runs bare `git` against the process working directory, so the working directory must be the workspace for it to weigh the forged branch and not the source tree. The `--plain` tongue keeps the verdict terse for parsing. Read its verdict — the tier (sound | wavering | off) and every entry in its `To pass` list, across all three severities (Blocker / Nice to have / Nit).
+
+> Mithrandir resolves the base as the first of `master` / `main` / `origin/HEAD` that exists — not this run's resolved base. When the forge stacked on a `[BASE:]` branch other than the trunk, Mithrandir weighs against the trunk, not the stacked base — note this in the report rather than treating it as a contradiction.
+
+c. **Mend until clean.** Gather the findings — analyzer diagnostics from (a) and Mithrandir's `To pass` entries from (b), **all severities down to the nits**. If the gathered set is non-empty and this is not a `--dry-run`:
+
+- Re-summon the smith (step 6's dispatch, same workspace and branch) in **mend mode**: pass the findings under a `## Findings to mend` header and instruct it to fix every one, re-run the analyzer to confirm clean, and commit. It returns a fresh `[FORGED]` block — keep its body for step 9.
+- Re-run (a) and (b) to confirm. Repeat at most **twice** (two mend passes total); the cap is the backstop against an endless loop.
+
+d. **After the cap — open anyway, name the debt.** If findings remain after two mend passes, do **not** abort. Carry the remaining findings into the PR body that step 9 will pipe to the forge hook — append a `## Known debt — verification` section listing each standing analyzer diagnostic and Mithrandir point, one per line. The work reaches the forge; the debt is named, not hidden.
+
+e. **`--dry-run`.** Run (a) and (b) as a read-only report — print the analyzer summary and Mithrandir's tier and `To pass` list. Skip the mend loop (c) and the body-append (d) entirely; dry-run forges nothing to ship. The findings join the dry-run report in step 8.
+
+Hold for the final report: the analyzer's verdict, Mithrandir's tier, the count of mend passes, and any debt carried into the PR body.
+
+### 8. Posting/creation gate
+
+- `--dry-run`: print the parsed branch / title / body length, plus the verification rung's read-only findings from step 7e. Skip step 9 and the `[GWAITH]` post. Go to step 10 — keep the workspace so the user may inspect the smith's commits at `<workspace>/<branch>`; do not release it. Tell the user: *"Dry run — branch `<branch>` exists in the workspace at `<workspace>` with the smith's commits, no push, no PR, no comment. Release the workspace by hand when done with `~/.claude/hooks/skadi-worktree.sh release <workspace>`."*
+- `--confirm`: AskUserQuestion showing the branch, title, and the first ~10 lines of the body. On no, go to step 10 (release the workspace; the smith's commits are torn down with it). On yes, proceed.
 - Otherwise: proceed.
 
-### 8. Open the PR/MR and post `[GWAITH]`
+### 9. Open the PR/MR and post `[GWAITH]`
 
 First push the new branch from the workspace so the forge can see it:
 
@@ -284,15 +310,15 @@ First push the new branch from the workspace so the forge can see it:
 git -C <workspace> push -u origin <branch>
 ```
 
-In worktree mode the push reaches origin (the human's real remote) because the workspace shares the source repo's remotes. In clone-fallback mode the helper re-pointed origin at the source repo's origin during acquire, so the push reaches the same remote either way. If the push fails, surface the error and go to step 9 (keep the workspace so the human can inspect; no PR has been opened, no `[GWAITH]` posted).
+In worktree mode the push reaches origin (the human's real remote) because the workspace shares the source repo's remotes. In clone-fallback mode the helper re-pointed origin at the source repo's origin during acquire, so the push reaches the same remote either way. If the push fails, surface the error and go to step 10 (keep the workspace so the human can inspect; no PR has been opened, no `[GWAITH]` posted).
 
-a. **Open.** Pipe the body into the resolved forge hook (run from inside the workspace so any forge CLI config is consistent):
+a. **Open.** `$BODY` is the latest `[FORGED]` body — the smith's, after any mend passes, with the `## Known debt — verification` section appended in step 7d if findings still stood. Pipe it into the resolved forge hook (run from inside the workspace so any forge CLI config is consistent):
 
 ```bash
 printf '%s' "$BODY" | <forge-hook> <branch> <base> <title> <draft-flag>
 ```
 
-`<draft-flag>` is `--draft` unless `--ready` was set. On success the hook prints `opened: forge=<f> url=<u> number=<n>`. On failure surface the JSON error and go to step 9 — keep the workspace; the branch is on the remote already, the human reconciles by hand.
+`<draft-flag>` is `--draft` unless `--ready` was set. On success the hook prints `opened: forge=<f> url=<u> number=<n>`. On failure surface the JSON error and go to step 10 — keep the workspace; the branch is on the remote already, the human reconciles by hand.
 
 b. **Post `[GWAITH]`.** Build the comment body:
 
@@ -327,7 +353,7 @@ If the ticket is not yet resolved, proceed:
 
 The hook is idempotent — `noop:` is a normal outcome. On JSON error, surface the message in the report; do not roll back the PR or the comment.
 
-### 9. Cleanup and report
+### 10. Cleanup and report
 
 Decide the workspace fate by outcome:
 
@@ -350,6 +376,7 @@ Report — one short block:
 - The branch name.
 - The PR/MR URL (if opened).
 - The action taken: `forged` / `aborted (<reason>)` / `dry-run` / `skipped (declined at confirm)` / `error (<reason>)`.
+- The verification verdict (step 7): the analyzer's result (`clean` / `n/a` / `debt carried`), Mithrandir's tier, the count of mend passes, and any known debt carried into the PR body.
 - The workspace disposition: `released` / `kept at <path> (<reason>)`.
 
 Do not reproduce the smith's full diff — it lives on the PR now.
