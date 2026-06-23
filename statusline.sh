@@ -91,7 +91,7 @@ colorize() {
     local reset_ts="$3"
 
     if [ -z "$val" ]; then
-        printf "%s: N/A" "$label"
+        if [ -n "$label" ]; then printf "%s: N/A" "$label"; else printf "N/A"; fi
         return
     fi
 
@@ -115,7 +115,9 @@ colorize() {
         [ -n "$eta" ] && display_label="$eta"
     fi
 
-    printf "%s%s %s %s%%%s" "$color" "$display_label" "$(gauge "$remaining")" "$remaining" "$RESET"
+    local prefix=""
+    [ -n "$display_label" ] && prefix="$display_label "
+    printf "%s%s%s %s%%%s" "$color" "$prefix" "$(gauge "$remaining")" "$remaining" "$RESET"
 }
 
 # colorize_temp weather_str — replaces the temperature value with a colored version
@@ -196,7 +198,7 @@ colorize_wind() {
 weather=$(colorize_temp "$weather")
 weather=$(colorize_wind "$weather")
 
-context_str=$(colorize "Context" "$context_raw")
+context_str=$(colorize "" "$context_raw")
 rate_5h_str=$(colorize "5h" "$rate_5h_raw" "$rate_5h_reset")
 rate_7d_str=$(colorize "7d" "$rate_7d_raw" "$rate_7d_reset")
 
