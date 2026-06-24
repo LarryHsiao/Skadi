@@ -122,6 +122,7 @@
       "Bash(~/.claude/hooks/skadi-worktree.sh:*)",
       "Bash(~/.claude/hooks/feanor-shot.sh:*)",
       "Bash(~/.claude/hooks/feanor-flutter-shot.sh:*)",
+      "Bash(~/.claude/hooks/handoff.sh:*)",
       "Bash({{SKADI_ROOT}}/install.sh:*)",
       "Bash(rtk git status:*)",
       "Bash(rtk git log:*)",
