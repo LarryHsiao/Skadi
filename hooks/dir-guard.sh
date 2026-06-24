@@ -25,8 +25,9 @@ normalize() {
   if [[ "$p" =~ ^/mnt/([a-zA-Z])(/.*)$ ]]; then
     p="/${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
   fi
-  # Lowercase everything for case-insensitive comparison on Windows
-  echo "${p,,}"
+  # Lowercase everything for case-insensitive comparison on Windows.
+  # Use tr, not ${p,,} — the latter is bash 4+ and macOS ships bash 3.2.
+  printf '%s\n' "$p" | tr '[:upper:]' '[:lower:]'
 }
 
 CWD=$(normalize "$CWD")
