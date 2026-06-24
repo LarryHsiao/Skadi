@@ -29,6 +29,7 @@ the verbs and, in baton mode, composes the body.
 - `send <channel> [message...]` → send a message (baton mode when no message).
 - `read <channel>` → print the channel thread.
 - `list` → list channels.
+- `clear <channel>` → remove a channel's messages (confirm first).
 
 The sender tag (`from`) defaults to a short slice of this session's id; pass
 `--from <label>` anywhere in a `send` to override it with a human name
@@ -102,6 +103,32 @@ deploy         1         2026-06-23T18:02:11Z
 
 If the hook reports no channels, say so and suggest `/handoff send <channel> …`
 to open one.
+
+## Verb: clear
+
+`/handoff clear <channel>`
+
+A channel's messages are append-only and persist until cleared — `read` never
+consumes them. This verb removes a spent channel. It is destructive, so it
+carries its own confirm gate (like `/commit` and `/reset`):
+
+1. Read the channel first so the count is known:
+
+   ```bash
+   ~/.claude/hooks/handoff.sh read <channel>
+   ```
+
+2. Ask the user via `AskUserQuestion` to confirm deletion, naming the channel
+   and how many messages will go. On **no**, stop and change nothing.
+
+3. On **yes**, clear it:
+
+   ```bash
+   ~/.claude/hooks/handoff.sh clear <channel>
+   ```
+
+   Relay the hook's one-line confirmation. If the hook reports no such channel,
+   say so plainly.
 
 ## Rules
 

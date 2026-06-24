@@ -57,6 +57,18 @@ printf 'x' | "$HOOK" send "Feat/Foo Bar" >/dev/null
 check "channel sanitized to lower + _" "feat_foo_bar	1" \
   "$("$HOOK" list | grep '^feat' | cut -f1,2)"
 
+# 6. clear removes a channel; list no longer shows it, read reports the notice.
+printf 'bye' | "$HOOK" send temp >/dev/null
+expected_clear="cleared 'temp' (1 message(s) removed)"
+check "clear reports count removed" "$expected_clear" "$("$HOOK" clear temp)"
+check "cleared channel gone from list" "" "$("$HOOK" list | grep '^temp' || true)"
+check "cleared channel read shows notice" "no messages in channel 'temp'" \
+  "$("$HOOK" read temp)"
+
+# 7. clear of a missing channel reports no such channel.
+expected_missing="no such channel 'ghost'"
+check "clear missing channel notice" "$expected_missing" "$("$HOOK" clear ghost)"
+
 # Note: baton mode (/handoff send <channel> with no message) is the SKILL's
 # job — it composes the body and pipes it to `send`, which this suite already
 # covers. The composition itself is model-authored and cannot be shell-tested.

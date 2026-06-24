@@ -9,6 +9,10 @@
 #   handoff.sh send <channel> [--from <label>]   # message body read from stdin
 #   handoff.sh read <channel>                    # print thread, oldest -> newest
 #   handoff.sh list                              # channels: name<TAB>count<TAB>last
+#   handoff.sh clear <channel>                   # remove a channel's messages
+#
+# `clear` deletes without prompting — the confirm gate is the caller's (skill's)
+# job, matching how /commit and /reset guard destructive acts.
 #
 # Default <from> is the first 8 chars of $CLAUDE_CODE_SESSION_ID, else "unknown".
 #
@@ -116,18 +120,37 @@ cmd_list() {
   [ "$any" -eq 1 ] || echo "no channels"
 }
 
+cmd_clear() {
+  local channel="${1:-}"
+  [ -n "$channel" ] || { echo "usage: handoff.sh clear <channel>" >&2; exit 2; }
+  channel="$(sanitize "$channel")"
+
+  local dir="$HANDOFF_ROOT/$channel" count=0 f
+  if [ ! -d "$dir" ]; then
+    echo "no such channel '$channel'"
+    return 0
+  fi
+  for f in "$dir"/*.md; do
+    count=$((count + 1))
+  done
+  rm -rf "$dir"
+  echo "cleared '$channel' ($count message(s) removed)"
+}
+
 main() {
   local cmd="${1:-}"
   case "$cmd" in
     send) shift; cmd_send "$@" ;;
     read) shift; cmd_read "$@" ;;
     list) cmd_list ;;
+    clear) shift; cmd_clear "$@" ;;
     ""|help|-h|--help)
       cat <<'EOF'
 usage:
   handoff.sh send <channel> [--from <label>]   # message body on stdin
   handoff.sh read <channel>
   handoff.sh list
+  handoff.sh clear <channel>
 EOF
       ;;
     *)

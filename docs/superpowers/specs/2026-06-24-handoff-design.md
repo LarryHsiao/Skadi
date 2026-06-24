@@ -109,4 +109,13 @@ Per the skadi rule that complex bash never lives inline in a skill:
 - A local server / long-polling — rejected above.
 - Read cursors / unread tracking — the whole short thread is shown each read.
 - A `SessionStart` hook that announces unread channels — a possible later polish.
-- Deleting or archiving channels — left to the user and the filesystem for now.
+
+## Addendum (2026-06-24): `clear` verb
+
+Added after the first cut. `/handoff clear <channel>` removes a spent channel's
+messages — `read` never consumes, so without it channels grow without bound. The
+hook gains a `clear` subcommand that deletes the channel folder and reports the
+count removed (or "no such channel"); the confirm gate lives in the skill via
+`AskUserQuestion`, matching `/commit` and `/reset`. Age-based pruning remains out
+of scope — no volume problem yet, and a time threshold would guess at a need no
+one has voiced.
