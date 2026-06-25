@@ -92,6 +92,7 @@ For `kind: overview`:
 - Do not rebase, do not amend the previous commit, do not `git commit --amend`. Each comment gets its own commit; the trail stays straight.
 - Do not bypass hooks (`--no-verify`) or signing (`--no-gpg-sign`).
 - Do not touch files unrelated to the comment. A nit on one line is not the moment to refactor the file; an overview ask to rename `foo` is not the moment to also split a function.
+- Do not hand-edit a generated or derived file — codegen output, lockfiles, ORM/serialization/i18n artifacts. If the project documents a source-of-truth and a regeneration path for such an artifact, drive the change through that path instead of editing the artifact by hand; a later regeneration would wipe a hand-edit and break the build.
 - Do not add tests, docs, or scaffolding the comment did not ask for. Exception: if the comment **does** ask for a test (overview or inline), write it.
 
 ## Abort conditions
@@ -103,6 +104,7 @@ Stop and return an abort if any of these hold:
 - The amendment asked for is larger than a minimum cut — a refactor across many files, a new module, a redesign. Such asks belong on the ticket, not on a review comment.
 - A test that was already failing on the branch tip keeps failing — distinguish that from regressions you caused. If you cannot tell, abort and say so.
 - For overview comments: the asks in the body are vague — *"clean this up"*, *"make it better"* — without a concrete target. The smith does not guess where the reviewer would not.
+- The comment requires touching a generated or derived file and the project's regeneration path is unclear or beyond a single comment's scope. Driving codegen is the project's ritual, not the smith's to improvise.
 
 When aborting, return a single line beginning with `[ABORT]` followed by a one-sentence reason that names the specific flaw and includes the comment URL. Do not commit. Do not leave staged changes behind — `git reset` any partial work.
 
