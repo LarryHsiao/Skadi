@@ -214,6 +214,10 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/grammar-reminder.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/handoff-poll.sh"
           }
         ]
       }

@@ -1,15 +1,20 @@
 ---
 name: handoff
-description: Use when the user runs /handoff send <channel> [message], /handoff read <channel>, or /handoff list. An async file mailbox between Claude Code sessions — one session leaves a message (or a whole context baton) on a named channel, another picks it up on demand. Manual pickup, no server. Messages live under ~/.skadi/handoff/.
+description: Use when the user runs /handoff send <channel> [message], /handoff read <channel>, /handoff list, /handoff subscribe <channel>, or /handoff clear <channel>. An async file mailbox between Claude Code sessions — one session leaves a message (or a whole context baton) on a named channel, another reads it on demand or subscribes for live auto-pickup. No server. Messages live under ~/.skadi/handoff/.
 user_invocable: true
 ---
 
 # Handoff Skill
 
 A baton passed between sessions. One session writes a message to a named
-channel; another session reads that channel when you prompt it. Sessions are
-turn-based — there is no live push — so pickup is manual: you run `/handoff read`
-in the receiving session. Request and reply are just two messages on one channel.
+channel; another session reads that channel. Request and reply are just two
+messages on one channel.
+
+Pickup comes in two grades. **On demand** — run `/handoff read <channel>` in the
+receiving session whenever you want the thread. **Live** — `/handoff subscribe
+<channel>` once, and from then on every turn auto-picks-up new messages on that
+channel without a `read`. Sessions are turn-based — there is no instant push — so
+"live" means the message lands the next time the receiving session takes a turn.
 
 ## Storage
 
@@ -25,10 +30,11 @@ the verbs and, in baton mode, composes the body.
 
 `/handoff [verb] [...rest]`
 
-- No arg or `help` → print the three verbs and stop.
+- No arg or `help` → print the verbs and stop.
 - `send <channel> [message...]` → send a message (baton mode when no message).
 - `read <channel>` → print the channel thread.
 - `list` → list channels.
+- `subscribe <channel>` → watch a channel for live auto-pickup this session.
 - `clear <channel>` → remove a channel's messages (confirm first).
 
 The sender tag (`from`) defaults to a short slice of this session's id; pass
@@ -73,6 +79,33 @@ Keep it tight — a baton, not a report. Then send it:
 ```bash
 printf '%s' "<composed baton>" | ~/.claude/hooks/handoff.sh send <channel> [--from <label>]
 ```
+
+## Verb: subscribe
+
+`/handoff subscribe <channel> [--from <label>]`
+
+Watch a channel so this session auto-picks-up its new messages every turn — no
+`read` needed. Run it once per channel (one channel per call); each call adds to
+this session's subscription.
+
+```bash
+~/.claude/hooks/handoff.sh subscribe <channel> [--from <label>]
+```
+
+Show the hook's one-line confirmation, naming the resolved channel and identity.
+
+**Live pickup is automatic.** Once subscribed, a `UserPromptSubmit` hook
+(`handoff-poll.sh`) injects new messages on each turn — the skill does nothing
+further. A message is picked up when it sits on a subscribed channel **and** its
+`from` differs from this session's own identity (a session never hears its own
+echo). The read cursor advances per channel, so each message is shown once.
+
+**The two sides must wear different names.** A channel is the meeting place, not
+the address — both sessions `subscribe` to the *same channel*, but each must pass
+a *different* `--from`. The self-filter keys on `from`: if both called themselves
+`reviewer`, each would mistake the other's notes for its own and pick up nothing.
+Same channel, different names — that is what makes the two-way flow work. The
+identity set here also becomes this session's default `from` for `send`.
 
 ## Verb: read
 
@@ -138,5 +171,10 @@ carries its own confirm gate (like `/commit` and `/reset`):
   `feat_foo`. Tell the user the resolved name if it differs from what they typed.
 - The hook only ever appends a body it is handed. Composing a baton is the
   skill's job — the judgment of what to summarize is the model's, not bash's.
-- Pickup is manual. Do not spin up a poll loop or a server; that was weighed and
+- Live pickup is turn-fired, not a daemon. The `handoff-poll.sh`
+  `UserPromptSubmit` hook runs only when the receiving session takes a turn; no
+  server, no long-poll loop. That distinction was weighed and the daemon
   rejected (see `docs/superpowers/specs/2026-06-24-handoff-design.md`).
+- Subscriptions and read cursors are per session, kept under the hidden
+  `~/.skadi/handoff/.subs/` and `~/.skadi/handoff/.cursors/` — never shown as
+  channels by `list`, never composed by the model.

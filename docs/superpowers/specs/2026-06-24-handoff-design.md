@@ -119,3 +119,47 @@ count removed (or "no such channel"); the confirm gate lives in the skill via
 `AskUserQuestion`, matching `/commit` and `/reset`. Age-based pruning remains out
 of scope — no volume problem yet, and a time threshold would guess at a need no
 one has voiced.
+
+## Addendum (2026-06-26): live auto-pickup via `subscribe`
+
+The first cut left pickup wholly manual — `/handoff read` in the receiving
+session. This addendum adds **live** pickup without breaking the "no server"
+stance, since a session can be fed context at two harness moments: `SessionStart`
+and `UserPromptSubmit`. Cadence chosen: **every turn** (`UserPromptSubmit`), the
+closest the turn-based medium comes to a live exchange.
+
+**`subscribe` verb.** `/handoff subscribe <channel> [--from <label>]` records a
+per-session profile — its identity and the channels it watches — under
+`$HANDOFF_ROOT/.subs/<session-id>`. One channel per call (a second call adds
+another). The `--from` set here becomes the session's default identity for `send`
+too, so a session's signature and its self-filter never drift apart.
+
+**`poll` verb + the wrapper.** `handoff.sh poll [--session <id>]` gathers, for a
+session's subscribed channels, every message newer than a per-(session,channel)
+cursor whose `from` is **not** the session's own identity, prints them, and
+advances each cursor. Cursors key on the message *filename* (unique,
+time-ordered), so two notes in the same second are never lost. The cursor store is
+`$HANDOFF_ROOT/.cursors/<session-id>/<channel>`. A thin `UserPromptSubmit` hook,
+`handoff-poll.sh`, reads `session_id` from the hook's stdin JSON, calls `poll`,
+and wraps any output in the `additionalContext` envelope (silent when empty).
+
+**Scope: subscribe-by-name, not watch-all.** A session receives nothing until it
+subscribes — quieter and deliberate, at the cost of one setup line per session.
+The rejected alternative (watch every channel, filter self) needed no `subscribe`
+but flooded every session with all traffic.
+
+**Two-way is inherent; the names must differ.** Both sides `subscribe` to the
+*same channel* (the meeting place) but pass *different* `--from` names. The
+self-filter keys on `from`: identical names would make each session mistake the
+other's notes for its own and pick up nothing. No code guard — a session cannot
+see the other's name — but the rule is documented where it is read.
+
+**Replies stay deliberate.** Pickup is two-way and automatic; the *reply* is not.
+A session reads an incoming baton on its own, but a human (or the work) composes
+the answer and sends it. An agent that auto-answered would spiral two sessions
+into a runaway loop with no hand on the helm — rejected for that reason.
+
+**Wiring.** `settings.json` gains `handoff-poll.sh` as a second `UserPromptSubmit`
+hook beside `grammar-reminder.sh`. No new `permissions.allow` entry — a
+harness-fired hook needs none; the existing `handoff.sh:*` covers the skill's
+`subscribe` call. Both scripts stay bash-3.2-clean.
