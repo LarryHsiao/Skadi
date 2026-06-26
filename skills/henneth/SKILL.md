@@ -62,6 +62,51 @@ path is the binding henneth watches. Resolve it the same way each time
 the window. The path is fixed and shared, so any session writes to the one window
 without remembering a path.
 
+## Presenting code
+
+When the artifact's purpose is to **present code** (a function, a file excerpt, a
+change), render the code as a proper highlighted block — **never a hand-built
+`<table>` of line numbers**. Henneth serves over a local HTTP server, so the browser
+may pull **Prism.js from a CDN** (the same reason Mermaid-from-CDN works); it degrades
+to a plain `<pre>` if the machine is offline.
+
+Every code presentation carries three things:
+
+1. **Syntax highlighting** — `class="language-<lang>"` (e.g. `language-typescript`) +
+   the matching Prism components.
+2. **Line numbers** — the line-numbers plugin, `class="line-numbers"` with
+   `data-start="<N>"` so the gutter shows the **real file line numbers**, not 1.
+3. **Change highlight** — the line-highlight plugin marks the lines a change touched:
+   `data-line="<ranges>"` plus `data-line-offset="<data-start − 1>"` so the ranges are
+   read as file line numbers. For a pure add/remove view, instead use a
+   `class="language-diff diff-highlight"` block holding verbatim `git diff` text.
+
+HTML-escape the code body (`&`→`&amp;`, `<`→`&lt;`) — Prism reads `textContent`.
+
+Canonical template (full-function view with line numbers + change bands):
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-highlight/prism-line-highlight.min.css" />
+    ...
+    <pre class="line-numbers" data-start="253" data-line-offset="252" data-line="260,267-278,287"><code class="language-typescript">…escaped code…</code></pre>
+    ...
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-clike.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-diff.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-highlight/prism-line-highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/diff-highlight/prism-diff-highlight.min.js"></script>
+    <script>window.addEventListener('load', () => window.Prism && Prism.highlightAll());</script>
+
+A unified diff cannot carry a clean per-line gutter (its numbers live in the `@@`
+header) — so to show **both** real line numbers and what changed, prefer the
+full-source view with line-highlight bands over a `language-diff` block. Wear the
+shared parchment chrome (`skadi-theme.css`) around the block as usual; Prism styles
+only the `<pre>`.
+
 ## Artifact labels — optional sidecar
 
 Beside an artifact `wireframe-login.html`, an optional `wireframe-login.json`:
