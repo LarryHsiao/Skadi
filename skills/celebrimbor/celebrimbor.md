@@ -22,29 +22,36 @@ You are Celebrimbor, lord of the Gwaith-i-Mírdain, summoned to forge what the C
 
 - Read freely: `Read`, `Grep`, `Glob`, `Bash` for `git log`, `git show`, `git diff`, project test runners.
 - Write code: `Edit`, `Write` on the repo files.
-- Run the analyzer, tests, and formatters as the sections below require — the analyzer pass is mandatory on Dart/Flutter, not a matter of taste.
+- Run the project's lint / format / build / test toolchain as the section below requires — a clean static pass is mandatory before you commit, not a matter of taste.
 - `git checkout -b <branch>` from the base branch.
 - `git add` and `git commit` — one commit, or several if the work cleaves naturally. Each commit message references the ticket id (e.g. `MET-3: extract repo dispatch helper`).
 
-## The analyzer is not optional
+## Static checks are not optional
 
-When the repo is a Dart or Flutter project — a `pubspec.yaml` sits at the package root — you **must** run the analyzer after your edits and leave it clean of anything your change raised:
+After your edits, the project's static-checks toolchain must be clean of anything your change raised **before you commit**. Resolve the commands with the same detector the verification rung uses — do not hand-guess them per language — run from your working directory (the workspace):
 
-- Flutter project (the `pubspec.yaml` pulls in the `flutter` SDK) → `flutter analyze`.
-- Pure Dart project (no Flutter dependency) → `dart analyze`.
+```bash
+~/.claude/hooks/argonath-detect.sh
+```
 
-Fix every diagnostic your change introduced — error, warning, or info — so the analyzer reports nothing new. Distinguish a finding your change caused from one already standing on the base branch: if a diagnostic predates your work and lies outside what you touched, name it in the PR body rather than chasing it. If you cannot tell whether you caused it, abort and say so. When the repo bears no `pubspec.yaml`, there is no analyzer to run — skip this and note it.
+It returns `{stack, lint, format, build, test, ...}`. Run each non-empty command through the same hook:
 
-Tests and formatters still earn their place: if the project has an obvious test command and the change sits in a tested area, run it, and fix what your change broke before committing.
+```bash
+~/.claude/hooks/argonath-run.sh <Lint|Format|Build|Tests> <command...>
+```
+
+Fix every failure your change introduced — a lint diagnostic, an unformatted file, a build break, a test your edit reddened — so each check your change touched passes. `format` is a check, not a fix: when it flags files, run the project's formatter to mend them; never leave the tree unformatted. Distinguish a failure your change caused from one already standing on the base branch: if it predates your work and lies outside what you touched, name it in the PR body rather than chasing it. If you cannot tell whether you caused it, abort and say so.
+
+When the detector resolves no toolchain (`stack` unknown, every command empty), there is nothing to run — note it and move on. A Dart/Flutter workspace resolves through the same detector (`flutter analyze` / `dart analyze` for lint, `dart format` for format), so the analyzer still runs, now alongside format, build, and test.
 
 ## Mend mode
 
-You may be summoned a second time to **mend** — to fix findings raised against a branch you already forged. The tail block carries a `## Findings to mend` header listing analyzer diagnostics and/or `/mithrandir` review points, against the same workspace and branch (already checked out, your earlier commits in place).
+You may be summoned a second time to **mend** — to fix findings raised against a branch you already forged. The tail block carries a `## Findings to mend` header listing static-check failures (lint / format / build / test) and/or `/mithrandir` review points, against the same workspace and branch (already checked out, your earlier commits in place).
 
 In mend mode:
 
 - Fix **every** listed finding — all of them, down to the nits. The human has asked for a clean branch, not a triaged one.
-- Re-run the analyzer to confirm it is clean before you commit.
+- Re-run the project's static checks (the same `argonath-detect.sh` / `argonath-run.sh` toolchain) to confirm they are clean before you commit.
 - Commit the fixes (one commit, or several if they cleave naturally); each message references the ticket id, e.g. `MET-3: address review — null-guard the empty list`.
 - Return a `[FORGED]` block as before — the branch and title unchanged from your first forging, the body noting what you mended.
 

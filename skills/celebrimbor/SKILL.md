@@ -272,29 +272,38 @@ Anything else: treat as drafting failure. Go to step 10, surface the malformed r
 
 ### 7. Verification rung — analyze and weigh before the forge
 
-The smith has returned `[FORGED]` with commits in the workspace. Before the branch reaches the forge, it is weighed twice — once by the analyzer, once by Mithrandir — and mended until clean. This rung runs in the workspace acquired in step 5; the source repo is never touched.
+The smith has returned `[FORGED]` with commits in the workspace. Before the branch reaches the forge, it is weighed twice — once by the static-checks gate (the project's lint / format / build / test toolchain), once by Mithrandir — and mended until clean. This rung runs in the workspace acquired in step 5; the source repo is never touched.
 
-a. **Analyzer gate (Dart/Flutter only).** If a `pubspec.yaml` sits at the workspace package root, run the analyzer fresh:
+a. **Static-analysis & format gate (language-aware).** Resolve and run the project's full toolchain fresh, **from the workspace**, reusing Argonath's detector so the commands match the stack rather than reinventing per-language logic:
 
-- `pubspec.yaml` pulls in the `flutter` SDK → `flutter analyze`
-- otherwise → `dart analyze`
+```bash
+( cd <workspace> && ~/.claude/hooks/argonath-detect.sh )
+```
 
-Collect every diagnostic the run reports — errors, warnings, infos. If no `pubspec.yaml` is present, there is no analyzer to run; note `analyzer: n/a (not a Dart project)` and move to (b).
+It returns JSON `{stack, lint, format, build, test, test_scope, source}`. For each non-empty command among `lint`, `format`, `build`, `test`, run it through the same hook Argonath uses, from the workspace:
+
+```bash
+( cd <workspace> && ~/.claude/hooks/argonath-run.sh <label> <command...> )
+```
+
+Labels: `Lint`, `Format`, `Build`, `Tests`. The hook always exits 0 — read `ok` from its JSON; on `false`, keep the label and the captured output. `format` is a **check** (`--set-exit-if-changed`): it fails on unformatted files, and the gate never rewrites the tree it grades. Collect every failing step.
+
+A Dart/Flutter workspace resolves through the same detector (`flutter analyze` / `dart analyze` for lint, `dart format` for format), so the analyzer still runs — now alongside format, build, and test. If `stack` is `unknown` and every command is empty, there is no toolchain to run; note `static checks: n/a (no toolchain detected)` and move to (b).
 
 b. **Mithrandir's weighing.** Invoke the `mithrandir` skill (Skill tool, args `branch --plain`) **from the workspace** — its branch-path runs bare `git` against the process working directory, so the working directory must be the workspace for it to weigh the forged branch and not the source tree. The `--plain` tongue keeps the verdict terse for parsing. Read its verdict — the tier (sound | wavering | off) and every entry in its `To pass` list, across all three severities (Blocker / Nice to have / Nit).
 
 > Mithrandir resolves the base as the first of `master` / `main` / `origin/HEAD` that exists — not this run's resolved base. When the forge stacked on a `[BASE:]` branch other than the trunk, Mithrandir weighs against the trunk, not the stacked base — note this in the report rather than treating it as a contradiction.
 
-c. **Mend until clean.** Gather the findings — analyzer diagnostics from (a) and Mithrandir's `To pass` entries from (b), **all severities down to the nits**. If the gathered set is non-empty and this is not a `--dry-run`:
+c. **Mend until clean.** Gather the findings — the failing static checks from (a) (each label + its captured output) and Mithrandir's `To pass` entries from (b), **all severities down to the nits**. If the gathered set is non-empty and this is not a `--dry-run`:
 
-- Re-summon the smith (step 6's dispatch, same workspace and branch) in **mend mode**: pass the findings under a `## Findings to mend` header and instruct it to fix every one, re-run the analyzer to confirm clean, and commit. It returns a fresh `[FORGED]` block — keep its body for step 9.
+- Re-summon the smith (step 6's dispatch, same workspace and branch) in **mend mode**: pass the findings under a `## Findings to mend` header and instruct it to fix every one, re-run the failing checks to confirm clean, and commit. It returns a fresh `[FORGED]` block — keep its body for step 9.
 - Re-run (a) and (b) to confirm. Repeat at most **twice** (two mend passes total); the cap is the backstop against an endless loop.
 
-d. **After the cap — open anyway, name the debt.** If findings remain after two mend passes, do **not** abort. Carry the remaining findings into the PR body that step 9 will pipe to the forge hook — append a `## Known debt — verification` section listing each standing analyzer diagnostic and Mithrandir point, one per line. The work reaches the forge; the debt is named, not hidden.
+d. **After the cap — open anyway, name the debt.** If findings remain after two mend passes, do **not** abort. Carry the remaining findings into the PR body that step 9 will pipe to the forge hook — append a `## Known debt — verification` section listing each standing static-check failure and Mithrandir point, one per line. The work reaches the forge; the debt is named, not hidden.
 
-e. **`--dry-run`.** Run (a) and (b) as a read-only report — print the analyzer summary and Mithrandir's tier and `To pass` list. Skip the mend loop (c) and the body-append (d) entirely; dry-run forges nothing to ship. The findings join the dry-run report in step 8.
+e. **`--dry-run`.** Run (a) and (b) as a read-only report — print the static-checks summary (each label: ok / fail) and Mithrandir's tier and `To pass` list. Skip the mend loop (c) and the body-append (d) entirely; dry-run forges nothing to ship. The findings join the dry-run report in step 8.
 
-Hold for the final report: the analyzer's verdict, Mithrandir's tier, the count of mend passes, and any debt carried into the PR body.
+Hold for the final report: the static checks' verdict (per label), Mithrandir's tier, the count of mend passes, and any debt carried into the PR body.
 
 ### 8. Posting/creation gate
 
@@ -376,7 +385,7 @@ Report — one short block:
 - The branch name.
 - The PR/MR URL (if opened).
 - The action taken: `forged` / `aborted (<reason>)` / `dry-run` / `skipped (declined at confirm)` / `error (<reason>)`.
-- The verification verdict (step 7): the analyzer's result (`clean` / `n/a` / `debt carried`), Mithrandir's tier, the count of mend passes, and any known debt carried into the PR body.
+- The verification verdict (step 7): the static checks' result (`clean` / `n/a` / `debt carried`), Mithrandir's tier, the count of mend passes, and any known debt carried into the PR body.
 - The workspace disposition: `released` / `kept at <path> (<reason>)`.
 
 Do not reproduce the smith's full diff — it lives on the PR now.
