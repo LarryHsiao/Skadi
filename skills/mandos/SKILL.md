@@ -40,7 +40,7 @@ Dispatch on the **first positional argument**:
 
 The flags `--plain` and `--lore` may appear anywhere after the verb/URL; they are mutually exclusive. If both are passed, stop with: *"`--plain` and `--lore` cannot stand together; choose one tongue."*
 
-The `--deep` flag may also appear anywhere after the verb/URL. It composes with any path or tone flag — it changes the *depth* of the weighing, not the voice. Its mechanism is specified in a later task; here it is accepted, parsed, and passed into the weighing step.
+The `--deep` flag may also appear anywhere after the verb/URL. It composes with any path or tone flag — it changes the *depth* of the weighing, not the voice. See *`--deep` — per-criterion fan-out* below; here it is accepted, parsed, and passed into the weighing step.
 
 ## Tracker routing
 
