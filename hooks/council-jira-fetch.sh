@@ -45,14 +45,23 @@ fetch_to_file() {
   fi
 }
 
-if ! fetch_to_file "issue" "/rest/api/3/issue/$ISSUE_KEY?fields=summary,description" "$issue_file"; then
+if ! fetch_to_file "issue" "/rest/api/3/issue/$ISSUE_KEY?fields=summary,description,parent" "$issue_file"; then
   exit 1
 fi
 if ! fetch_to_file "comments" "/rest/api/3/issue/$ISSUE_KEY/comment?maxResults=200" "$comments_file"; then
   exit 1
 fi
 
-PYTHONPATH="$(dirname "$0")" python - "$issue_file" "$comments_file" <<'PY'
+parent_file=$(mktemp)
+trap 'rm -f "$issue_file" "$comments_file" "$parent_file"' EXIT
+PARENT_KEY=$(jq -r '.fields.parent.key // empty' "$issue_file")
+if [[ -n "$PARENT_KEY" ]]; then
+  if ! fetch_to_file "parent" "/rest/api/3/issue/$PARENT_KEY?fields=summary,description" "$parent_file"; then
+    exit 1
+  fi
+fi
+
+PYTHONPATH="$(dirname "$0")" python - "$issue_file" "$comments_file" "$parent_file" <<'PY'
 import json, sys
 from datetime import datetime
 sys.stdout.reconfigure(encoding="utf-8")
@@ -88,5 +97,18 @@ out = {
         for c in (comments_doc.get("comments") or [])
     ],
 }
+parent_path = sys.argv[3] if len(sys.argv) > 3 else ""
+parent = None
+if parent_path:
+    try:
+        pj = json.load(open(parent_path, "r", encoding="utf-8"))
+        pf = pj.get("fields") or {}
+        if pj.get("key"):
+            parent = {"id": pj["key"],
+                      "summary": pf.get("summary") or "",
+                      "description": adf_to_text(pf.get("description"))}
+    except Exception:
+        parent = None
+out["parent"] = parent
 print(json.dumps(out, ensure_ascii=False))
 PY
