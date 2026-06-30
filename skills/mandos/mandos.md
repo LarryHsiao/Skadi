@@ -56,11 +56,17 @@ For any change in the diff that no acceptance item asked for:
 
 After the three sections, declare the overall tier on its own line:
 
-- `Faithful` — all acceptance items are covered; any scope-crept items carry Nit severity at most; the deed answers the decree.
+- `Faithful` — no Blocker-severity items stand (Missing or Scope-crept); Nice-to-have and Nit gaps may exist and are reported without changing the tier; the deed answers the decree.
 - `Hold` — at least one Missing or Scope-crept item carries Blocker severity; the work wavers.
 - `Astray` — several Missing or Scope-crept items carry Blocker severity; the deed strays from the decree.
 
-**Gate rule:** clean covering with nothing Missing and nothing Scope-crept → **Faithful**; only Nit-severity items outstanding or crept → **Faithful**; any single Blocker Missing or Scope-crept → **Hold**; several Blockers → **Astray**.
+**Governing principle:** only Blocker severity gates the tier; Nice-to-have and Nit are reported, not gating.
+
+**Gate rule:**
+- Any **Blocker**-severity item (Missing or Scope-crept) → **Hold**.
+- Several Blocker-severity items → **Astray**.
+- No Blocker-severity item → **Faithful** — **Nice-to-have and Nit** gaps (Missing or Scope-crept) are reported in their buckets but do NOT change the tier.
+- A clean covering (nothing Missing or crept) → **Faithful**.
 
 Return only the structured body — no preface, no sign-off, no explanation of what you are about to do.
 

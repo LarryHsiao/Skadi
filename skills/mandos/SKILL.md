@@ -272,7 +272,7 @@ When `--deep` is active, do not dispatch a single weigher over the whole decree.
 1. **Partition** the decree into its individual acceptance items.
 2. **Fan out.** Dispatch one read-only weigher subagent per acceptance item, in parallel — cap concurrent dispatches to a sane handful and queue the rest. Hand each agent **only its one item** as the decree and the **full diff**, charged to hunt the whole diff for evidence that this one item is met. Use the same `skills/mandos/mandos.md` prompt; only the tail block differs — the decree carries a single item, the diff is the full diff unchanged.
 3. **Aggregate.** Collect every per-item verdict into the three buckets. All items returned Covered (with their `file:line` evidence) form the Covered section; all items returned Missing (with their severities) form the Missing section.
-4. **Scope-crept pass.** After all per-item weighers have returned, make one final holistic pass over the diff for changes that no acceptance item's weigher claimed as Covered. Name each as Scope-crept with a severity.
+4. **Scope-crept pass.** After all per-item weighers have returned, dispatch **one final read-only weigher subagent** (same `skills/mandos/mandos.md` prompt, `general-purpose`, `model: opus`), handed the full decree and the full diff, charged ONLY to name changes that no acceptance item asked for as Scope-crept (with severities). The skill body aggregates its result; it does not itself judge scope-crept.
 5. **Render** per the Render section below, with the deep-mode tail-line added under the blockquote header: *"Deep mode — N criteria weighed each on its own."*
 
 The unit of the deep pass is the **acceptance criterion**, not the file. Where Mithrandir's `--deep` weighs one file per agent, Mandos's `--deep` weighs one acceptance item per agent — each agent receives the deed in full; the per-agent partition is the decree. No agent sees another's item; each hunts independently.
@@ -325,7 +325,13 @@ The justification clause is ≤ 15 words and aligns with the chief concern named
 
 **`--deep` tail-line** — when `--deep` is active, add one line immediately under the blockquote header (before the title line): *"Deep mode — N criteria weighed each on its own."*
 
-**Gate rule (restate for render):** clean covering with nothing Missing and nothing Scope-crept → **Faithful** (`▰▱▱`); only Nit-severity items outstanding or crept → **Faithful** (`▰▱▱`); any single Blocker Missing or Scope-crept → **Hold** (`▰▰▱`); several Blockers → **Astray** (`▰▰▰`).
+**Governing principle:** only Blocker severity gates the tier; Nice-to-have and Nit are reported, not gating.
+
+**Gate rule (restate for render):**
+- Any **Blocker**-severity item (Missing or Scope-crept) → **Hold** (`▰▰▱`).
+- Several Blocker-severity items → **Astray** (`▰▰▰`).
+- No Blocker-severity item → **Faithful** (`▰▱▱`) — **Nice-to-have and Nit** gaps (Missing or Scope-crept) are reported in their buckets but do NOT change the tier.
+- A clean covering (nothing Missing or crept) → **Faithful** (`▰▱▱`).
 
 **Tone modes** — mirror Mithrandir's axis:
 
