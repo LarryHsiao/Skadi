@@ -1,6 +1,6 @@
 ---
 name: mandos
-description: Use when the user runs /mandos, /mandos TICKET-ID, /mandos <pr-or-mr-url>, /mandos post TICKET-ID, or /mandos comment <url>. With no argument, weighs the current branch against its ticket's goal, deriving the ticket from the branch name or recent commits; with a ticket ID, fetches the goal and resolves the branch from the ticket's [GWAITH] forge comment or naming conventions; with a URL, weighs an open PR/MR against its ticket. Reads by default — plain forms render to chat. Two opt-in write verbs: `post` threads a [DOOM] verdict onto the ticket (confirm-once); `comment` posts it on the PR/MR (confirm-once). The verdict pronounces faithfulness — Covered / Missing / Scope-crept — against the ticket's [COUNSEL]/[PLAN] comment, the ticket's own description, and the parent ticket's acceptance criteria, as returned by the council fetch hooks. Where Mithrandir weighs whether the code is good, Mandos weighs whether it is the right code. The `--deep` flag runs a per-criterion fan-out (defined in a later task). The `--plain` and `--lore` flags override the tone default and are mutually exclusive. Advisory — never auto-gates a merge.
+description: Use when the user runs /mandos, /mandos TICKET-ID, /mandos <pr-or-mr-url>, /mandos post TICKET-ID, or /mandos comment <url>. With no argument, weighs the current branch against its ticket's goal, deriving the ticket from the branch name or recent commits; with a ticket ID, fetches the goal and resolves the branch from the ticket's [GWAITH] forge comment or naming conventions; with a URL, weighs an open PR/MR against its ticket. Reads by default — plain forms render to chat. Two opt-in write verbs: `post` threads a [DOOM] verdict onto the ticket (confirm-once); `comment` posts it on the PR/MR (confirm-once). The verdict pronounces faithfulness — Covered / Missing / Scope-crept — against the ticket's [COUNSEL]/[PLAN] comment, the ticket's own description, and the parent ticket's acceptance criteria, as returned by the council fetch hooks. Where Mithrandir weighs whether the code is good, Mandos weighs whether it is the right code. The `--deep` flag runs a per-criterion fan-out. The `--plain` and `--lore` flags override the tone default and are mutually exclusive. Advisory — never auto-gates a merge.
 user_invocable: true
 ---
 
@@ -25,7 +25,7 @@ Námo, Keeper of the Halls of Waiting, is the Doomsman of the Valar — he who w
 /mandos comment <url>        # forge-write: post verdict on the PR/MR (confirm-once)
 
 # flags (compose with any read or write form):
---deep                       # per-criterion fan-out (defined in a later task)
+--deep                       # per-criterion fan-out
 --plain / --lore             # tone override (mutually exclusive)
 ```
 
@@ -343,3 +343,138 @@ The justification clause is ≤ 15 words and aligns with the chief concern named
 The `--plain` and `--lore` flags override either default; they are mutually exclusive. Tier labels (`Faithful` / `Hold` / `Astray`), gauges (`▰▱▱` / `▰▰▱` / `▰▰▰`), source tags (`[COUNSEL]`, `<ticket-id>`, `<parent-id> AC`), and section headings stay plain in both modes.
 
 **Closing paragraph** — three sentences at most. Names the chief gap (for Hold / Astray) or plainly affirms the work (for Faithful). In lore mode the paragraph may carry Mandos / Valar / Elrond diction; in plain mode it stays in neutral reviewer voice with no persona, no similes, no lore-words.
+
+## Write-path: post
+
+`/mandos post TICKET-ID` threads a `[DOOM]`-prefixed verdict onto the ticket.
+
+### 1. Run the ticket read-path
+
+Resolve the tracker via **Tracker routing**, fetch the ticket, harvest the decree per **Spec harvest**, resolve the branch per **Resolution → Ticket-path**, capture the diff, and dispatch the **Weigh** step — all producing the verdict in **plain** tone.
+
+### 2. Compose the post body
+
+Prepend a first line:
+
+```
+[DOOM] <tier> — <≤15-word clause>
+```
+
+For example: `[DOOM] Hold — AC3 unmet, no logout path in the diff.`
+
+The tier and clause mirror the blockquote header of the rendered verdict (`Faithful` / `Hold` / `Astray`). The rest of the body is the full rendered verdict in **plain** tone, exactly as the **Render** section produces it — no reformatting, no redefinition.
+
+The `[DOOM]`/`[VERDICT]` token is registered loop-neutral in council. A verdict posted to the ticket does not disturb the council loop.
+
+### 3. Confirm-once gate
+
+Always ask via `AskUserQuestion` before invoking the comment hook. The slash invocation is **not** authority for a tracker write.
+
+Build the prompt as:
+
+```
+Post this [DOOM] verdict on <ticket-id>?
+  <ticket-id>: <summary>
+  <branch> → <base>
+  Tier: <tier>
+```
+
+Options `Yes, post` and `No, cancel`. On `No`, stop with *"Doom withheld."*. On `Yes`, proceed.
+
+### 4. Invoke the comment hook
+
+Route to the tracker's comment hook per the **Tracker routing** table:
+
+```bash
+<verdict-body> | <comment-hook> <TICKET-ID>
+```
+
+The hook reads the body from stdin and posts it as a comment on the ticket.
+
+On success the hook prints one line:
+
+```
+posted: id=... url=...
+```
+
+On failure the hook surfaces the tracker's error verbatim and exits non-zero. Surface that error and stop. Do **not** retry.
+
+Common failures the hook does not paper over:
+
+- 403 / scope missing — the token cannot post comments.
+- Ticket not found or closed.
+- Network / auth errors from the tracker API.
+
+These are the tracker's word; Mandos relays without translation.
+
+### 5. Report
+
+Surface the hook's success line (`posted: id=... url=...`) verbatim. On failure, surface the hook's error verbatim.
+
+### Jira read-only rule
+
+Write-path smoke tests run **only** against YouTrack MET-1. Never post test or diagnostic `[DOOM]` comments to Jira. A real `post` against a Jira ticket is the user's deliberate act — the confirm-once gate is the safeguard.
+
+Note: `council-jira-comment.sh` is intentionally not allow-listed in `settings.json`. This mirrors council's existing pattern: friction on the production Jira tracker is desirable. The user may add it deliberately if they wish.
+
+## Write-path: comment
+
+`/mandos comment <url>` posts the faithfulness verdict as a comment on the PR/MR.
+
+### 1. Forge dispatch
+
+Match the URL. Resolve **both** the read hook (for metadata + diff) and the comment hook from the **URL-path** forge dispatch table in **Resolution**.
+
+### 2. Render the verdict
+
+Run the URL read-path (**Resolution → URL-path**) in full: forge dispatch, fetch metadata, fetch diff, derive the ticket-id, harvest the decree, weigh. Carry the output through **Render** in **plain** tone (the default for forge writes). What renders to chat is exactly what the forge will see.
+
+No `[DOOM]` token is prepended. The forge is not parsed by council, so the tier rides the blockquote header alone.
+
+### 3. Confirm-once gate
+
+Always ask via `AskUserQuestion` before invoking the comment hook. The slash invocation is **not** authority for a forge write.
+
+Build the prompt as:
+
+```
+Post this verdict as a comment on <url>?
+  <title>
+  <head> → <base>
+  Tier: <tier>
+```
+
+Options `Yes, post` and `No, cancel`. On `No`, stop with *"Counsel withheld."*. On `Yes`, proceed.
+
+### 4. Invoke the comment hook
+
+```bash
+<verdict-body> | <comment-hook> <url>
+```
+
+The hook reads the body from stdin and posts it as a comment via `gh pr comment` (GitHub) or `glab mr note` (GitLab).
+
+On success the hook prints one line:
+
+```
+commented: forge=<github|gitlab> url=<url> number=<n>
+```
+
+On failure the hook surfaces the forge's error verbatim and exits non-zero. Surface that error and stop. Do **not** retry.
+
+Common failures the hook does not paper over:
+
+- 403 / scope missing — the token cannot post comments.
+- PR / MR closed or locked.
+- Network / auth errors from `gh` or `glab`.
+
+These are the forge's word; Mandos relays without translation.
+
+### 5. Report
+
+One short block:
+
+- The URL.
+- The forge.
+- The token (`commented`).
+- The PR/MR number from the success line.
