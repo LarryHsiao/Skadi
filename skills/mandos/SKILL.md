@@ -12,7 +12,7 @@ Námo, Keeper of the Halls of Waiting, is the Doomsman of the Valar — he who w
 
 - **Weighs faithfulness, not quality.** Mithrandir judges whether the code is sound; Mandos judges whether it answers the decree. Three verdicts: Covered — the deed matches the goal; Missing — the goal is only partly met; Scope-crept — the deed exceeds or contradicts what was asked. Quality concerns belong to Mithrandir.
 - **Reads by default; writes only when summoned.** Plain forms render to chat. `post` and `comment` are the only write paths, and each asks once before touching the tracker or the forge.
-- **Independent of the conversation.** The decree is re-derived fresh from the tracker — the ticket's `[COUNSEL]`/`[PLAN]` comment, its own description, and the parent ticket's acceptance criteria (carried in the `parent` block the council fetch hooks emit) — and the weighing runs in a read-only subagent blind to the build conversation.
+- **Independent of the conversation.** The decree is re-derived fresh from the tracker — the ticket's `[COUNSEL]`/`[PLAN]` comment, its own description, and the parent ticket's acceptance criteria — and the weighing runs in a read-only subagent blind to the build conversation.
 - **Advisory, never doom proper.** A verdict of Missing or Scope-crept does not auto-block any merge skill; the decision rests with the human. Mandos pronounces; Elrond weighs further.
 
 ## Argument parsing
@@ -35,8 +35,8 @@ Dispatch on the **first positional argument**:
 - If the first positional is the literal token `post`, the second positional is the TICKET-ID and the **ticket-write path** runs.
 - If the first positional is the literal token `comment`, the second positional is the URL and the **forge-write path** runs.
 - If the first positional looks like a URL (`http://` or `https://` prefix), the **URL read-path** runs against it.
-- Otherwise, treat the first positional as a TICKET-ID and run the **ticket read-path**.
-- A token that cannot be dispatched to any path draws: *"Mandos knows only `post` and `comment` as verbs; a bare URL rides the read-path, a bare ticket-id the ticket-path, and the empty word the branch-path."*
+- If the first positional, after stripping any optional tracker prefix (e.g. `youtrack:`, `yt:`, `jira:`), matches the ticket-id shape `[A-Za-z]+-[0-9]+`, treat it as a TICKET-ID and run the **ticket read-path**.
+- Otherwise, a token that cannot be dispatched to any path draws: *"Mandos knows only `post` and `comment` as verbs; a bare URL rides the read-path, a bare ticket-id the ticket-path, and the empty word the branch-path."*
 
 The flags `--plain` and `--lore` may appear anywhere after the verb/URL; they are mutually exclusive. If both are passed, stop with: *"`--plain` and `--lore` cannot stand together; choose one tongue."*
 
@@ -51,7 +51,7 @@ Two trackers are wired:
 | YouTrack | `~/.claude/hooks/council-youtrack-fetch.sh` | `~/.claude/hooks/council-youtrack-comment.sh` |
 | Jira | `~/.claude/hooks/council-jira-fetch.sh` | `~/.claude/hooks/council-jira-comment.sh` |
 
-The fetch hooks return the ticket's summary, description, and comments; as extended for Mandos, they also emit a `parent` block carrying the parent ticket's summary, description, and acceptance criteria for the faithfulness weighing.
+The fetch hooks return the ticket's summary, description, and comments.
 
 **Hybrid dispatch rule.** Resolve the tracker for a given ticket ID in this order:
 
