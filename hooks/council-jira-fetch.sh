@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage: council-jira-fetch.sh <ISSUE-KEY>
-# Prints JSON: {summary, description, comments:[{author,login,text,created}]}
+# Prints JSON: {summary, description, comments:[{author,login,text,created}], parent:{id,summary,description}|null}
 # Resolves Jira creds via secret.sh (vault first, env fallback).
 # Uses Jira REST v3 (the v2 search API has been removed by Atlassian).
 # ADF descriptions/comments are flattened to plain text via Python.
@@ -29,6 +29,8 @@ URL="${JIRA_URL%/}"
 
 issue_file=$(mktemp)
 comments_file=$(mktemp)
+parent_file=$(mktemp)
+trap 'rm -f "$issue_file" "$comments_file" "$parent_file"' EXIT
 
 fetch_to_file() {
   local label="$1" path="$2" out="$3"
@@ -51,8 +53,6 @@ if ! fetch_to_file "comments" "/rest/api/3/issue/$ISSUE_KEY/comment?maxResults=2
   exit 1
 fi
 
-parent_file=$(mktemp)
-trap 'rm -f "$issue_file" "$comments_file" "$parent_file"' EXIT
 PARENT_KEY=$(jq -r '.fields.parent.key // empty' "$issue_file")
 if [[ -n "$PARENT_KEY" ]]; then
   if ! fetch_to_file "parent" "/rest/api/3/issue/$PARENT_KEY?fields=summary,description" "$parent_file"; then

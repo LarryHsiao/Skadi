@@ -95,13 +95,13 @@ Each item found is tagged `<ticket-id>` in the decree (e.g. `MET-1`).
 
 ### 3. Parent AC
 
-If the fetch hook's `parent` key is non-null — the ticket belongs to an epic or parent story — scan `parent.description` for an AC list by the same rules as step 2. Parent AC is often the sharpest gate: epics carry the criteria the leaf ticket inherits. Each item found is tagged `<parent-id> AC` in the decree (e.g. `MET-1 AC`, where `MET-1` is the parent's id).
+If the fetch hook's `parent` key is non-null — the ticket belongs to an epic or parent story — scan `parent.description` for an AC list by the same rules as step 2. Parent AC is often the sharpest gate: epics carry the criteria the leaf ticket inherits. Each item found is tagged `<parent-id> AC` in the decree (e.g. `MET-0 AC`, where `MET-0` is the parent's id).
 
 ### No-AC fallback
 
 If no explicit acceptance items are found in any of the three sources, derive implicit acceptance from the ticket description — its stated intent, the verb in the summary, the goal the description body implies. The weighing step proceeds, but the render **must say plainly** that the gate is softer: implicit criteria, not an explicit AC list. Do not silently proceed as if AC existed — Mandos speaks plainly or not at all.
 
-The folded decree — items from all three sources, each tagged `[COUNSEL]`, `<ticket-id>`, or `<parent-id> AC` — is what the weighing step (a later task) consumes.
+The folded decree — items from all three sources, each tagged `[COUNSEL]`, `<ticket-id>`, or `<parent-id> AC` — is what the Weigh step below consumes.
 
 ## Resolution
 
@@ -188,13 +188,13 @@ If neither resolves a branch, stop with: *"No forged branch found for `<ticket-i
 
 #### 3. Resolve the base and capture the diff
 
-Resolve the base via the same ladder as the branch-path (step 1 above). Guard against the base branch the same way. Capture the diff:
+Resolve the base via the same ladder as the branch-path (step 1 above). Guard against the base branch the same way. Capture the diff using the resolved branch ref directly — no checkout required:
 
 ```bash
-git diff $(git merge-base HEAD <base>)..HEAD
+git diff $(git merge-base <branch> <base>)..<branch>
 ```
 
-where `HEAD` is resolved against the branch found in step 2.
+where `<branch>` is the ref resolved in step 2 (from the `[GWAITH]` comment or local branch search). The weigh is independent of the current checkout.
 
 ### URL-path (`http(s)://...` positional)
 

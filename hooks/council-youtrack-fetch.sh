@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage: council-youtrack-fetch.sh <TICKET-ID>
-# Prints JSON: {summary, description, comments:[{author,login,text,created}]}
+# Prints JSON: {summary, description, comments:[{author,login,text,created}], parent:{id,summary,description}|null}
 # Resolves YOUTRACK_URL and YOUTRACK_TOKEN via secret.sh (vault first, env fallback).
 # On failure, prints {"error":"...","response":"..."} (server body included) and exits non-zero.
 #
