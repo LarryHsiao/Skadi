@@ -29,7 +29,6 @@ URL="${JIRA_URL%/}"
 
 issue_file=$(mktemp)
 comments_file=$(mktemp)
-trap 'rm -f "$issue_file" "$comments_file"' EXIT
 
 fetch_to_file() {
   local label="$1" path="$2" out="$3"
