@@ -73,3 +73,163 @@ The fetch hooks return the ticket's summary, description, and comments.
 3. **Ask.** No prefix override, no memory mapping — ask the user via AskUserQuestion which tracker to use, then offer to save the mapping to memory for next time.
 
 Once the tracker is chosen, all steps that fetch or comment on the ticket use that backend's hooks. Do not hardcode any list of valid project-key prefixes — the prefix is just a project shortName.
+
+## Spec harvest
+
+From the fetched ticket data Mandos folds a **decree** — an ordered list of acceptance items, each tagged by its source, that the weighing step will hold the deed against. Three sources are drawn in turn; every item found is kept, tagged, and placed in order.
+
+### 1. Plan
+
+From the ticket's comment thread, take the body of the newest comment whose first line matches `[COUNSEL vN]` (any N) or the bare `[PLAN]` marker (case-insensitive). This is Erestor's settled plan — the sharpest statement of what the deed was asked to do. Each acceptance item it names is tagged `[COUNSEL]` in the decree.
+
+If no such comment exists, note plainly that the plan source is absent. The decree leans on ticket text and parent AC alone; the weighing step is told the plan is missing.
+
+### 2. Ticket text
+
+Take the ticket's `summary` and `description`. Scan for an acceptance-criteria list:
+
+- Lines under a heading that matches (case-insensitive) `acceptance`, `AC`, or `criteria`.
+- A checkbox (`- [ ]` / `- [x]`) or bullet list that reads as criteria rather than prose.
+
+Each item found is tagged `<ticket-id>` in the decree (e.g. `MET-1`).
+
+### 3. Parent AC
+
+If the fetch hook's `parent` key is non-null — the ticket belongs to an epic or parent story — scan `parent.description` for an AC list by the same rules as step 2. Parent AC is often the sharpest gate: epics carry the criteria the leaf ticket inherits. Each item found is tagged `<parent-id> AC` in the decree (e.g. `MET-1 AC`, where `MET-1` is the parent's id).
+
+### No-AC fallback
+
+If no explicit acceptance items are found in any of the three sources, derive implicit acceptance from the ticket description — its stated intent, the verb in the summary, the goal the description body implies. The weighing step proceeds, but the render **must say plainly** that the gate is softer: implicit criteria, not an explicit AC list. Do not silently proceed as if AC existed — Mandos speaks plainly or not at all.
+
+The folded decree — items from all three sources, each tagged `[COUNSEL]`, `<ticket-id>`, or `<parent-id> AC` — is what the weighing step (a later task) consumes.
+
+## Resolution
+
+Mandos walks one of three paths to gather the diff and the decree, chosen by how he was summoned.
+
+### Branch-path (no positional argument)
+
+#### 1. Resolve the base
+
+Find the project's default base branch — the first of `master`, `main`, `origin/HEAD` that resolves locally:
+
+```bash
+git rev-parse --verify --quiet master \
+  || git rev-parse --verify --quiet main \
+  || git rev-parse --verify --quiet origin/HEAD
+```
+
+If none resolves, stop with: *"Mandos cannot find a base — neither `master`, `main`, nor `origin/HEAD` stands in this repo. Name the base, or stand on firmer ground."*
+
+#### 2. Guard against the base branch
+
+```bash
+git rev-parse --abbrev-ref HEAD
+```
+
+If the current branch matches the resolved base, or is one of the literal names `master` or `main`, stop with: *"Nothing to weigh — you stand on the default branch. The decree needs a deed to weigh against; branch off first."*
+
+#### 3. Derive the ticket-id
+
+Mandos cannot weigh a deed that bears no decree. Search in order:
+
+1. The branch name. If it carries a leading token matching `^[A-Za-z]+-[0-9]+` (e.g. `MET-1-my-feature` → `MET-1`), that is the ticket-id.
+2. If the branch name bears no such prefix, scan commit subjects: `git log <base>..HEAD --format=%s` and take the first token matching `^[A-Za-z]+-[0-9]+` found in any subject line.
+
+If neither yields a ticket-id, stop with: *"Mandos cannot weigh this branch — no ticket marks it. The decree must have a name; add the ticket-id to the branch name or to a commit subject, then return."*
+
+With the ticket-id resolved, apply **Tracker routing** to choose the fetch hook, then fetch the ticket and harvest the decree per **Spec harvest** above.
+
+#### 4. Capture the diff
+
+```bash
+git diff $(git merge-base HEAD <base>)..HEAD
+```
+
+If the diff is empty, stop with: *"Nothing to weigh — the branch stands even with its base."*
+
+### Ticket-path (`TICKET-ID` positional)
+
+#### 1. Fetch and harvest
+
+Apply **Tracker routing** to resolve the fetch hook. Invoke it:
+
+```bash
+<fetch-hook> <TICKET-ID>
+```
+
+The hook returns a single JSON object:
+
+```json
+{
+  "summary": "...",
+  "description": "...",
+  "parent": { "id": "...", "summary": "...", "description": "..." },
+  "comments": [
+    { "author": "...", "login": "...", "text": "...", "created": 1700000000000 }
+  ]
+}
+```
+
+`parent` may be `null` if the ticket has no parent. On `{"error":"..."}`, surface the error and stop. Harvest the decree per **Spec harvest** above.
+
+#### 2. Resolve the branch
+
+Search in order:
+
+1. **`[GWAITH]` comment.** Scan the thread for a comment whose first line carries the `[GWAITH]` token (or its aliases `[FORGED]`, `[SHIPPED]`, case-insensitive). Its body carries the PR/MR URL and the branch name — read both. This is Celebrimbor's mark: the deed is wrought, the forge is named.
+2. **Local branch by name.** If no `[GWAITH]` comment is found, search local branches:
+   ```bash
+   git branch --list "*<ticket-id>*"
+   ```
+   Take the first match whose name carries the ticket-id.
+
+If neither resolves a branch, stop with: *"No forged branch found for `<ticket-id>`. Celebrimbor has not yet marked the deed — check the ticket thread for a `[GWAITH]` comment, or name the branch directly."*
+
+#### 3. Resolve the base and capture the diff
+
+Resolve the base via the same ladder as the branch-path (step 1 above). Guard against the base branch the same way. Capture the diff:
+
+```bash
+git diff $(git merge-base HEAD <base>)..HEAD
+```
+
+where `HEAD` is resolved against the branch found in step 2.
+
+### URL-path (`http(s)://...` positional)
+
+#### 1. Forge dispatch
+
+Match the URL against the same host-agnostic patterns Mithrandir uses:
+
+| Forge | Pattern | Read hook |
+|---|---|---|
+| GitHub | `https?://[^/]+/(?<owner>[^/]+)/(?<repo>[^/]+)/pull/(?<n>\d+)` | `~/.claude/hooks/lindir-github-pr.sh` |
+| GitLab | `https?://[^/]+/(?<group>.+)/-/merge_requests/(?<iid>\d+)` | `~/.claude/hooks/lindir-gitlab-mr.sh` |
+
+If neither pattern matches, stop with: *"Mandos does not know that URL — it bears no PR or MR mark."*
+
+#### 2. Fetch metadata and diff
+
+```bash
+<read-hook> <url>
+```
+
+Read the title, source-branch name, and description from the hook's JSON. Then:
+
+```bash
+<read-hook> --diff <url>
+```
+
+This unified diff is the deed Mandos weighs. If the diff call fails, render the verdict on metadata alone and say so plainly.
+
+#### 3. Derive the ticket-id and harvest the decree
+
+Search in order:
+
+1. The PR/MR title — take the first token matching `^[A-Za-z]+-[0-9]+`.
+2. The source-branch name — take the first token matching `^[A-Za-z]+-[0-9]+`.
+
+If a ticket-id is found, apply **Tracker routing**, fetch the ticket, and harvest the decree per **Spec harvest** above.
+
+If no ticket-id can be read from the PR/MR, proceed using the PR/MR's own `description` as the (softer) decree — and say so plainly in the render: *"No ticket found; the decree is drawn from the PR/MR description alone — the gate is softer."*
