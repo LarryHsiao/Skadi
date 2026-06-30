@@ -233,3 +233,107 @@ Search in order:
 If a ticket-id is found, apply **Tracker routing**, fetch the ticket, and harvest the decree per **Spec harvest** above.
 
 If no ticket-id can be read from the PR/MR, proceed using the PR/MR's own `description` as the (softer) decree — and say so plainly in the render: *"No ticket found; the decree is drawn from the PR/MR description alone — the gate is softer."*
+
+## Weigh
+
+Mandos's verdict springs from a read-only subagent — the Doomsman himself — whose sole input is the decree and the diff. He has seen neither this session's build conversation nor Elrond's prior comments; his eyes rest on the deed alone. **This is the independence guarantee: fresh eyes by construction.** The weigher receives the decree and the diff, nothing more; the independence of his verdict is the whole point of the skill.
+
+### Default (holistic) — one weigher, the whole decree
+
+Load the Doomsman's prompt from `<skill-dir>/mandos.md` (read the file contents). Dispatch a subagent via the Agent tool, `subagent_type: general-purpose`, `model: opus`, passing:
+
+- The `mandos.md` prompt as the instruction portion of the Agent call's `prompt`.
+- A tail block carrying the decree and the diff:
+
+```
+## Decree
+
+The following acceptance items were drawn from the ticket. Each item is prefixed by
+its source tag: [COUNSEL] (from Erestor's settled plan), <ticket-id> (from the
+ticket's own AC), or <parent-id> AC (from the parent ticket's AC).
+
+<decree items, one per line, each prefixed by its source tag>
+
+[Note any absent source — e.g. "No [COUNSEL] plan found; decree drawn from ticket
+text and parent AC only." or "No explicit AC found; decree derived from ticket
+description — implicit criteria, softer gate."]
+
+## Diff
+
+<unified diff of the deed>
+```
+
+The subagent reads only — it does not write, commit, or post. It returns the three-bucket structured body (Covered / Missing / Scope-crept) and declares the tier. Carry its output into the Render step.
+
+### `--deep` — per-criterion fan-out
+
+When `--deep` is active, do not dispatch a single weigher over the whole decree. Instead:
+
+1. **Partition** the decree into its individual acceptance items.
+2. **Fan out.** Dispatch one read-only weigher subagent per acceptance item, in parallel — cap concurrent dispatches to a sane handful and queue the rest. Hand each agent **only its one item** as the decree and the **full diff**, charged to hunt the whole diff for evidence that this one item is met. Use the same `skills/mandos/mandos.md` prompt; only the tail block differs — the decree carries a single item, the diff is the full diff unchanged.
+3. **Aggregate.** Collect every per-item verdict into the three buckets. All items returned Covered (with their `file:line` evidence) form the Covered section; all items returned Missing (with their severities) form the Missing section.
+4. **Scope-crept pass.** After all per-item weighers have returned, make one final holistic pass over the diff for changes that no acceptance item's weigher claimed as Covered. Name each as Scope-crept with a severity.
+5. **Render** per the Render section below, with the deep-mode tail-line added under the blockquote header: *"Deep mode — N criteria weighed each on its own."*
+
+The unit of the deep pass is the **acceptance criterion**, not the file. Where Mithrandir's `--deep` weighs one file per agent, Mandos's `--deep` weighs one acceptance item per agent — each agent receives the deed in full; the per-agent partition is the decree. No agent sees another's item; each hunts independently.
+
+All per-criterion subagents read only — they find and report; they do not edit, commit, or post. The skill body owns aggregation and any forge write.
+
+## Render
+
+Render the verdict in plain markdown in this order. The title line and closing paragraph follow the active tone mode (lore by default in chat; plain by default when posting to a forge or ticket). Tiers, gauges, source tags, and section headings stay plain in both modes — only the title line and closing paragraph shift voice.
+
+```
+> <gauge> **<tier>** — <one-clause justification, ≤ 15 words>
+
+# Mandos — <ticket-id>: <summary>
+<branch> → <base> · weighed against <sources>
+
+## Covered
+- `<source-tag>` — <evidence> `file:line`
+
+## Missing            ← omit section if empty
+### Blocker           ← omit subsection if empty
+- `<source-tag>` — <what was asked, not found>
+### Nice-to-have      ← omit subsection if empty
+- `<source-tag>` — <what was asked, not found>
+### Nit               ← omit subsection if empty
+- `<source-tag>` — <what was asked, not found>
+
+## Scope-crept        ← omit section if empty
+### Blocker           ← omit subsection if empty
+- `file:line` — <what the change does, not asked for>
+### Nice-to-have      ← omit subsection if empty
+- `file:line` — <what the change does, not asked for>
+### Nit               ← omit subsection if empty
+- `file:line` — <what the change does, not asked for>
+
+## Doom <gauge>  <tier>
+
+<one paragraph naming the chief gap, or affirming faithful work, in the active tone>
+```
+
+**Blockquote header** — the first line distils the verdict to a single clause. Gauge and action label by tier:
+
+- `▰▱▱ **Faithful**` — every acceptance line is met; no drift.
+- `▰▰▱ **Hold**` — at least one Blocker outstanding; work wavers.
+- `▰▰▰ **Astray**` — several Blockers; the deed strays from the decree.
+
+The justification clause is ≤ 15 words and aligns with the chief concern named in the closing paragraph.
+
+**Sources line** — `weighed against [COUNSEL] + <ticket-id> + parent AC (<parent-id>)`. Omit any source that was not found (e.g. omit `parent AC (…)` when there is no parent; omit `[COUNSEL]` when no plan exists). When the no-AC fallback fired, append: *"implicit criteria — softer gate"*.
+
+**`--deep` tail-line** — when `--deep` is active, add one line immediately under the blockquote header (before the title line): *"Deep mode — N criteria weighed each on its own."*
+
+**Gate rule (restate for render):** clean covering with nothing Missing and nothing Scope-crept → **Faithful** (`▰▱▱`); only Nit-severity items outstanding or crept → **Faithful** (`▰▱▱`); any single Blocker Missing or Scope-crept → **Hold** (`▰▰▱`); several Blockers → **Astray** (`▰▰▰`).
+
+**Tone modes** — mirror Mithrandir's axis:
+
+| Mode | Chat default | Forge/ticket-post default | What changes |
+|---|---|---|---|
+| **lore** | yes | no | Title `Mandos — <ticket-id>: <summary>`; closing paragraph in narrator voice; Tolkien diction permitted |
+| **plain** | no | yes | Title `Faithfulness Review — <ticket-id>: <summary>`; closing paragraph in plain reviewer voice; no persona, no similes, no lore-words |
+
+The `--plain` and `--lore` flags override either default; they are mutually exclusive. Tier labels (`Faithful` / `Hold` / `Astray`), gauges (`▰▱▱` / `▰▰▱` / `▰▰▰`), source tags (`[COUNSEL]`, `<ticket-id>`, `<parent-id> AC`), and section headings stay plain in both modes.
+
+**Closing paragraph** — three sentences at most. Names the chief gap (for Hold / Astray) or plainly affirms the work (for Faithful). In lore mode the paragraph may carry Mandos / Valar / Elrond diction; in plain mode it stays in neutral reviewer voice with no persona, no similes, no lore-words.
