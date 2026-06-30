@@ -194,7 +194,7 @@ Walk the `comments` array (already oldest-first). Determine:
 - **Plan comment id.** The `id` of that highest-version plan comment (from the fetch hook's `id` field). This is the comment step 6 edits in place on a redraft. If no plan exists yet, there is no id — step 6 creates the comment instead.
 - **Bot identity.** Two modes:
   - **Service-account mode** (e.g. YouTrack with a dedicated `claude` user): a comment is the bot's iff `login == "<bot-login>"`.
-  - **Shared-identity mode** (e.g. Jira where the bot posts as Elrond): no login distinction exists; a comment is the bot's iff its first line carries `[COUNSEL v…]` / `[PLAN v…]` (alias), `[PARLEY]` / `[AGENT-ASK]` (alias), `[PEDO]` / `[ANSWER]` (alias), `[VINYA]` / `[RENEWED]` (alias — the in-place-edit notice), or `[GWAITH]` / `[FORGED]` / `[SHIPPED]` (Celebrimbor's mark).
+  - **Shared-identity mode** (e.g. Jira where the bot posts as Elrond): no login distinction exists; a comment is the bot's iff its first line carries `[COUNSEL v…]` / `[PLAN v…]` (alias), `[PARLEY]` / `[AGENT-ASK]` (alias), `[PEDO]` / `[ANSWER]` (alias), `[VINYA]` / `[RENEWED]` (alias — the in-place-edit notice), `[DOOM]` / `[VERDICT]` (alias — Mandos's faithfulness verdict, loop-neutral), or `[GWAITH]` / `[FORGED]` / `[SHIPPED]` (Celebrimbor's mark).
 
   Detect mode by inspecting the comment thread: if any login carries the configured bot value (today: `claude`), use service-account mode; otherwise use shared-identity mode.
 
@@ -347,8 +347,9 @@ Nine tokens carry state. Everything else is counsel.
 | `[NAY]` | `[REJECT]` | Elrond | The plan is abandoned. Council adjourns. |
 | `[NAMARIE]` | `[FAREWELL]` | Elrond | *Farewell.* Adjourn without verdict — when the thread closes for reasons other than approval or rejection (resolved out-of-band, ticket subsumed by another, etc.). |
 | `[GWAITH]` | `[FORGED]`, `[SHIPPED]` | Celebrimbor | The Gwaith-i-Mírdain — the smith-guild of Eregion. The deed is wrought; PR/MR opened on the approved counsel. Body carries the URL and branch. Council itself never posts this; `/celebrimbor` does. |
+| `[DOOM]` | `[VERDICT]` | Mandos | *The Doom.* A verdict on whether the deed matches the decree — Covered / Missing / Scope-crept against the ticket's goal. Loop-neutral; uncounted toward the turn limit, never redrafts or approves. Council never posts it; `/mandos post` does. |
 
-The English aliases (`[PLAN vN]`, `[AGENT-ASK]`, `[ANSWER]`, `[RENEWED]`, `[FRIEND]`, `[ASK]`, `[ALTER]`, `[APPROVE]`, `[REJECT]`, `[FAREWELL]`, `[FORGED]`, `[SHIPPED]`) are accepted equivalents, recognized everywhere their Tolkien primaries are. Use either form; the parser treats them identically. User-facing reports prefer the Tolkien token.
+The English aliases (`[PLAN vN]`, `[AGENT-ASK]`, `[ANSWER]`, `[RENEWED]`, `[FRIEND]`, `[ASK]`, `[ALTER]`, `[APPROVE]`, `[REJECT]`, `[FAREWELL]`, `[FORGED]`, `[SHIPPED]`, `[VERDICT]`) are accepted equivalents, recognized everywhere their Tolkien primaries are. Use either form; the parser treats them identically. User-facing reports prefer the Tolkien token.
 
 Human replies between these tokens are free-form prose — read as a question and answered with `[PEDO]`, never folded into a redraft. Only `[ENVINYA]`/`[ALTER]` redraws the plan.
 

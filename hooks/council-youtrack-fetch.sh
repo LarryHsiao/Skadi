@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage: council-youtrack-fetch.sh <TICKET-ID>
-# Prints JSON: {summary, description, comments:[{author,login,text,created}]}
+# Prints JSON: {summary, description, comments:[{author,login,text,created}], parent:{id,summary,description}|null}
 # Resolves YOUTRACK_URL and YOUTRACK_TOKEN via secret.sh (vault first, env fallback).
 # On failure, prints {"error":"...","response":"..."} (server body included) and exits non-zero.
 #
@@ -48,7 +48,7 @@ fetch_to_file() {
   fi
 }
 
-if ! fetch_to_file "issue" "/api/issues/$TICKET_ID?fields=summary,description" "$issue_file"; then
+if ! fetch_to_file "issue" "/api/issues/$TICKET_ID?fields=summary,description,parent(issues(idReadable,summary,description))" "$issue_file"; then
   exit 1
 fi
 if ! fetch_to_file "comments" "/api/issues/$TICKET_ID/comments?fields=id,text,author(name,login),created,updated&\$top=200" "$comments_file"; then
@@ -68,5 +68,8 @@ jq -n \
       text: (.text // ""),
       created: (.created // 0),
       updated: (.updated // 0)
-    }))
+    })),
+    parent: (($issue.parent // {}) | .issues // [] | (if length > 0 then
+      { id: (.[0].idReadable // ""), summary: (.[0].summary // ""), description: (.[0].description // "") }
+      else null end))
   }'
