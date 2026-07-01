@@ -182,8 +182,9 @@ optional `subscribe` live-pickup mode.
 
 - `settings.json` → `PreToolUse` gains `~/.claude/hooks/protected-repo-guard.sh`
   as an additional hook on both the existing `Bash` matcher group and the
-  existing `Write|Edit|MultiEdit|NotebookEdit` matcher group.
-- `permissions.allow` gains `Bash(~/.claude/hooks/protected-repo-guard.sh:*)`.
+  existing `Write|Edit|MultiEdit|NotebookEdit` matcher group. No
+  `permissions.allow` entry needed — like `dir-guard.sh` and
+  `worktree-guard.sh`, it's harness-fired, not model-invoked.
 - `hooks/protected-repo-guard.sh` must run clean under macOS bash 3.2 (no
   `${var,,}`, `declare -A`, `mapfile`) — the same trap `dir-guard.sh` and
   `handoff.sh` already navigate around.
