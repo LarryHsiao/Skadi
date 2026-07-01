@@ -240,7 +240,7 @@ Mandos's verdict springs from a read-only subagent — the Doomsman himself — 
 
 ### Default (holistic) — one weigher, the whole decree
 
-Load the Doomsman's prompt from `<skill-dir>/mandos.md` (read the file contents). Dispatch a subagent via the Agent tool, `subagent_type: general-purpose`, `model: opus`, passing:
+Load the Doomsman's prompt from `<skill-dir>/mandos.md` (read the file contents). Dispatch a subagent via the Agent tool, `subagent_type: general-purpose`, passing:
 
 - The `mandos.md` prompt as the instruction portion of the Agent call's `prompt`.
 - A tail block carrying the decree and the diff:
@@ -270,7 +270,7 @@ The subagent reads only — it does not write, commit, or post. It returns the t
 When `--deep` is active, do not dispatch a single weigher over the whole decree. Instead:
 
 1. **Partition** the decree into its individual acceptance items.
-2. **Fan out.** Dispatch one read-only weigher subagent per acceptance item, in parallel — cap concurrent dispatches to a sane handful and queue the rest. Hand each agent **only its one item** as the decree and the **full diff**, charged to hunt the whole diff for evidence that this one item is met. Use the same `skills/mandos/mandos.md` prompt; only the tail block differs — the decree carries a single item, the diff is the full diff unchanged.
+2. **Fan out.** Dispatch one read-only weigher subagent (`general-purpose`, `model: opus`) per acceptance item, in parallel — cap concurrent dispatches to a sane handful and queue the rest. Hand each agent **only its one item** as the decree and the **full diff**, charged to hunt the whole diff for evidence that this one item is met. Use the same `skills/mandos/mandos.md` prompt; only the tail block differs — the decree carries a single item, the diff is the full diff unchanged.
 3. **Aggregate.** Collect every per-item verdict into the three buckets. All items returned Covered (with their `file:line` evidence) form the Covered section; all items returned Missing (with their severities) form the Missing section.
 4. **Scope-crept pass.** After all per-item weighers have returned, dispatch **one final read-only weigher subagent** (same `skills/mandos/mandos.md` prompt, `general-purpose`, `model: opus`), handed the full decree and the full diff, charged ONLY to name changes that no acceptance item asked for as Scope-crept (with severities). The skill body aggregates its result; it does not itself judge scope-crept.
 5. **Render** per the Render section below, with the deep-mode tail-line added under the blockquote header: *"Deep mode — N criteria weighed each on its own."*
