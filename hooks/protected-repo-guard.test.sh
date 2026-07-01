@@ -98,6 +98,37 @@ check "malformed line (no arrow) skipped" "" "$(decision "$out")"
 out=$(notebook_payload "$PROTECTED/notebook.ipynb" | CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
 check "notebook_path cross-repo denied" '"permissionDecision":"deny"' "$(decision "$out")"
 
+# 11. Bash command with a bare-relative path (no ./ or ../ prefix at all),
+#     cwd is the protected repo's parent — the tokenizer's absolute-path
+#     check misses this token entirely (no leading /), and pre-fix the
+#     ../-only branch missed it too (no ".." substring). Only the unified
+#     relative-resolution branch can catch it.
+out=$(cd "$TMP" && bash_payload "cat $(basename "$PROTECTED")/CLAUDE.md" | CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "bare-relative descendant bash denied" '"permissionDecision":"deny"' "$(decision "$out")"
+
+# 12. Bash command with a ./-relative path, same cwd — denied.
+out=$(cd "$TMP" && bash_payload "cat ./$(basename "$PROTECTED")/CLAUDE.md" | CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "./-relative descendant bash denied" '"permissionDecision":"deny"' "$(decision "$out")"
+
+# 13. Bash command with a literal-tilde path (~/protected-repo/CLAUDE.md) —
+#     denied. HOME is overridden to $TMP for just this invocation so ~
+#     expands to a path the test controls (not the real $HOME), landing on
+#     the same $PROTECTED path already registered in the list file. Pre-fix,
+#     the tokenizer's `~*` case arm skipped any tilde-leading token outright
+#     before it could ever be checked.
+out=$(bash_payload "cat ~/$(basename "$PROTECTED")/CLAUDE.md" | HOME="$TMP" CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "literal-tilde path bash denied" '"permissionDecision":"deny"' "$(decision "$out")"
+
+# 14. protected_repos.md line with an arrow but an empty channel (nothing
+#     after the →) — pre-fix, `[ -z "$repo" ] && continue` only checked
+#     repo, so the line still matched and denied with a garbled
+#     `/handoff send  <your change>` (double space, no channel). Fixed: the
+#     line is skipped outright — fails open, not closed-with-garbage.
+EMPTY_CHAN_LIST="$TMP/protected_repos_emptychan.md"
+printf -- '- %s \xe2\x86\x92\n' "$PROTECTED" > "$EMPTY_CHAN_LIST"
+out=$(edit_payload "$PROTECTED/CLAUDE.md" | PROTECTED_REPOS_FILE="$EMPTY_CHAN_LIST" CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "empty-channel line skipped" "" "$(decision "$out")"
+
 if [ "$fail" -eq 0 ]; then
   echo "--- all green ---"
 else

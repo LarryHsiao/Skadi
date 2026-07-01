@@ -55,7 +55,7 @@ while IFS= read -r line; do
   chan="${line#*→}"
   repo="$(printf '%s' "$repo" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
   chan="$(printf '%s' "$chan" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-  [ -z "$repo" ] && continue
+  [ -z "$repo" ] || [ -z "$chan" ] && continue
   REPOS+=("$(normalize "$repo")")
   CHANNELS+=("$chan")
 done < "$LIST"
@@ -104,15 +104,28 @@ PYEOF
 )
   while IFS= read -r TOKEN; do
     case "$TOKEN" in
-      ~*|--*|-*|"") continue ;;
+      --*|-*|"") continue ;;
+    esac
+    # Expand a literal leading ~ (not ~user/... forms, which stay
+    # unhandled and skipped) the same narrow way dir-guard.sh's own
+    # DEV_DIRS parsing does.
+    case "$TOKEN" in
+      "~"|"~/"*) TOKEN="${TOKEN/#\~/$HOME}" ;;
+      "~"*) continue ;;
     esac
     if [[ "$TOKEN" =~ ^/[a-zA-Z] ]] || [[ "$TOKEN" =~ ^[A-Za-z]:\\ ]]; then
       check_path "$TOKEN"
-    fi
-    # Relative paths with ../ escape the tokenizer's absolute-path check
-    # above (e.g. `cat ../protected-repo/CLAUDE.md`) — resolve against the
-    # invoking shell's actual cwd and check the result too.
-    if [[ "$TOKEN" =~ \.\. ]]; then
+    else
+      # Bare-relative, ./-relative, and ../-relative tokens all escape the
+      # absolute-path check above (e.g. `cat skadi/CLAUDE.md`,
+      # `cat ./skadi/CLAUDE.md`, `cat ../protected-repo/CLAUDE.md`) when a
+      # protected repo is reachable as a descendant of the invoking shell's
+      # actual cwd, expressed without a leading `/`. Resolve against CWD
+      # (the invoking shell's actual cwd) and check the rejoined result too.
+      # Known limitation: if an intermediate directory in the resolved path
+      # doesn't exist yet on disk, cd fails and the token is silently
+      # skipped -- dir-guard.sh's equivalent check carries the same
+      # limitation, unaddressed there too.
       RESOLVED_DIR=$(cd "$CWD" 2>/dev/null && cd "$(dirname "$TOKEN")" 2>/dev/null && pwd)
       if [ -n "$RESOLVED_DIR" ]; then
         check_path "$RESOLVED_DIR/$(basename "$TOKEN")"
