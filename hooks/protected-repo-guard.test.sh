@@ -129,6 +129,30 @@ printf -- '- %s \xe2\x86\x92\n' "$PROTECTED" > "$EMPTY_CHAN_LIST"
 out=$(edit_payload "$PROTECTED/CLAUDE.md" | PROTECTED_REPOS_FILE="$EMPTY_CHAN_LIST" CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
 check "empty-channel line skipped" "" "$(decision "$out")"
 
+# 15. No-space redirect glued to its target (echo x >../protected-repo/f.md)
+#     -- shlex tokenizes ">../protected-repo/f.md" as a single token. Without
+#     the redirect-strip, dirname on the glued string isn't a real directory,
+#     resolution silently aborts, and the write goes through unchecked.
+out=$(cd "$OUTSIDE" && bash_payload "echo x >../$(basename "$PROTECTED")/f.md" | CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "no-space redirect bash denied" '"permissionDecision":"deny"' "$(decision "$out")"
+
+# 16. No-space append redirect (echo x >>../protected-repo/f.md) -- same
+#     glued-token failure mode as #15, with the two-char >> operator.
+out=$(cd "$OUTSIDE" && bash_payload "echo x >>../$(basename "$PROTECTED")/f.md" | CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "no-space append-redirect bash denied" '"permissionDecision":"deny"' "$(decision "$out")"
+
+# 17. Glued key=value path argument (dd of=../protected-repo/f.md) -- no
+#     space between the key and its value, so dirname on the glued string
+#     isn't a real directory unless the key=value prefix is stripped first.
+out=$(cd "$OUTSIDE" && bash_payload "dd of=../$(basename "$PROTECTED")/f.md" | CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "glued key=value bash denied" '"permissionDecision":"deny"' "$(decision "$out")"
+
+# 18. Glued --flag=value path argument (cp x --target-directory=../protected-repo)
+#     -- pre-fix, the flag-skip case arm (--*|-*) discarded this token
+#     outright before its value could ever be examined.
+out=$(cd "$OUTSIDE" && bash_payload "cp x --target-directory=../$(basename "$PROTECTED")" | CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "glued --flag=value bash denied" '"permissionDecision":"deny"' "$(decision "$out")"
+
 if [ "$fail" -eq 0 ]; then
   echo "--- all green ---"
 else

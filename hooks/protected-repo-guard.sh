@@ -103,6 +103,24 @@ except ValueError:
 PYEOF
 )
   while IFS= read -r TOKEN; do
+    # Strip a leading redirection operator (>, >>, <, <<, or an fd-prefixed
+    # form like 2>, 2>>) glued to its target with no space -- e.g.
+    # `echo x >../protected-repo/f.md` tokenizes via shlex as one token.
+    # Without this, dirname on the glued string isn't a real directory and
+    # resolution silently aborts, letting the write through unchecked. The
+    # space-separated form (`echo x > ../protected-repo/f.md`) already
+    # falls through to the classification below unchanged.
+    if [[ "$TOKEN" =~ ^[0-9]*(\>{1,2}|\<{1,2}) ]]; then
+      TOKEN="${TOKEN:${#BASH_REMATCH[0]}}"
+    fi
+    # Strip a leading `key=` or `--flag=`/`-f=` prefix glued to its path
+    # value with no space -- e.g. `dd of=../protected-repo/f.md` or
+    # `cp x --target-directory=../protected-repo`. Must run before the
+    # flag-skip case arm below, or `--target-directory=...` gets skipped
+    # outright as "just a flag" before its value is ever examined.
+    if [[ "$TOKEN" =~ ^-{0,2}[A-Za-z_][A-Za-z0-9_.-]*= ]]; then
+      TOKEN="${TOKEN:${#BASH_REMATCH[0]}}"
+    fi
     case "$TOKEN" in
       --*|-*|"") continue ;;
     esac
@@ -122,10 +140,20 @@ PYEOF
       # protected repo is reachable as a descendant of the invoking shell's
       # actual cwd, expressed without a leading `/`. Resolve against CWD
       # (the invoking shell's actual cwd) and check the rejoined result too.
-      # Known limitation: if an intermediate directory in the resolved path
-      # doesn't exist yet on disk, cd fails and the token is silently
-      # skipped -- dir-guard.sh's equivalent check carries the same
-      # limitation, unaddressed there too.
+      # Known, accepted limitations (deliberately not chased further):
+      # 1. If an intermediate directory in the resolved path doesn't exist
+      #    yet on disk, cd fails and the token is silently skipped --
+      #    dir-guard.sh's equivalent check carries the same limitation,
+      #    unaddressed there too.
+      # 2. A symlinked intermediate directory in a relative path (not CWD
+      #    or PROJECT_DIR themselves, which are already handled correctly
+      #    via logical pwd -- a symlink *between* cwd and the protected
+      #    repo) can resolve to the symlink's own location rather than its
+      #    target, missing a match. Contrived: needs a pre-existing symlink
+      #    aimed into the protected tree.
+      # 3. `~otheruser/...` forms stay unhandled (see the tilde-expand case
+      #    arm above) -- only a literal leading `~` or `~/` is expanded,
+      #    matching dir-guard.sh's own existing convention.
       RESOLVED_DIR=$(cd "$CWD" 2>/dev/null && cd "$(dirname "$TOKEN")" 2>/dev/null && pwd)
       if [ -n "$RESOLVED_DIR" ]; then
         check_path "$RESOLVED_DIR/$(basename "$TOKEN")"
