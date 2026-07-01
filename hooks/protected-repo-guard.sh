@@ -37,11 +37,20 @@ RAW_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 PROJECT_DIR=$(cd "$RAW_PROJECT_DIR" 2>/dev/null && pwd || echo "$RAW_PROJECT_DIR")
 PROJECT_DIR=$(normalize "$PROJECT_DIR")
 
+# Raw invoking-shell cwd (not CLAUDE_PROJECT_DIR — a session may have cd'd
+# within its own project). Same logical-pwd reasoning as PROJECT_DIR above:
+# plain pwd, no -P, to stay in the same unresolved namespace as REPOS.
+CWD=$(cd "$PWD" 2>/dev/null && pwd || echo "$PWD")
+
 REPOS=()
 CHANNELS=()
 while IFS= read -r line; do
   line="${line#- }"
   [ -z "$line" ] && continue
+  case "$line" in
+    *"→"*) ;;
+    *) continue ;;
+  esac
   repo="${line%%→*}"
   chan="${line#*→}"
   repo="$(printf '%s' "$repo" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
@@ -99,6 +108,15 @@ PYEOF
     esac
     if [[ "$TOKEN" =~ ^/[a-zA-Z] ]] || [[ "$TOKEN" =~ ^[A-Za-z]:\\ ]]; then
       check_path "$TOKEN"
+    fi
+    # Relative paths with ../ escape the tokenizer's absolute-path check
+    # above (e.g. `cat ../protected-repo/CLAUDE.md`) — resolve against the
+    # invoking shell's actual cwd and check the result too.
+    if [[ "$TOKEN" =~ \.\. ]]; then
+      RESOLVED_DIR=$(cd "$CWD" 2>/dev/null && cd "$(dirname "$TOKEN")" 2>/dev/null && pwd)
+      if [ -n "$RESOLVED_DIR" ]; then
+        check_path "$RESOLVED_DIR/$(basename "$TOKEN")"
+      fi
     fi
   done <<< "$TOKENS"
 fi

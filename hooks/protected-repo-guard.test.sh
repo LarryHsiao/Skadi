@@ -39,6 +39,10 @@ bash_payload() {
   printf '{"tool_input":{"command":"%s"}}' "$1"
 }
 
+notebook_payload() {
+  printf '{"tool_input":{"notebook_path":"%s"}}' "$1"
+}
+
 decision() {
   printf '%s' "$1" | grep -o '"permissionDecision":"[a-z]*"' | head -1
 }
@@ -71,6 +75,28 @@ check "missing list fails open" "" "$(decision "$out")"
 # 7. Session rooted in a nested subdirectory of the protected repo — self-edit allowed.
 out=$(edit_payload "$PROTECTED/sub/deep.md" | CLAUDE_PROJECT_DIR="$PROTECTED/sub" "$HOOK")
 check "nested self-edit allowed" "" "$(decision "$out")"
+
+# 8. Bash command with a relative ../ path, session's actual shell cwd
+#    (not just CLAUDE_PROJECT_DIR) sitting outside the protected repo —
+#    the tokenizer's absolute-path regex misses this token entirely, so
+#    only the ../ resolution branch can catch it.
+out=$(cd "$OUTSIDE" && bash_payload "cat ../$(basename "$PROTECTED")/CLAUDE.md" | CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "relative ../ path bash denied" '"permissionDecision":"deny"' "$(decision "$out")"
+
+# 9. protected_repos.md line with no → separator at all (bare path, no
+#    channel) — pre-fix, ${line%%→*} and ${line#*→} both return the whole
+#    line unchanged, so repo == chan == the path, and the line matches and
+#    denies with a garbled `/handoff send <path> ...` channel. Fixed: the
+#    line is skipped outright — fails open, not closed-with-garbage.
+MALFORMED_LIST="$TMP/protected_repos_malformed.md"
+printf -- '- %s\n' "$PROTECTED" > "$MALFORMED_LIST"
+out=$(edit_payload "$PROTECTED/CLAUDE.md" | PROTECTED_REPOS_FILE="$MALFORMED_LIST" CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "malformed line (no arrow) skipped" "" "$(decision "$out")"
+
+# 10. notebook_path (not file_path) inside the protected repo, session
+#     rooted outside — denied.
+out=$(notebook_payload "$PROTECTED/notebook.ipynb" | CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "notebook_path cross-repo denied" '"permissionDecision":"deny"' "$(decision "$out")"
 
 if [ "$fail" -eq 0 ]; then
   echo "--- all green ---"

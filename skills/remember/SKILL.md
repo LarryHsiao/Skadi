@@ -32,7 +32,7 @@ does not, tell the user plainly and stop — do not write the note into the cwd.
 **Then check the session's own root against it:**
 
 ```bash
-SESSION_ROOT=$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" 2>/dev/null && pwd -P)
+SESSION_ROOT=$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" 2>/dev/null && pwd)
 ```
 
 - **If `$SESSION_ROOT` is `$MINERVA_ROOT` or nested under it** — proceed with Steps
