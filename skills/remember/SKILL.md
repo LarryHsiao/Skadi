@@ -17,10 +17,9 @@ root resolved in Step 0 — never the cwd.
 
 ## Workflow
 
-### Step 0: Resolve the Minerva root
+### Step 0: Resolve the Minerva root, and check whether this session is rooted there
 
-Before anything else, resolve the absolute path to the Minerva repo and use it for
-every file and git operation in the steps that follow:
+Before anything else, resolve the absolute path to the Minerva repo:
 
 ```bash
 MINERVA_ROOT="${MINERVA_ROOT:-$HOME/phantom/Minerva}"
@@ -30,9 +29,48 @@ The `MINERVA_ROOT` env var is the override; the `~/phantom/Minerva` fallback is 
 default when it is unset. Confirm the path exists (`test -d "$MINERVA_ROOT"`); if it
 does not, tell the user plainly and stop — do not write the note into the cwd.
 
+**Then check the session's own root against it:**
+
+```bash
+SESSION_ROOT=$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" 2>/dev/null && pwd -P)
+```
+
+- **If `$SESSION_ROOT` is `$MINERVA_ROOT` or nested under it** — proceed with Steps
+  1–5 below exactly as written; every file and git operation targets `$MINERVA_ROOT`.
+- **Otherwise** — this session is rooted outside Minerva, and a direct write would
+  be blocked by `protected-repo-guard.sh` anyway. Skip straight to **Step 0b**
+  below instead of Steps 1, 4, and 5.
+
 All paths named below (`work/…`, `personal/…`) are **relative to `$MINERVA_ROOT`**.
 Read, write, and commit against the absolute path; never against the working
 directory the session happens to sit in.
+
+### Step 0b: Redirect through /handoff (only when outside Minerva)
+
+Still run **Step 2 (category)** and **Step 3 (sub-category)** below to shape the
+note correctly — that judgment doesn't need Minerva's tree, only the user's input.
+Skip **Step 1** (duplicate check — it greps the live Minerva tree, unreachable from
+here) and **Steps 4–5** (the direct write/commit/push).
+
+Compose the note body exactly as Step 4 describes (title, company blockquote if
+under `work/`, content, date line) but prefix it with the intended path as a
+heading, so the receiving session knows where to file it:
+
+```markdown
+# Intended path: <category>/<sub-folder>/<filename>.md
+
+<the note content, per Step 4>
+```
+
+Send it:
+
+```bash
+printf '%s' "<composed note>" | ~/.claude/hooks/handoff.sh send minerva
+```
+
+Tell the user plainly: *"Not rooted in Minerva — queued this note on the `minerva`
+handoff channel instead of writing directly. Open a Minerva session and run
+`/handoff read minerva` to file it."* Do not proceed to Steps 4–5.
 
 ### Step 1: Check for Duplicates
 
