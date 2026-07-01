@@ -183,6 +183,11 @@
           },
           {
             "type": "command",
+            "command": "~/.claude/hooks/protected-repo-guard.sh",
+            "statusMessage": "Checking protected repos..."
+          },
+          {
+            "type": "command",
             "command": "~/.claude/hooks/pre-commit-guard.sh"
           }
         ]
@@ -194,6 +199,11 @@
             "type": "command",
             "command": "~/.claude/hooks/worktree-guard.sh",
             "statusMessage": "Checking worktree..."
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/protected-repo-guard.sh",
+            "statusMessage": "Checking protected repos..."
           }
         ]
       }
