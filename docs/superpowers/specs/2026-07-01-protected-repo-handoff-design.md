@@ -168,10 +168,12 @@ optional `subscribe` live-pickup mode.
   the whole point. The guard only fires for *other* sessions.
 - **`CLAUDE_DEV_DIRS` lists a protected repo** — still blocked. No escape
   hatch, per the explicit design choice above.
-- **Nested/nonexistent target paths** (a `Write` to a not-yet-existing file
-  under skadi) — path resolution walks up to the nearest existing ancestor
-  directory before comparing, same approach `worktree-guard.sh` already
-  takes for new files.
+- **Nonexistent target paths** (a `Write` to a not-yet-existing file under
+  skadi) — comparison is a normalized string-prefix check against each
+  protected repo's known root, not a `git`/`cd`-based resolution, so it needs
+  no existing file or directory on disk. This is simpler than
+  `worktree-guard.sh`'s ancestor-walk, which exists only because *that* hook
+  resolves git toplevels.
 - **Nested repo relationships between protected entries** — not a real
   scenario here (skadi and Minerva are unrelated sibling trees); not
   specially handled.
