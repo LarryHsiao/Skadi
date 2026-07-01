@@ -37,24 +37,30 @@ a concrete next step instead of a dead end.
 
 ### `protected_repos.md` — the list
 
-A new auto-memory file (same shape as `mend_repos.md`), one line per
-protected repo: absolute root path → handoff channel name. Pre-seeded with
-the two repos that motivated this design:
+**Not** an auto-memory file. Auto-memory is scoped per *project directory*
+(`~/.claude-personal/projects/-Users-larryhsiao-<project>/memory/`) — a hook
+firing in a session rooted in some other project would never see a memory
+file that only exists under skadi's own project-memory folder. `/moria`
+already hit this exact problem for `mend_repos.md` and solved it the same
+way: a **global store outside any per-project memory dir**, so the file reads
+identically "from whatever directory you summon" it.
 
-```markdown
----
-name: protected-repos
-description: Repos that block direct edits from other sessions; route changes through /handoff instead. Read by protected-repo-guard.sh and the /remember skill.
-metadata:
-  type: reference
----
+Plain flat file at `~/.skadi/protected_repos.md` — one line per protected
+repo, absolute root path → handoff channel name:
 
+```
 - /Users/larryhsiao/skadi → skadi
 - /Users/larryhsiao/phantom/Minerva → minerva
 ```
 
-The list is deliberately generic — adding a third protected repo later is a
-one-line memory edit, not a hook change.
+No frontmatter (the hook parses it with shell tools, not the memory system);
+same bare list-line shape `mend_repos.md` uses. The list is deliberately
+generic — adding a third protected repo later is a one-line file edit, not a
+hook change. Lives under `~/.skadi/`, so — like `~/.skadi/handoff/` and
+`~/.skadi/moria/` — it is **never touched by `/install`** (it's runtime
+config, not propagated skadi source) and is visible to every session
+regardless of profile (`~/.claude`, `~/.claude-personal`, `~/.claude-work`)
+or working directory.
 
 ### `hooks/protected-repo-guard.sh` — the guard
 
@@ -64,9 +70,9 @@ and `worktree-guard.sh`, each keeping its one existing concern.
 
 Logic:
 
-1. Read `protected_repos.md`. If missing or unparseable, exit 0 (fail open —
-   a broken memory file must never silently break unrelated sessions' normal
-   edits elsewhere).
+1. Read `~/.skadi/protected_repos.md`. If missing or unparseable, exit 0
+   (fail open — a broken list file must never silently break unrelated
+   sessions' normal edits elsewhere).
 2. Resolve the session's own project root (`$CLAUDE_PROJECT_DIR`, normalized
    the same way `dir-guard.sh` already normalizes paths — lowercase, forward
    slashes, Windows-drive handling — so the two hooks agree on equivalence).
@@ -155,9 +161,9 @@ optional `subscribe` live-pickup mode.
 
 ## Edge cases
 
-- **Missing/malformed `protected_repos.md`** — hook exits 0, no protection.
-  Fail-open: a broken memory file must not become a silent, hard-to-diagnose
-  block on unrelated work.
+- **Missing/malformed `~/.skadi/protected_repos.md`** — hook exits 0, no
+  protection. Fail-open: a broken list file must not become a silent,
+  hard-to-diagnose block on unrelated work.
 - **Session already rooted in the protected repo** — never blocked; this is
   the whole point. The guard only fires for *other* sessions.
 - **`CLAUDE_DEV_DIRS` lists a protected repo** — still blocked. No escape
@@ -179,8 +185,10 @@ optional `subscribe` live-pickup mode.
 - `hooks/protected-repo-guard.sh` must run clean under macOS bash 3.2 (no
   `${var,,}`, `declare -A`, `mapfile`) — the same trap `dir-guard.sh` and
   `handoff.sh` already navigate around.
-- New memory file `protected_repos.md` lands via the normal auto-memory path
-  (not `/install` — memory is per-profile, outside skadi's own propagation).
+- `~/.skadi/protected_repos.md` is created once by hand (or by a first-run
+  bootstrap in the hook, mirroring how `handoff.sh` lazily creates its own
+  channel folders) — **not** propagated by `/install`, same as
+  `~/.skadi/handoff/` and `~/.skadi/moria/mend_repos.md`.
 - Propagate the hook + `/remember` skill change with `/install`.
 
 ## Acceptance
