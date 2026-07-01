@@ -246,6 +246,7 @@ Always loaded:
 
 - General: @docs/style/general.md
 - OO: @docs/style/oo.md
+- Universal: @docs/style/universal.md
 
 Read when the project calls for it (not auto-loaded; reach for them when the language is in play):
 
