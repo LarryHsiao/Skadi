@@ -1,6 +1,6 @@
 ---
 name: triage
-description: Use when the user runs /triage [hours] [account]. Pulls unread Outlook inbox mail from the last N hours (default 24), separates the few items worth attention from routine noise, and renders a tight two-tier summary. Multi-account aware via the `outlook_accounts.md` memory map.
+description: Use when the user runs /triage [hours] [account]. Pulls unread Outlook inbox mail from the last N hours (default 24) through the read-only Microsoft 365 claude.ai connector, separates the few items worth attention from routine noise, and renders a tight two-tier summary. Mark-read and move-to-folder run on the Graph write hooks (the connector cannot mutate mail). Multi-account aware via the `outlook_accounts.md` memory map.
 user_invocable: true
 ---
 
@@ -18,21 +18,15 @@ Cuts unread mail down to the few items that deserve a human eye. Everything else
 
 ### 1. Fetch unread mail
 
-**Resolve the account first.** Read `outlook_accounts.md` from project memory — it carries a table of `name → bitwarden item` entries with one marked default. Resolution:
+Mail is read through the **Microsoft 365 claude.ai connector**, not the Graph device-code hook. The connector authenticates itself against whichever Microsoft account was connected at claude.ai → Settings → Connectors for this session; there is no Bitwarden read token to resolve. The connector is **read-only** — it fetches here, but every mutation in step 4 still rides the Graph write hooks.
 
-- If the user passed an `account` arg, look it up in the memory table to find its Bitwarden item.
-- Else use the entry marked `default`.
-- If the memory file is missing or empty, fall back to the legacy single-account flow — invoke the fetch hook with no extra args.
+**Locate the connector's search tool.** It surfaces as `mcp__claude_ai_Microsoft_365__outlook_email_search` — a deferred tool, so load its schema first with ToolSearch (`select:mcp__claude_ai_Microsoft_365__outlook_email_search`, or search `outlook email` if the exact name differs on this account). If no Microsoft 365 mail tool is present in the session, the connector is not connected — tell the user to enable it at claude.ai → Settings → Connectors and stop. Do **not** fall back to `outlook-fetch.sh`.
 
-Hold both names in working memory for the rest of the run: `<account>` (friendly name, used for state paths) and `<bw-item>` (Bitwarden item, passed to hooks).
+**Resolve the account for state and writes only.** Read `outlook_accounts.md` from project memory — a table of `name → bitwarden item` entries with one marked default. The `account` arg (or the `default` entry) selects the classify/state namespace `<account>` and the Bitwarden item `<bw-item>` used **only** by the write offers in step 4; the connector — not this item — drives the fetch. With no memory file, use the legacy flat state path and the bare `outlook` item. The chosen account must be the same mailbox the session's connector is bound to: reads come from the connected mailbox, writes target `<bw-item>`, and if they differ the two point at different inboxes.
 
-```bash
-~/.claude/hooks/outlook-fetch.sh <hours> <account> <bw-item>
-```
+**Fetch.** Call `outlook_email_search` for inbox messages received within the last `<hours>` hours. Apply an unread filter if the tool exposes one; otherwise fetch the window and keep only unread using whatever read/unread field the tool returns. Each message should carry at least `subject`, sender name/address, and `receivedDateTime`; `id`, `importance`, `bodyPreview`, and `webLink` may or may not be present — the connector's field set is undocumented. Map what is present and degrade gracefully where a field is absent: a missing `importance` never trips the high-importance rule, a missing `webLink` drops the open-link offer, a missing Graph `id` disables the write offers (see step 4).
 
-Returns a Microsoft Graph JSON envelope with `value: [...]` of message objects. Each object carries `id`, `subject`, `from.emailAddress.{name,address}`, `receivedDateTime`, `bodyPreview`, `importance`, `webLink`.
-
-If the hook fails (no token, vault locked, network), surface the stderr line plainly and stop. Do not attempt to retry the device-code dance silently.
+Fetch once. If the tool errors (not connected, scope denied, throttled), surface the message plainly and stop. Do not retry silently.
 
 ### 2. Classify each message
 
@@ -99,7 +93,7 @@ Triage — inbox is quiet (last <hours>h).
 
 After the report, render up to two offers — one per pending action, on its own line.
 
-**Worth a look offer** (when M > 0): name the most important item, paste its `webLink` on its own line, then ask `open · demote (subject) · demote (sender) · skip?`. One verb per yes.
+**Worth a look offer** (when M > 0): name the most important item, paste its `webLink` on its own line, then ask `open · demote (subject) · demote (sender) · skip?`. One verb per yes. When the connector did not surface a `webLink`, omit the link line and the `open` verb — the demote/skip verbs still stand.
 
 All state paths below resolve per-account when an account was resolved from memory: `~/.skadi/outlook/<account>/...`. With no memory file, fall back to the legacy flat path `~/.skadi/outlook/...`. Hook calls receive `<account> <bw-item>` as their trailing args (or no args for the legacy path).
 
@@ -108,7 +102,7 @@ All state paths below resolve per-account when an account was resolved from memo
 - **demote (sender)** — append `{"from": "<sender>"}` (no subject) to `demote_to_routine`. All future mail from this sender classifies as Routine.
 - **skip** — do nothing.
 
-**Routine offer** (when N - M > 0): ask `mark read · move to folders · skip?`. One verb per yes; to do both, two yeses.
+**Routine offer** (when N - M > 0): both `mark read` and `move to folders` act through the Graph write hooks, which target each message by its Graph `id`. The connector is read-only and its `id` field is undocumented — so this offer stands only when `outlook_email_search` returned a usable Graph message `id` for the routine batch. If it did not, skip the write offer with a one-line note: `(mark-read / move unavailable — connector surfaced no Graph message id)`. Otherwise ask `mark read · move to folders · skip?`. One verb per yes; to do both, two yeses.
 
 - **mark read** — pipe each routine message's `id` to `~/.claude/hooks/outlook-mark-read.sh <account> <bw-item>`, one per line. The hook prints `read: <id>` per success and `failed: <id> <code>` on stderr per failure. Render a one-line tally of marked vs failed.
 - **move to folders** — for each sub-category present in the Routine batch:
@@ -143,11 +137,11 @@ mv "$HOME/.skadi/outlook/classify.json"  "$HOME/.skadi/outlook/$DEFAULT/" 2>/dev
 mv "$HOME/.skadi/outlook/folders.json"   "$HOME/.skadi/outlook/$DEFAULT/" 2>/dev/null
 ```
 
-After the move, `/triage` reads state from the per-account path. New accounts (e.g. `work`) sign in afresh on first invocation; their state is born under `~/.skadi/outlook/<account>/`.
+After the move, `/triage` reads state from the per-account path. Reads for a new account (e.g. `work`) come through the connector and need no sign-in; the Graph device-code dance fires only on that account's first write action (mark-read, move, or folder-create). Either way, the account's state is born under `~/.skadi/outlook/<account>/`.
 
 ## Rules
 
 - Never reveal the body content of a message in the report — the subject and sender are enough. The user can open the `webLink` if curious.
 - Never bulk-archive or mark-as-read on the user's behalf without an explicit yes for that batch.
-- Do not call `outlook-fetch.sh` more than once per invocation — one fetch, one report.
+- Fetch once through the connector's `outlook_email_search` — one fetch, one report. `outlook-fetch.sh` is retired from this path; the connector reads, the Graph write hooks mutate.
 - If `hours` is non-numeric or absent, default to `24` without prompting.
