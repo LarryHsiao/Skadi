@@ -29,9 +29,11 @@ def _token(text):
     if not body:
         return ""
     head = body.splitlines()[0].strip().upper()
-    for tok in ("[PLAN]", "[SKELETON]", "[GWAITH]", "[METTA]"):
+    for tok in ("[PLAN]", "[SKELETON]", "[GWAITH]", "[FORGED]", "[SHIPPED]", "[METTA]"):
         if head.startswith(tok):
-            return tok
+            # [FORGED]/[SHIPPED] are council's registered aliases for [GWAITH];
+            # normalize so the rest of the decider only ever matches the primary.
+            return "[GWAITH]" if tok in ("[FORGED]", "[SHIPPED]") else tok
     return ""
 
 

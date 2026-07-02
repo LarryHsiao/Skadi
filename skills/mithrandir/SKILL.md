@@ -61,7 +61,7 @@ What stays the same in both modes:
 - The verdict tier labels (`sound`, `wavering`, `off`) — already plain English.
 - The gauge glyphs (`▰▱▱`, `▰▰▱`, `▰▰▰`) — visual, not lore.
 
-The four-axis structure is the substance of the skill; only the *voice* shifts.
+The axis structure is the substance of the skill; only the *voice* shifts.
 
 ## Deep mode (`--deep`) — per-file fan-out
 
@@ -74,8 +74,8 @@ The default weighing reads the whole diff in one pass and renders one holistic v
 After the diff is captured (branch step 3, read step 3):
 
 1. **Partition** the captured diff into its changed files. Keep hand-written source; drop generated and low-signal files — `*.g.dart`, `*.freezed.dart`, anything under a `generated/` path, `messages_*.dart`, lockfiles, and other build output. If nothing hand-written remains, fall back to the holistic weigh (step 4) and note it in the brief.
-2. **Fan out.** Dispatch one read-only subagent (`general-purpose`, `model: opus`) per kept file, in parallel — cap the concurrent count to a sane handful and queue the rest. Hand each agent **only its own file's hunks**, the per-symbol close-pass patterns (step 4's close pass), and the axis definitions. Brief it to read that one file as if it were the whole review: name every symbol the change adds or alters, hunt the high-signal patterns, and return per-file findings — each with a `path:line`, a one-line description, and a severity (Blocker / Nice to have / Nit) — plus a one-line per-file verdict. The agent reads only; it does not edit, commit, or post.
-3. **Aggregate.** Collect every agent's findings. Fold them into the axis verdicts — a Blocker in any file pulls its axis to `off`, a Nice-to-have to `wavering` — and into the `## To pass` section, grouped by severity across all files. The overall tier aggregates as before: the highest concern among the rendered axes.
+2. **Fan out.** Dispatch one read-only subagent (`general-purpose`, `model: opus`) per kept file, in parallel — cap the concurrent count to a sane handful and queue the rest. Hand each agent **only its own file's hunks**, the per-symbol close-pass patterns (step 4's close pass), and the axis definitions. Brief it to read that one file as if it were the whole review: name every symbol the change adds or alters, hunt the high-signal patterns, and return per-file findings — each with a `path:line`, a one-line description, a severity (Blocker / Nice to have / Nit), and the axis it wounds (one of the twelve axis names above). No per-file verdict — the tier is aggregated once across all files' findings, never declared per file. The agent reads only; it does not edit, commit, or post.
+3. **Aggregate.** Collect every agent's findings. Fold each, by its tagged axis, into that axis's verdict — a Blocker in any file pulls its axis to `off`, a Nice-to-have to `wavering` — and into the `## To pass` section, grouped by severity across all files. The overall tier aggregates as before: the highest concern among the rendered axes.
 
 ### Render delta
 
@@ -133,7 +133,7 @@ If the diff is empty, stop with: *"Nothing to review — the branch stands even 
 
 ### 4. Build synthetic metadata
 
-The four-axis weighing wants a metadata triple. Compose it from local git:
+The axis weighing wants a metadata block. Compose it from local git:
 
 | Field | Source |
 |---|---|
@@ -147,7 +147,7 @@ The four-axis weighing wants a metadata triple. Compose it from local git:
 
 ### 5. Weigh and render
 
-Run **steps 4 and 5 of the read-path** verbatim — the four-axis weighing and the brief render. The branch-path uses the same render shape; only the diff source differs.
+Run **steps 4 and 5 of the read-path** verbatim — the axis weighing and the brief render. The branch-path uses the same render shape; only the diff source differs.
 
 The `comment` verb is **not available** on the branch-path. There is no PR to comment on — the verdict renders to chat alone. If the user wants a public verdict, they must open a PR/MR first and run `/mithrandir comment <url>` against it.
 
@@ -417,7 +417,7 @@ No further hooks run, no forge write.
 
 ### 3. Re-weigh
 
-Run the read-path workflow steps 2–4 verbatim — fetch metadata, fetch diff, weigh the four axes. The diff is the new diff; the modified file list is the new file list. The prior verdict's body is **not** read or compared; the work is judged as it now stands. The signature match in step 2 only fixes the anchor — the verdict is fresh.
+Run the read-path workflow steps 2–4 verbatim — fetch metadata, fetch diff, weigh the axes. The diff is the new diff; the modified file list is the new file list. The prior verdict's body is **not** read or compared; the work is judged as it now stands. The signature match in step 2 only fixes the anchor — the verdict is fresh.
 
 ### 4. Branch on the overall tier
 
@@ -434,7 +434,7 @@ For `sound` and `wavering`, the body shape mirrors the read-path render with two
 - The blockquote header label is **All resolve** or **Partial okay**, not Merge / Hold / Refuse.
 - The `## To pass` heading becomes `## Still open`. Structure is identical (Blocker / Nice to have / Nit subsections, each rendered only if non-empty); only the heading changes — a partial bless reports what remains, it does not re-issue a fresh verdict.
 
-The four-axis lines, optional `## Worth keeping`, file count, and closing paragraph all remain.
+The axis lines, optional `## Worth keeping`, file count, and closing paragraph all remain.
 
 The body opens with a back-link, before the title line:
 

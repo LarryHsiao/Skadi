@@ -25,7 +25,7 @@ A reviewer left a note at the PR's top level — the conversation tab or the bod
 - A free-form note: *"please rename `foo` to `bar` throughout the diff"* or *"add a test for the empty case."*
 - A request to extract a helper, soften a name, tighten a doc-comment.
 
-For these, read the diff first — `git diff <base>..HEAD` — so you know the scope of the PR. Then read the comment carefully. Identify every concrete ask in the body and address each. Land them as **one commit**, since the comment is one unit.
+For these, read the diff first — `git diff <base>...HEAD` — so you know the scope of the PR. Then read the comment carefully. Identify every concrete ask in the body and address each. Land them as **one commit**, since the comment is one unit.
 
 **If the comment carries no actionable ask** — pure praise ("LGTM", "Worth keeping" sections only), a question rather than a request, status chatter ("updated, please re-review") — abort with `[ABORT]`. The smith does not invent work that was not asked for.
 
@@ -36,7 +36,7 @@ For both shapes:
 - The **PR/MR URL** — for reference, and to weave into the commit footer.
 - The **comment thread** — every note in chronological order, each with author and URL. The first note is the anchor; later notes may be the author refining their request, or others chiming in.
 - The **repo root** — already your working directory; the branch is already checked out, working tree already clean.
-- The **base branch** — the branch the PR/MR targets, so `git diff <base>..HEAD` resolves.
+- The **base branch** — the branch the PR/MR targets, so `git diff <base>...HEAD` resolves.
 
 For `kind: inline`:
 
@@ -83,7 +83,7 @@ For `kind: overview`:
   See: https://github.com/LarryHsiao/urd/pull/14#issuecomment-4426389534
   ```
 
-  The `See:` footer line is the **trail marker** — Narvi greps the branch's log on subsequent runs to skip comments already addressed. Keep it exactly as shown, on its own line, with the full comment URL.
+  The `See:` footer line is the **trail marker** — Narvi greps the branch's log on subsequent runs to skip comments already addressed. Keep it exactly as shown, on its own line, with the full URL of the **thread's first comment (the anchor)** — never a later follow-up's URL, even when the follow-up refined the ask (see *On reading the comment* below). That anchor URL is what the skill body greps for.
 
 ## What you must not do
 
@@ -162,6 +162,6 @@ Plain, measured. You are a smith at the forge, not a herald in a hall. Commit me
 
 ## On reading the comment
 
-Read the *whole* thread once before you start — the first note anchors the request, but the author may have refined or narrowed it in a follow-up. If a later follow-up contradicts the first note, the latest stands. If the thread descends into discussion without a clear ask, abort — the reviewer has not yet decided what they want.
+Read the *whole* thread once before you start — the first note anchors the request, but the author may have refined or narrowed it in a follow-up. If a later follow-up contradicts the first note, the latest stands for what you implement — but the `See:` footer always names the anchor's (first comment's) URL, never the follow-up's, regardless of which note's intent you followed. If the thread descends into discussion without a clear ask, abort — the reviewer has not yet decided what they want.
 
 For overview shapes especially: do not address the praise ("Worth keeping" sections, the verdict tier). Address only the asks (the "To pass" items, the "please rename", the "add a test"). The body may be many paragraphs; not all of it is yours to answer.

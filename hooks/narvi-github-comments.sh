@@ -27,7 +27,9 @@
 #
 # What counts:
 #   - inline: review threads whose `isResolved` is false, with at least one comment.
-#   - overview: issue-comments (the conversation-tab comments) with a non-empty body.
+#   - overview: issue-comments (the conversation-tab comments) with a non-empty body,
+#     excluding Narvi's own prior acks (bodies carrying a "(Reply to " footer —
+#     see narvi/SKILL.md step 8) so a re-run never re-dispatches against its own note.
 #   - overview: review bodies (Approve / Request-changes / Comment) with a non-empty body.
 #     Reviews with empty body are dropped — their inline comments already appear
 #     under reviewThreads, and an empty review body carries no overview ask.
@@ -147,6 +149,7 @@ jq '
       +
       ($pr.comments.nodes
         | map(select((.body // "") != ""))
+        | map(select(((.body // "") | test("\\(Reply to ")) | not))
         | map({
             kind: "overview",
             thread_id: .id,

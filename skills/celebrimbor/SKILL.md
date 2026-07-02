@@ -219,7 +219,7 @@ Report the gate's verdict for each ticket inspected so the user can see what was
 
 ### 4. Verify the approved counsel
 
-Re-read the selected ticket's thread. Locate the **latest** `[COUNSEL vN]` followed by an approved verdict. This is the contract Celebrimbor will implement.
+Re-read the selected ticket's thread. Locate the **latest** `[COUNSEL vN]` (or its alias `[PLAN vN]`) followed by an approved verdict. This is the contract Celebrimbor will implement.
 
 Inspect its **Open questions** section. If any question has no follow-up answer from Elrond in subsequent comments, abort with a clear note: *"`[COUNSEL vN]` carries unresolved Open questions; Celebrimbor will not guess where the counsellor would not. Resolve and re-approve, or invoke `/council` to draft a new counsel that closes them."* Stop. Do not branch.
 
@@ -257,7 +257,7 @@ Load the smith prompt from `<skill-dir>/celebrimbor.md`. Dispatch a subagent via
 - A tail block containing:
   - The ticket id, summary, description.
   - The full comment thread (chronological, with author labels).
-  - The approved `[COUNSEL vN]` body, called out explicitly under a header like `## Approved counsel (your contract)`.
+  - The approved `[COUNSEL vN]` (or alias `[PLAN vN]`) body, called out explicitly under a header like `## Approved counsel (your contract)`.
   - The **repo root** — the workspace path acquired in step 5, not the source repo path. The smith reads, writes, and commits there.
   - The base branch.
   - The branch name (already created on the workspace by step 5).

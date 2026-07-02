@@ -1,6 +1,6 @@
 ---
 name: glorfindel
-description: Use when the user runs /glorfindel <tracker> <project> [--filter <id-or-jql>] [--dry-run] [--confirm]. Sweeps every open ticket in the named project, runs the council machinery on each, and aggregates one report. Loop-safe per ticket; opt-in to confirmation prompts before posting.
+description: Use when the user runs /glorfindel <tracker> <project> [--filter <id-or-jql>] [--dry-run] [--confirm] [--auto]. Sweeps every open ticket in the named project, runs the council machinery on each, and aggregates one report. Loop-safe per ticket; opt-in to confirmation prompts before posting.
 user_invocable: true
 ---
 
@@ -16,7 +16,7 @@ Glorfindel rode out from Rivendell to seek the Ringbearer, and visited each road
 
 ## Argument parsing
 
-`/glorfindel <tracker> <project> [--filter <filter>] [--dry-run] [--confirm]`
+`/glorfindel <tracker> <project> [--filter <filter>] [--dry-run] [--confirm] [--auto]`
 
 | Argument | Required | Meaning |
 |---|---|---|
@@ -121,13 +121,15 @@ Iterate the list (newest-first as the hook returns it). For each ticket, follow 
 
   Tickets with neither gate satisfied are *untouched* — the sweep does not draft on them, even though they are open. Record action `untouched` with detail "no `[MELLON]` summons yet" and move on. This keeps `/glorfindel` from flooding a fresh project with `[COUNSEL v1]`s on its first run; Elrond enrolls each ticket explicitly. The gate applies only to `/glorfindel` — direct `/council MET-2` is itself the summons and runs without `[MELLON]`.
 
+  **This skill-level gate governs the Jira path only.** On YouTrack, `skeleton-rung.py`'s decider owns enrollment in its own right — a planless, un-summoned ticket yields `await_start`, which this step records as `untouched` the same way, but the check itself lives in the decider, not here (see Rules, below).
+
 - **Loop-safe is mandatory.** Once a ticket is past the engagement gate, skip silently any whose state classifies as "no fresh counsel". Do not draft, do not post — they are at rest. Record action `quiet` and move on.
 - **Posting gate** — applies any time the per-ticket flow would invoke the comment hook:
   - If `--dry-run` is on: do *not* invoke the comment hook. Record what *would* have been posted (token, body length).
   - If `--confirm` is on: ask the user via AskUserQuestion (one ticket per question, with the proposed token and a 2-line excerpt). On rejection: skip the post; record `skipped`. On approval: post.
   - Otherwise: post.
 
-Erestor's draft is per-ticket — each ticket gets its own subagent dispatch with its own thread context. Every dispatch reuses the **single sweep-wide workspace** acquired in step 1a; the workspace is detached, read-only from Erestor's vantage, and shared across tickets in the sweep.
+Erestor's draft is per-ticket — each ticket gets its own subagent dispatch with its own thread context. Every dispatch reuses the workspace resolved for this ticket per step 1a — the single sweep-wide tree for a single-repo project, or the ticket's cached layer-tagged tree for a multi-repo one; the workspace is detached, read-only from Erestor's vantage, and shared across every ticket that resolves to the same tree.
 
 If a hook fails mid-sweep (auth, network, server error), record the ticket as `error` with the message and continue with the rest. Do not let one ticket's failure halt the sweep.
 
@@ -155,14 +157,14 @@ Print one markdown table summarizing the ride. Example shape:
 | MET-2  | dry-run    | [COUNSEL v2] would post (412 chars) |
 | MET-1  | quiet      | awaiting reply on [COUNSEL v4]      |
 
-Total: 3 tickets — 1 drafted, 1 dry-run, 1 quiet, 0 untouched, 0 forth, 0 forged, 0 nay, 0 farewell, 0 talked-out, 0 skipped, 0 errors.
+Total: 3 tickets — 1 drafted, 1 dry-run, 1 quiet, 0 untouched, 0 answered, 0 forth, 0 forged, 0 nay, 0 farewell, 0 talked-out, 0 skipped, 0 errors.
 ```
 
 Action vocabulary:
 
 | Action | Meaning |
 |---|---|
-| `untouched` | No `[COUNSEL vN]` exists yet AND no `[MELLON]`/`[FRIEND]` summons in the thread. Skipped to avoid mass-drafting on first sweeps. |
+| `untouched` | No `[COUNSEL vN]`/`[PLAN vN]` exists yet, no `[PARLEY]`/`[AGENT-ASK]` stands, AND no `[MELLON]`/`[FRIEND]` summons in the thread. Skipped to avoid mass-drafting on first sweeps. |
 | `quiet` | Loop-safe no-op — bot's last word stands; no fresh Elrond counsel. |
 | `drafted` | Erestor wrote a `[COUNSEL vN]` or `[PARLEY]` and the post landed. |
 | `answered` | Elrond asked a question (`[CEIST]`/`[ASK]`, or bare prose); Erestor posted a `[PEDO]` answer and the plan stands unchanged. |
@@ -201,6 +203,6 @@ A mid-sweep crash that bypasses this step leaves the workspace under `$TMPDIR` f
 - `--dry-run` overrides `--confirm` — nothing to confirm if nothing is posted.
 - Errors on one ticket do not stop the sweep. Record and continue.
 - Sweep order is the order returned by the list hook.
-- **Jira sweeps require deliberate intent.** When tracker is `jira` without `--dry-run` or `--confirm`, prompt before proceeding (step 1).
+- **Jira sweeps require deliberate intent.** When tracker is `jira` without `--dry-run`, `--confirm`, or `--auto`, prompt before proceeding (step 1b). `--auto` skips the prompt — the flag is the deliberate intent it exists to confirm.
 - Do not surface tracker tokens in logs, responses, or saved files.
 - Do not invent ticket IDs not returned by the list hook. The list is the authoritative scope.

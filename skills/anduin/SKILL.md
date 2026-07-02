@@ -156,13 +156,21 @@ Anduin — STIRRED   (or)   Anduin — QUIET
 
 Decide the verdict:
 
-- **STIRRED** if *either* the council stirred (any ticket `drafted`, `forth`,
-  `forged`, `nay`, `farewell`, or `talked-out`) *or* the forge moved (any ticket
-  `forged` / `closed` / skeleton-drafted, **or** qualifiers remain for the next
-  forge pass). A `closed` outcome — Aulë laying a merged ticket to rest — is
-  movement as much as a forge is.
-- **QUIET** if both stages were quiet — council all `quiet` / `untouched` or empty,
-  and forge forged and closed nothing with no qualifiers remaining.
+- **STIRRED** if *either* stage produced anything beyond its quiescent outcomes:
+  - Council stirred if any ticket read `drafted`, `answered`, `dry-run`, `forth`,
+    `forged`, `nay`, `farewell`, `talked-out`, or `error` — i.e. anything other than
+    `quiet` / `untouched`. (`answered` is real movement — Erestor posted a `[PEDO]`
+    reply — even though the plan itself did not redraft.)
+  - Forge moved if any ticket read `forged`, `closed`, `aborted`, `answered`,
+    `dry-run`, or `error`, **or** qualifiers remain for the next forge pass. Aulë's
+    outcome vocabulary carries no `skeleton-drafted` state — a skeleton-rung dispatch
+    that succeeds reports `forged` like any other; `aborted` counts as movement too,
+    since it is retryable work still waiting, not silence. A `closed` outcome — Aulë
+    laying a merged ticket to rest — is movement as much as a forge is.
+- **QUIET** only when neither of the above held — council reported nothing but
+  `quiet` / `untouched` (or swept nothing), and forge reported none of `forged`,
+  `closed`, `aborted`, `answered`, `dry-run`, or `error`, with zero qualifiers
+  remaining.
 
 The verdict line is the contract `/amon-sul` reads to set its streak. Always emit
 exactly one of the two tokens.

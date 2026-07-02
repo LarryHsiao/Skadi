@@ -177,7 +177,7 @@ The hook returns a single JSON object:
 
 Search in order:
 
-1. **`[GWAITH]` comment.** Scan the thread for a comment whose first line carries the `[GWAITH]` token (or its aliases `[FORGED]`, `[SHIPPED]`, case-insensitive). Its body carries the PR/MR URL and the branch name — read both. This is Celebrimbor's mark: the deed is wrought, the forge is named.
+1. **`[GWAITH]` comment.** Scan the thread for a comment whose first line carries the `[GWAITH]` token (or its aliases `[FORGED]`, `[SHIPPED]`, case-insensitive). Its body carries the PR/MR URL, the branch name, and a `Base: <base> (source: ...)` line — read all three. This is Celebrimbor's mark: the deed is wrought, the forge is named, and the base it actually branched from is recorded (which may be a `[BASE:]`-tagged feature branch, not the repo trunk — see step 3).
 2. **Local branch by name.** If no `[GWAITH]` comment is found, search local branches:
    ```bash
    git branch --list "*<ticket-id>*"
@@ -188,7 +188,7 @@ If neither resolves a branch, stop with: *"No forged branch found for `<ticket-i
 
 #### 3. Resolve the base and capture the diff
 
-Resolve the base via the same ladder as the branch-path (step 1 above). Guard against the base branch by testing the **resolved branch** from step 2 above — not the current checkout — against the resolved base: if `<branch>` matches the base, or is literally `master` or `main`, stop with: *"Nothing to weigh — the resolved branch `<branch>` is the default branch itself."* Capture the diff using the resolved branch ref directly — no checkout required:
+Resolve the base by first parsing the `Base: <base>` line from the `[GWAITH]` comment body (step 2, when that path resolved the branch) — Celebrimbor's own record of what it actually branched from, which may be a stacked feature branch rather than the repo trunk. A branch resolved this way but weighed against the trunk instead would sweep the parent branch's own commits into the diff and falsely read as scope-creep. Fall back to the same master/main/origin/HEAD ladder as the branch-path (step 1 above) only when the `[GWAITH]` body carries no `Base:` line, or the branch was resolved by local-branch search instead. Guard against the base branch by testing the **resolved branch** from step 2 above — not the current checkout — against the resolved base: if `<branch>` matches the base, or is literally `master` or `main`, stop with: *"Nothing to weigh — the resolved branch `<branch>` is the default branch itself."* Capture the diff using the resolved branch ref directly — no checkout required:
 
 ```bash
 git diff $(git merge-base <branch> <base>)..<branch>

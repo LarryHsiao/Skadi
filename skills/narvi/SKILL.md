@@ -240,11 +240,11 @@ For `kind: inline`, append:
 For `kind: overview`, append:
 
 ```
-- Path: (overview — read the PR diff with `git -C <workspace> diff <base>..HEAD`)
+- Path: (overview — read the PR diff with `git -C <workspace> diff <base>...HEAD`)
 
 ### PR diff (truncated to first 200 lines)
 
-<first 200 lines of `git -C <workspace> diff <base>..HEAD`>
+<first 200 lines of `git -C <workspace> diff <base>...HEAD`>
 ```
 
 Then the thread:
@@ -272,7 +272,7 @@ c. The smith returns one of two shapes (see `narvi.md`):
 
 Anything else: record as a malformed return and continue.
 
-d. After each dispatch, run `git -C <workspace> status --porcelain` and pass the output through the environment-drift filter (see *Environment drift* above). If any unfiltered line remains, the smith left real work uncommitted — abort the whole run: roll back with `git -C <workspace> reset --hard HEAD` to clear the stray edits, then surface the unfiltered paths in the report. Do **not** push. Leave the workspace intact (skip the release step) so the human can inspect what the smith left behind.
+d. After each dispatch, run `git -C <workspace> status --porcelain` and pass the output through the environment-drift filter (see *Environment drift* above). If any unfiltered line remains, the smith left real work uncommitted — abort the whole run: do **not** reset, clean, or otherwise touch the workspace, and do **not** push. Leave the workspace exactly as the smith left it (skip the release step) — a `git reset --hard` would erase the tracked stray edits while leaving untracked ones behind, defeating the inspection this step exists for. Surface the unfiltered paths in the report so the human can inspect what the smith left behind.
 
   Drift that the filter dropped does not count as scope-miss. It stays inside the workspace across dispatches (the smith's next call sees it but the smith does not touch xcconfig or lockfiles, so it is invisible to the work). On the success path the workspace is torn down by the release step at the end, drift and all.
 
@@ -361,7 +361,7 @@ After rendering, decide the workspace fate:
 
   The helper handles both worktree and temp-clone modes silently. The `Workspace:` row reads `released`.
 
-- **Keep on abort or failure.** If step 6d found scope-miss, step 7's push failed, or pre-flight's `pull --ff-only` rejected (handled in step e before any workspace activity), leave the workspace intact under `$TMPDIR` and name the reason. The human can inspect, recover any salvageable work, and release by hand with the same helper verb when done. The `Workspace:` row reads `kept at <path> (<reason>)`.
+- **Keep on abort or failure.** If step 6d found scope-miss or step 7's push failed, leave the workspace intact under `$TMPDIR` and name the reason. The human can inspect, recover any salvageable work, and release by hand with the same helper verb when done. The `Workspace:` row reads `kept at <path> (<reason>)`. (A pre-flight `pull --ff-only` rejection is a separate, earlier failure — pre-flight step 1e already releases that workspace itself, since it holds no smith work yet; the run never reaches step 9 in that case.)
 
 ## After Narvi
 
@@ -381,7 +381,7 @@ Narvi does not auto-invoke either. The verbs stay separate so the human chooses 
 - The smith does not push, does not edit the PR body, does not post on the thread, does not react. The skill body owns the single `git -C <workspace> push` at the end and the one short ack per addressed comment.
 - Narvi never resolves a review thread, never reacts. The single per-thread ack after a successful push is the only forge-write beyond the push itself. Reply-hook failures are recorded but do not roll back commits — the trail-marker footer remains the canonical record.
 - An abort on one comment does not stop the run. Other comments still get their turn; the report names which succeeded and which did not.
-- If the smith leaves real work uncommitted (after the environment-drift filter), the run halts and rolls back with `git -C <workspace> reset --hard HEAD`. The commits already on the branch stay; nothing is pushed; the workspace is **kept**, not released, so the human can inspect.
+- If the smith leaves real work uncommitted (after the environment-drift filter), the run halts without resetting or cleaning the workspace. The commits already on the branch stay; nothing is pushed; the workspace is **kept**, not released, exactly as the smith left it, so the human can inspect the stray edits directly.
 - The workspace is **released on the success path** (push succeeded, no scope-miss) and **kept on any abort or failure**. The release verb is idempotent; the human may re-run it at any time to clean up a kept workspace.
 - Do not surface forge tokens in logs, responses, or saved files.
 - Aborts are first-class outcomes, not failures. Name the flaw plainly; do not retry.

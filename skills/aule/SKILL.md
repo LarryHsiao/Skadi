@@ -97,6 +97,16 @@ the sub-skill re-runs the decider and takes its own answer path (post `[PEDO]`,
 advance the watermark, leave the plan/skeleton standing). Aulë needs no special
 case beyond the routing above.
 
+**These dispatches are queued, not immediate.** A ticket whose rung action maps to
+a dispatch (`draft_skeleton`, `redraft_skeleton`, `answer_skeleton`, `forge`,
+`draft_plan`, `redraft_plan`, `answer_plan`) enters the **qualifier set** built by
+this step exactly like a Jira ticket that clears the `[COUNSEL vN]` forge gate
+below — it is not dispatched on the spot. Step 3's `--max` cap, step 4's manifest
+render, and step 4's outer gate (`--dry-run` / `--auto` / confirm-once) all apply
+uniformly across both trackers; a rung-dispatched `forge` opens a real PR/MR just
+as a Jira forge does, so it never bypasses the bound that "Bounded by default" and
+"One outer gate" (Ethos, above) promise.
+
 A ticket whose action is a no-op is dropped from the manifest silently — exactly
 the loop-safety the watermark buys. Two exceptions: `await_start` is dropped from
 the work manifest but surfaced as the dormant tally below rather than silently;
@@ -113,7 +123,9 @@ A ticket qualifies iff *all* of:
 2. A verdict token `[FORTH]` (or alias `[APPROVE]`) appears in non-bot comments somewhere in the thread.
 3. The thread does **not** contain `[GWAITH]` / `[FORGED]` / `[SHIPPED]` from the bot anywhere — already forged, leave it alone.
 
-Drop tickets failing any of these silently from the qualifier set. Do not report per-ticket gate failures here — the manifest is for what *will* be forged, not what was excluded; a verbose gate report would dwarf the actual work.
+Drop tickets failing rule 1 or 2 silently from the qualifier set. A ticket failing **only** rule 3 (already forged) is the Jira path's close-watch analogue to YouTrack's `done` action: if the thread bears no bot `[METTA]` yet, add it to the **close-watch set** for step 5b instead of dropping it outright — a forged-but-unmerged Jira ticket needs the same merge check YouTrack's decider already routes there. If the thread does bear a bot `[METTA]`, it is the true terminal no-op (forged and closed) and is dropped for real, mirroring YouTrack's `at_rest`.
+
+Do not report per-ticket gate failures here — the manifest is for what *will* be forged, not what was excluded; a verbose gate report would dwarf the actual work.
 
 ### 3. Pick the first N
 
@@ -143,7 +155,7 @@ Aulë at <tracker>:<project> — picked <K> of <Q> qualifier(s), max <N>
 
 Then:
 
-- **`--dry-run`**: stop. The manifest is the deliverable.
+- **`--dry-run`**: skip step 5 (no forging) but still run step 5b in its own dry-run mode — rendering the close-watch preview (what would close, and why) without transitioning or posting. Stop after that; the manifest plus the close-watch preview are the deliverable.
 - **`--auto`**: proceed straight to step 5. The manifest is still rendered first — the record of what was forged, even when no one stood at the gate.
 - **Otherwise**: AskUserQuestion (options: `forge all <K>` / `abort`). On `abort`, stop. On `forge all`, proceed to step 5.
 
@@ -163,20 +175,23 @@ Capture each Celebrimbor run's outcome for the report. A Celebrimbor-side abort 
 
 ### 5b. Close the merged
 
-Step 5 forges the unforged. This step closes the *already* forged: a ticket the
-decider returned `done` for bears a `[GWAITH]` whose PR/MR may since have merged.
-When it has, the ticket is laid to rest — its State moved to the project's closed
-value and a `[METTA]` (Quenya *"the end"*) note threaded — so the tracker reflects
-the deed without a human hand.
+Step 5 forges the unforged. This step closes the *already* forged: a ticket in
+the **close-watch set** — on YouTrack, one the decider returned `done` for; on
+Jira, one the forge gate routed here per rule 3 above — bears a `[GWAITH]` whose
+PR/MR may since have merged. When it has, the ticket is laid to rest — its State
+moved to the project's closed value and a `[METTA]` (Quenya *"the end"*) note
+threaded — so the tracker reflects the deed without a human hand.
 
-The decider's `done` / `at_rest` split is the idempotency guard: a `done` ticket
-has no `[METTA]` yet (a posted `[METTA]` yields `at_rest`, which step 2 skips), so
-this step never double-closes.
+The idempotency guard is the same shape on both trackers: a ticket enters the
+close-watch set only when it bears no bot `[METTA]` yet — on YouTrack that's the
+decider's `done` vs `at_rest` split (step 2); on Jira the same check runs inline
+in the forge gate (rule 3, step 2) — so this step never double-closes.
 
 For each `done` ticket from the close-watch set (step 2), in list order:
 
-1. **Extract the forge URL.** From the latest bot `[GWAITH]` comment in the
-   fetched thread, take the first URL on its first line.
+1. **Extract the forge URL.** From the latest bot `[GWAITH]` comment (or its
+   aliases `[FORGED]`, `[SHIPPED]`, case-insensitive) in the fetched thread,
+   take the first URL on its first line.
 2. **Ask the forge if it merged.** Look up the forge in `forge_routing.md`
    (`<tracker>:<project>`), then invoke the matching hook:
 
@@ -201,10 +216,13 @@ For each `done` ticket from the close-watch set (step 2), in list order:
    - **YouTrack**: parse `resolved` (boolean) from the ticket JSON. If `true`, skip the transition and record `closed` with detail `"merge detected; state transition skipped — ticket already in resolved state <state-name>; not overriding a hand-resolved ticket."` Proceed to step 5 to post `[METTA]` (the merge is still worth recording even if the state did not move).
    - **Jira**: fetch `fields.status.statusCategory.key` from the issue. If `"done"`, skip with the same note and proceed to step 5.
 
-   If the ticket is not yet resolved:
+   If the ticket is not yet resolved, transition it via the tracker's own state
+   hook — YouTrack values are state names, Jira values are transition IDs (same
+   split as Celebrimbor's `forged=` handling):
 
    ```bash
-   ~/.claude/hooks/youtrack-state.sh <ticket-id> <merged-state>
+   ~/.claude/hooks/youtrack-state.sh <ticket-id> <merged-state>   # youtrack
+   ~/.claude/hooks/jira-state.sh <ticket-id> <merged-state>       # jira
    ```
 
 5. **Post the closing note** via the council comment hook, naming the merge:
@@ -249,7 +267,7 @@ Outcome vocabulary:
 | `forged` | Smith committed, push succeeded, PR/MR opened, `[GWAITH]` posted. (State transition outcome appears in `Detail` if non-trivial.) |
 | `closed` | A `done` ticket's PR/MR had merged (step 5b) — the ticket was moved to its `merged=` state and a `[METTA]` note threaded. Detail carries the merge and the state transition. (When `merged=` is empty, the ticket is recorded `closed` with `close-state skipped` and no write lands.) |
 | `aborted` | Celebrimbor stopped before opening — counsel had unresolved Open questions, smith returned `[ABORT]`, or `--confirm` was declined. No PR. |
-| `dry-run` | Reached only when Aulë's `--dry-run` was set — not present in this report; the dry-run path stops at step 4. |
+| `dry-run` | Reached only when Aulë's `--dry-run` was set — not present in this report; the dry-run path renders the manifest and step 5b's close-watch preview, then stops before step 5. |
 | `answered` | A rung-dispatch ticket bore a question (`[CEIST]`/`[ASK]`, or bare prose); the sub-skill posted a `[PEDO]` answer and left the plan/skeleton standing. No PR. |
 | `error` | A hook failed (push, PR-open, `[GWAITH]` post). Detail names which step. The PR may exist if the failure was downstream of PR-open; check the URL field. |
 

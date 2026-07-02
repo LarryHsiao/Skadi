@@ -51,6 +51,8 @@ b. **Forge detection.** Run `git -C <source-repo> remote get-url origin`. If abs
 
 c. **Forge auth sanity.** Run `gh auth status` (github) or `glab auth status` (gitlab). If either fails, surface the message and stop.
 
+d. **Fetch.** Run `git -C <source-repo> fetch origin` so the `origin/<base>..origin/<head>` refs step 3b's dedup reads are current. Without this, a comment addressed and pushed by another session (or a prior sweep whose refs were never fetched here) could re-manifest.
+
 There is **no clean-tree gate** on the source repo — Narvi never commits there, and Durin never branches it either. The human may be mid-edit on a wholly unrelated branch while Durin sweeps.
 
 ### 2. List the open PRs/MRs
@@ -87,7 +89,7 @@ b. **Trail-marker dedup.** For each comment entry, extract the first comment's U
    git -C <source-repo> log "origin/<base>..origin/<head>" --format=%H --grep="See: <url>" --fixed-strings
    ```
 
-   Drop entries whose URL is already in the log — Narvi addressed them on a prior run. Note: this dedup reads from the source repo's refs only (no workspace acquired here), so it reflects what has actually been pushed.
+   Drop entries whose URL is already in the log — Narvi addressed them on a prior run. Note: this dedup reads from the source repo's refs only (no workspace acquired here); pre-flight step 1d's fetch is what makes "reflects what has actually been pushed" true — without it, these refs could be stale.
 
 c. **Silent skip if the remainder is empty.** A PR/MR with zero unaddressed comments after dedup is dropped from the manifest entirely. No row, no report.
 

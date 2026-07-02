@@ -124,16 +124,21 @@ the work.
 From the sweep's aggregate report, decide whether the board **stirred** or stayed
 **quiet**. The triggers differ by rider:
 
-| Outcome | Glorfindel trigger | Aulë trigger | Anduin trigger |
-|---|---|---|---|
-| **Stirring** | Any ticket was `drafted`, `forth`, `forged`, `nay`, `farewell`, or `talked-out` | Any ticket `forged`, **or** qualifiers remain for the next sweep | Anduin's combined report ends in `Anduin — STIRRED` |
-| **Quiet** | All tickets `quiet` / `untouched`, or the road lay empty | None forged and no qualifiers remain, or no tickets in scope | Anduin's combined report ends in `Anduin — QUIET` |
+| Outcome | Glorfindel trigger | Aulë trigger |
+|---|---|---|
+| **Stirring** | Any ticket read anything other than `quiet` / `untouched` — `drafted`, `answered`, `dry-run`, `forth`, `forged`, `nay`, `farewell`, `talked-out`, `skipped`, or `error` all count | Any ticket read `forged`, `closed`, `aborted`, `answered`, `dry-run`, or `error` (an `aborted` ticket is retryable work still waiting, not silence), **or** qualifiers remain for the next sweep |
+| **Quiet** | Every ticket read `quiet` / `untouched`, or the road lay empty | None of `forged`, `closed`, `aborted`, `answered`, `dry-run`, or `error`, and no qualifiers remain, or no tickets in scope |
+
+This mirrors `/anduin`'s own STIRRED/QUIET partition (see `anduin/SKILL.md`) —
+"anything but the quiescent outcomes" — so a direct `/amon-sul aule …` or
+`/amon-sul glorfindel …` ride classifies the same error or aborted-ticket case the
+same way an `/anduin`-wrapped ride would.
 
 Anduin, Moria, and Rhovanion each fold their road-reading into their own verdict line,
 so for those riders Amon Sûl simply reads the token — `Anduin — STIRRED`/`QUIET`,
 `Moria — STIRRED`/`QUIET` (stirred when any repo's sweep landed a commit), or
 `Rhovanion — STIRRED`/`QUIET` (stirred when any ridden project's Anduin stirred) — no
-need to re-derive it. They are absent from the table above for that reason: their
+need to re-derive it. All three are absent from the table above for that reason: their
 verdict line *is* the trigger.
 
 Then set the streak:

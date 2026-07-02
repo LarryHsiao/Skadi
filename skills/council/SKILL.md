@@ -37,7 +37,7 @@ Two trackers are wired today:
    ```markdown
    ---
    name: Tracker Routing
-   description: Project-key prefix to tracker mapping for /council and /glorfindel.
+   description: Project-key prefix to tracker mapping for /council, /celebrimbor, and /mandos.
    type: reference
    ---
 
@@ -332,7 +332,7 @@ The helper handles both worktree and temp-clone modes silently. Release on the s
 
 ## Comment grammar
 
-Nine tokens carry state. Everything else is counsel.
+Thirteen tokens carry state. Everything else is counsel.
 
 | Token (primary) | Accepted alias | Who writes it | Meaning |
 |---|---|---|---|
@@ -348,6 +348,7 @@ Nine tokens carry state. Everything else is counsel.
 | `[NAMARIE]` | `[FAREWELL]` | Elrond | *Farewell.* Adjourn without verdict — when the thread closes for reasons other than approval or rejection (resolved out-of-band, ticket subsumed by another, etc.). |
 | `[GWAITH]` | `[FORGED]`, `[SHIPPED]` | Celebrimbor | The Gwaith-i-Mírdain — the smith-guild of Eregion. The deed is wrought; PR/MR opened on the approved counsel. Body carries the URL and branch. Council itself never posts this; `/celebrimbor` does. |
 | `[DOOM]` | `[VERDICT]` | Mandos | *The Doom.* A verdict on whether the deed matches the decree — Covered / Missing / Scope-crept against the ticket's goal. Loop-neutral; uncounted toward the turn limit, never redrafts or approves. Council never posts it; `/mandos post` does. |
+| `[METTA]` | — | Aulë | *Quenya "the end."* Closed on merge — the ticket's `[GWAITH]` PR/MR has merged; State moved to the project's closed value. Terminal; the true no-op the decider calls `at_rest`. Loop-neutral; uncounted toward the turn limit. Council never posts it; `/aule` does. |
 
 The English aliases (`[PLAN vN]`, `[AGENT-ASK]`, `[ANSWER]`, `[RENEWED]`, `[FRIEND]`, `[ASK]`, `[ALTER]`, `[APPROVE]`, `[REJECT]`, `[FAREWELL]`, `[FORGED]`, `[SHIPPED]`, `[VERDICT]`) are accepted equivalents, recognized everywhere their Tolkien primaries are. Use either form; the parser treats them identically. User-facing reports prefer the Tolkien token.
 
@@ -360,7 +361,7 @@ Human replies between these tokens are free-form prose — read as a question an
 - **Loop-safe.** If no fresh counsel from Elrond has come since the bot's last word, post nothing. Repeated invocations between Elrond's replies must be silent no-ops. The thread, not the invocation count, is the source of truth.
 - If the tracker hook reports a credential is missing, surface the error and stop — do not proceed.
 - Turn limit is five counsels per ticket. On the sixth, post `[PARLEY]` asking to take the thread offline. (Only triggers when fresh counsel exists; otherwise the loop-safe rule keeps the thread quiet.)
-- Case-insensitive matching of all nine tokens and their aliases.
+- Case-insensitive matching of all thirteen tokens and their aliases.
 - Two trackers are wired: YouTrack and Jira. The hybrid dispatch rule above chooses between them.
 - **Jira tickets are real work.** Do not post test or diagnostic comments to Jira during smoke testing. Use `COUNCIL_DRY_RUN=1` env on the Jira comment **and edit** hooks (`council-jira-comment.sh`, `jira-comment-edit.sh`) for shape verification, and do write-path smoke tests against YouTrack (MET-1).
 - Do not surface tracker tokens in logs, responses, or saved files.
