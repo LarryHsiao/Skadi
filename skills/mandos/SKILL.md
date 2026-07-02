@@ -80,7 +80,7 @@ From the fetched ticket data Mandos folds a **decree** — an ordered list of ac
 
 ### 1. Plan
 
-From the ticket's comment thread, take the body of the newest comment whose first line matches `[COUNSEL vN]` (any N) or the bare `[PLAN]` marker (case-insensitive). This is Erestor's settled plan — the sharpest statement of what the deed was asked to do. Each acceptance item it names is tagged `[COUNSEL]` in the decree.
+From the ticket's comment thread, take the body of the newest comment whose first line matches `[COUNSEL vN]` (any N) or its alias `[PLAN vN]` (any N; bare `[PLAN]` also accepted), case-insensitive. This is Erestor's settled plan — the sharpest statement of what the deed was asked to do. Each acceptance item it names is tagged `[COUNSEL]` in the decree.
 
 If no such comment exists, note plainly that the plan source is absent. The decree leans on ticket text and parent AC alone; the weighing step is told the plan is missing.
 
@@ -188,7 +188,7 @@ If neither resolves a branch, stop with: *"No forged branch found for `<ticket-i
 
 #### 3. Resolve the base and capture the diff
 
-Resolve the base via the same ladder as the branch-path (step 1 above). Guard against the base branch the same way. Capture the diff using the resolved branch ref directly — no checkout required:
+Resolve the base via the same ladder as the branch-path (step 1 above). Guard against the base branch by testing the **resolved branch** from step 2 above — not the current checkout — against the resolved base: if `<branch>` matches the base, or is literally `master` or `main`, stop with: *"Nothing to weigh — the resolved branch `<branch>` is the default branch itself."* Capture the diff using the resolved branch ref directly — no checkout required:
 
 ```bash
 git diff $(git merge-base <branch> <base>)..<branch>
@@ -270,9 +270,9 @@ The subagent reads only — it does not write, commit, or post. It returns the t
 When `--deep` is active, do not dispatch a single weigher over the whole decree. Instead:
 
 1. **Partition** the decree into its individual acceptance items.
-2. **Fan out.** Dispatch one read-only weigher subagent (`general-purpose`, `model: opus`) per acceptance item, in parallel — cap concurrent dispatches to a sane handful and queue the rest. Hand each agent **only its one item** as the decree and the **full diff**, charged to hunt the whole diff for evidence that this one item is met. Use the same `skills/mandos/mandos.md` prompt; only the tail block differs — the decree carries a single item, the diff is the full diff unchanged.
-3. **Aggregate.** Collect every per-item verdict into the three buckets. All items returned Covered (with their `file:line` evidence) form the Covered section; all items returned Missing (with their severities) form the Missing section.
-4. **Scope-crept pass.** After all per-item weighers have returned, dispatch **one final read-only weigher subagent** (same `skills/mandos/mandos.md` prompt, `general-purpose`, `model: opus`), handed the full decree and the full diff, charged ONLY to name changes that no acceptance item asked for as Scope-crept (with severities). The skill body aggregates its result; it does not itself judge scope-crept.
+2. **Fan out.** Dispatch one read-only weigher subagent (`general-purpose`, `model: opus`) per acceptance item, in parallel — cap concurrent dispatches to a sane handful and queue the rest. Hand each agent **only its one item** as the decree and the **full diff**, charged to hunt the whole diff for evidence that this one item is met. Use the same `skills/mandos/mandos.md` prompt; only the tail block differs — the decree carries a single item, the diff is the full diff unchanged, and the tail block appends an override line instructing the agent to return only the Covered and Missing sections for this single item — no Scope-crept pass, no tier declaration; a separate weigher owns scope-crept and the skill body derives the tier.
+3. **Aggregate.** Collect every per-item verdict into the three buckets. All items returned Covered (with their `file:line` evidence) form the Covered section; all items returned Missing (with their severities) form the Missing section. The final tier is re-derived by the skill body from the aggregated Blocker counts per the Render gate rule below — per-agent tiers are never produced in deep mode.
+4. **Scope-crept pass.** After all per-item weighers have returned, dispatch **one final read-only weigher subagent** (same `skills/mandos/mandos.md` prompt, `general-purpose`, `model: opus`), handed the full decree and the full diff, charged ONLY to name changes that no acceptance item asked for as Scope-crept (with severities). Its tail block carries the mirror override: return only the Scope-crept section — no Covered, no Missing, no tier declaration. The skill body aggregates its result; it does not itself judge scope-crept.
 5. **Render** per the Render section below, with the deep-mode tail-line added under the blockquote header: *"Deep mode — N criteria weighed each on its own."*
 
 The unit of the deep pass is the **acceptance criterion**, not the file. Where Mithrandir's `--deep` weighs one file per agent, Mandos's `--deep` weighs one acceptance item per agent — each agent receives the deed in full; the per-agent partition is the decree. No agent sees another's item; each hunts independently.
