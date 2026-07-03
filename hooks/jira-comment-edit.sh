@@ -11,6 +11,9 @@
 #
 # Env: COUNCIL_DRY_RUN=1 prints the would-be ADF payload to stdout instead
 # of editing. Use this for shape verification without writing to Jira.
+# Env: JIRA_ATTACHMENT_ID, if set, turns a body paragraph reading exactly
+# "[[PLAN-PREVIEW]]" into an ADF mediaSingle node referencing that attachment
+# id instead of emitting the sentinel as literal text.
 
 set -euo pipefail
 export LC_ALL=C.UTF-8
@@ -57,15 +60,25 @@ if ! iconv -f UTF-8 -t UTF-8 "$body_file" >/dev/null 2>&1; then
 fi
 
 python - "$body_file" > "$payload_file" <<'PY'
-import json, sys
+import json, os, sys
 sys.stdout.reconfigure(encoding="utf-8")
 
 text = open(sys.argv[1], "r", encoding="utf-8").read().rstrip("\n")
 paragraphs = text.split("\n\n")
+attachment_id = os.environ.get("JIRA_ATTACHMENT_ID", "")
 
 content = []
 for para in paragraphs:
     if not para.strip():
+        continue
+    if para.strip() == "[[PLAN-PREVIEW]]" and attachment_id:
+        content.append({
+            "type": "mediaSingle",
+            "attrs": {"layout": "center"},
+            "content": [
+                {"type": "media", "attrs": {"id": attachment_id, "type": "file", "collection": "jira"}}
+            ],
+        })
         continue
     lines = para.split("\n")
     nodes = []
