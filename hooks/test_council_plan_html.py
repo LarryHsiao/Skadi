@@ -20,21 +20,28 @@ class FindDiagramBlockTest(unittest.TestCase):
     def test_diagram_fence_is_found(self):
         text = "before\n\n```diagram\nA -> B\n```\n\nafter"
         result = cph.find_diagram_block(text)
-        self.assertEqual("diagram", result["tag"])
-        self.assertEqual("A -> B", result["body"])
-        self.assertEqual(text[result["start"]:result["end"]], "```diagram\nA -> B\n```")
+        expected_tag = "diagram"
+        self.assertEqual(expected_tag, result["tag"])
+        expected_body = "A -> B"
+        self.assertEqual(expected_body, result["body"])
+        expected_fence = "```diagram\nA -> B\n```"
+        self.assertEqual(expected_fence, text[result["start"]:result["end"]])
 
     def test_wireframe_fence_is_found(self):
         text = "before\n\n```wireframe\n[Box]\n```\n\nafter"
         result = cph.find_diagram_block(text)
-        self.assertEqual("wireframe", result["tag"])
-        self.assertEqual("[Box]", result["body"])
+        expected_tag = "wireframe"
+        self.assertEqual(expected_tag, result["tag"])
+        expected_body = "[Box]"
+        self.assertEqual(expected_body, result["body"])
 
     def test_only_first_fence_is_returned(self):
         text = "```diagram\nfirst\n```\n\n```wireframe\nsecond\n```"
         result = cph.find_diagram_block(text)
-        self.assertEqual("diagram", result["tag"])
-        self.assertEqual("first", result["body"])
+        expected_tag = "diagram"
+        self.assertEqual(expected_tag, result["tag"])
+        expected_body = "first"
+        self.assertEqual(expected_body, result["body"])
 
     def test_bare_fence_without_tag_is_ignored(self):
         expected = None
@@ -57,18 +64,24 @@ class ReplaceDiagramBlockTest(unittest.TestCase):
 class RenderPlanHtmlTest(unittest.TestCase):
     def test_output_contains_escaped_ticket_and_body(self):
         html_out = cph.render_plan_html("Intent: <script>alert(1)</script>", "MET-1")
-        self.assertIn("MET-1", html_out)
-        self.assertIn("&lt;script&gt;", html_out)
-        self.assertNotIn("<script>alert(1)</script>", html_out)
-        self.assertIn('href="skadi-theme.css"', html_out)
+        expected_ticket = "MET-1"
+        self.assertIn(expected_ticket, html_out)
+        expected_escaped = "&lt;script&gt;"
+        self.assertIn(expected_escaped, html_out)
+        expected_unescaped = "<script>alert(1)</script>"
+        self.assertNotIn(expected_unescaped, html_out)
+        expected_stylesheet = 'href="skadi-theme.css"'
+        self.assertIn(expected_stylesheet, html_out)
 
 
 class RenderDiagramHtmlTest(unittest.TestCase):
     def test_output_preserves_ascii_box_drawing(self):
         body = "┌───┐\n│ A │\n└───┘"
         html_out = cph.render_diagram_html(body, "MET-1")
-        self.assertIn("┌───┐", html_out)
-        self.assertIn('href="skadi-theme.css"', html_out)
+        expected_box = "┌───┐"
+        self.assertIn(expected_box, html_out)
+        expected_stylesheet = 'href="skadi-theme.css"'
+        self.assertIn(expected_stylesheet, html_out)
 
 
 if __name__ == "__main__":
