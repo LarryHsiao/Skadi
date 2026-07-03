@@ -179,13 +179,16 @@ this **before** the tracker's post/edit call:
   JIRA_ATTACHMENT_ID=$(printf '%s' "$ATTACH_OUT" | sed -n 's/.*id=\([^ ]*\).*/\1/p')
   printf '[[PLAN-PREVIEW]]' > "$TMPDIR/sentinel.txt"
   EREST_OR_BODY=$(printf '%s' "$EREST_OR_BODY" | python3 ~/.claude/hooks/council-plan-html.py replace "$TMPDIR/sentinel.txt")
-  export JIRA_ATTACHMENT_ID
   ```
 
-  The exported `JIRA_ATTACHMENT_ID` must be in scope when `council-jira-comment.sh`
-  or `jira-comment-edit.sh` is called for this round (both hooks read it from
-  the environment). On attach failure, leave `$EREST_OR_BODY` unchanged, do
-  not export `JIRA_ATTACHMENT_ID`, and note the failure for the round's report.
+  `JIRA_ATTACHMENT_ID` must reach `council-jira-comment.sh` or
+  `jira-comment-edit.sh` on the **same command** that invokes the hook for
+  this round (both hooks read it from the environment) — prefix that
+  invocation with `JIRA_ATTACHMENT_ID="$JIRA_ATTACHMENT_ID"` rather than
+  exporting it as a standing variable here; a later code block is a separate
+  invocation, and a standing export would not survive into it. On attach
+  failure, leave `$EREST_OR_BODY` unchanged, do not set `JIRA_ATTACHMENT_ID`,
+  and note the failure for the round's report.
 
 ### YouTrack modify-only path (skeleton-stage pipeline)
 
@@ -366,11 +369,11 @@ step 2):
   create the living plan comment. Before creating it, run the Henneth-mirror
   and diagram/wireframe pipeline (*Rendering the plan* above) on
   `$EREST_OR_BODY` — it may swap the fenced block for an attachment embed
-  and, on Jira, export `JIRA_ATTACHMENT_ID` (which the hook below reads from
-  the environment):
+  and, on Jira, set `JIRA_ATTACHMENT_ID` (thread it inline on the hook call
+  below, which reads it from the environment):
 
   ```bash
-  printf '%s' "$EREST_OR_BODY" | ~/.claude/hooks/council-jira-comment.sh <ISSUE-KEY>
+  JIRA_ATTACHMENT_ID="$JIRA_ATTACHMENT_ID" printf '%s' "$EREST_OR_BODY" | ~/.claude/hooks/council-jira-comment.sh <ISSUE-KEY>
   ```
 
 - **`[COUNSEL v{NEXT}]` on a redraft** (a plan comment id exists) — **edit that
@@ -379,7 +382,7 @@ step 2):
   plan* above) on `$EREST_OR_BODY`:
 
   ```bash
-  printf '%s' "$EREST_OR_BODY" | ~/.claude/hooks/jira-comment-edit.sh <ISSUE-KEY> <plan-comment-id>
+  JIRA_ATTACHMENT_ID="$JIRA_ATTACHMENT_ID" printf '%s' "$EREST_OR_BODY" | ~/.claude/hooks/jira-comment-edit.sh <ISSUE-KEY> <plan-comment-id>
   printf '%s' "$VINYA_BODY"     | ~/.claude/hooks/council-jira-comment.sh <ISSUE-KEY>
   ```
 
