@@ -151,18 +151,17 @@ def replace_diagram_block(markdown_text, replacement_text):
     if block is None:
         raise ValueError("no diagram/wireframe block found")
     return markdown_text[: block["start"]] + replacement_text + markdown_text[block["end"] :]
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
 ```
 
-(`main` is added in Step 8 below — leave the `if __name__` guard as-is for now; it will `NameError` if run directly before then, which is fine, the tests below only import the module.)
+No `if __name__` guard yet — `main` does not exist until Step 8, and a
+guard calling an undefined name has no place in a committed file, even one
+that's never executed by the tests. Step 8 adds the guard together with
+`main`.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `python3 hooks/test_council_plan_html.py`
-Expected: `OK` (5 tests, all passing — the `if __name__` block is not executed on import).
+Expected: `OK` (5 tests, all passing).
 
 - [ ] **Step 5: Commit**
 
@@ -212,7 +211,7 @@ Expected: `AttributeError: module 'council_plan_html' has no attribute 'render_p
 
 - [ ] **Step 8: Implement `render_plan_html`, `render_diagram_html`, and the CLI**
 
-Replace the `if __name__ == "__main__":` tail of `hooks/council-plan-html.py` with:
+Append the following to the end of `hooks/council-plan-html.py`:
 
 ```python
 PLAN_TEMPLATE = """<!doctype html>
