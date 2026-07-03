@@ -49,6 +49,8 @@ in_allowed_dir() {
   case "$p" in
     "$PROJECT_DIR"|"$PROJECT_DIR"/*) return 0 ;;
     "$HOME_DIR"/.claude|"$HOME_DIR"/.claude/*) return 0 ;;
+    "$HOME_DIR"/.claude-personal|"$HOME_DIR"/.claude-personal/*) return 0 ;;
+    "$HOME_DIR"/.claude-work|"$HOME_DIR"/.claude-work/*) return 0 ;;
     /tmp|/tmp/*) return 0 ;;
     /private/tmp|/private/tmp/*) return 0 ;;
   esac
