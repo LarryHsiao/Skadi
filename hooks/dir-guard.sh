@@ -50,6 +50,7 @@ in_allowed_dir() {
     "$PROJECT_DIR"|"$PROJECT_DIR"/*) return 0 ;;
     "$HOME_DIR"/.claude|"$HOME_DIR"/.claude/*) return 0 ;;
     /tmp|/tmp/*) return 0 ;;
+    /private/tmp|/private/tmp/*) return 0 ;;
   esac
   for _d in "${DEV_DIRS[@]}"; do
     case "$p" in
