@@ -42,5 +42,34 @@ class FindDiagramBlockTest(unittest.TestCase):
         self.assertEqual(expected, result)
 
 
+class ReplaceDiagramBlockTest(unittest.TestCase):
+    def test_replaces_fence_with_given_text(self):
+        text = "before\n\n```diagram\nA -> B\n```\n\nafter"
+        expected = "before\n\n![diagram](x.png)\n\nafter"
+        result = cph.replace_diagram_block(text, "![diagram](x.png)")
+        self.assertEqual(expected, result)
+
+    def test_raises_when_no_block_present(self):
+        with self.assertRaises(ValueError):
+            cph.replace_diagram_block("no fence here", "x")
+
+
+class RenderPlanHtmlTest(unittest.TestCase):
+    def test_output_contains_escaped_ticket_and_body(self):
+        html_out = cph.render_plan_html("Intent: <script>alert(1)</script>", "MET-1")
+        self.assertIn("MET-1", html_out)
+        self.assertIn("&lt;script&gt;", html_out)
+        self.assertNotIn("<script>alert(1)</script>", html_out)
+        self.assertIn('href="skadi-theme.css"', html_out)
+
+
+class RenderDiagramHtmlTest(unittest.TestCase):
+    def test_output_preserves_ascii_box_drawing(self):
+        body = "┌───┐\n│ A │\n└───┘"
+        html_out = cph.render_diagram_html(body, "MET-1")
+        self.assertIn("┌───┐", html_out)
+        self.assertIn('href="skadi-theme.css"', html_out)
+
+
 if __name__ == "__main__":
     unittest.main()
