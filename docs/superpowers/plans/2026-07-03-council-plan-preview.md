@@ -464,10 +464,10 @@ Expected: `{"error":"file not found: /tmp/does-not-exist.png"}`, exit 1.
 
 ```bash
 printf 'x' > /tmp/diagram-test.png
-JIRA_BASE_URL=https://example.atlassian.net JIRA_EMAIL=test@example.com JIRA_API_TOKEN=dummy \
+JIRA_URL=https://example.atlassian.net JIRA_USERNAME=test@example.com JIRA_API_TOKEN=dummy \
   COUNCIL_DRY_RUN=1 hooks/jira-attach.sh MET-1 /tmp/diagram-test.png
 ```
-Expected: `DRY-RUN would attach diagram-test.png to MET-1`, exit 0 (no network call — verify by running with no network access, or by checking no `curl` process appears in a concurrent `ps` sample if in doubt).
+Expected: `DRY-RUN would attach diagram-test.png to MET-1`, exit 0 (no network call — verify by running with no network access, or by checking no `curl` process appears in a concurrent `ps` sample if in doubt). Note: `secret.sh`'s auto-mapped env fallback names are `JIRA_URL`/`JIRA_USERNAME`/`JIRA_TOKEN` (uri→URL, username→USERNAME) unless a call overrides the third `env_override` argument — `JIRA_BASE_URL`/`JIRA_EMAIL` (as `skills/council/SKILL.md`'s Jira-credentials section currently, incorrectly, documents) do not match and will not be picked up. If a live Vaultwarden `jira` item is unlocked on the machine, the vault answers first and this mismatch never surfaces — which is exactly why it went unnoticed; it's a pre-existing gap in three already-shipped hooks and SKILL.md's own docs, out of scope for this plan to fix, but real.
 
 - [ ] **Step 4: Commit**
 
@@ -508,8 +508,15 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HOOK="$HERE/council-jira-comment.sh"
 
-export JIRA_BASE_URL="https://example.atlassian.net"
-export JIRA_EMAIL="test@example.com"
+# secret.sh's auto-mapped env fallback names are JIRA_URL/JIRA_USERNAME/
+# JIRA_TOKEN (uri->URL, username->USERNAME) unless a call overrides the third
+# arg — JIRA_API_TOKEN is the one field council-jira-comment.sh does override.
+# These only matter if no live Vaultwarden "jira" item is unlocked; if one is,
+# the vault answers first and these exports are unused (harmless either way
+# since COUNCIL_DRY_RUN=1 gates every network call regardless of which
+# credentials resolved).
+export JIRA_URL="https://example.atlassian.net"
+export JIRA_USERNAME="test@example.com"
 export JIRA_API_TOKEN="dummy"
 export COUNCIL_DRY_RUN=1
 
@@ -651,8 +658,10 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HOOK="$HERE/jira-comment-edit.sh"
 
-export JIRA_BASE_URL="https://example.atlassian.net"
-export JIRA_EMAIL="test@example.com"
+# See hooks/council-jira-comment.test.sh for why JIRA_URL/JIRA_USERNAME (not
+# JIRA_BASE_URL/JIRA_EMAIL) are secret.sh's actual auto-mapped env fallback names.
+export JIRA_URL="https://example.atlassian.net"
+export JIRA_USERNAME="test@example.com"
 export JIRA_API_TOKEN="dummy"
 export COUNCIL_DRY_RUN=1
 
