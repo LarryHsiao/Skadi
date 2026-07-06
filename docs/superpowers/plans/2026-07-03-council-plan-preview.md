@@ -151,18 +151,17 @@ def replace_diagram_block(markdown_text, replacement_text):
     if block is None:
         raise ValueError("no diagram/wireframe block found")
     return markdown_text[: block["start"]] + replacement_text + markdown_text[block["end"] :]
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
 ```
 
-(`main` is added in Step 8 below — leave the `if __name__` guard as-is for now; it will `NameError` if run directly before then, which is fine, the tests below only import the module.)
+No `if __name__` guard yet — `main` does not exist until Step 8, and a
+guard calling an undefined name has no place in a committed file, even one
+that's never executed by the tests. Step 8 adds the guard together with
+`main`.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `python3 hooks/test_council_plan_html.py`
-Expected: `OK` (5 tests, all passing — the `if __name__` block is not executed on import).
+Expected: `OK` (5 tests, all passing).
 
 - [ ] **Step 5: Commit**
 
@@ -212,7 +211,7 @@ Expected: `AttributeError: module 'council_plan_html' has no attribute 'render_p
 
 - [ ] **Step 8: Implement `render_plan_html`, `render_diagram_html`, and the CLI**
 
-Replace the `if __name__ == "__main__":` tail of `hooks/council-plan-html.py` with:
+Append the following to the end of `hooks/council-plan-html.py`:
 
 ```python
 PLAN_TEMPLATE = """<!doctype html>
@@ -465,10 +464,10 @@ Expected: `{"error":"file not found: /tmp/does-not-exist.png"}`, exit 1.
 
 ```bash
 printf 'x' > /tmp/diagram-test.png
-JIRA_BASE_URL=https://example.atlassian.net JIRA_EMAIL=test@example.com JIRA_API_TOKEN=dummy \
+JIRA_URL=https://example.atlassian.net JIRA_USERNAME=test@example.com JIRA_API_TOKEN=dummy \
   COUNCIL_DRY_RUN=1 hooks/jira-attach.sh MET-1 /tmp/diagram-test.png
 ```
-Expected: `DRY-RUN would attach diagram-test.png to MET-1`, exit 0 (no network call — verify by running with no network access, or by checking no `curl` process appears in a concurrent `ps` sample if in doubt).
+Expected: `DRY-RUN would attach diagram-test.png to MET-1`, exit 0 (no network call — verify by running with no network access, or by checking no `curl` process appears in a concurrent `ps` sample if in doubt). Note: `secret.sh`'s auto-mapped env fallback names are `JIRA_URL`/`JIRA_USERNAME`/`JIRA_TOKEN` (uri→URL, username→USERNAME) unless a call overrides the third `env_override` argument — `JIRA_BASE_URL`/`JIRA_EMAIL` (as `skills/council/SKILL.md`'s Jira-credentials section currently, incorrectly, documents) do not match and will not be picked up. If a live Vaultwarden `jira` item is unlocked on the machine, the vault answers first and this mismatch never surfaces — which is exactly why it went unnoticed; it's a pre-existing gap in three already-shipped hooks and SKILL.md's own docs, out of scope for this plan to fix, but real.
 
 - [ ] **Step 4: Commit**
 
@@ -509,8 +508,15 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HOOK="$HERE/council-jira-comment.sh"
 
-export JIRA_BASE_URL="https://example.atlassian.net"
-export JIRA_EMAIL="test@example.com"
+# secret.sh's auto-mapped env fallback names are JIRA_URL/JIRA_USERNAME/
+# JIRA_TOKEN (uri->URL, username->USERNAME) unless a call overrides the third
+# arg — JIRA_API_TOKEN is the one field council-jira-comment.sh does override.
+# These only matter if no live Vaultwarden "jira" item is unlocked; if one is,
+# the vault answers first and these exports are unused (harmless either way
+# since COUNCIL_DRY_RUN=1 gates every network call regardless of which
+# credentials resolved).
+export JIRA_URL="https://example.atlassian.net"
+export JIRA_USERNAME="test@example.com"
 export JIRA_API_TOKEN="dummy"
 export COUNCIL_DRY_RUN=1
 
@@ -652,8 +658,10 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HOOK="$HERE/jira-comment-edit.sh"
 
-export JIRA_BASE_URL="https://example.atlassian.net"
-export JIRA_EMAIL="test@example.com"
+# See hooks/council-jira-comment.test.sh for why JIRA_URL/JIRA_USERNAME (not
+# JIRA_BASE_URL/JIRA_EMAIL) are secret.sh's actual auto-mapped env fallback names.
+export JIRA_URL="https://example.atlassian.net"
+export JIRA_USERNAME="test@example.com"
 export JIRA_API_TOKEN="dummy"
 export COUNCIL_DRY_RUN=1
 

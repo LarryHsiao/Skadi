@@ -62,16 +62,35 @@ Under the `[COUNSEL vN]` header, write:
 
 Keep it tight. A plan is a map, not the journey. Do not pad.
 
+**Diagrams and wireframes.** When a layout or structural point is genuinely
+clearer shown than described — a screen's regions, a sequence of calls, a
+class shape — sketch it in Unicode box-drawing, per the existing UI Review /
+UML Review convention, and fence it distinctly so it can be found
+mechanically:
+
+    ```diagram
+    ┌──────────┐     ┌──────────┐
+    │  Client  │────▶│  Server  │
+    └──────────┘     └──────────┘
+    ```
+
+Use `` ```wireframe `` instead of `` ```diagram `` when the sketch is a screen
+layout rather than a structural diagram — either tag is handled identically
+downstream. Do not use a bare fence or inline the sketch in prose; only a
+fence tagged exactly `diagram` or `wireframe` is recognized. Include at most
+one such block per round — a second is left as plain prose. Most plans need
+no diagram at all; do not add one merely to fill this section.
+
 ## When the plan touches UI layout
 
-If the plan changes a screen, panel, or component shape, include an ASCII wireframe in a fenced code block alongside the steps. One sketch per distinct layout — do not bundle states.
+If the plan changes a screen, panel, or component shape, include an ASCII wireframe in a fence tagged `` ```wireframe `` alongside the steps. One sketch per distinct layout — do not bundle states.
 
 Keep the sketch shape-faithful, not pixel-faithful: boxes, labels, proportions. Annotate new or changed elements with `<--` arrows on the right margin so the diff is visible at a glance.
 
 Example:
 
 ````markdown
-```
+```wireframe
 +------------------------------+
 | About                        |
 +------------------------------+

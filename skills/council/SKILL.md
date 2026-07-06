@@ -92,6 +92,104 @@ Apply the **Hybrid dispatch rule** from "Tracker routing" above to choose betwee
 
 If any credential cannot be resolved, the hook prints `{"error":"jira credentials missing"}` (or YouTrack equivalent) — surface it and stop.
 
+### Rendering the plan: Henneth mirror and diagram/wireframe embed
+
+Before every post or edit of a plan comment — draft or redraft, either
+tracker — run this pipeline on Erestor's returned body (`$EREST_OR_BODY`).
+It is invoked from four call sites: the YouTrack modify-only path's
+`draft_plan`/`await_start` and `redraft_plan` branches below, and the Jira
+path's step 6 first-turn-create and redraft-edit branches. It does **not**
+run on `[PEDO]`/`[PARLEY]` — the plan body is unchanged in both cases, so
+there is nothing fresh to mirror or scan.
+
+**1. Render the Henneth mirror.** Write Erestor's full returned body to
+Henneth so it can be read locally:
+
+```bash
+printf '%s' "$EREST_OR_BODY" | python3 ~/.claude/hooks/council-plan-html.py render-plan <TICKET-ID> ~/.claude/previews/henneth/plan-<TICKET-ID>.html
+```
+
+This always runs, on every draft and redraft — independent of whether a
+diagram/wireframe block is present and independent of tracker-post success.
+
+**2. Detect a diagram or wireframe.** Scan the same body for a fenced block:
+
+```bash
+DETECT_OUT=$(printf '%s' "$EREST_OR_BODY" | python3 ~/.claude/hooks/council-plan-html.py detect)
+DETECT_STATUS=$?
+```
+
+If `$DETECT_STATUS` is `1` (no block found — `$DETECT_OUT` is `NONE`), skip
+straight to posting/editing the comment with `$EREST_OR_BODY` unchanged; none
+of the remaining sub-steps run. If `$DETECT_STATUS` is `0`, the first line of
+`$DETECT_OUT` is `FOUND tag=<diagram|wireframe>` and the rest is the raw
+block body — extract both and continue:
+
+```bash
+DIAGRAM_TAG=$(printf '%s' "$DETECT_OUT" | head -1 | sed 's/FOUND tag=//')
+DIAGRAM_BODY=$(printf '%s' "$DETECT_OUT" | tail -n +2)
+```
+
+**3. Render and screenshot the block.** Write the block alone to a scratch
+HTML file, then screenshot it — reusing the same pipeline `/celebrimbor
+--skeleton` uses for its diagram PNG (`skills/celebrimbor/SKILL.md:152`):
+
+```bash
+printf '%s' "$DIAGRAM_BODY" | python3 ~/.claude/hooks/council-plan-html.py render-diagram <TICKET-ID> "$TMPDIR/diagram-<TICKET-ID>.html"
+npx -y playwright screenshot "$TMPDIR/diagram-<TICKET-ID>.html" "$TMPDIR/diagram-<TICKET-ID>.png"
+```
+
+If either command fails (non-zero exit), stop the diagram pipeline here: log
+the failure so it can be named in the round's report (see the report-format
+addition in *Report and release* below), and post/edit the comment with
+`$EREST_OR_BODY` **unchanged** (the fenced block posts as raw ASCII, exactly
+as council would with no preview pipeline at all) — do not attempt the
+attach/embed sub-steps below.
+
+**4. Attach, then embed — per tracker.** Still within the same conditional
+(a diagram/wireframe block was found and screenshotted successfully), do
+this **before** the tracker's post/edit call:
+
+- **YouTrack:**
+
+  ```bash
+  ~/.claude/hooks/youtrack-attach.sh <TICKET-ID> "$TMPDIR/diagram-<TICKET-ID>.png"
+  ```
+
+  On success, replace the fenced block in the body before posting/editing:
+
+  ```bash
+  printf '![Plan diagram](diagram-<TICKET-ID>.png)' > "$TMPDIR/img-ref.txt"
+  EREST_OR_BODY=$(printf '%s' "$EREST_OR_BODY" | python3 ~/.claude/hooks/council-plan-html.py replace "$TMPDIR/img-ref.txt")
+  ```
+
+  On failure, leave `$EREST_OR_BODY` unchanged (raw ASCII posts) and note the
+  failure for the round's report.
+
+- **Jira:**
+
+  ```bash
+  ATTACH_OUT=$(~/.claude/hooks/jira-attach.sh <ISSUE-KEY> "$TMPDIR/diagram-<TICKET-ID>.png")
+  ```
+
+  On success, `$ATTACH_OUT` is `attached: name=... id=<ATTACHMENT-ID> url=...`
+  — extract `<ATTACHMENT-ID>` and replace the fenced block with the sentinel:
+
+  ```bash
+  JIRA_ATTACHMENT_ID=$(printf '%s' "$ATTACH_OUT" | sed -n 's/.*id=\([^ ]*\).*/\1/p')
+  printf '[[PLAN-PREVIEW]]' > "$TMPDIR/sentinel.txt"
+  EREST_OR_BODY=$(printf '%s' "$EREST_OR_BODY" | python3 ~/.claude/hooks/council-plan-html.py replace "$TMPDIR/sentinel.txt")
+  ```
+
+  `JIRA_ATTACHMENT_ID` must reach `council-jira-comment.sh` or
+  `jira-comment-edit.sh` on the **same command** that invokes the hook for
+  this round (both hooks read it from the environment) — prefix that
+  invocation with `JIRA_ATTACHMENT_ID="$JIRA_ATTACHMENT_ID"` rather than
+  exporting it as a standing variable here; a later code block is a separate
+  invocation, and a standing export would not survive into it. On attach
+  failure, leave `$EREST_OR_BODY` unchanged, do not set `JIRA_ATTACHMENT_ID`,
+  and note the failure for the round's report.
+
 ### YouTrack modify-only path (skeleton-stage pipeline)
 
 When the resolved tracker is **YouTrack**, council maintains a single living
@@ -126,10 +224,16 @@ round.)
      <Erestor's plan>
      ```
 
-     Post it via `~/.claude/hooks/council-youtrack-comment.sh <TICKET-ID>`.
+     Before posting, run the Henneth-mirror and diagram/wireframe pipeline
+     (*Rendering the plan* above) on Erestor's returned body — it may swap
+     the fenced block for an attached image. Then post the (possibly
+     diagram-swapped) body as `<Erestor's plan>` via
+     `~/.claude/hooks/council-youtrack-comment.sh <TICKET-ID>`.
    - `redraft_plan` — Elrond has posted `[ENVINYA]`/`[ALTER]`, directing a change.
      Summon Erestor with the thread (including the alter instruction); he redrafts.
-     **Edit the same comment** in place via
+     Before editing, run the same Henneth-mirror and diagram/wireframe pipeline
+     (*Rendering the plan* above) on Erestor's returned body. **Edit the same
+     comment** in place via
      `~/.claude/hooks/youtrack-comment-edit.sh <TICKET-ID> <plan_id>`, with the
      watermark advanced to the newest human comment's `created`. An in-place edit
      fires no thread notification, so **append a `[VINYA]` notice** afterwards via
@@ -262,17 +366,23 @@ step 2):
   ```
 
 - **`[COUNSEL v{NEXT}]` on the first turn** (no plan comment id from step 2) —
-  create the living plan comment:
+  create the living plan comment. Before creating it, run the Henneth-mirror
+  and diagram/wireframe pipeline (*Rendering the plan* above) on
+  `$EREST_OR_BODY` — it may swap the fenced block for an attachment embed
+  and, on Jira, set `JIRA_ATTACHMENT_ID` (thread it inline on the hook call
+  below, which reads it from the environment):
 
   ```bash
-  printf '%s' "$EREST_OR_BODY" | ~/.claude/hooks/council-jira-comment.sh <ISSUE-KEY>
+  JIRA_ATTACHMENT_ID="$JIRA_ATTACHMENT_ID" printf '%s' "$EREST_OR_BODY" | ~/.claude/hooks/council-jira-comment.sh <ISSUE-KEY>
   ```
 
 - **`[COUNSEL v{NEXT}]` on a redraft** (a plan comment id exists) — **edit that
-  comment in place**, then append a `[VINYA]` change notice:
+  comment in place**, then append a `[VINYA]` change notice. Before editing,
+  run the same Henneth-mirror and diagram/wireframe pipeline (*Rendering the
+  plan* above) on `$EREST_OR_BODY`:
 
   ```bash
-  printf '%s' "$EREST_OR_BODY" | ~/.claude/hooks/jira-comment-edit.sh <ISSUE-KEY> <plan-comment-id>
+  JIRA_ATTACHMENT_ID="$JIRA_ATTACHMENT_ID" printf '%s' "$EREST_OR_BODY" | ~/.claude/hooks/jira-comment-edit.sh <ISSUE-KEY> <plan-comment-id>
   printf '%s' "$VINYA_BODY"     | ~/.claude/hooks/council-jira-comment.sh <ISSUE-KEY>
   ```
 
@@ -317,6 +427,9 @@ Tell the user, in one short block:
 - The ticket ID.
 - What council did this round — `[COUNSEL vN]` created, `[COUNSEL vN]` edited in place (with the `[VINYA]` notice appended), `[PARLEY]`, or `[PEDO]`.
 - The ticket URL printed on the success line in step 6.
+- Whether a diagram/wireframe was found this round, and if so, whether it
+  rendered and attached successfully or fell back to raw ASCII (name which
+  tool failed, if any — screenshot or attach).
 
 Do not reproduce Erestor's draft in the response — it lives on the ticket now.
 
