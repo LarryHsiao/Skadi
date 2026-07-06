@@ -64,10 +64,23 @@ DIAGRAM_TEMPLATE = """<!doctype html>
 <head>
 <meta charset="utf-8" />
 <title>Diagram — {ticket_id}</title>
-<link rel="stylesheet" href="skadi-theme.css">
+<style>
+  body {{ margin: 0; background: #f4ecd9; }}
+  main {{ display: inline-block; margin: 2rem; }}
+  .prec {{
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 0.85rem;
+    background: #efe4c9;
+    border: 1px solid #cdbfa0;
+    border-radius: 6px;
+    padding: 0.8rem 1rem;
+    white-space: pre;
+    display: inline-block;
+  }}
+</style>
 </head>
 <body>
-<main style="max-width: 700px; margin: 2rem auto;">
+<main>
   <div class="prec">{body}</div>
 </main>
 </body>

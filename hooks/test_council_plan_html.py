@@ -80,8 +80,14 @@ class RenderDiagramHtmlTest(unittest.TestCase):
         html_out = cph.render_diagram_html(body, "MET-1")
         expected_box = "┌───┐"
         self.assertIn(expected_box, html_out)
-        expected_stylesheet = 'href="skadi-theme.css"'
-        self.assertIn(expected_stylesheet, html_out)
+        # Inlined, not linked: this file is screenshotted from a scratch tmp
+        # path with no skadi-theme.css sibling, so the CSS must be self-contained.
+        expected_no_link = 'href="skadi-theme.css"'
+        self.assertNotIn(expected_no_link, html_out)
+        expected_monospace = "ui-monospace"
+        self.assertIn(expected_monospace, html_out)
+        expected_no_wrap = "white-space: pre;"
+        self.assertIn(expected_no_wrap, html_out)
 
 
 if __name__ == "__main__":
