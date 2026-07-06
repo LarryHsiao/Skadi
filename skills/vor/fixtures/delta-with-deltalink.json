@@ -1,0 +1,4 @@
+{
+  "value": [],
+  "@odata.deltaLink": "https://graph.microsoft.com/v1.0/chats/AAA/messages/delta?$deltatoken=XYZ123"
+}
