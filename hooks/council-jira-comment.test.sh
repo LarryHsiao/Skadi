@@ -9,15 +9,15 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HOOK="$HERE/council-jira-comment.sh"
 
-# secret.sh's auto-mapped env fallback names are JIRA_URL/JIRA_USERNAME/
-# JIRA_TOKEN (uri->URL, username->USERNAME) unless a call overrides the third
-# arg — JIRA_API_TOKEN is the one field council-jira-comment.sh does override.
-# These only matter if no live Vaultwarden "jira" item is unlocked; if one is,
-# the vault answers first and these exports are unused (harmless either way
-# since COUNCIL_DRY_RUN=1 gates every network call regardless of which
-# credentials resolved).
-export JIRA_URL="https://example.atlassian.net"
-export JIRA_USERNAME="test@example.com"
+# council-jira-comment.sh overrides all three secret.sh env-fallback names
+# explicitly (uri->JIRA_BASE_URL, username->JIRA_EMAIL, password->JIRA_API_TOKEN)
+# rather than relying on secret.sh's own auto-mapping — these exports must
+# match those overrides. They only matter if no live Vaultwarden "jira" item
+# is unlocked; if one is, the vault answers first and these exports are
+# unused (harmless either way since COUNCIL_DRY_RUN=1 gates every network
+# call regardless of which credentials resolved).
+export JIRA_BASE_URL="https://example.atlassian.net"
+export JIRA_EMAIL="test@example.com"
 export JIRA_API_TOKEN="dummy"
 export COUNCIL_DRY_RUN=1
 
@@ -50,5 +50,10 @@ check "no env var -> no mediaSingle" "0" "$(printf '%s' "$out" | grep -c 'mediaS
 out=$(printf 'Plain paragraph, nothing special.' | JIRA_ATTACHMENT_ID=12345 "$HOOK" MET-1)
 check "no sentinel -> no mediaSingle" "0" "$(printf '%s' "$out" | grep -c 'mediaSingle')"
 check "no sentinel -> plain text intact" "1" "$(printf '%s' "$out" | grep -c 'Plain paragraph')"
+
+# 4. Sentinel plus extra text (not an exact match) -> plain text, not mediaSingle.
+out=$(printf 'Some text.\n\n[[PLAN-PREVIEW]] extra text\n\nMore text.' | JIRA_ATTACHMENT_ID=12345 "$HOOK" MET-1)
+check "sentinel-plus-extra -> no mediaSingle" "0" "$(printf '%s' "$out" | grep -c 'mediaSingle')"
+check "sentinel-plus-extra -> literal text preserved" "1" "$(printf '%s' "$out" | grep -c 'PLAN-PREVIEW.. extra text')"
 
 exit $fail

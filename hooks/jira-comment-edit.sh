@@ -26,8 +26,8 @@ if [[ -z "$ISSUE_KEY" || -z "$COMMENT_ID" ]]; then
 fi
 
 SECRET="$(dirname "$0")/secret.sh"
-JIRA_URL="$("$SECRET" jira uri 2>/dev/null || true)"
-JIRA_EMAIL="$("$SECRET" jira username 2>/dev/null || true)"
+JIRA_URL="$("$SECRET" jira uri JIRA_BASE_URL 2>/dev/null || true)"
+JIRA_EMAIL="$("$SECRET" jira username JIRA_EMAIL 2>/dev/null || true)"
 JIRA_TOKEN="$("$SECRET" jira password JIRA_API_TOKEN 2>/dev/null || true)"
 
 if [[ -z "$JIRA_URL" || -z "$JIRA_EMAIL" || -z "$JIRA_TOKEN" ]]; then

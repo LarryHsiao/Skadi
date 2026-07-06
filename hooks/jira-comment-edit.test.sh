@@ -8,10 +8,11 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HOOK="$HERE/jira-comment-edit.sh"
 
-# See hooks/council-jira-comment.test.sh for why JIRA_URL/JIRA_USERNAME (not
-# JIRA_BASE_URL/JIRA_EMAIL) are secret.sh's actual auto-mapped env fallback names.
-export JIRA_URL="https://example.atlassian.net"
-export JIRA_USERNAME="test@example.com"
+# See hooks/council-jira-comment.test.sh for why these names match
+# jira-comment-edit.sh's explicit secret.sh overrides (uri->JIRA_BASE_URL,
+# username->JIRA_EMAIL, password->JIRA_API_TOKEN).
+export JIRA_BASE_URL="https://example.atlassian.net"
+export JIRA_EMAIL="test@example.com"
 export JIRA_API_TOKEN="dummy"
 export COUNCIL_DRY_RUN=1
 
@@ -37,5 +38,10 @@ check "no env var -> sentinel stays literal text" "1" "$(printf '%s' "$out" | gr
 
 out=$(printf 'Plain paragraph, nothing special.' | JIRA_ATTACHMENT_ID=12345 "$HOOK" MET-1 999)
 check "no sentinel -> no mediaSingle" "0" "$(printf '%s' "$out" | grep -c 'mediaSingle')"
+
+# Sentinel plus extra text (not an exact match) -> plain text, not mediaSingle.
+out=$(printf 'Some text.\n\n[[PLAN-PREVIEW]] extra text\n\nMore text.' | JIRA_ATTACHMENT_ID=12345 "$HOOK" MET-1 999)
+check "sentinel-plus-extra -> no mediaSingle" "0" "$(printf '%s' "$out" | grep -c 'mediaSingle')"
+check "sentinel-plus-extra -> literal text preserved" "1" "$(printf '%s' "$out" | grep -c 'PLAN-PREVIEW.. extra text')"
 
 exit $fail
