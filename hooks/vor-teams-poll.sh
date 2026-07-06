@@ -38,7 +38,7 @@ while IFS= read -r src || [ -n "$src" ]; do
       *) echo "vor: Graph HTTP $code for a source." >&2; exit 4 ;;
     esac
     batch="$("$HOOKS/vor-normalize.sh" --me "$ME" < "$tmp")"
-    all="$(jq -s '.[0] + .[1]' <(printf '%s' "$all") <(printf '%s' "$batch"))"
+    all="$(printf '%s\n%s\n' "$all" "$batch" | jq -s '.[0] + .[1]')"
     next="$(jq -r '."@odata.nextLink" // empty' < "$tmp")"
     if [ -n "$next" ]; then
       url="$next"
