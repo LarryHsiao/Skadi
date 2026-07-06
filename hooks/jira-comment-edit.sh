@@ -12,8 +12,11 @@
 # Env: COUNCIL_DRY_RUN=1 prints the would-be ADF payload to stdout instead
 # of editing. Use this for shape verification without writing to Jira.
 # Env: JIRA_ATTACHMENT_ID, if set, turns a body paragraph reading exactly
-# "[[PLAN-PREVIEW]]" into an ADF mediaSingle node referencing that attachment
-# id instead of emitting the sentinel as literal text.
+# "[[PLAN-PREVIEW]]" into a plain-text pointer at the ticket's attachment
+# instead of emitting the sentinel as literal text. (An earlier version tried
+# an ADF mediaSingle inline embed; Jira Cloud rejected it with
+# ATTACHMENT_VALIDATION_ERROR on a real ticket, so this points at the
+# Attachments panel instead of embedding inline.)
 
 set -euo pipefail
 export LC_ALL=C.UTF-8
@@ -73,11 +76,8 @@ for para in paragraphs:
         continue
     if para.strip() == "[[PLAN-PREVIEW]]" and attachment_id:
         content.append({
-            "type": "mediaSingle",
-            "attrs": {"layout": "center"},
-            "content": [
-                {"type": "media", "attrs": {"id": attachment_id, "type": "file", "collection": "jira"}}
-            ],
+            "type": "paragraph",
+            "content": [{"type": "text", "text": "\U0001F4CE Diagram attached to this issue — see Attachments below."}],
         })
         continue
     lines = para.split("\n")
