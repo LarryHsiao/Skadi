@@ -62,6 +62,10 @@ path is the binding henneth watches. Resolve it the same way each time
 the window. The path is fixed and shared, so any session writes to the one window
 without remembering a path.
 
+Every artifact's HTML must open with `<meta charset="utf-8">` as its first line.
+The server declares no charset, so the browser falls back to a guessed encoding —
+any preview carrying CJK, em dashes, or arrows renders as mojibake without it.
+
 ## Presenting code
 
 When the artifact's purpose is to **present code** (a function, a file excerpt, a
@@ -85,6 +89,7 @@ HTML-escape the code body (`&`→`&amp;`, `<`→`&lt;`) — Prism reads `textCon
 
 Canonical template (full-function view with line numbers + change bands):
 
+    <meta charset="utf-8">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-highlight/prism-line-highlight.min.css" />
