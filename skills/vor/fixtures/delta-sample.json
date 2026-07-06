@@ -1,0 +1,40 @@
+{
+  "value": [
+    {
+      "id": "1001",
+      "messageType": "message",
+      "createdDateTime": "2026-07-06T09:00:00Z",
+      "from": { "user": { "id": "U-ALICE", "displayName": "Alice" } },
+      "chatId": "CHAT-A",
+      "replyToId": null,
+      "body": { "contentType": "html", "content": "<p>Hey <at>Me</at>, can you review&nbsp;PR&amp;#42?</p>" },
+      "mentions": [ { "mentioned": { "user": { "id": "U-ME" } } } ]
+    },
+    {
+      "id": "1002",
+      "messageType": "message",
+      "createdDateTime": "2026-07-06T09:05:00Z",
+      "from": { "user": { "id": "U-BOB", "displayName": "Bob" } },
+      "channelIdentity": { "channelId": "CH-1" },
+      "replyToId": "1000",
+      "body": { "contentType": "text", "content": "Deploy is green." },
+      "mentions": []
+    },
+    {
+      "id": "1003",
+      "messageType": "systemEventMessage",
+      "createdDateTime": "2026-07-06T09:06:00Z",
+      "from": null,
+      "chatId": "CHAT-A",
+      "body": { "contentType": "text", "content": "Bob joined." }
+    },
+    {
+      "id": "1004",
+      "messageType": "message",
+      "createdDateTime": "2026-07-06T09:07:00Z",
+      "from": { "user": null },
+      "chatId": "CHAT-A",
+      "body": { "contentType": "text", "content": "automated" }
+    }
+  ]
+}

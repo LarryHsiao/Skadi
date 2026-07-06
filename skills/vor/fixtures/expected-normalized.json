@@ -1,0 +1,18 @@
+[
+  {
+    "id": "1001",
+    "sender": "Alice",
+    "thread": "CHAT-A:1001",
+    "timestamp": "2026-07-06T09:00:00Z",
+    "mentionsMe": true,
+    "text": "Hey Me, can you review PR&#42?"
+  },
+  {
+    "id": "1002",
+    "sender": "Bob",
+    "thread": "CH-1:1000",
+    "timestamp": "2026-07-06T09:05:00Z",
+    "mentionsMe": false,
+    "text": "Deploy is green."
+  }
+]
