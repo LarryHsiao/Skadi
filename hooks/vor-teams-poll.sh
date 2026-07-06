@@ -24,11 +24,14 @@ ME=""; [ -f "$ME_FILE" ] && ME="$(cat "$ME_FILE")"
 tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
 all='[]'
 
-while IFS= read -r src; do
+while IFS= read -r src || [ -n "$src" ]; do
   [ -z "$src" ] && continue
   url="$(vor_cursor_url "$src")"
   while [ -n "$url" ]; do
-    code="$(curl -sS -w '%{http_code}' -o "$tmp" -H "Authorization: Bearer $TOKEN" "$url")"
+    if ! code="$(curl -sS -w '%{http_code}' -o "$tmp" -H "Authorization: Bearer $TOKEN" "$url")"; then
+      echo "vor: Graph request failed (curl error) for a source." >&2
+      exit 4
+    fi
     case "$code" in
       200) : ;;
       401|403) echo "vor: Graph denied ($code) — tenant consent for Chat.Read/ChannelMessage.Read.All not granted." >&2; exit 4 ;;
