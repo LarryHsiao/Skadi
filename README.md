@@ -13,7 +13,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 | `statusline.sh` | Custom status line script |
 | `hooks/` | Shell scripts that run before/after tool calls |
 | `skills/` | Custom slash-command skills |
-| `docs/` | Style guides referenced from `CLAUDE.md` via `@docs/...` |
+| `docs/` | Style guides, tool guides, and workflow notes referenced from `CLAUDE.md` via `@docs/...` |
 | `install.sh` | Copy installer (idempotent, safe to re-run) |
 
 ### Features
@@ -33,9 +33,13 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/summary` — Summarize staged changes
 - `/reset` — Reset workspace to HEAD
 - `/branch` — Switch to a target branch, safely handling uncommitted work
+- `/celebrant` — Merge the current feature branch into the repo's default branch (`--no-ff`), push, then delete the merged branch local and remote; runs a pre-merge `/argonath` gate (`--quick` by default, full under `--full`), where a Hold warns but does not hard-stop. One confirm before anything destructive
 - `/prs` — Show open GitHub PRs requiring attention
 - `/mrs` — Show open GitLab merge requests requiring attention
 - `/palantir` — Look across both forges from one stone: open GitHub PRs and GitLab MRs needing attention in one combined view, with `⚑` flags on items carrying new comments. Args: `github` / `gitlab` to scope to one forge; `review`, `mine`, or `activity` to filter category
+- `/gwaihir` — Gather Outlook mail and Microsoft Teams messages into one read-only "what needs me?" brief — the communications analog of `/palantir`. Surfaces the few items worth a look and the threads wanting a reply; never acts. `[channel] [hours]` scope it
+- `/triage` — Pull unread Outlook inbox mail from the last N hours (default 24) through the read-only Microsoft 365 connector, separate signal from noise, and render a tight two-tier summary. Mark-read and move-to-folder run on the Graph write hooks
+- `/vor` — Read new Microsoft Teams messages (read-only via Graph delta), cluster threads, surface @-mentions and direct questions, and suggest draft replies in-session — it never posts. Dormant until the work tenant grants the Teams read scopes
 - `/amon-din` — Render the most recent CI runs (default 3, override with `[<count>]`) for the current branch (or all branches with `all`). Reads the per-project `ci_routing.md` auto-memory and dispatches to GitLab CI (via `glab`) or TeamCity (via REST). `add` / `remove` verbs (TeamCity only) edit the binding's `buildTypes` list. Read-only against the CI itself. First run on an unbound repo prompts once
 - `/jira` — Create or check status of Jira tickets
 - `/daily` — Show Jira tasks grouped by status, sorted by priority
@@ -44,15 +48,27 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/focus` — Pomodoro focus timer
 - `/preflight` — Run periodic maintenance checks and sync overdue items into the todo list
 - `/nazgul` — Dispatch the Nine: one agent per check file, aggregating pass/fail verdicts into a single table. Default scope is the diff (uncommitted, branch, or sha range); `/nazgul project` rides over the standing project tree instead. Each check declares its scope via frontmatter
+- `/argonath` — Weigh the about-to-be-pushed diff (or the whole tree with the `project` verb): run the project's lint/format/build/test toolchain, scan for secrets, then fold `/nazgul` and `/mithrandir` in as advisory rows — all into one Pass / Hold verdict. Report only; never runs `git push`
 - `/council` — Convene a planning council on a tracker ticket: Erestor drafts, Elrond decides, all by comment
 - `/glorfindel` — Sweep every open ticket in a project and run the council on each, aggregating one report
 - `/celebrimbor` — Forge an approved counsel into a PR/MR: branch off base, dispatch the smith, open the PR/MR, post `[GWAITH]` on the ticket
+- `/aule` — Sweep a project for tickets bearing an approved counsel awaiting the forge (`[COUNSEL]` + `[FORTH]`, no `[GWAITH]`), take the first N (default 3), and dispatch `/celebrimbor` per ticket; also closes already-forged tickets whose PR/MR has since merged, threading a `[METTA]` note. `--auto` forges the manifest unattended
+- `/anduin` — The council→forge pipeline as one composite sweep: ride `/glorfindel` (plan stage) then `/aule` (skeleton + forge stage) over a project, then print one combined report ending in a plain STIRRED / QUIET verdict. The forge stage runs unattended by default; `--dry-run` or `--confirm` gates it
+- `/rhovanion` — Sweep every tracker project in `pipeline_projects.md`, but gate each behind a cheap per-project movement probe — dispatching the full `/anduin` pipeline only where a project's tickets have moved since its last ride. Quiet projects cost one tracker query apiece
+- `/amon-sul` — An adaptive in-session watcher over one sweep (`glorfindel`, `aule`, `anduin`, `moria`, or `rhovanion`): run once, read the result, then self-schedule the next ride — tightening to five minutes when work moves, stretching to an hour as the road stays quiet. Honors an optional working-hours window; session-bound, and dies when the session closes
 - `/lindir` — Read a PR/MR and render a five-section review brief; with the `approve` verb, ask once and submit an approving review on the forge
 - `/mithrandir` — Read a PR/MR and render a multi-axis verdict — five always-on (stability, performance, coding style, maintainability, correctness) plus seven conditional that fire only when the diff touches their domain (test coverage, security, documentation, backward compatibility, observability, dependency hygiene, accessibility & i18n) — with a tier (sound/wavering/off) and short reasoning; with the `comment` verb, ask once and post the verdict to the forge. Tone defaults to lore for chat and plain for forge; `--plain` / `--lore` flags override
+- `/mandos` — Weigh a branch, PR, or MR against its ticket's *goal* — Covered / Missing / Scope-crept — read from the ticket's `[COUNSEL]`/`[PLAN]`, its own description, and the parent's acceptance criteria. Where Mithrandir weighs whether the code is *good*, Mandos weighs whether it is the *right* code. Opt-in write verbs: `post` threads a `[DOOM]` verdict on the ticket, `comment` posts it on the PR/MR; `--deep` runs a per-criterion fan-out
 - `/narvi` — Address every unaddressed review comment on a GitHub PR or GitLab MR — both inline threads anchored to a diff line *and* overview comments at the PR's top level (Mithrandir's verdicts, free-form review-body notes). Confirms once, then dispatches a smith subagent per comment — one commit per amendment with a `See: <url>` footer marker — pushes the branch, and leaves one short ack per addressed comment on the thread (`Addressed in <sha7>`). De-duplicates across re-runs by grepping the branch's commit log for the marker. Threads stay open; the reviewer eyeballs and resolves with their own hand. After a Narvi run, `/mithrandir bless <url>` re-weighs the amended PR
+- `/durin` — Sweep every open PR/MR in a repo's forge bearing unaddressed comments and dispatch `/narvi` per URL, aggregating one report. The forge is auto-detected from the origin remote (GitHub / GitLab). One repo per invocation; `--auto` skips the outer confirm gate
+- `/moria` — Sweep every repo in your global mend list (`mend_repos.md`) for PRs/MRs bearing unaddressed comments — loops `/durin` over each root, then prints one combined report ending in a plain STIRRED / QUIET verdict
 - `/scribe` — Export a Minerva planning section to YouTrack, Outline, or disk; carries title, scope, Figma screenshot, sub-tasks, and open questions, and updates in place via inline markers
+- `/remember` — Save knowledge to the Minerva knowledge base from any repo: determine the category, suggest sub-categories, and write the note into the Minerva repo
 - `/galadriel` — Render a folder of plan concepts (markdown, default `docs/plans/`) into one self-contained local HTML page: a left selector grouped by lifecycle (shaping/active/done), the chosen concept's preview in the main area, and a progress dashboard below grouping steps into done / in-flight / pending. The Mirror shows what was, is, and may yet be. A step may name the commits that landed it with a `<!-- sha: … -->` marker — the renderer runs `git show` and tucks the colorized patch behind a per-step diff toggle; a concept may name a mockup with a `<!-- preview: file.html -->` marker, inlined into a sandboxed read-only iframe. Step labels and overviews render a safe subset of inline markdown (code/bold/italic). The sidebar width and dashboard height are drag-resizable, the progress band collapses, and the view-state (sizes, collapse, selected concept) persists across re-renders via `localStorage`. Read-only viewer — edits are directed in chat and the page re-rendered
-- `/henneth` — Boot (or reuse) a per-session background server serving a live gallery of the session's rendered artifacts; the page lists every wireframe, image, and diagram dropped into `~/.claude/previews/<session>/` newest-first and follows the latest in its main pane unless pinned. An optional `<artifact>.json` sidecar names a title/note; absent, the filename is humanized. Drop a file and the open screen updates on its own; a row's delete button removes an artifact from the folder (it never edits one)
+- `/henneth` — Boot (or reuse) one standing background server, shared across all sessions, serving a live gallery of rendered artifacts; the page lists every wireframe, image, and diagram dropped into `~/.claude/previews/henneth/` newest-first and follows the latest in its main pane unless pinned. An optional `<artifact>.json` sidecar names a title/note; absent, the filename is humanized. Drop a file and the open screen updates on its own; a row's delete button removes an artifact from the folder (it never edits one)
+- `/feanor` — Align a web page (or a booted Flutter app) to a visual reference by an automatic render→compare→mend loop: shoot the target to a PNG, name the deltas against the spec, and edit the source to close them. Exits early when aligned or when progress stalls; a hard `--max` (default 3) is the backstop. Renders into the Henneth window so convergence is watchable
+- `/growth` — Render a growth dashboard into the Henneth window — DAU/WAU/MAU with week- and month-over-month deltas, a 12-week trend chart, and a 30-day sparkline — from the GA4 → BigQuery export. Read-only, and within BigQuery's free monthly tier
+- `/handoff` — An async file mailbox between Claude Code sessions: one session leaves a message (or a whole context baton) on a named channel, another reads it on demand or subscribes for live auto-pickup. No server — messages live under `~/.skadi/handoff/`
 - `/cleanup-dev` — Free disk space by clearing dev caches and build artifacts
 - `/vocab` — Personal vocabulary deck: look up a word in EN + ZH-TW, store as a card under `~/.skadi/vocab/`, surface due cards via spaced repetition
 - `/publish` — Build Flutter release archives and collect into `build/publish/`; macOS builds are signed (Developer ID) and notarized
@@ -75,13 +91,18 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **prs-activity**, **mrs-activity** — Surface PRs/MRs with new comments via GitHub notifications and GitLab todos for `/palantir`
 - **cleanup-dev-*** — Analyze, report, execute, and mark-run helpers for `/cleanup-dev`
 - **council-youtrack-fetch**, **council-youtrack-comment**, **council-jira-fetch**, **council-jira-comment** — Tracker I/O for `/council` (YouTrack and Jira)
+- **council-plan-html** — Render a `[COUNSEL]` plan to a local HTML preview
 - **glorfindel-youtrack-list**, **glorfindel-jira-list** — List open tickets matching a filter for `/glorfindel`
 - **forge-github-pr**, **forge-gitlab-mr** — Push a branch and open a PR/MR on GitHub or GitLab via `gh`/`glab`; body taken from stdin, optional `--assignee` (used by `/celebrimbor` and `/working`)
+- **aule-github-merged**, **aule-gitlab-merged** — Report whether a forged ticket's PR/MR has since merged, for `/aule`'s close pass
 - **lindir-github-pr**, **lindir-gitlab-mr** — Read a PR/MR via `gh`/`glab` and emit a JSON brief for `/lindir`
 - **lindir-github-approve**, **lindir-gitlab-approve** — Submit an approving review on a PR/MR via `gh`/`glab` for `/lindir approve`
 - **mithrandir-github-comment**, **mithrandir-gitlab-comment** — Post a comment on a PR/MR via `gh`/`glab` for `/mithrandir comment`; body taken from stdin
+- **mithrandir-github-prior**, **mithrandir-gitlab-prior** — Find Mithrandir's prior `comment`-verb post on a PR/MR so `/mithrandir bless` can thread its follow-up
+- **mithrandir-gitlab-reply** — Thread a `bless` follow-up under Mithrandir's prior verdict on a GitLab MR (the GitHub reply is handled inline)
 - **narvi-github-comments**, **narvi-gitlab-comments** — Fetch every unaddressed comment on a PR/MR — unresolved inline review-thread comments *and* overview comments (top-level issue-comments, submitted-review bodies, non-positioned discussion notes) — via `gh api graphql` / `glab api` for `/narvi`; each entry tagged with `kind: inline | overview`
 - **narvi-github-reply**, **narvi-gitlab-reply** — Post a one-line ack on a review thread after Narvi's smith lands an amendment. GitHub inline: GraphQL `addPullRequestReviewThreadReply` so the note threads under the original. GitHub overview: a fresh issue-comment with a `(Reply to <url>)` footer (no thread-reply primitive on issue-comments). GitLab (both kinds): a child note via the discussions endpoint, uniformly threaded
+- **durin-github-list**, **durin-gitlab-list** — List open PRs/MRs bearing unaddressed comments for `/durin`
 - **amon-din-gitlab**, **amon-din-teamcity** — Fetch the most recent CI runs via `glab` (GitLab pipelines) or REST (TeamCity builds) for `/amon-din`
 - **youtrack-state**, **jira-state** — Idempotent state transitions on YouTrack and Jira tickets, used by `/glorfindel` (on `[FORTH]`) and `/celebrimbor` (after `[GWAITH]`)
 - **publish-macos-target** — Remember whether a macOS project publishes to GitHub Releases or the Mac App Store
@@ -90,6 +111,21 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **skeleton-rung** — Derives the loop's next action for a skeleton-stage YouTrack issue
 - **youtrack-comment-edit** — Edits a YouTrack comment in place
 - **youtrack-attach** — Attaches or replaces a PNG on a YouTrack issue
+- **jira-comment-edit**, **jira-attach** — Edit a Jira comment in place and attach/replace a PNG — the Jira twins of the YouTrack pair above (ADF conversion shared in `jira_adf.py`), for `/council`'s skeleton-stage path
+- **argonath-detect**, **argonath-run**, **argonath-secrets** — Detect the project toolchain, run the lint/format/build/test gate, and scan for secrets for `/argonath`
+- **rhovanion-jira-probe**, **rhovanion-youtrack-probe** — The cheap per-project movement probe that decides whether `/rhovanion` rides a project
+- **feanor-shot**, **feanor-flutter-shot** — Shoot the target to a PNG — a served page via headless Chrome/Edge, or a booted Flutter app — for `/feanor`
+- **outlook-token**, **outlook-fetch**, **outlook-classify**, **outlook-folders**, **outlook-folder-create**, **outlook-mark-read**, **outlook-move** — Microsoft Graph I/O (token, fetch, classify, list/create folders, mark read, move) for `/triage` and `/gwaihir`
+- **vor-teams-poll**, **vor-normalize**, **vor-cursor** — Teams delta fetch, message normalization, and the read-cursor for `/vor`
+- **working-jira-ticket**, **working-jira-open**, **working-jira-transitions** — Resolve a ticket, open its draft PR/MR, and drive its state transitions for `/working`
+- **handoff**, **handoff-poll** — The mailbox store and the subscribe-poll loop for `/handoff`
+- **appgrowth** — Query the GA4 → BigQuery export for `/growth`
+- **scribe** — Export a Minerva section to YouTrack, Outline, or disk for `/scribe`
+- **galadriel-render**, **mirror-server** — Render the `/galadriel` plan mirror to HTML and serve it live
+- **henneth-group** — Group the gallery artifacts for `/henneth`
+- **skadi-worktree**, **worktree-guard** — Create or enter an isolated git worktree and block strays outside it
+- **protected-repo-guard** — Block writes and commits against protected repositories
+- **daily-mark-run**, **triage-mark-run** — Record the last-run timestamp for `/daily` and `/triage`
 
 ## Skeleton-stage pipeline
 
