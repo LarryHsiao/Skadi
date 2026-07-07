@@ -66,6 +66,31 @@ The account is the default from `outlook_accounts.md` (legacy single-account
 compat when the memory file is absent). Gwaihir does not expose account
 selection.
 
+### 2. Teams  *(skip when scope is `mail`)*
+
+Run the poller and read its exit code first:
+
+    ~/.claude/hooks/vor-teams-poll.sh
+
+- `2` — dormant (no `sources.txt`, or no `vor-graph-token`). Set the Teams
+  source unavailable with reason `dormant — tenant consent pending`.
+- `3` — a tool (`jq`/`curl`) is missing. Set unavailable, reason
+  `missing tool: <name>`.
+- `4` — Graph denied or errored. Set unavailable, reason
+  `consent for Chat.Read/ChannelMessage.Read.All not yet granted`.
+- `0` — proceed. Stdout is a JSON array of normalized messages
+  (`{id, sender, text, thread, timestamp, mentionsMe}`); an empty array means
+  nothing new (no surfaced threads, `routineTeams = 0`).
+
+Organize as `/vor` does: group by `thread`. Surface, in order, threads where
+`mentionsMe` is true (`kind = mention`), then threads asking a direct question
+(`kind = question`); collapse the rest into a `routineTeams` count. Drop pure
+noise (joins, reactions, automated notices).
+
+**Do not draft replies.** Name the threads that want one; the footer points to
+`/vor` for the drafting. There is no send path here and you must not construct
+one.
+
 ## Read-only guarantee
 
 <!-- filled by Task 4 -->
