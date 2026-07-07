@@ -249,7 +249,12 @@ round.)
      `created` (body otherwise unchanged) — this consumes the question so the next
      ride stays quiet. The plan body is never rewritten; only `[ENVINYA]`/`[ALTER]`
      does that.
-   - `await_plan` / `draft_skeleton` / `redraft_skeleton` / `answer_skeleton` / `forge` / `done` —
+   - `draft_skeleton` — `[FORTH]` has just approved the plan; the skeleton rung
+     itself belongs to celebrimbor, so council does **not** draft it. But this is
+     YouTrack's approval moment: **run *The `[ENWINA]` divergence notice* below**,
+     then report "awaiting (plan approved; skeleton is celebrimbor's)" — naming
+     whether an `[ENWINA]` notice was posted — and stop.
+   - `await_plan` / `redraft_skeleton` / `answer_skeleton` / `forge` / `done` —
      **no-op**. Council's job is the plan rung only; later rungs belong to celebrimbor.
      Report "awaiting" and stop. (`await_start` is handled by the draft clause above —
      a direct invocation is consent.)
@@ -298,7 +303,7 @@ Walk the `comments` array (already oldest-first). Determine:
 - **Plan comment id.** The `id` of that highest-version plan comment (from the fetch hook's `id` field). This is the comment step 6 edits in place on a redraft. If no plan exists yet, there is no id — step 6 creates the comment instead.
 - **Bot identity.** Two modes:
   - **Service-account mode** (e.g. YouTrack with a dedicated `claude` user): a comment is the bot's iff `login == "<bot-login>"`.
-  - **Shared-identity mode** (e.g. Jira where the bot posts as Elrond): no login distinction exists; a comment is the bot's iff its first line carries `[COUNSEL v…]` / `[PLAN v…]` (alias), `[PARLEY]` / `[AGENT-ASK]` (alias), `[PEDO]` / `[ANSWER]` (alias), `[VINYA]` / `[RENEWED]` (alias — the in-place-edit notice), `[DOOM]` / `[VERDICT]` (alias — Mandos's faithfulness verdict, loop-neutral), or `[GWAITH]` / `[FORGED]` / `[SHIPPED]` (Celebrimbor's mark).
+  - **Shared-identity mode** (e.g. Jira where the bot posts as Elrond): no login distinction exists; a comment is the bot's iff its first line carries `[COUNSEL v…]` / `[PLAN v…]` (alias), `[PARLEY]` / `[AGENT-ASK]` (alias), `[PEDO]` / `[ANSWER]` (alias), `[VINYA]` / `[RENEWED]` (alias — the in-place-edit notice), `[ENWINA]` / `[STALE]` (alias — the description-drift notice), `[DOOM]` / `[VERDICT]` (alias — Mandos's faithfulness verdict, loop-neutral), or `[GWAITH]` / `[FORGED]` / `[SHIPPED]` (Celebrimbor's mark).
 
   Detect mode by inspecting the comment thread: if any login carries the configured bot value (today: `claude`), use service-account mode; otherwise use shared-identity mode.
 
@@ -311,11 +316,11 @@ Walk the `comments` array (already oldest-first). Determine:
 The order of these checks matters — verdict beats quiet (no fresh counsel) beats first-turn beats alter beats answer.
 
 1. **Verdict present.** Scan all fresh counsel for the three verdict tokens (and their aliases). Token precedence — *not* chronological order — picks the winner: `[FORTH]`/`[APPROVE]` beats `[NAY]`/`[REJECT]` beats `[NAMARIE]`/`[FAREWELL]`. So if Elrond posts `[NAY]` and later posts `[FORTH]`, the parser adjourns as approved (FORTH wins regardless of when it appeared); same if the order is reversed. Effect:
-   - `[FORTH]`/`[APPROVE]` → adjourn with approval on `[COUNSEL vN]`.
+   - `[FORTH]`/`[APPROVE]` → adjourn with approval on `[COUNSEL vN]`. **Before stopping, run *The `[ENWINA]` divergence notice* below** — on approval the plan is settled, so this is the one moment to flag a description that has fallen behind it.
    - `[NAY]`/`[REJECT]` → adjourn without approval.
    - `[NAMARIE]`/`[FAREWELL]` → adjourn without verdict (farewell — for out-of-band resolution).
    
-   Tell the user which adjournment fired and on which counsel version. Post nothing. Stop.
+   Tell the user which adjournment fired and on which counsel version (and, for `[FORTH]`, whether an `[ENWINA]` notice was posted). Post nothing further. Stop.
 
 2. **No fresh counsel and a plan already exists.** The bot has spoken last and Elrond has not replied. Do not draft, do not post — there is no new ground to chew on, and a re-issue would only clutter the thread. Tell the user: "Awaiting Elrond's reply on `[COUNSEL vN]` (or the latest `[PARLEY]`). No fresh counsel since `<timestamp>`." Stop. **This makes the skill loop-safe** — repeated invocations between Elrond's replies are no-ops.
 
@@ -420,6 +425,58 @@ The notice is composed by the skill body, not Erestor. It is the only append a
 redraft makes; the plan body itself is never re-appended. (The first-turn create
 needs no notice — a new comment already notifies.)
 
+#### The `[ENWINA]` divergence notice
+
+This notice serves **both trackers** — the Jira verdict branch (§3, check 1, on
+`[FORTH]`) and the YouTrack modify-only `draft_skeleton` branch (the moment
+`[FORTH]` advances the plan rung). Council posts it **at most once per ticket**:
+when the accepted plan has outgrown the ticket's own description, it flags the
+drift so Elrond can renew the description. It **never rewrites the description** —
+council counsels through comments; the human's words are the human's to change.
+
+Run it only at approval, in this order:
+
+1. **Idempotency guard.** Scan the thread already fetched for any prior bot
+   comment whose first line is `[ENWINA]` / `[STALE]`. If one exists, do nothing
+   — the drift was flagged already. Stop here.
+2. **Compare.** Read the approved plan body — Jira's latest `[COUNSEL vN]`,
+   YouTrack's `[PLAN]` — against the ticket `description` (both from the fetch
+   hook). Judge **material divergence**: at least one of
+   - the plan **adds** scope the description never states,
+   - the description states scope the plan **drops** (its *Not covered*, or a
+     silent omission),
+   - the plan's approach **contradicts** what the description says will be done.
+
+   *Not* divergence: added implementation detail, rewording, or elaboration
+   consistent with the description. When in doubt, do **not** post — a false flag
+   clutters the thread, and a description left as-is is recoverable.
+3. **Post — if and only if diverged.** Compose the notice naming each drift
+   point in one line; do **not** draft replacement description text. Post it via
+   the tracker's plain comment hook (`council-jira-comment.sh` /
+   `council-youtrack-comment.sh <TICKET-ID>`), recognized as the bot's word so
+   the next ride reads it as no fresh counsel:
+
+   ```
+   # Jira (versioned plan marker):
+   [ENWINA] The approved [COUNSEL vN] has moved past the ticket description —
+   the description is now stale and should be updated to match. What drifted:
+   - <one line per divergence point>
+   The plan on this thread is the source of truth for the forge.
+   ```
+
+   ```
+   # YouTrack (single living [PLAN]):
+   [ENWINA] The approved [PLAN] has moved past the ticket description —
+   the description is now stale and should be updated to match. What drifted:
+   - <one line per divergence point>
+   The plan on this thread is the source of truth for the forge.
+   ```
+
+   The leading `[ENWINA]` token is identical on both trackers — only the *inner*
+   reference to the plan comment differs (`[COUNSEL vN]` vs `[PLAN]`). The notice
+   is composed by the skill body, not Erestor, and is loop-neutral — it counts
+   toward no turn limit and redrafts nothing.
+
 ### 7. Report and release
 
 Tell the user, in one short block:
@@ -445,7 +502,7 @@ The helper handles both worktree and temp-clone modes silently. Release on the s
 
 ## Comment grammar
 
-Thirteen tokens carry state. Everything else is counsel.
+Fourteen tokens carry state. Everything else is counsel.
 
 | Token (primary) | Accepted alias | Who writes it | Meaning |
 |---|---|---|---|
@@ -453,6 +510,7 @@ Thirteen tokens carry state. Everything else is counsel.
 | `[PARLEY]` | `[AGENT-ASK]` | Erestor | A single clarifying question — speech between sides to come to terms. |
 | `[PEDO]` | `[ANSWER]` | Erestor / the smith | *Speak, and answer.* The reply to a `[CEIST]` (or bare question) — the plan stands untouched. Loop-neutral; uncounted toward the turn limit. |
 | `[VINYA]` | `[RENEWED]` | Council | *Renewed.* The notice appended after the living plan comment is edited in place (a silent edit fires no thread notification). Points at the renewed `[COUNSEL vN]`/`[PLAN]` above; the plan body lives there, not here. Loop-neutral. |
+| `[ENWINA]` | `[STALE]` | Council | *Old — of the elder days.* Posted once at approval when the accepted plan has outgrown the ticket description: the written account is stale and wants renewing. Names the drift; never rewrites the description — council flags, Elrond renews. Loop-neutral. |
 | `[MELLON]` | `[FRIEND]` | Elrond | Summons. *Speak, friend, and enter* — enrolls a planless ticket in the skeleton-stage sweeps (`/glorfindel`, `/aule`); the decider yields `await_start` without it. Ignored by single-ticket `/council` (the invocation itself is consent). |
 | `[CEIST]` | `[ASK]` | Elrond | *A question put to the council.* Draws a `[PEDO]` answer; the plan is untouched. Bare prose is read the same way — it answers, never redrafts. |
 | `[ENVINYA]` | `[ALTER]` | Elrond | *Renew it.* The one human word that redrafts the standing plan or skeleton. Absent it, fresh prose only draws an answer. |
@@ -463,7 +521,7 @@ Thirteen tokens carry state. Everything else is counsel.
 | `[DOOM]` | `[VERDICT]` | Mandos | *The Doom.* A verdict on whether the deed matches the decree — Covered / Missing / Scope-crept against the ticket's goal. Loop-neutral; uncounted toward the turn limit, never redrafts or approves. Council never posts it; `/mandos post` does. |
 | `[METTA]` | — | Aulë | *Quenya "the end."* Closed on merge — the ticket's `[GWAITH]` PR/MR has merged; State moved to the project's closed value. Terminal; the true no-op the decider calls `at_rest`. Loop-neutral; uncounted toward the turn limit. Council never posts it; `/aule` does. |
 
-The English aliases (`[PLAN vN]`, `[AGENT-ASK]`, `[ANSWER]`, `[RENEWED]`, `[FRIEND]`, `[ASK]`, `[ALTER]`, `[APPROVE]`, `[REJECT]`, `[FAREWELL]`, `[FORGED]`, `[SHIPPED]`, `[VERDICT]`) are accepted equivalents, recognized everywhere their Tolkien primaries are. Use either form; the parser treats them identically. User-facing reports prefer the Tolkien token.
+The English aliases (`[PLAN vN]`, `[AGENT-ASK]`, `[ANSWER]`, `[RENEWED]`, `[STALE]`, `[FRIEND]`, `[ASK]`, `[ALTER]`, `[APPROVE]`, `[REJECT]`, `[FAREWELL]`, `[FORGED]`, `[SHIPPED]`, `[VERDICT]`) are accepted equivalents, recognized everywhere their Tolkien primaries are. Use either form; the parser treats them identically. User-facing reports prefer the Tolkien token.
 
 Human replies between these tokens are free-form prose — read as a question and answered with `[PEDO]`, never folded into a redraft. Only `[ENVINYA]`/`[ALTER]` redraws the plan.
 
@@ -472,9 +530,10 @@ Human replies between these tokens are free-form prose — read as a question an
 - Never act on Elrond's behalf. The skill only reads tickets and posts comments.
 - The living plan comment is **edited in place** on a redraft (both trackers), followed by a `[VINYA]` notice; `[PEDO]` answers, `[PARLEY]`, and the first-turn plan creation are appends. No comment is ever deleted.
 - **Loop-safe.** If no fresh counsel from Elrond has come since the bot's last word, post nothing. Repeated invocations between Elrond's replies must be silent no-ops. The thread, not the invocation count, is the source of truth.
+- **Description drift is flagged, never fixed.** On approval, if the accepted plan has materially diverged from the ticket description, council posts one `[ENWINA]` notice naming the drift, then stops — it does not rewrite the description (Elrond's words are Elrond's to change). Once per ticket, guarded by the presence of a prior `[ENWINA]`; when in doubt whether the drift is material, post nothing.
 - If the tracker hook reports a credential is missing, surface the error and stop — do not proceed.
 - Turn limit is five counsels per ticket. On the sixth, post `[PARLEY]` asking to take the thread offline. (Only triggers when fresh counsel exists; otherwise the loop-safe rule keeps the thread quiet.)
-- Case-insensitive matching of all thirteen tokens and their aliases.
+- Case-insensitive matching of all fourteen tokens and their aliases.
 - Two trackers are wired: YouTrack and Jira. The hybrid dispatch rule above chooses between them.
 - **Jira tickets are real work.** Do not post test or diagnostic comments to Jira during smoke testing. Use `COUNCIL_DRY_RUN=1` env on the Jira comment **and edit** hooks (`council-jira-comment.sh`, `jira-comment-edit.sh`) for shape verification, and do write-path smoke tests against YouTrack (MET-1).
 - Do not surface tracker tokens in logs, responses, or saved files.
