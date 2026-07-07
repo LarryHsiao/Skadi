@@ -91,10 +91,62 @@ noise (joins, reactions, automated notices).
 `/vor` for the drafting. There is no send path here and you must not construct
 one.
 
+### 3. Render
+
+One combined brief. A half that answered renders its section; a half set
+unavailable is replaced by a footer note naming the gap. A half outside the
+chosen scope is neither queried nor noted.
+
+    Gwaihir — N mail · M threads need you
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    📧 Mail — Worth a look (N)
+      <YYYY-MM-DD HH:MM>  <sender, ≤24 chars>  <subject, ≤60 chars>
+      ...
+    💬 Teams — Need a reply (M)
+      <thread, ≤24 chars>  <@you: | Q:> <text, ≤60 chars>
+      ...
+    · Routine: mail K · teams J
+    ───────────────────────────────────
+      for mail actions: /triage    for Teams drafts: /vor
+
+- Header counts `N`/`M` are the surfaced totals only (worth-a-look /
+  needs-reply). Drop a channel's clause from the header when that channel is
+  unavailable or out of scope.
+- A Teams row is prefixed `@you:` when `kind = mention`, `Q:` when
+  `kind = question`.
+- The Routine line is a single per-channel tally; omit a channel whose routine
+  count is zero or that was unavailable. If both channels have zero routine,
+  omit the line.
+- Mail rows sorted newest-first; Teams threads ordered mention-first, then
+  question.
+
+**Footer notes** — one line per silent source, beneath the brief:
+
+- `Mail: connector not connected — enable it at claude.ai → Settings → Connectors`
+- `Teams: <reason>` — the reason string from step 2 (e.g. `dormant — tenant
+  consent pending`).
+
+**Both silent (or both empty), when both were in scope:** render only
+
+    Gwaihir — nothing to look through.
+
+with any source-gap footer notes beneath it, so the user knows *why* it is empty
+(dormant vs. genuinely quiet).
+
 ## Read-only guarantee
 
-<!-- filled by Task 4 -->
+Gwaihir issues only read-shaped calls: the connector's `outlook_email_search`,
+the `vor-teams-poll.sh` GET poller, and the `outlook-classify.sh` lookup. It has
+no mark-read, no move, no post, no draft-send, and no run-stamp. Never add one —
+mutation is out of scope; the acting verbs live in `/triage` and `/vor`.
 
 ## Rules
 
-<!-- filled by Task 4 -->
+- Read-only — orchestrates existing read primitives; never mutates mail, posts
+  to Teams, or stamps a run.
+- Never reveal a mail message's body — subject and sender suffice.
+- Classification is `/triage` §2's single source of truth — reference it, never
+  copy it here.
+- No Teams drafting — name the threads that want a reply; `/vor` composes.
+- Default Outlook account only — for another mailbox, run `/triage <account>`.
+- Fetch each source once — one poll, one connector search, one brief.
