@@ -7,6 +7,8 @@ description: Use when the user runs /daily [...args]. Shows Jira tasks assigned 
 
 Shows Jira tasks assigned to you or someone else, grouped into three categories (In Progress, To Do, Done) and sorted by priority.
 
+Sibling: `/jira status` renders the whole sprint board of one project; `/daily` follows one person's plate, across projects if several are named.
+
 ## Argument Parsing
 
 Arguments: `/daily [project...] [@person]`

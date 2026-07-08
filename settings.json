@@ -101,6 +101,16 @@
       "Bash(~/.claude/hooks/skeleton-rung.py:*)",
       "Bash(~/.claude/hooks/youtrack-comment-edit.sh:*)",
       "Bash(~/.claude/hooks/youtrack-attach.sh:*)",
+      "Bash(~/.claude/hooks/council-jira-fetch.sh:*)",
+      "Bash(~/.claude/hooks/council-jira-comment.sh:*)",
+      "Bash(~/.claude/hooks/council-plan-html.py:*)",
+      "Bash(~/.claude/hooks/jira-attach.sh:*)",
+      "Bash(~/.claude/hooks/jira-comment-edit.sh:*)",
+      "Bash(~/.claude/hooks/glorfindel-jira-list.sh:*)",
+      "Bash(~/.claude/hooks/glorfindel-youtrack-list.sh:*)",
+      "Bash(~/.claude/hooks/aule-github-merged.sh:*)",
+      "Bash(~/.claude/hooks/aule-gitlab-merged.sh:*)",
+      "Bash(~/.claude/hooks/vor-cursor.sh:*)",
       "Bash(glab:*)",
       "Bash(~/.claude/hooks/secret.sh:*)",
       "Bash(~/.claude/hooks/outlook-token.sh:*)",
@@ -135,7 +145,7 @@
       "PowerShell(Join-Path *)"
     ]
   },
-  "model": "opus",
+  "model": "sonnet",
   "hooks": {
     "PostToolUse": [
       {

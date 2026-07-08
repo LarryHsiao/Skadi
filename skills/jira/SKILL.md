@@ -29,7 +29,7 @@ Check memory file `jira_config.md` for:
 - `JIRA_EMAIL` — e.g. `user@example.com`
 
 If not found, ask the user for both values via AskUserQuestion, then save to memory:
-- Write to `/Users/larryhsiao/.claude/projects/-Users-larryhsiao-skadi/memory/jira_config.md`
+- Write `jira_config.md` to the current project's auto-memory directory (the `memory/` path named in the system prompt)
 - Add pointer to `MEMORY.md`
 
 Require `JIRA_API_TOKEN` env var. If not set, tell the user:
@@ -58,7 +58,7 @@ Extract the project key (e.g. `PROJ` from `PROJ-123`) and use it silently — do
 If no ticket is found anywhere:
 - Check memory file `jira_project.md` for a saved project key
 - If still not found, ask the user for the project key, then save to memory:
-  - Write to `/Users/larryhsiao/.claude/projects/-Users-larryhsiao-skadi/memory/jira_project.md`
+  - Write `jira_project.md` to the current project's auto-memory directory (the `memory/` path named in the system prompt)
   - Add pointer to `MEMORY.md`
 
 ### 4. Get issue summary
@@ -155,6 +155,8 @@ Then ask via AskUserQuestion: "Start working on PROJECT-123 now?" (yes → chain
 ## Verb: status
 
 Shows a sprint board overview grouped by status, sorted by priority. Acts as a secretary: tells you what the team is doing and what you should focus on next.
+
+Sibling: `/daily` follows one person's assigned tasks, across projects if several are named; `/jira status` renders the whole board of the current sprint.
 
 Arguments after `status`: `/jira status [filter] [--filter <id>] [--all]`
 

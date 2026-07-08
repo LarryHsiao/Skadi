@@ -118,6 +118,40 @@ class ServerTest(unittest.TestCase):
             tmp.cleanup()
 
 
+class CharsetTest(unittest.TestCase):
+    def test_html_artifact_served_with_utf8_charset(self):
+        import http.client
+        import threading
+        from functools import partial
+        from http.server import ThreadingHTTPServer
+
+        tmp = tempfile.TemporaryDirectory()
+        directory = Path(tmp.name)
+        (directory / "notes.html").write_text("<p>收尾 — em dash</p>", encoding="utf-8")
+        (directory / "shot.png").write_text("x", encoding="utf-8")
+        server = ThreadingHTTPServer(("127.0.0.1", 0), partial(mirror.Handler, directory=str(directory)))
+        port = server.server_address[1]
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            conn = http.client.HTTPConnection("127.0.0.1", port)
+            conn.request("GET", "/notes.html")
+            resp = conn.getresponse()
+            body = resp.read().decode("utf-8")
+            expected_content_type = "text/html; charset=utf-8"
+            self.assertEqual(expected_content_type, resp.headers["Content-Type"])
+            self.assertIn("收尾", body)
+
+            conn.request("GET", "/shot.png")
+            image = conn.getresponse()
+            image.read()
+            expected_image_type = "image/png"
+            self.assertEqual(expected_image_type, image.headers["Content-Type"])
+        finally:
+            server.shutdown()
+            server.server_close()
+            tmp.cleanup()
+
+
 class DeleteTest(unittest.TestCase):
     def setUp(self):
         import threading

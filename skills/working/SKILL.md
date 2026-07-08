@@ -39,7 +39,7 @@ PROJ-789/fix/larry/cannot-close-emergency-measure-page
    ```
    Extract the project key (e.g. `PROJ` from `PROJ-123`).
 3. If still not found, ask the user for the project key via AskUserQuestion, then save to memory:
-   - Write to `/Users/larryhsiao/.claude/projects/-Users-larryhsiao-skadi/memory/jira_project.md`
+   - Write `jira_project.md` to the current project's auto-memory directory (the `memory/` path named in the system prompt)
    - Add pointer to `MEMORY.md`
 
 **b. Fetch open/in-progress tickets for the project** and present them for selection:
@@ -121,7 +121,7 @@ It prints a JSON array `[{"id":"42","name":"Doing","to":"Doing"}]` (creds via `s
 - If multiple candidates are found, present them via AskUserQuestion and let the user pick.
 - If no candidates are found, present all available transitions via AskUserQuestion.
 - After the user picks, save the chosen transition ID to memory:
-  - Write to `/Users/larryhsiao/.claude/projects/-Users-larryhsiao-skadi/memory/jira_transition_PROJECTKEY.md`
+  - Write `jira_transition_PROJECTKEY.md` to the current project's auto-memory directory (the `memory/` path named in the system prompt)
   - Add pointer to `MEMORY.md` (only if not already listed)
 
 **c. Apply the transition** through the hook — idempotent, so it no-ops when the ticket is already in the target status:
@@ -156,7 +156,7 @@ Use AskUserQuestion:
 
 - Check memory file `user_jira_name.md` for a saved name — if found, use it silently, do NOT ask
 - If not saved, ask once: "What name/handle should appear in branch names?" then save it:
-  - Write to `/Users/larryhsiao/.claude/projects/-Users-larryhsiao-skadi/memory/user_jira_name.md`
+  - Write `user_jira_name.md` to the current project's auto-memory directory (the `memory/` path named in the system prompt)
   - Add pointer to `MEMORY.md`
 - Only re-ask if the user explicitly says to change it (e.g. "change my name", "use a different handle")
 
@@ -173,7 +173,7 @@ Use AskUserQuestion:
 
 **a. Load default dev branch from memory** (`dev_branch.md`):
 - If not saved, ask: "What is the default dev branch for this project? (e.g. `dev`, `develop`, `main`)"
-  - Save the answer to `/Users/larryhsiao/.claude/projects/-Users-larryhsiao-skadi/memory/dev_branch.md`
+  - Save the answer as `dev_branch.md` in the current project's auto-memory directory (the `memory/` path named in the system prompt)
   - Add pointer to `MEMORY.md`
 - Only re-ask if the user explicitly says to change it
 
