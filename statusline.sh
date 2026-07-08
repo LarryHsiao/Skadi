@@ -212,7 +212,11 @@ GRAMMAR_LOG="$HOME/.claude/.grammar_log"
 TODAY=$(date +%Y-%m-%d)
 grammar_today=0
 if [ -f "$GRAMMAR_LOG" ]; then
-    grammar_today=$(grep -c "^${TODAY}$" "$GRAMMAR_LOG" 2>/dev/null || echo 0)
+    # grep -c already prints 0 on no match (and exits 1) — a `|| echo 0` would
+    # add a second 0, making grammar_today the two-line "0\n0" that wraps the
+    # statusline. Take grep's own count; default only if the read yields nothing.
+    grammar_today=$(grep -c "^${TODAY}$" "$GRAMMAR_LOG" 2>/dev/null)
+    grammar_today=${grammar_today:-0}
 fi
 grammar_str="✍️ ${grammar_today}"
 
