@@ -14,6 +14,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 | `hooks/` | Shell scripts that run before/after tool calls |
 | `skills/` | Custom slash-command skills |
 | `docs/` | Style guides, tool guides, and workflow notes referenced from `CLAUDE.md` via `@docs/...` |
+| `previews/henneth/skadi-theme.css` | Shared parchment stylesheet copied beside the Henneth preview artifacts |
 | `install.sh` | Copy installer (idempotent, safe to re-run) |
 
 ### Features

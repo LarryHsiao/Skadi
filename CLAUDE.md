@@ -8,6 +8,8 @@ This repository tracks my personal Claude Code setup: global instructions, setti
 - `settings.json` — global Claude settings, copied to `~/.claude/settings.json`
 - `skills/` — custom skills, copied into `~/.claude/skills/`
 - `hooks/` — hook scripts copied into `~/.claude/hooks/`
+- `docs/` — style, tool, and workflow guides, copied into `~/.claude/docs/`
+- `statusline.sh` — status line script, copied to `~/.claude/statusline.sh`
 - `install.sh` — copies everything into `~/.claude/` (idempotent, safe to re-run)
 
 **This repo is the source of truth for the live Claude config.** Files under `~/.claude/` are copies, not symlinks — edits there will be overwritten on the next install run. Any change to the live config must be made in this repo first, then propagated by invoking the `/install` skill. Never edit `~/.claude/` directly.
@@ -16,20 +18,14 @@ This repository tracks my personal Claude Code setup: global instructions, setti
 
 ## Session Start
 
-When a session opens in a directory bearing a `README.md` at its root, read it first — before any other action. The README is the project's own statement of itself: purpose, structure, conventions. Reading it before the first step grounds every later decision in what the project claims about itself.
-
-Then render a brief judgment — one short paragraph, four or five lines at most — on whether the README **makes sense** alongside what stands in the tree. Look for:
+The `session-readme.sh` hook injects the project README at session start when one stands at the root. Render a brief judgment on it — one short paragraph, four or five lines at most — on whether it **makes sense** alongside what stands in the tree:
 
 - **Coherence** — does the stated purpose match what the code actually does?
 - **Completeness** — are the entry points, build steps, and run instructions actually present, or only promised?
 - **Drift** — does the README name files, commands, or modules that no longer exist, or miss ones that plainly do?
 - **Gaps** — what would a new contributor still need that the README does not say?
 
-Name the flaws plainly; if the README rings true and current, say so and move on. The judgment is the user's first orientation, not a critique for its own sake.
-
-Skip the read only when the README is a stub (one line, "TODO", or similar) or the working directory plainly is not a project root (`~/`, `/tmp`, and the like).
-
-This is a soft instruction; for automation the harness must enforce, see `settings.json` hooks.
+Name the flaws plainly; if the README rings true and current, say so and move on. Skip the judgment when the README is a stub (one line, "TODO", or similar) or the working directory plainly is not a project root (`~/`, `/tmp`, and the like).
 
 ## Tone
 
@@ -269,14 +265,6 @@ Read when the activity is in play (not auto-loaded):
 
 ## Grammar Check
 
-After every user message, silently check for grammar and phrasing issues. If any are found, append a brief correction at the end of your response in this format:
-
-> **Grammar:** "[original]" → "[corrected]"
-
-Wrap the words that actually changed in `**bold**` on both sides so the diff is visible. Example:
+The `grammar-reminder.sh` hook injects the check and its base format with every user message — follow it. Beyond that base: wrap only the tokens that actually changed in `**bold**` on both sides (a word added or removed is bolded on the side it appears). Example:
 
 > **Grammar:** "should **i** change it to let **claude** to generate **it self**?" → "should **I** change it to let **Claude** generate **itself**?"
-
-Bold only the differing tokens — leave unchanged text plain. If a word was added or removed, bold it on the side it appears.
-
-Keep it terse. One line per issue, max. Skip it if the message is clean.
