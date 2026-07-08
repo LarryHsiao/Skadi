@@ -10,8 +10,9 @@
 # `sweep <name> <verdict> [detail]` records an amon-sul sweep verdict.
 #
 # Data lives under ~/.skadi/board/ (override with BOARD_DIR). The ticket writer,
-# the growth writer, the shared manifest, and the page are helpers beside this
-# script in the hooks folder — this dispatcher only orchestrates them.
+# the growth writer, the henneth-link writer, the shared manifest, and the page
+# are helpers beside this script in the hooks folder — this dispatcher only
+# orchestrates them.
 
 set -euo pipefail
 export LC_ALL=C.UTF-8
@@ -58,6 +59,7 @@ case "$cmd" in
       fi
     done
     "$DIR/board-growth.sh" || echo "board: growth refresh failed (skipped)" >&2
+    "$DIR/board-henneth.sh" || echo "board: henneth link refresh failed (skipped)" >&2
     ;;
 
   list)
@@ -92,6 +94,7 @@ PY
     cp "$DIR/board-index.html" "$BOARD_DIR/index.html"
     [[ -f "$THEME_SRC" ]] && cp "$THEME_SRC" "$BOARD_DIR/skadi-theme.css"
     [[ -f "$BOARD_DIR/ac-done-statuses.json" ]] || printf '%s\n' "$DEFAULT_DONE" > "$BOARD_DIR/ac-done-statuses.json"
+    "$DIR/board-henneth.sh" >/dev/null || echo "board: henneth link refresh failed (skipped)" >&2
 
     # Reuse a live server if the lockfile names one that still answers.
     if [[ -f "$BOARD_DIR/.board-port" ]]; then

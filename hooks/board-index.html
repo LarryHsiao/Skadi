@@ -45,6 +45,14 @@
       .htop .live {
         margin-left: auto;
       }
+      .htop .hlink {
+        color: var(--blue);
+        border: 1px solid var(--blue);
+        border-radius: 4px;
+        padding: 0.02rem 0.4rem;
+        font-size: 0.66rem;
+        text-decoration: none;
+      }
       .strip {
         display: grid;
         grid-template-columns: repeat(5, 1fr);
@@ -279,6 +287,9 @@
           <span class="dot" id="pulse"></span> situation board ·
           <span id="watch">loading…</span>
           <span class="live" id="stamp">—</span>
+          <a class="hlink" id="henneth" target="_blank" rel="noopener" hidden
+            >Henneth ↗</a
+          >
         </div>
         <div class="strip" id="strip"></div>
       </div>
@@ -323,15 +334,32 @@
         } catch (e) {
           mark(false);
         }
+        updateHenneth();
+      }
+
+      // Show the Henneth button only when henneth.json names a URL that a live
+      // server answered for — a down Henneth leaves the button hidden.
+      async function updateHenneth() {
+        const btn = document.getElementById("henneth");
+        try {
+          const h = await (await fetch("henneth.json?_=" + Date.now())).json();
+          if (h && h.url) {
+            btn.href = h.url;
+            btn.hidden = false;
+            return;
+          }
+        } catch (e) {
+          /* no henneth.json yet, or unreadable — leave it hidden */
+        }
+        btn.hidden = true;
       }
 
       function mark(ok) {
         document.getElementById("pulse").classList.toggle("stale", !ok);
-        document.getElementById("watch").textContent = channels.length
-          ? channels.length +
-            " ticket" +
-            (channels.length > 1 ? "s" : "") +
-            " in progress"
+        // Count tickets alone — growth and sweep channels are not "in progress".
+        const n = channels.filter((c) => c.channel === "ticket").length;
+        document.getElementById("watch").textContent = n
+          ? n + " ticket" + (n > 1 ? "s" : "") + " in progress"
           : "watching…";
         document.getElementById("stamp").textContent =
           (ok ? "◍ live · " : "◍ stale · ") + new Date().toLocaleTimeString();
