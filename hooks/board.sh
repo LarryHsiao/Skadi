@@ -6,6 +6,9 @@
 #   refresh                re-fetch every ticket on the board (active preserved) + growth
 #   list                   list the channels with status / AC
 #
+# Passthroughs to the channel writers: `growth` refreshes the metis growth tile,
+# `sweep <name> <verdict> [detail]` records an amon-sul sweep verdict.
+#
 # Data lives under ~/.skadi/board/ (override with BOARD_DIR). The ticket writer,
 # the growth writer, the shared manifest, and the page are helpers beside this
 # script in the hooks folder — this dispatcher only orchestrates them.
@@ -28,6 +31,10 @@ case "$cmd" in
 
   growth)
     exec "$DIR/board-growth.sh" "$@"
+    ;;
+
+  sweep)
+    exec "$DIR/board-sweep.sh" "$@"
     ;;
 
   remove)
@@ -74,6 +81,9 @@ for name in json.load(open(manifest, encoding="utf-8")).get("channels", []):
             star, d.get("id", ""), d.get("status", ""), pct, (d.get("title") or "")[:48]))
     elif d.get("channel") == "growth":
         print("  %-10s WAU %s · MAU %s" % (d.get("app", "growth"), d.get("wau"), d.get("mau")))
+    elif d.get("channel") == "sweep":
+        print("  sweep %-10s %-8s %s" % (
+            d.get("name", ""), d.get("verdict", ""), (d.get("detail") or "")[:40]))
 PY
     ;;
 

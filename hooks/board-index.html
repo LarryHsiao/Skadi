@@ -218,6 +218,53 @@
           grid-column: auto;
         }
       }
+      /* sweep band — the foot of the board */
+      .banddiv {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin: 0.9rem 0 0.6rem;
+        color: var(--accent);
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.62rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .banddiv::before,
+      .banddiv::after {
+        content: "";
+        height: 1px;
+        background: var(--line);
+        flex: 1;
+      }
+      .sweeprows {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+      .srow {
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: var(--raise);
+        padding: 0.32rem 0.55rem;
+        display: grid;
+        grid-template-columns: 7rem 4.6rem 1fr auto;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .srow .nm {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.64rem;
+        color: var(--accent);
+      }
+      .srow .dt {
+        font-size: 0.72rem;
+      }
+      @media (max-width: 760px) {
+        .srow {
+          grid-template-columns: 5rem 4rem 1fr auto;
+        }
+      }
     </style>
   </head>
   <body>
@@ -240,6 +287,7 @@
           No ticket channels yet. Run the writer to raise one.
         </div>
       </div>
+      <div class="sweepband" id="sweeps"></div>
     </div>
 
     <script>
@@ -292,8 +340,20 @@
       function render() {
         const tickets = channels.filter((c) => c.channel === "ticket");
         const growth = channels.find((c) => c.channel === "growth");
-        renderStrip(tickets, growth);
+        const sweeps = channels.filter((c) => c.channel === "sweep");
+        renderStrip(tickets, growth, sweeps);
         renderBody(tickets);
+        renderSweeps(sweeps);
+      }
+
+      // Sweep verdict → an existing pill class + its label.
+      function verdictPill(v) {
+        const map = {
+          stirred: ["active", "STIRRED"],
+          mend: ["block", "MEND"],
+          quiet: ["quiet", "QUIET"],
+        };
+        return map[v] || ["quiet", String(v || "").toUpperCase()];
       }
 
       // Week-over-week arrow + percent from a current/previous pair.
@@ -304,7 +364,7 @@
         return `${arrow}${Math.abs(p)}% wow`;
       }
 
-      function renderStrip(tickets, growth) {
+      function renderStrip(tickets, growth, sweeps) {
         const withPct = tickets.filter((t) => t.ac && t.ac.pct != null);
         const avg = withPct.length
           ? Math.round(
@@ -313,6 +373,9 @@
           : null;
         const blocked = tickets.filter((t) => t.blocked);
         const active = tickets.find((t) => t.active) || tickets[0];
+        const stir = sweeps.filter((s) => s.verdict === "stirred").length;
+        const mend = sweeps.filter((s) => s.verdict === "mend").length;
+        const quiet = sweeps.filter((s) => s.verdict === "quiet").length;
 
         const strip = document.getElementById("strip");
         strip.innerHTML = `
@@ -333,8 +396,36 @@
         : `<div class="tile ghost"><div class="lbl">Metis growth</div><div class="kpi">—</div>
       <div class="muted">channel not wired</div></div>`
     }
-    <div class="tile ghost"><div class="lbl">Sweeps</div><div class="kpi">—</div>
-      <div class="muted">channel not wired</div></div>`;
+    ${
+      sweeps.length
+        ? `<div class="tile"><div class="lbl">Sweeps</div>
+      <div class="kpi"${stir ? ' style="color:var(--accent)"' : ""}>${stir}<small> stirred</small></div>
+      <div class="muted">${mend} mend · ${quiet} quiet</div></div>`
+        : `<div class="tile ghost"><div class="lbl">Sweeps</div><div class="kpi">—</div>
+      <div class="muted">channel not wired</div></div>`
+    }`;
+      }
+
+      function renderSweeps(sweeps) {
+        const el = document.getElementById("sweeps");
+        if (!sweeps.length) {
+          el.innerHTML = "";
+          return;
+        }
+        const rows = sweeps
+          .map((s) => {
+            const [cls, label] = verdictPill(s.verdict);
+            const door = s.url
+              ? `<a class="enter" href="${esc(s.url)}" target="_blank" rel="noopener">Enter ↵</a>`
+              : "";
+            return `<div class="srow">
+      <span class="nm">${esc(s.name)}</span>
+      <span><span class="pill ${cls}">${esc(label)}</span></span>
+      <span class="dt">${esc(s.detail) || "—"}</span>
+      ${door}</div>`;
+          })
+          .join("");
+        el.innerHTML = `<div class="banddiv">amon-sul · sweeps</div><div class="sweeprows">${rows}</div>`;
       }
 
       function renderBody(tickets) {
