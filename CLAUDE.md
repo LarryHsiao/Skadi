@@ -245,11 +245,11 @@ When a needed command is missing on the current shell, do not reach for a differ
 Always loaded:
 
 - General: @docs/style/general.md
-- OO: @docs/style/oo.md
 - Universal: @docs/style/universal.md
 
-Read when the project calls for it (not auto-loaded; reach for them when the language is in play):
+Read when the project calls for it (not auto-loaded; reach for them when the language or the shape of the work is in play):
 
+- OO: `docs/style/oo.md` — when designing or reviewing classes, interfaces, decorators, or domain objects
 - Flutter: `docs/style/flutter.md`
 - React: `docs/style/react.md`
 
