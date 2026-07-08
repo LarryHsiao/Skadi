@@ -158,6 +158,14 @@ Find the next wait from the streak ladder, capped at the one-hour ceiling:
 | 3 | 1800s (30 min) |
 | ≥4 | 3600s (1 hr — ceiling) |
 
+- **Mark the board** — when a situation board is in use (`~/.skadi/board/` exists),
+  record this ride's verdict so the sweep band feeds itself:
+  `~/.claude/hooks/board.sh sweep <rider> <stirred|quiet> "<brief detail>"` — where
+  `<rider>` is the sweep name (`glorfindel`, `aule`, `anduin`, `moria`, `rhovanion`),
+  the verdict maps STIRRED → `stirred` and QUIET → `quiet`, and the detail is a short
+  phrase from the ride (e.g. `"3 planned · streak 0"` or `"quiet · streak 4"`). Skip
+  silently when no board exists — the watch never forces one into being, and a failed
+  record never derails the ride.
 - Announce one short line — the rider, whether it stirred or stayed quiet, the
   streak, and the wait (e.g. *"Glorfindel — quiet, streak 4; next sweep in 1 hr."*).
   The turn ends the instant `ScheduleWakeup` returns, so announce first.
