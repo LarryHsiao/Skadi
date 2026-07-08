@@ -1,12 +1,15 @@
 #!/bin/bash
-# board-ticket.sh <ISSUE-KEY> [--active]
+# board-ticket.sh <ISSUE-KEY> [--active] [--tracker jira|youtrack]
 #
-# Fetches a Jira issue and its subtasks, derives the AC rate from subtask
-# completion (met = subtasks whose statusCategory is "done", or whose status
-# name is listed in ac-done-statuses.json — the team's done-enough set), writes the
-# channel file  ~/.skadi/board/ticket-<ISSUE-KEY>.json  that the situation
-# board polls. Then regenerates channels.json — the manifest of every ticket
-# channel present — so the page discovers new tickets without being told.
+# Fetches an issue and its subtasks from Jira (REST v3) or YouTrack (Bearer
+# token), selected by --tracker (default jira), and derives the AC rate from
+# subtask completion the same way for both (met = subtasks whose done signal
+# fires — statusCategory "done" for Jira, a resolved timestamp for YouTrack —
+# or whose status name is listed in ac-done-statuses.json — the team's
+# done-enough set), writes the channel file
+# ~/.skadi/board/ticket-<ISSUE-KEY>.json  that the situation board polls.
+# Then regenerates channels.json — the manifest of every ticket channel
+# present — so the page discovers new tickets without being told.
 #
 # --active marks this ticket the active one (the hero), and clears active on
 # every other ticket channel so only one hero ever stands. Absent, active=false.
@@ -15,8 +18,8 @@
 # and BOARD_TICKET_ISSUE_FILE injects a pre-fetched issue JSON to skip the fetch.
 #
 # Creds resolve via secret.sh (Vaultwarden first, env fallback), same as the
-# working/council Jira hooks. Jira REST v3. On failure, prints an error line
-# and exits non-zero — the writer is an action, so it throws.
+# working/council Jira hooks. On failure, prints an error line and exits
+# non-zero — the writer is an action, so it throws.
 
 set -euo pipefail
 export LC_ALL=C.UTF-8
@@ -116,8 +119,69 @@ normalize_jira() {
   ' "$issue_file" > "$norm_file"
 }
 
+# ── YouTrack: fetch raw issue into $issue_file, set $BASE ──
+fetch_youtrack() {
+  BASE="https://youtrack.example.com"
+  if [[ -n "${BOARD_TICKET_ISSUE_FILE:-}" ]]; then
+    cp "$BOARD_TICKET_ISSUE_FILE" "$issue_file"
+    return
+  fi
+  local yt_url yt_token http
+  yt_url="$("$SECRET" youtrack uri 2>/dev/null || true)"
+  yt_token="$("$SECRET" youtrack 2>/dev/null || true)"
+  if [[ -z "$yt_url" || -z "$yt_token" ]]; then
+    echo "youtrack credentials missing (need uri + token from Vaultwarden item \"youtrack\" or env)" >&2
+    exit 1
+  fi
+  BASE="${yt_url%/}"
+  local fields="idReadable,summary,resolved,customFields(name,value(name)),links(direction,linkType(name),issues(idReadable,summary,resolved,customFields(name,value(name))))"
+  http=$(curl -sS -o "$issue_file" -w "%{http_code}" \
+    -H "Authorization: Bearer $yt_token" \
+    -H "Accept: application/json" \
+    "$BASE/api/issues/$ISSUE_KEY?fields=$fields")
+  if [[ "$http" != 2* ]]; then
+    echo "fetch issue failed for $ISSUE_KEY (http=$http)" >&2
+    exit 1
+  fi
+}
+
+# ── YouTrack: raw issue -> normalized intermediate ──
+normalize_youtrack() {
+  jq --arg key "$ISSUE_KEY" --arg base "$BASE" --argjson doneNames "$DONE_JSON" '
+    def cf($fields; $name): (($fields // []) | map(select(.name == $name)) | (.[0].value.name? // ""));
+    def isdone($resolved; $state; $doneSet):
+      (($resolved != null) or (($doneSet | index(($state // "") | ascii_downcase)) != null));
+    ($doneNames | map(select(type == "string") | ascii_downcase)) as $doneSet
+    | {
+        id: (.idReadable // $key),
+        title: (.summary // ""),
+        status: (cf(.customFields; "State")),
+        statusCategory: (if .resolved != null then "done" else "" end),
+        type: (cf(.customFields; "Type")),
+        priority: (cf(.customFields; "Priority")),
+        url: ($base + "/issue/" + $key),
+        source: "youtrack",
+        subtasks: (
+          (.links // [])
+          | map(select((.linkType.name == "Subtask") and (.direction == "OUTWARD")))
+          | (map(.issues // []) | add // [])
+          | map(
+              (cf(.customFields; "State")) as $sstate
+              | {
+                  id: (.idReadable // ""),
+                  title: (.summary // ""),
+                  status: $sstate,
+                  done: isdone(.resolved; $sstate; $doneSet)
+                }
+            )
+        )
+      }
+  ' "$issue_file" > "$norm_file"
+}
+
 case "$TRACKER" in
   jira)     fetch_jira;     normalize_jira ;;
+  youtrack) fetch_youtrack; normalize_youtrack ;;
   *)        echo "board-ticket: unknown tracker \"$TRACKER\"" >&2; exit 1 ;;
 esac
 
