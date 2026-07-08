@@ -64,8 +64,8 @@ Keep it tight. A plan is a map, not the journey. Do not pad.
 
 **Diagrams and wireframes.** When a layout or structural point is genuinely
 clearer shown than described — a screen's regions, a sequence of calls, a
-class shape — sketch it in Unicode box-drawing, per the existing UI Review /
-UML Review convention, and fence it distinctly so it can be found
+class shape — sketch it in Unicode box-drawing, per the existing Visual
+Review (UI & UML) convention, and fence it distinctly so it can be found
 mechanically:
 
     ```diagram

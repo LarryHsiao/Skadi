@@ -40,7 +40,7 @@ The marker is stripped from the displayed label; a bad sha shows a plain
 A concept may name a mockup with a `<!-- preview: <file.html> -->` marker (path
 relative to the plans folder). The renderer inlines that HTML into a read-only,
 sandboxed `<iframe>` in the main area above the steps — a UI preview to eye, not
-to edit. You generate the mockup HTML in chat (per the UI Review convention) and
+to edit. You generate the mockup HTML in chat (per the Visual Review convention) and
 drop it beside the concept; a missing file shows a "preview unavailable" note.
 
 ## Workflow

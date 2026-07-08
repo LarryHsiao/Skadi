@@ -55,7 +55,7 @@ Show the gauge above the change summary, so the weight is known before a line is
 
 Before the first edit, name what *done* looks like — two or three observable outcomes that mark the work succeeded. Each is a thing you, or a test, can check once the change lands: a behavior visible on the screen, a value returned from a call, a row written to the store, a test that was red turned green. Phrase them as outcomes, not actions — "the empty list renders the placeholder", not "render the placeholder". Render them alongside the gauge and the change summary, so the mark to hit is known before a line is written.
 
-The acceptance is what the [Implementation Loop](#implementation-loop)'s verification measures against, and what the [Compliance Review](#compliance-review)'s spec pass reads as "what the plan named". Left unnamed up front, both gates fall back to a target assembled after the fact — and a target inferred late is the one most easily bent to fit the slip. Before "done" is reported, the Implementation Loop's fresh verification walks **each acceptance line** in turn and names the evidence that meets it — a passing test, a rendered screen, a logged value. An acceptance line with no evidence beside it is not met, and the loop is not closed.
+The acceptance is what the [Implementation Loop](#implementation-loop)'s verification measures against, and what the [Compliance Review](#compliance-review)'s spec pass reads as "what the plan named". Before "done" is reported, walk **each acceptance line** and name the same-turn evidence that meets it — a passing test, a rendered screen, a logged value. A line with no evidence beside it is not met, and the loop is not closed.
 
 Keep it to a line or three; a target is a mark, not a specification. When the change truly has no observable surface — a pure refactor, a docs edit — say so plainly (`none — internal change`) and let the verification path stand in its place. Slash-invoked skills that name their own acceptance (e.g. `/council`'s Erestor, in every plan he drafts) have already paid this; the section binds **free-form** work, where no plan frame names the target otherwise.
 
@@ -70,7 +70,7 @@ Session-level opt-out still applies ("just do it", "skip the summary", or the li
 
 ## Local Preview
 
-When a section calls for a visual preview — a wireframe (UI Review), a UML diagram (UML Review), a plan (Plan Preview) — write it as an HTML file and serve it locally so the user can open it in a browser.
+When a section calls for a visual preview — a wireframe or UML diagram (Visual Review), a plan (Plan Preview) — write it as an HTML file and serve it locally so the user can open it in a browser.
 
 **Where files land.** The shared Henneth folder, `~/.claude/previews/henneth/` — one file per distinct preview, each named for what it shows (`wireframe-login.html`, `class-diagram-user.html`). The folder is shared across all sessions and persists across turns, so earlier previews stay browsable in the one standing window.
 
@@ -82,21 +82,13 @@ When a section calls for a visual preview — a wireframe (UI Review), a UML dia
 
 **Fallback.** When the port cannot bind or Python is absent on PATH, fall through to the ASCII sketch named in each section below. The preview lands in the same response either way; the absence of a server must never block the working flow.
 
-## UI Review
+## Visual Review (UI & UML)
 
-When a change touches UI layout — a new screen, a rearranged panel, a rethought component — render a wireframe alongside the summary, so the shape of the thing can be judged before a line of code is written. Keep it simple: boxes, labels, proportions. One sketch per distinct layout. The same session-level opt-out as Change Approval applies.
+When a change touches UI layout (a new screen, a rearranged panel, a rethought component) or calls for a UML diagram (class, sequence, state machine, ER model), render the sketch alongside the summary, so the shape of the thing can be judged before a line of code is written. Keep it simple — boxes, labels, proportions for a wireframe; classes, methods, relations, cardinalities for a diagram. One sketch per distinct layout or concern. The same session-level opt-out as Change Approval applies.
 
-**Primary path.** Write an HTML wireframe under the previews directory and serve it per the [Local Preview](#local-preview) rules. HTML/CSS handles boxes and proportions natively; inline SVG covers what CSS strains at.
+**Primary path.** Write it as HTML under the previews directory and serve it per the [Local Preview](#local-preview) rules. HTML/CSS handles boxes and proportions natively; Mermaid (via `<script type="module">`) renders class, sequence, state, and ER diagrams from terse text; inline SVG covers what either strains at.
 
-**Fallback.** A console wireframe in Unicode box-drawing (ASCII) inline.
-
-## UML Review
-
-When a change calls for a UML diagram — a class diagram, sequence diagram, state machine, ER model, or the like — render the diagram alongside the summary, so the shape of the thing can be judged before a line of code is written. Keep it simple: classes, methods, relations, cardinalities. One diagram per distinct concern. The same session-level opt-out as Change Approval applies.
-
-**Primary path.** Write an HTML diagram under the previews directory and serve it per the [Local Preview](#local-preview) rules. Mermaid (via `<script type="module">`) renders class, sequence, state, and ER diagrams from terse text; inline SVG covers what Mermaid does not.
-
-**Fallback.** A console UML diagram in Unicode box-drawing (ASCII) inline.
+**Fallback.** A console sketch in Unicode box-drawing (ASCII) inline.
 
 ## Plan Preview
 
@@ -114,6 +106,8 @@ The loop closes only when the verification produces what the plan called for. Do
 
 **Verification must be fresh.** When the time comes to report the task done, run the verification once more in the current turn — prior runs do not count. A passing test from three messages ago, a build that succeeded before the last edit, a Compliance Review fix applied after the last green run: none of these prove the *current* state of the tree. The evidence the user reads must come from the same turn as the claim it backs; a claim without a same-turn run is a guess wearing the clothes of a fact. The end-of-task gates run in order: Compliance Review first, then its fixes, then this fresh verification — the Iron Law's run is the last gate before "done".
 
+Should the context near its end mid-task, write the baton to a `/handoff` channel named after the repo's directory (e.g. `skadi`) before anything else — the unfinished work must survive the session, and a successor session in the same repo knows where to look.
+
 ## Compliance Review
 
 Before the "done" report is rendered, spawn a lighter read-only agent (Sonnet for the spec pass, Haiku for the quality pass — or a single Sonnet call carrying both, when the spawn cost matters more than the granularity) and ask it to run two checks against the cumulative diff, in order — spec compliance first, code quality second. The over-built code is as much a failure as the under-built; both stray from what was named, and the spec pass must clear before quality issues are weighed.
@@ -124,9 +118,11 @@ Before the "done" report is rendered, spawn a lighter read-only agent (Sonnet fo
 
 For tasks whose gauge reads **heavy** — broad reach, deep thought, or hard to reverse — also fire a per-step audit after each step's verification clears, before the next step begins. The reasoning is matched to the tier: drift compounds fastest on heavy work, and catching it inside the loop pays back the spawn cost. Medium and minimum tasks take the one end-of-task review only.
 
-The review reads, it does not write. The lighter model keeps the gate cheap to swing; the read-only constraint keeps the audit from touching the tree it is grading. When the harness offers a dedicated code-review subagent, reach for that; otherwise spawn `general-purpose` with explicit read-only instructions.
+The review reads, it does not write. When the harness offers a dedicated code-review subagent, reach for that; otherwise spawn `general-purpose` with explicit read-only instructions.
 
 Surface findings in the end-of-task summary alongside what was completed. Treat each item as a known debt, not a silent flaw: fix it before reporting done, or name it plainly as a knowing exception with a one-line why.
+
+When a plugin process skill (superpowers' verification and review skills, and their kin) speaks to a gate governed by this file's process sections — Acceptance, Change Approval, Implementation Loop, or this Compliance Review — those sections rule; a skill may add checks, never replace or loosen them.
 
 ## Delegation Discipline
 
@@ -134,7 +130,7 @@ When a task warrants a subagent — research that would clutter the main context
 
 Hand the task whole. Brief it as you would a skilled colleague: state the goal, the constraints, the files to read or write, what success looks like. Do not point it at a plan file or a memory entry and tell it to find its piece — it will load the whole thing, may misread which slice is yours, and will spend context on what was supposed to be saved. Hand the text directly.
 
-Match the model to the role. Haiku for mechanical work (search, grep, structured review, list reduction); Sonnet for medium-depth implementation; Opus held back for design judgment and broad refactors. The default Agent call inherits the parent's model — name a lighter one explicitly when the role does not need it. The cheapest spawn is the one that does not happen; the next cheapest is the one done at Haiku.
+Match the model to the role — the current roster, effort tiers, escalation ladder, and report contract stand in `docs/workflow/delegation.md`; read it before any dispatch beyond a trivial lookup. The default Agent call inherits the parent's model — name a lighter one explicitly when the role does not need it. The cheapest spawn is the one that does not happen.
 
 One worker per writable seam. Two implementation subagents on overlapping files race, and the merge is yours to untangle. Read-only investigations parallelize freely; when uncertain whether two tasks touch the same seam, dispatch them serially.
 
@@ -262,6 +258,10 @@ Read when the tool is in play (not auto-loaded):
 Read when the activity is in play (not auto-loaded):
 
 - PR/MR descriptions: `docs/workflow/pr-mr-description.md`
+- Delegating to subagents: `docs/workflow/delegation.md` — roster, effort, escalation ladder, report contract; read before any dispatch beyond a trivial lookup
+- Judgment rubrics: `docs/workflow/judgment.md` — wrong-direction signals, when to escalate or ask, what "done" means; read when a task wavers
+- Dispatch templates: `docs/workflow/dispatch-templates.md` — fill-in prompts for search / implement / refactor / research / review
+- Maintaining this config: `docs/workflow/maintenance.md` — edit covenant, lesson graduation, compaction thresholds; read before changing skadi's rules
 
 ## Grammar Check
 
