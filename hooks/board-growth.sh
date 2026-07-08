@@ -7,8 +7,8 @@
 # page in as the tile's Enter door, and writes ~/.skadi/board/growth.json. Then
 # regenerates the manifest via the shared board-manifest.py.
 #
-# Test seam: BOARD_GROWTH_LINE injects the headline line, skipping BigQuery, so
-# board-growth.test.sh can exercise the parse offline. BOARD_DIR overrides the folder.
+# Test seam: BOARD_GROWTH_OUT injects appgrowth's stdout, skipping BigQuery, so
+# board-growth.test.sh exercises the real grep+parse offline. BOARD_DIR overrides the folder.
 
 set -euo pipefail
 export LC_ALL=C.UTF-8
@@ -20,14 +20,17 @@ HENNETH="$HOME/.claude/previews/henneth"
 
 mkdir -p "$BOARD_DIR"
 
-if [[ -n "${BOARD_GROWTH_LINE:-}" ]]; then
-  line="$BOARD_GROWTH_LINE"
+if [[ -n "${BOARD_GROWTH_OUT:-}" ]]; then
+  out="$BOARD_GROWTH_OUT"
 else
   out="$("$APPGROWTH")" || { echo "board-growth: appgrowth failed" >&2; exit 1; }
-  line="$(printf '%s\n' "$out" | grep -E 'WAU [0-9]+ \(prev' || true)"
   # The full rendered page becomes the tile's Enter door, served by the board.
   [[ -f "$HENNETH/metis-growth.html" ]] && cp "$HENNETH/metis-growth.html" "$BOARD_DIR/growth-metis.html"
 fi
+# -a keeps grep in text mode: appgrowth may emit a lone non-UTF-8 byte (a bare
+# 0xB7 for the · separator), which grep would otherwise call binary and refuse
+# to print the matched line.
+line="$(printf '%s\n' "$out" | grep -aE 'WAU [0-9]+ \(prev' || true)"
 
 # The Enter door is set only when its page actually exists, lest the tile link 404.
 door=""
