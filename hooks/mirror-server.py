@@ -395,6 +395,14 @@ class Handler(SimpleHTTPRequestHandler):
             return self._send(body, "application/json")
         return super().do_GET()
 
+    def guess_type(self, path):
+        # Stock handler answers bare "text/html"; browsers then guess the
+        # encoding and garble UTF-8 artifacts. Declare it ourselves.
+        guessed = super().guess_type(path)
+        if guessed.startswith("text/"):
+            return f"{guessed}; charset=utf-8"
+        return guessed
+
     def do_DELETE(self):
         target = Path(self.translate_path(self.path))
         root = Path(self.directory).resolve()
