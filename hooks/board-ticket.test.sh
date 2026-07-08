@@ -84,6 +84,52 @@ expected_active="false/true"
 actual_active="$(jq -r '.active' "$d/ticket-AAA-1.json")/$(jq -r '.active' "$d/ticket-AAA-2.json")"
 check "second --active clears the first (AAA-1/AAA-2)" "$expected_active" "$actual_active"
 
+# A YouTrack fixture: a parent (unresolved) with Subtask/OUTWARD links.
+# Each pair is "state|resolved" where resolved is a ms epoch or the word null.
+write_yt_fixture() { # file pair1 pair2 …
+  local file="$1"; shift
+  local subs="" i=1
+  for pair in "$@"; do
+    local state="${pair%%|*}" resolved="${pair##*|}"
+    [[ -n "$subs" ]] && subs="$subs,"
+    subs="$subs{\"idReadable\":\"MET-$i\",\"summary\":\"s$i\",\"resolved\":$resolved,\"customFields\":[{\"name\":\"State\",\"value\":{\"name\":\"$state\"}}]}"
+    i=$((i + 1))
+  done
+  cat >"$file" <<JSON
+{"idReadable":"MET-0","summary":"YT Parent","resolved":null,"customFields":[{"name":"State","value":{"name":"In Progress"}},{"name":"Type","value":{"name":"Bug"}},{"name":"Priority","value":{"name":"Normal"}}],"links":[{"direction":"OUTWARD","linkType":{"name":"Subtask"},"issues":[$subs]}]}
+JSON
+}
+
+# ── 5 · YouTrack AC: a resolved subtask counts, an unresolved one does not ──
+d=$(tmpdir)
+issue=$(tmpfile)
+write_yt_fixture "$issue" "Fixed|1700000000000" "Open|null"
+BOARD_DIR="$d" BOARD_TICKET_ISSUE_FILE="$issue" bash "$WRITER" MET-1 --tracker youtrack >/dev/null 2>&1
+expected_yt="1/2/50/youtrack"
+actual_yt=$(jq -r '"\(.ac.met)/\(.ac.total)/\(.ac.pct)/\(.source)"' "$d/ticket-MET-1.json")
+check "youtrack AC counts resolved subtask, stamps source" "$expected_yt" "$actual_yt"
+
+# ── 6 · YouTrack done-set: an unresolved subtask in the name-set still counts ──
+d=$(tmpdir)
+issue=$(tmpfile)
+echo '["Verified"]' >"$d/ac-done-statuses.json"
+write_yt_fixture "$issue" "Fixed|1700000000000" "Verified|null" "Open|null"
+BOARD_DIR="$d" BOARD_TICKET_ISSUE_FILE="$issue" bash "$WRITER" MET-2 --tracker youtrack >/dev/null 2>&1
+expected_ytmap="2/3/66"
+actual_ytmap=$(jq -r '"\(.ac.met)/\(.ac.total)/\(.ac.pct)"' "$d/ticket-MET-2.json")
+check "youtrack done-set state counts as met" "$expected_ytmap" "$actual_ytmap"
+
+# ── 7 · YouTrack browse url + no-subtask AC is null ──
+d=$(tmpdir)
+issue=$(tmpfile)
+cat >"$issue" <<'JSON'
+{"idReadable":"MET-9","summary":"Lonely","resolved":null,"customFields":[{"name":"State","value":{"name":"Open"}}],"links":[]}
+JSON
+BOARD_DIR="$d" BOARD_TICKET_ISSUE_FILE="$issue" bash "$WRITER" MET-9 --tracker youtrack >/dev/null 2>&1
+expected_ytnone="null/https://youtrack.example.com/issue/MET-9"
+actual_ytnone=$(jq -r '"\(.ac.pct)/\(.url)"' "$d/ticket-MET-9.json")
+check "youtrack no-subtask AC null, browse url composed" "$expected_ytnone" "$actual_ytnone"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

@@ -1,7 +1,7 @@
 #!/bin/bash
 # board.sh — the situation board's one entry. Subcommands:
 #   serve                  boot or reuse the board server, lay the page, print the URL
-#   add <KEY> [--active]   add or refresh a ticket channel (Jira)
+#   add <KEY> [--active]   add or refresh a ticket channel (Jira or YouTrack)
 #   remove <KEY>           drop a ticket channel, regenerate the manifest
 #   refresh                re-fetch every ticket on the board (active preserved) + growth
 #   list                   list the channels with status / AC
@@ -52,10 +52,11 @@ case "$cmd" in
     shopt -s nullglob
     for chan in "$BOARD_DIR"/ticket-*.json; do
       id="$(jq -r '.id' "$chan")"
+      tracker="$(jq -r '.source // "jira"' "$chan")"
       if [[ "$(jq -r '.active' "$chan")" == "true" ]]; then
-        "$DIR/board-ticket.sh" "$id" --active
+        "$DIR/board-ticket.sh" "$id" --active --tracker "$tracker"
       else
-        "$DIR/board-ticket.sh" "$id"
+        "$DIR/board-ticket.sh" "$id" --tracker "$tracker"
       fi
     done
     "$DIR/board-growth.sh" || echo "board: growth refresh failed (skipped)" >&2

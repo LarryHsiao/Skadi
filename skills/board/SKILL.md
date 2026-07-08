@@ -35,6 +35,17 @@ name listed in `~/.skadi/board/ac-done-statuses.json` — the team's done-enough
 set), and writes `ticket-<KEY>.json`. `--active` makes it the hero and clears the
 flag on every other ticket, so exactly one hero stands. Re-running refreshes it.
 
+**Tracker routing.** Before dispatching, resolve the tracker from the key's
+project prefix via the `tracker_routing` memory (e.g. `MET → youtrack`,
+`PSG → jira`), the same map `/council` and `/glorfindel` use. Default to
+`jira` when the prefix is unmapped. Pass it through:
+
+    ~/.claude/hooks/board.sh add MET-1 --active --tracker youtrack
+
+`board.sh add` forwards all arguments to the ticket writer, so `--tracker`
+reaches it unchanged. On `refresh`, the tracker is re-derived from each
+channel's recorded `source` — no memory lookup needed.
+
 ### `/board remove <KEY>`
 
     ~/.claude/hooks/board.sh remove PSG-4478

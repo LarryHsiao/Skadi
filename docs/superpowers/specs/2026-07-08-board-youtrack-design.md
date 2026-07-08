@@ -38,7 +38,7 @@ Rejected alternatives:
   "id": "MET-1",
   "title": "…",
   "status": "In Progress",
-  "done": false,
+  "statusCategory": "",
   "type": "Bug",
   "priority": "Normal",
   "url": "https://…/issue/MET-1",
@@ -49,9 +49,15 @@ Rejected alternatives:
 }
 ```
 
-`done` on the parent maps to the channel's `statusCategory` (`"done"` when true,
-else `""`), so the page's hero logic (`t.statusCategory === "done"`) works
-unchanged for both trackers.
+The intermediate carries the parent's `statusCategory` directly, so the page's
+hero logic (`t.statusCategory === "done"`) works unchanged for both trackers.
+The parent's `statusCategory` comes from the **tracker's own done signal** — the
+raw category key for Jira, `"done"` when `resolved != null` for YouTrack. The
+`ac-done-statuses.json` name-override applies to **subtasks only** (the AC rate),
+not to the parent — mirroring the board's existing Jira behaviour, so both
+trackers treat the parent the same way. (A parent that is "done-enough" by state
+name but not by the tracker's own signal therefore reads as not-done at the hero
+level — a narrow case, kept consistent across trackers by design.)
 
 ## Components
 
