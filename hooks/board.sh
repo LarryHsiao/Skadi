@@ -52,10 +52,11 @@ case "$cmd" in
     shopt -s nullglob
     for chan in "$BOARD_DIR"/ticket-*.json; do
       id="$(jq -r '.id' "$chan")"
+      tracker="$(jq -r '.source // "jira"' "$chan")"
       if [[ "$(jq -r '.active' "$chan")" == "true" ]]; then
-        "$DIR/board-ticket.sh" "$id" --active
+        "$DIR/board-ticket.sh" "$id" --active --tracker "$tracker"
       else
-        "$DIR/board-ticket.sh" "$id"
+        "$DIR/board-ticket.sh" "$id" --tracker "$tracker"
       fi
     done
     "$DIR/board-growth.sh" || echo "board: growth refresh failed (skipped)" >&2
