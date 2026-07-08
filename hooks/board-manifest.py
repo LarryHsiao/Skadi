@@ -12,7 +12,7 @@ import json
 import os
 import sys
 
-SKIP = {"channels.json", "ac-done-statuses.json"}
+SKIP = {"channels.json", "ac-done-statuses.json", "henneth.json"}
 
 
 def channel_files(board):
