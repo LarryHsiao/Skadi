@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="skadi-theme.css" />
+    <title>Situation Board</title>
+    <style>
+      body {
+        padding: 1.6rem 2rem;
+      }
+      .frame {
+        border: 2px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        padding: 0.7rem;
+      }
+      .header {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 0.6rem;
+        margin-bottom: 0.7rem;
+      }
+      .htop {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.72rem;
+        color: var(--accent);
+        margin-bottom: 0.55rem;
+      }
+      .htop .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--green);
+      }
+      .htop .dot.stale {
+        background: var(--red);
+      }
+      .htop .live {
+        margin-left: auto;
+      }
+      .strip {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 0.5rem;
+      }
+      .tile {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--raise);
+        padding: 0.45rem 0.6rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+      .tile.ghost {
+        opacity: 0.55;
+      }
+      .tile .lbl {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.6rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+      .kpi {
+        font-size: 1.4rem;
+        font-weight: 600;
+        line-height: 1;
+      }
+      .kpi small {
+        font-size: 0.68rem;
+        font-weight: 400;
+        color: var(--accent);
+      }
+      .meter {
+        height: 6px;
+        border-radius: 4px;
+        background: var(--th);
+        overflow: hidden;
+      }
+      .meter.thin {
+        height: 4px;
+      }
+      .meter > i {
+        display: block;
+        height: 100%;
+        background: var(--green);
+        transition: width 0.4s ease;
+      }
+      .muted {
+        color: var(--accent);
+        font-size: 0.72rem;
+      }
+      .bento {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr;
+        gap: 0.6rem;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--raise);
+        padding: 0.55rem 0.65rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+      .card.hero {
+        grid-row: span 2;
+        grid-column: 1;
+        border-color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--th);
+      }
+      .ttl {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.66rem;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+      .ttl .src {
+        margin-left: auto;
+        opacity: 0.6;
+        font-size: 0.6rem;
+      }
+      .pill {
+        display: inline-block;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.58rem;
+        padding: 0.08rem 0.42rem;
+        border-radius: 10px;
+        background: var(--green);
+        color: var(--bg);
+      }
+      .pill.active {
+        background: var(--accent);
+      }
+      .pill.review {
+        background: var(--blue);
+      }
+      .pill.block {
+        background: var(--red);
+      }
+      .pill.quiet {
+        background: var(--line);
+        color: var(--ink);
+      }
+      .enter {
+        align-self: flex-start;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.58rem;
+        color: var(--blue);
+        border: 1px solid var(--blue);
+        border-radius: 4px;
+        padding: 0.06rem 0.4rem;
+        text-decoration: none;
+      }
+      .roster {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        margin-top: 0.2rem;
+      }
+      .rrow {
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: var(--panel);
+        padding: 0.3rem 0.5rem;
+        display: grid;
+        grid-template-columns: 1.4rem 1fr auto;
+        align-items: center;
+        gap: 0.45rem;
+      }
+      .rrow .mark {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.72rem;
+      }
+      .rrow .mark.done {
+        color: var(--green);
+      }
+      .rrow .mark.todo {
+        color: var(--accent);
+        opacity: 0.6;
+      }
+      .rrow .nm {
+        font-size: 0.72rem;
+      }
+      .rrow .st {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.56rem;
+        color: var(--accent);
+      }
+      .empty {
+        padding: 2rem;
+        text-align: center;
+        color: var(--accent);
+        font-style: italic;
+      }
+      @media (max-width: 760px) {
+        .strip {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .bento {
+          grid-template-columns: 1fr;
+        }
+        .card.hero {
+          grid-row: auto;
+          grid-column: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>The Situation Board</h1>
+    <p class="sub">
+      Watching <code>~/.skadi/board/</code> — the tiles follow the files.
+    </p>
+
+    <div class="frame">
+      <div class="header">
+        <div class="htop">
+          <span class="dot" id="pulse"></span> situation board ·
+          <span id="watch">loading…</span>
+          <span class="live" id="stamp">—</span>
+        </div>
+        <div class="strip" id="strip"></div>
+      </div>
+      <div class="bento" id="bento">
+        <div class="empty">
+          No ticket channels yet. Run the writer to raise one.
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const POLL_MS = 8000;
+      let channels = []; // last-known channel payloads
+      let lastSig = null; // last rendered signature; null = nothing rendered yet
+      // (an empty board signs as "", so the sentinel must not be "").
+
+      const esc = (s) =>
+        String(s ?? "").replace(
+          /[&<>]/g,
+          (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c],
+        );
+
+      async function poll() {
+        try {
+          const manifest = await (
+            await fetch("channels.json?_=" + Date.now())
+          ).json();
+          const names = manifest.channels || [];
+          const loaded = [];
+          for (const name of names) {
+            loaded.push(await (await fetch(name + "?_=" + Date.now())).json());
+          }
+          channels = loaded;
+          // Re-render only when a channel arrived, left, or changed its stamp.
+          const sig = loaded.map((c) => c.id + ":" + c.updated).join("|");
+          if (sig !== lastSig) {
+            lastSig = sig;
+            render();
+          }
+          mark(true);
+        } catch (e) {
+          mark(false);
+        }
+      }
+
+      function mark(ok) {
+        document.getElementById("pulse").classList.toggle("stale", !ok);
+        document.getElementById("watch").textContent = channels.length
+          ? channels.length +
+            " ticket" +
+            (channels.length > 1 ? "s" : "") +
+            " in progress"
+          : "watching…";
+        document.getElementById("stamp").textContent =
+          (ok ? "◍ live · " : "◍ stale · ") + new Date().toLocaleTimeString();
+      }
+
+      function render() {
+        const tickets = channels.filter((c) => c.channel === "ticket");
+        const growth = channels.find((c) => c.channel === "growth");
+        renderStrip(tickets, growth);
+        renderBody(tickets);
+      }
+
+      // Week-over-week arrow + percent from a current/previous pair.
+      function wow(cur, prev) {
+        if (prev == null || prev === 0) return "";
+        const p = Math.round(((cur - prev) / prev) * 100);
+        const arrow = p > 0 ? "▲" : p < 0 ? "▼" : "▪";
+        return `${arrow}${Math.abs(p)}% wow`;
+      }
+
+      function renderStrip(tickets, growth) {
+        const withPct = tickets.filter((t) => t.ac && t.ac.pct != null);
+        const avg = withPct.length
+          ? Math.round(
+              withPct.reduce((s, t) => s + t.ac.pct, 0) / withPct.length,
+            )
+          : null;
+        const blocked = tickets.filter((t) => t.blocked);
+        const active = tickets.find((t) => t.active) || tickets[0];
+
+        const strip = document.getElementById("strip");
+        strip.innerHTML = `
+    <div class="tile"><div class="lbl">Working set</div>
+      <div class="kpi">${tickets.length}<small> in progress</small></div>
+      <div class="muted">${active ? "active " + esc(active.id) : "—"}</div></div>
+    <div class="tile"><div class="lbl">AC · avg</div>
+      <div class="kpi">${avg == null ? "—" : avg + "%"}</div>
+      <div class="meter"><i style="width:${avg || 0}%"></i></div></div>
+    <div class="tile"><div class="lbl">Blocked</div>
+      <div class="kpi" style="color:${blocked.length ? "var(--red)" : "inherit"}">${blocked.length}</div>
+      <div class="muted">${blocked.length ? esc(blocked[0].id) : "none"}</div></div>
+    ${
+      growth
+        ? `<div class="tile"><div class="lbl">Metis growth</div>
+      <div class="kpi">${esc(growth.wau)}<small> WAU</small></div>
+      <div class="muted">MAU ${esc(growth.mau)} · ${wow(growth.wau, growth.wau_prev)}${growth.url ? ` · <a class="enter" href="${esc(growth.url)}" target="_blank" rel="noopener" style="padding:0 0.3rem">Enter ↵</a>` : ""}</div></div>`
+        : `<div class="tile ghost"><div class="lbl">Metis growth</div><div class="kpi">—</div>
+      <div class="muted">channel not wired</div></div>`
+    }
+    <div class="tile ghost"><div class="lbl">Sweeps</div><div class="kpi">—</div>
+      <div class="muted">channel not wired</div></div>`;
+      }
+
+      function renderBody(tickets) {
+        const bento = document.getElementById("bento");
+        if (!tickets.length) {
+          bento.innerHTML = `<div class="empty">No ticket channels yet. Run the writer to raise one.</div>`;
+          return;
+        }
+        const active = tickets.find((t) => t.active) || tickets[0];
+        const others = tickets.filter((t) => t !== active);
+        bento.innerHTML = heroCard(active) + others.map(otherCard).join("");
+      }
+
+      function heroCard(t) {
+        const ac = t.ac || {};
+        const roster = (t.subtasks || [])
+          .map(
+            (s) => `
+    <div class="rrow">
+      <span class="mark ${s.done ? "done" : "todo"}">${s.done ? "✓" : "○"}</span>
+      <span class="nm">${esc(s.title) || esc(s.id)}</span>
+      <span class="st">${esc(s.status)}</span>
+    </div>`,
+          )
+          .join("");
+        const statusPill = t.blocked
+          ? "block"
+          : t.statusCategory === "done"
+            ? ""
+            : "review";
+        return `
+    <div class="card hero">
+      <div class="ttl"><span class="pill active">ACTIVE</span> ${esc(t.id)}
+        <span class="src">${esc(t.source)} · ${esc(t.status)}</span></div>
+      <div style="font-size:0.85rem;font-weight:600">${esc(t.title)}</div>
+      <div><span class="pill ${statusPill}">${esc(t.status)}</span>
+        ${t.priority ? `<span class="muted"> · ${esc(t.priority)}</span>` : ""}</div>
+      <div class="ttl" style="margin-top:0.3rem">Acceptance
+        <span class="src">${ac.total ? ac.met + " / " + ac.total + " subtasks" : "no subtasks"}</span></div>
+      <div class="kpi">${ac.pct == null ? "—" : ac.pct + "%"}<small> AC</small></div>
+      <div class="meter"><i style="width:${ac.pct || 0}%"></i></div>
+      <div class="roster">${roster || '<div class="muted">no subtasks on this ticket</div>'}</div>
+      <a class="enter" href="${esc(t.url)}" target="_blank" rel="noopener">Enter ↵</a>
+    </div>`;
+      }
+
+      function otherCard(t) {
+        const ac = t.ac || {};
+        return `
+    <div class="card">
+      <div class="ttl">${esc(t.id)} <span class="src">${esc(t.status)}</span></div>
+      <div class="nm" style="font-size:0.74rem">${esc(t.title)}</div>
+      <div class="kpi" style="font-size:1.1rem">${ac.pct == null ? "—" : ac.pct + "%"}<small> AC</small></div>
+      <div class="meter thin"><i style="width:${ac.pct || 0}%${t.blocked ? ";background:var(--red)" : ""}"></i></div>
+      <a class="enter" href="${esc(t.url)}" target="_blank" rel="noopener">Enter ↵</a>
+    </div>`;
+      }
+
+      poll();
+      setInterval(poll, POLL_MS);
+    </script>
+  </body>
+</html>

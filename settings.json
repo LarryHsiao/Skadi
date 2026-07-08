@@ -58,6 +58,7 @@
       "Bash(~/.claude/hooks/galadriel-render.py:*)",
       "Bash(~/.claude/hooks/mirror-server.py:*)",
       "Bash(~/.claude/hooks/appgrowth.py:*)",
+      "Bash(~/.claude/hooks/board.sh:*)",
       "Bash(~/.claude/hooks/cleanup-dev-report.sh:*)",
       "Bash(~/.claude/hooks/cleanup-dev-project-scan.sh:*)",
       "Bash(~/.claude/hooks/cleanup-dev-execute.sh:*)",
