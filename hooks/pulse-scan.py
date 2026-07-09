@@ -103,3 +103,21 @@ def score_workflow(turns, entry):
             continue
         i += 1
     return applied, complied
+
+
+def score_grammar(turns, entry):
+    """applied = genuine user prompts; complied = those drawing no grammar note."""
+    marker = re.compile(entry["complied"])
+    applied = 0
+    complied = 0
+    for i, turn in enumerate(turns):
+        if turn["type"] != "user":
+            continue
+        text = turn["text"]
+        if not text or "<command-name>" in text:
+            continue  # empty (tool_result) or a slash invocation — not a prompt
+        applied += 1
+        nxt = turns[i + 1] if i + 1 < len(turns) else None
+        if not (nxt and nxt["type"] == "assistant" and marker.search(nxt["text"])):
+            complied += 1
+    return applied, complied

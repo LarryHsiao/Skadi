@@ -75,6 +75,26 @@ print('%d/%d'%(a,c))
 ")
 check "workflow matcher counts completed runs" "$expected_wf" "$actual_wf"
 
+# ── 4 · grammar matcher: a clean prompt complies; a corrected one does not ──
+d=$(tmpdir)
+cat >"$d/g.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"please do the thing"}}
+{"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"content":[{"type":"text","text":"Done."}]}}
+{"type":"user","timestamp":"2026-07-09T10:01:00Z","message":{"content":"can you did it again"}}
+{"type":"assistant","timestamp":"2026-07-09T10:01:05Z","message":{"content":[{"type":"text","text":"Sure.\n> **Grammar:** \"did\" → \"do\""}]}}
+{"type":"user","timestamp":"2026-07-09T10:02:00Z","message":{"content":"<command-name>/board</command-name>"}}
+JSON
+expected_g="2/1"
+actual_g=$(python3 -c "
+import importlib.util as u
+spec=u.spec_from_file_location('p','$SCAN'); m=u.module_from_spec(spec); spec.loader.exec_module(m)
+turns=m.read_turns('$d/g.jsonl')
+entry={'complied':r'> \*\*Grammar:\*\*'}
+a,c=m.score_grammar(turns, entry)
+print('%d/%d'%(a,c))
+")
+check "grammar matcher counts clean prompts" "$expected_g" "$actual_g"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
