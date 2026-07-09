@@ -160,12 +160,17 @@ Find the next wait from the streak ladder, capped at the one-hour ceiling:
 
 - **Mark the board** — when a situation board is in use (`~/.skadi/board/` exists),
   record this ride's verdict so the sweep band feeds itself:
-  `~/.claude/hooks/board.sh sweep <rider> <stirred|quiet> "<brief detail>"` — where
-  `<rider>` is the sweep name (`glorfindel`, `aule`, `anduin`, `moria`, `rhovanion`),
-  the verdict maps STIRRED → `stirred` and QUIET → `quiet`, and the detail is a short
-  phrase from the ride (e.g. `"3 planned · streak 0"` or `"quiet · streak 4"`). Skip
-  silently when no board exists — the watch never forces one into being, and a failed
-  record never derails the ride.
+  `~/.claude/hooks/board.sh sweep <rider> <stirred|quiet> "<brief detail>" [scope]` —
+  where `<rider>` is the sweep name (`glorfindel`, `aule`, `anduin`, `moria`,
+  `rhovanion`), the verdict maps STIRRED → `stirred` and QUIET → `quiet`, and the
+  detail is a short phrase from the ride (e.g. `"3 planned · streak 0"` or
+  `"quiet · streak 4"`). The **scope** pins the ride to its project, so one skill
+  watched across two projects stands as two tiles rather than one burying the other:
+  pass `<tracker>/<project>` for the project-bearing riders (`glorfindel`, `aule`,
+  `anduin` — e.g. `youtrack/URD`), and **omit it** for `moria` and `rhovanion`, which
+  carry no project and key by name alone. Skip the whole record silently when no
+  board exists — the watch never forces one into being, and a failed record never
+  derails the ride.
 - Announce one short line — the rider, whether it stirred or stayed quiet, the
   streak, and the wait (e.g. *"Glorfindel — quiet, streak 4; next sweep in 1 hr."*).
   The turn ends the instant `ScheduleWakeup` returns, so announce first.

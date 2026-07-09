@@ -7,7 +7,8 @@
 #   list                   list the channels with status / AC
 #
 # Passthroughs to the channel writers: `growth` refreshes the metis growth tile,
-# `sweep <name> <verdict> [detail]` records an amon-sul sweep verdict.
+# `sweep <name> <verdict> [detail] [scope]` records an amon-sul sweep verdict —
+# the optional scope pins one skill's ride to a project so two scopes coexist.
 #
 # Data lives under ~/.skadi/board/ (override with BOARD_DIR). The ticket writer,
 # the growth writer, the henneth-link writer, the shared manifest, and the page

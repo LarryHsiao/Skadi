@@ -46,6 +46,29 @@ expected_usage="nonzero"
 actual_usage="$([[ $rc -ne 0 ]] && echo nonzero || echo zero)"
 check "missing verdict fails loud" "$expected_usage" "$actual_usage"
 
+# ── 5 · a scoped ride keys by name+scope and records the scope ──
+d=$(tmpdir)
+BOARD_DIR="$d" bash "$SWEEP" glorfindel stirred "3 planned" "jira/PSG" >/dev/null 2>&1
+expected_scope="glorfindel/jira/PSG"
+actual_scope=$(jq -r '"\(.name)/\(.scope)"' "$d/sweep-glorfindel-jira-psg.json")
+check "scoped ride keys by name+scope, records scope" "$expected_scope" "$actual_scope"
+
+# ── 6 · two scoped rides of one skill coexist, neither buries the other ──
+d=$(tmpdir)
+BOARD_DIR="$d" bash "$SWEEP" glorfindel stirred "PSG work" "jira/PSG" >/dev/null 2>&1
+BOARD_DIR="$d" bash "$SWEEP" glorfindel quiet "MET quiet" "youtrack/MET" >/dev/null 2>&1
+expected_both="jira/PSG|youtrack/MET"
+actual_both="$(jq -r '.scope' "$d/sweep-glorfindel-jira-psg.json")|$(jq -r '.scope' "$d/sweep-glorfindel-youtrack-met.json")"
+check "two scoped rides of one skill coexist" "$expected_both" "$actual_both"
+
+# ── 7 · a scopeless ride still keys by name alone, scope null ──
+d=$(tmpdir)
+BOARD_DIR="$d" bash "$SWEEP" moria mend "2 open" >/dev/null 2>&1
+expected_bare="null/sweep-moria.json"
+have_file="$([[ -f "$d/sweep-moria.json" ]] && echo sweep-moria.json || echo missing)"
+actual_bare="$(jq -r '.scope' "$d/sweep-moria.json")/$have_file"
+check "scopeless ride keys by name alone, scope null" "$expected_bare" "$actual_bare"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
