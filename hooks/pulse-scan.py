@@ -12,6 +12,7 @@ import glob
 import json
 import os
 import re
+import subprocess
 import sys
 
 WINDOW_DAYS = 30
@@ -332,6 +333,20 @@ if (s.length) {
 """
 
 
+def _regenerate_board_manifest(board_dir):
+    """Mirror the sibling channel writers — regenerate the board manifest so the
+    pulse tile is discovered. Best-effort; a missing manifest script is not fatal."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    manifest = os.path.join(here, "board-manifest.py")
+    if not os.path.exists(manifest):
+        return
+    try:
+        subprocess.run([sys.executable, manifest, board_dir],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    except OSError:
+        pass
+
+
 def main():
     from datetime import datetime, timezone
     here = os.path.dirname(os.path.abspath(__file__))
@@ -345,6 +360,7 @@ def main():
     items = apply_rubric(files, rubric)
     door = render_dashboard(items, pulse_dir, henneth_dir, now_iso)
     write_outputs(items, pulse_dir, board_dir, now_iso, WINDOW_DAYS, door)
+    _regenerate_board_manifest(board_dir)
     overall = _overall(items)
     print("adherence pulse: overall %s%% across %d sessions" %
           (overall if overall is not None else "—", len(files)))

@@ -158,6 +158,18 @@ print('%s/%s'%(h.get('structural'), h.get('deterministic')))
 ")
 check "headline carries per-tier breakdown" "$expected_tier" "$actual_tier"
 
+# ── 9 · running the engine regenerates the board manifest so the tile is discovered ──
+d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir)
+mkdir -p "$d/r1/projects/p"
+cat >"$d/r1/projects/p/s.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"hi"}}
+{"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"content":[{"type":"text","text":"hello"}]}}
+JSON
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" python3 "$SCAN" >/dev/null 2>&1
+expected_man="yes"
+actual_man=$(python3 -c "import json; print('yes' if 'pulse.json' in json.load(open('$board/channels.json')).get('channels',[]) else 'no')" 2>/dev/null || echo "no-manifest")
+check "engine regenerates board manifest (tile discoverable)" "$expected_man" "$actual_man"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
