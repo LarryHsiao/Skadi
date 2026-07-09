@@ -406,7 +406,6 @@
             )
           : null;
         const blocked = tickets.filter((t) => t.blocked);
-        const active = tickets.find((t) => t.active) || tickets[0];
         const stir = sweeps.filter((s) => s.verdict === "stirred").length;
         const mend = sweeps.filter((s) => s.verdict === "mend").length;
         const quiet = sweeps.filter((s) => s.verdict === "quiet").length;
@@ -415,18 +414,18 @@
         strip.innerHTML = `
     <div class="tile"><div class="lbl">Working set</div>
       <div class="kpi">${tickets.length}<small> in progress</small></div>
-      <div class="muted">${active ? "active " + esc(active.id) : "—"}</div></div>
+      <div class="muted"${blocked.length ? ' style="color:var(--red)"' : ""}>${blocked.length} blocked${blocked.length ? " · " + esc(blocked[0].id) : ""}</div></div>
     <div class="tile"><div class="lbl">AC · avg</div>
       <div class="kpi">${avg == null ? "—" : avg + "%"}</div>
       <div class="meter"><i style="width:${avg || 0}%"></i></div></div>
-    <div class="tile"><div class="lbl">Blocked</div>
-      <div class="kpi" style="color:${blocked.length ? "var(--red)" : "inherit"}">${blocked.length}</div>
-      <div class="muted">${blocked.length ? esc(blocked[0].id) : "none"}</div></div>
     ${
       growth
         ? `<div class="tile"><div class="lbl">Metis growth</div>
-      <div class="kpi">${esc(growth.wau)}<small> WAU</small></div>
-      <div class="muted">MAU ${esc(growth.mau)} · ${wow(growth.wau, growth.wau_prev)}${growth.url ? ` · <a class="enter" href="${esc(growth.url)}" target="_blank" rel="noopener" style="padding:0 0.3rem">Enter ↵</a>` : ""}</div></div>`
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:.4rem">
+        <div class="kpi">${esc(growth.wau)}<small> WAU</small></div>
+        ${growth.url ? `<a class="enter" href="${esc(growth.url)}" target="_blank" rel="noopener" style="font-size:0.7rem">Enter ↵</a>` : ""}
+      </div>
+      <div class="muted">MAU ${esc(growth.mau)} · ${wow(growth.wau, growth.wau_prev)}</div></div>`
         : `<div class="tile ghost"><div class="lbl">Metis growth</div><div class="kpi">—</div>
       <div class="muted">channel not wired</div></div>`
     }
@@ -441,13 +440,15 @@
     ${
       pulse && pulse.headline
         ? `<div class="tile"><div class="lbl">Adherence</div>
-      <div class="kpi">${pulse.headline.overall == null ? "—" : esc(pulse.headline.overall) + "%"}<small> avg</small></div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:.4rem">
+        <div class="kpi">${pulse.headline.overall == null ? "—" : esc(pulse.headline.overall) + "%"}<small> avg</small></div>
+        ${pulse.url ? `<a class="enter" href="${esc(pulse.url)}" target="_blank" rel="noopener" style="font-size:0.7rem">Enter ↵</a>` : ""}
+      </div>
       <div class="muted" style="font-size:0.6rem">${
         Object.entries(pulse.headline.byTier || {})
           .map(([t, v]) => esc(t.slice(0, 6)) + " " + esc(v) + "%")
           .join(" · ") || "—"
-      }</div>
-      ${pulse.url ? `<a class="enter" href="${esc(pulse.url)}" target="_blank" rel="noopener" style="font-size:0.7rem">Enter ↵</a>` : ""}</div>`
+      }</div></div>`
         : ""
     }`;
       }
