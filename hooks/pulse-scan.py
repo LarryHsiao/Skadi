@@ -464,13 +464,13 @@ const tierRank = (t) => { const i = TIER_ORDER.indexOf(t); return i === -1 ? TIE
 
 const TAB_NOTES = {
   direct: "workflow rows count sessions with no /loop or /amon-sul in them — a hand-typed command inside such a session is still counted as sweep.",
-  sweep: "workflow rows count only /loop- and /amon-sul-fired sessions; grammar and free-form rows are unchanged (they carry no sweep concept).",
+  sweep: "workflow rows only — grammar and free-form gate rows carry no sweep concept, so they're dropped from this tab.",
 };
 
 function viewFor(tab) {
   if (tab !== "sweep") return DATA.items;
-  return DATA.items.map(i => {
-    if (i.kind !== "workflow" || i.status !== "ok") return i;
+  return DATA.items.filter(i => i.kind === "workflow").map(i => {
+    if (i.status !== "ok") return i;
     const sw = i.sweep || { applied: 0, complied: 0, rate: null };
     return { ...i, rate: sw.rate, applied: sw.applied, complied: sw.complied,
              status: sw.applied ? "ok" : "no-sweep" };
