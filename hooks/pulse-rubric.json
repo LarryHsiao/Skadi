@@ -1,0 +1,101 @@
+[
+  {
+    "id": "workflow.glorfindel",
+    "label": "Glorfindel completes",
+    "kind": "workflow",
+    "tier": "structural",
+    "applies": "<command-name>/glorfindel</command-name>",
+    "complied": "\\b(STIRRED|QUIET)\\b",
+    "denom": "invocations"
+  },
+  {
+    "id": "workflow.aule",
+    "label": "Aulë completes",
+    "kind": "workflow",
+    "tier": "structural",
+    "applies": "<command-name>/aule</command-name>",
+    "complied": "\\b(STIRRED|QUIET)\\b",
+    "denom": "invocations"
+  },
+  {
+    "id": "workflow.anduin",
+    "label": "Anduin completes",
+    "kind": "workflow",
+    "tier": "structural",
+    "applies": "<command-name>/anduin</command-name>",
+    "complied": "\\b(STIRRED|QUIET)\\b",
+    "denom": "invocations"
+  },
+  {
+    "id": "workflow.council",
+    "label": "Council posts counsel",
+    "kind": "workflow",
+    "tier": "structural",
+    "applies": "<command-name>/council</command-name>",
+    "complied": "\\[COUNSEL\\]",
+    "denom": "invocations"
+  },
+  {
+    "id": "workflow.celebrimbor",
+    "label": "Celebrimbor forges",
+    "kind": "workflow",
+    "tier": "structural",
+    "applies": "<command-name>/celebrimbor</command-name>",
+    "complied": "\\[GWAITH\\]",
+    "denom": "invocations"
+  },
+  {
+    "id": "workflow.mithrandir",
+    "label": "Mithrandir renders a verdict",
+    "kind": "workflow",
+    "tier": "structural",
+    "applies": "<command-name>/mithrandir</command-name>",
+    "complied": "\\b(Merge|Hold|Refuse)\\b",
+    "denom": "invocations"
+  },
+  {
+    "id": "workflow.mandos",
+    "label": "Mandos pronounces",
+    "kind": "workflow",
+    "tier": "structural",
+    "applies": "<command-name>/mandos</command-name>",
+    "complied": "\\b(Covered|Missing|Scope-crept)\\b",
+    "denom": "invocations"
+  },
+  {
+    "id": "workflow.board",
+    "label": "Board serves",
+    "kind": "workflow",
+    "tier": "structural",
+    "applies": "<command-name>/board</command-name>",
+    "complied": "http://localhost:",
+    "denom": "invocations"
+  },
+  {
+    "id": "rule.grammar",
+    "label": "Grammar clean (no correction)",
+    "kind": "grammar",
+    "tier": "deterministic",
+    "applies": "",
+    "complied": "> \\*\\*Grammar:\\*\\*",
+    "denom": "messages"
+  },
+  {
+    "id": "rule.commit-footer",
+    "label": "Commit bears the session footer",
+    "kind": "git-probe",
+    "tier": "deterministic",
+    "applies": "",
+    "complied": "Claude-Session:",
+    "denom": "commits"
+  },
+  {
+    "id": "rule.pr-assignee",
+    "label": "PR/MR self-assigned",
+    "kind": "forge-probe",
+    "tier": "deterministic",
+    "applies": "",
+    "complied": "",
+    "denom": "prs"
+  }
+]
