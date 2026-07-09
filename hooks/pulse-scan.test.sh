@@ -55,6 +55,26 @@ print('|'.join('%s:%s'%(t['type'],t['text']) for t in turns))
 ")
 check "read_turns extracts turns, skips torn line" "$expected_turns" "$actual_turns"
 
+# ── 3 · workflow matcher: invoked+completed → 1/1; invoked+incomplete → 0/1 ──
+d=$(tmpdir)
+cat >"$d/done.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"content":[{"type":"text","text":"Glorfindel — STIRRED, streak 0."}]}}
+{"type":"user","timestamp":"2026-07-09T10:01:00Z","message":{"content":"ok"}}
+{"type":"user","timestamp":"2026-07-09T10:02:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-07-09T10:02:05Z","message":{"content":[{"type":"text","text":"working on it, no verdict yet"}]}}
+JSON
+expected_wf="2/1"
+actual_wf=$(python3 -c "
+import importlib.util as u
+spec=u.spec_from_file_location('p','$SCAN'); m=u.module_from_spec(spec); spec.loader.exec_module(m)
+turns=m.read_turns('$d/done.jsonl')
+entry={'applies':'<command-name>/glorfindel</command-name>','complied':r'\b(STIRRED|QUIET)\b'}
+a,c=m.score_workflow(turns, entry)
+print('%d/%d'%(a,c))
+")
+check "workflow matcher counts completed runs" "$expected_wf" "$actual_wf"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

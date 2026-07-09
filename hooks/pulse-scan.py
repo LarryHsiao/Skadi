@@ -77,3 +77,29 @@ def session_files(roots, window_days, now_epoch):
             except OSError:
                 continue
     return found
+
+
+def score_workflow(turns, entry):
+    """applied = invocations; complied = runs where the verdict token appears."""
+    applies = re.compile(entry["applies"])
+    complied_re = re.compile(entry["complied"])
+    applied = 0
+    complied = 0
+    i = 0
+    n = len(turns)
+    while i < n:
+        turn = turns[i]
+        if turn["type"] == "user" and applies.search(turn["text"]):
+            applied += 1
+            j = i + 1
+            run_text = []
+            while j < n and turns[j]["type"] != "user":
+                if turns[j]["type"] == "assistant":
+                    run_text.append(turns[j]["text"])
+                j += 1
+            if complied_re.search("\n".join(run_text)):
+                complied += 1
+            i = j
+            continue
+        i += 1
+    return applied, complied
