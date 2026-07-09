@@ -37,6 +37,24 @@ PY
 )
 check "rubric is well-formed" "$expected_rubric" "$actual_rubric"
 
+# ── 2 · read_turns extracts ordered user/assistant text; torn lines are skipped ──
+d=$(tmpdir)
+cat >"$d/t.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"role":"user","content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"role":"assistant","content":[{"type":"text","text":"Glorfindel — STIRRED, 3 planned."}]}}
+{ this is a torn line
+{"type":"user","timestamp":"2026-07-09T10:01:00Z","message":{"role":"user","content":"thanks"}}
+JSON
+expected_turns="user:<command-name>/glorfindel</command-name>|assistant:Glorfindel — STIRRED, 3 planned.|user:thanks"
+actual_turns=$(python3 -c "
+import sys; sys.argv=['x']
+import importlib.util as u
+spec=u.spec_from_file_location('p','$SCAN'); m=u.module_from_spec(spec); spec.loader.exec_module(m)
+turns=m.read_turns('$d/t.jsonl')
+print('|'.join('%s:%s'%(t['type'],t['text']) for t in turns))
+")
+check "read_turns extracts turns, skips torn line" "$expected_turns" "$actual_turns"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
