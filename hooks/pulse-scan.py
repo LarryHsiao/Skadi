@@ -121,3 +121,113 @@ def score_grammar(turns, entry):
         if not (nxt and nxt["type"] == "assistant" and marker.search(nxt["text"])):
             complied += 1
     return applied, complied
+
+
+def _rate(applied, complied):
+    return round(100 * complied / applied) if applied else None
+
+
+def apply_rubric(files, rubric):
+    """One result per rubric entry, aggregated across every session file."""
+    scorers = {"workflow": score_workflow, "grammar": score_grammar}
+    sessions = [read_turns(f) for f in files]
+    items = []
+    for entry in rubric:
+        kind = entry["kind"]
+        base = {"id": entry["id"], "label": entry["label"],
+                "tier": entry["tier"], "kind": kind}
+        if kind not in scorers:  # git-probe / forge-probe — not built yet
+            items.append({**base, "applied": None, "complied": None,
+                          "rate": None, "status": "pending"})
+            continue
+        try:
+            applied = complied = 0
+            for turns in sessions:
+                a, c = scorers[kind](turns, entry)
+                applied += a
+                complied += c
+            items.append({**base, "applied": applied, "complied": complied,
+                          "rate": _rate(applied, complied), "status": "ok"})
+        except re.error as err:
+            print("pulse-scan: %s matcher error: %s" % (entry["id"], err), file=sys.stderr)
+            items.append({**base, "applied": None, "complied": None,
+                          "rate": None, "status": "error"})
+    return items
+
+
+def _overall(items):
+    rates = [i["rate"] for i in items if isinstance(i.get("rate"), (int, float))]
+    return round(sum(rates) / len(rates)) if rates else None
+
+
+def _prev_overall(history_path):
+    if not os.path.exists(history_path):
+        return None
+    last = None
+    with open(history_path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                last = line
+    if not last:
+        return None
+    try:
+        return json.loads(last).get("overall")
+    except ValueError:
+        return None
+
+
+def write_outputs(items, pulse_dir, board_dir, now_iso, window_days, door):
+    os.makedirs(pulse_dir, exist_ok=True)
+    os.makedirs(board_dir, exist_ok=True)
+    history_path = os.path.join(pulse_dir, "history.jsonl")
+    overall = _overall(items)
+    prev = _prev_overall(history_path)
+    delta = (overall - prev) if (overall is not None and prev is not None) else None
+    with open(history_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"ts": now_iso, "window": window_days,
+                             "overall": overall, "items": items},
+                            ensure_ascii=False) + "\n")
+    snapshot = {
+        "channel": "pulse",
+        "headline": {"overall": overall, "delta": delta},
+        "items": items,
+        "updated": now_iso,
+        "url": door,
+        "source": "pulse-scan",
+    }
+    with open(os.path.join(board_dir, "pulse.json"), "w", encoding="utf-8") as fh:
+        json.dump(snapshot, fh, ensure_ascii=False, indent=2)
+
+
+def _default_roots():
+    override = os.environ.get("PULSE_ROOTS")
+    if override:
+        return override.split(":")
+    return ["~/.claude", "~/.claude-personal", "~/.claude-work"]
+
+
+def render_dashboard(items, pulse_dir, henneth_dir, now_iso):
+    return None  # replaced in Task 6
+
+
+def main():
+    from datetime import datetime, timezone
+    here = os.path.dirname(os.path.abspath(__file__))
+    rubric = json.load(open(os.path.join(here, "pulse-rubric.json"), encoding="utf-8"))
+    now = datetime.now(timezone.utc)
+    now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    pulse_dir = os.environ.get("PULSE_DIR", os.path.expanduser("~/.skadi/pulse"))
+    board_dir = os.environ.get("BOARD_DIR", os.path.expanduser("~/.skadi/board"))
+    henneth_dir = os.environ.get("HENNETH_DIR", os.path.expanduser("~/.claude/previews/henneth"))
+    files = session_files(_default_roots(), WINDOW_DAYS, now.timestamp())
+    items = apply_rubric(files, rubric)
+    door = render_dashboard(items, pulse_dir, henneth_dir, now_iso)
+    write_outputs(items, pulse_dir, board_dir, now_iso, WINDOW_DAYS, door)
+    overall = _overall(items)
+    print("adherence pulse: overall %s%% across %d sessions" %
+          (overall if overall is not None else "—", len(files)))
+
+
+if __name__ == "__main__":
+    main()

@@ -95,6 +95,33 @@ print('%d/%d'%(a,c))
 ")
 check "grammar matcher counts clean prompts" "$expected_g" "$actual_g"
 
+# ── 5 · orchestration: aggregate across sessions; pending items marked; history grows ──
+d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir)
+mkdir -p "$d/r1/projects/proj-a"
+cat >"$d/r1/projects/proj-a/s.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"content":[{"type":"text","text":"Glorfindel — QUIET, streak 1."}]}}
+{"type":"user","timestamp":"2026-07-09T10:01:00Z","message":{"content":"good, thanks"}}
+{"type":"assistant","timestamp":"2026-07-09T10:01:05Z","message":{"content":[{"type":"text","text":"You are welcome."}]}}
+JSON
+out=$(PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" python3 "$SCAN" 2>/dev/null)
+# glorfindel: 1/1 → 100 ; grammar: 1 clean prompt ("good, thanks") → 1/1 → 100 ; commit-footer: pending
+expected_orch="100/100/pending"
+actual_orch=$(python3 -c "
+import json
+snap=json.load(open('$board/pulse.json'))
+by={i['id']:i for i in snap['items']}
+g=by['workflow.glorfindel']['rate']; gr=by['rule.grammar']['rate']; cf=by['rule.commit-footer']['status']
+print('%s/%s/%s'%(g,gr,cf))
+")
+check "orchestration aggregates and marks pending" "$expected_orch" "$actual_orch"
+
+# ── 6 · history append: a second run adds a second line ──
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" python3 "$SCAN" >/dev/null 2>&1
+expected_hist="2"
+actual_hist=$(wc -l < "$pulse/history.jsonl" | tr -d ' ')
+check "history grows one line per run" "$expected_hist" "$actual_hist"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
