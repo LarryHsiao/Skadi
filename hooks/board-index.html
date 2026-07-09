@@ -451,8 +451,11 @@
             const door = s.url
               ? `<a class="enter" href="${esc(s.url)}" target="_blank" rel="noopener">Enter ↵</a>`
               : "";
+            const nm = s.scope
+              ? `${esc(s.name)} · ${esc(s.scope)}`
+              : esc(s.name);
             return `<div class="srow">
-      <span class="nm">${esc(s.name)}</span>
+      <span class="nm">${nm}</span>
       <span><span class="pill ${cls}">${esc(label)}</span></span>
       <span class="dt">${esc(s.detail) || "—"}</span>
       ${door}</div>`;
@@ -489,6 +492,13 @@
           : t.statusCategory === "done"
             ? ""
             : "review";
+        // Name the AC's true source — a bar drawn from the description must not
+        // read "subtasks", and the empty roster says where the count came from.
+        const fromDesc = ac.source === "description";
+        const acNoun = fromDesc ? "checklist" : "subtasks";
+        const rosterEmpty = fromDesc
+          ? "acceptance drawn from the description checklist"
+          : "no subtasks on this ticket";
         return `
     <div class="card hero">
       <div class="ttl"><span class="pill active">ACTIVE</span> ${esc(t.id)}
@@ -497,10 +507,10 @@
       <div><span class="pill ${statusPill}">${esc(t.status)}</span>
         ${t.priority ? `<span class="muted"> · ${esc(t.priority)}</span>` : ""}</div>
       <div class="ttl" style="margin-top:0.3rem">Acceptance
-        <span class="src">${ac.total ? ac.met + " / " + ac.total + " subtasks" : "no subtasks"}</span></div>
+        <span class="src">${ac.total ? ac.met + " / " + ac.total + " " + acNoun : "no subtasks"}</span></div>
       <div class="kpi">${ac.pct == null ? "—" : ac.pct + "%"}<small> AC</small></div>
       <div class="meter"><i style="width:${ac.pct || 0}%"></i></div>
-      <div class="roster">${roster || '<div class="muted">no subtasks on this ticket</div>'}</div>
+      <div class="roster">${roster || `<div class="muted">${rosterEmpty}</div>`}</div>
       <a class="enter" href="${esc(t.url)}" target="_blank" rel="noopener">Enter ↵</a>
     </div>`;
       }
@@ -508,13 +518,36 @@
       function otherCard(t) {
         const ac = t.ac || {};
         return `
-    <div class="card">
+    <div class="card" data-key="${esc(t.id)}" title="Click to make active" style="cursor:pointer">
       <div class="ttl">${esc(t.id)} <span class="src">${esc(t.status)}</span></div>
       <div class="nm" style="font-size:0.74rem">${esc(t.title)}</div>
       <div class="kpi" style="font-size:1.1rem">${ac.pct == null ? "—" : ac.pct + "%"}<small> AC</small></div>
       <div class="meter thin"><i style="width:${ac.pct || 0}%${t.blocked ? ";background:var(--red)" : ""}"></i></div>
       <a class="enter" href="${esc(t.url)}" target="_blank" rel="noopener">Enter ↵</a>
     </div>`;
+      }
+
+      // Click a non-hero card to promote it — the board's one write. The Enter
+      // link keeps its own job (opening the ticket), so a click on it is let by.
+      document.getElementById("bento").addEventListener("click", (e) => {
+        if (e.target.closest("a.enter")) return;
+        const card = e.target.closest(".card[data-key]");
+        if (card) promote(card.getAttribute("data-key"));
+      });
+
+      // Paint the new hero at once, then persist it. The next poll reconciles
+      // from disk — so a failed POST simply reverts within a poll, no rollback.
+      async function promote(key) {
+        for (const c of channels) {
+          if (c.channel === "ticket") c.active = c.id === key;
+        }
+        lastSig = null; // let the next poll re-render even if stamps are unchanged
+        render();
+        try {
+          await fetch("active/" + encodeURIComponent(key), { method: "POST" });
+        } catch (e) {
+          mark(false);
+        }
       }
 
       poll();

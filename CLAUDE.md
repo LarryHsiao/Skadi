@@ -86,6 +86,8 @@ When a section calls for a visual preview — a wireframe or UML diagram (Visual
 
 When a change touches UI layout (a new screen, a rearranged panel, a rethought component) or calls for a UML diagram (class, sequence, state machine, ER model), render the sketch alongside the summary, so the shape of the thing can be judged before a line of code is written. Keep it simple — boxes, labels, proportions for a wireframe; classes, methods, relations, cardinalities for a diagram. One sketch per distinct layout or concern. The same session-level opt-out as Change Approval applies.
 
+**Both data states (UI only).** When the sketch is a UI layout that holds data — a list, a table, a panel, a screen — render two states, not one: the **populated** state, dense with representative data (a long list, a crowded table, counters run high), and the **empty** state, where no data has yet arrived (the placeholder, the zero-count, the first-run screen). A layout judged only in its comfortable middle hides its two hardest cases — the overflow and the void. Both ride in the same response, side by side or as two frames. UML diagrams are exempt; they bear no data states.
+
 **Primary path.** Write it as HTML under the previews directory and serve it per the [Local Preview](#local-preview) rules. HTML/CSS handles boxes and proportions natively; Mermaid (via `<script type="module">`) renders class, sequence, state, and ER diagrams from terse text; inline SVG covers what either strains at.
 
 **Fallback.** A console sketch in Unicode box-drawing (ASCII) inline.

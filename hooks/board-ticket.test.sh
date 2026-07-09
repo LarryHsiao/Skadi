@@ -130,6 +130,50 @@ expected_ytnone="null/https://youtrack.example.com/issue/MET-9"
 actual_ytnone=$(jq -r '"\(.ac.pct)/\(.url)"' "$d/ticket-MET-9.json")
 check "youtrack no-subtask AC null, browse url composed" "$expected_ytnone" "$actual_ytnone"
 
+# ── 8 · Jira AC falls to the description checklist when no subtasks exist ──
+d=$(tmpdir)
+issue=$(tmpfile)
+cat >"$issue" <<'JSON'
+{"key":"DESC-1","fields":{"summary":"Desc","status":{"name":"In Progress","statusCategory":{"key":"indeterminate"}},"issuetype":{"name":"Story"},"priority":{"name":"High"},"subtasks":[],"description":{"type":"doc","content":[{"type":"taskList","content":[{"type":"taskItem","attrs":{"state":"DONE"},"content":[]},{"type":"taskItem","attrs":{"state":"DONE"},"content":[]},{"type":"taskItem","attrs":{"state":"TODO"},"content":[]}]}]}}}
+JSON
+BOARD_DIR="$d" BOARD_TICKET_ISSUE_FILE="$issue" bash "$WRITER" DESC-1 >/dev/null 2>&1
+expected_desc="2/3/66/description"
+actual_desc=$(jq -r '"\(.ac.met)/\(.ac.total)/\(.ac.pct)/\(.ac.source)"' "$d/ticket-DESC-1.json")
+check "jira AC falls to description checklist when no subtasks" "$expected_desc" "$actual_desc"
+
+# ── 9 · subtasks win over a description checklist when both exist ──
+d=$(tmpdir)
+issue=$(tmpfile)
+cat >"$issue" <<'JSON'
+{"key":"DESC-2","fields":{"summary":"Both","status":{"name":"In Progress","statusCategory":{"key":"indeterminate"}},"issuetype":{"name":"Story"},"priority":{"name":"High"},"subtasks":[{"key":"S-1","fields":{"summary":"s1","status":{"name":"Done","statusCategory":{"key":"done"}}}}],"description":{"type":"doc","content":[{"type":"taskList","content":[{"type":"taskItem","attrs":{"state":"TODO"},"content":[]},{"type":"taskItem","attrs":{"state":"TODO"},"content":[]}]}]}}}
+JSON
+BOARD_DIR="$d" BOARD_TICKET_ISSUE_FILE="$issue" bash "$WRITER" DESC-2 >/dev/null 2>&1
+expected_win="1/1/100/subtasks"
+actual_win=$(jq -r '"\(.ac.met)/\(.ac.total)/\(.ac.pct)/\(.ac.source)"' "$d/ticket-DESC-2.json")
+check "subtasks win over description checklist when both exist" "$expected_win" "$actual_win"
+
+# ── 10 · no subtasks and no checklist → source none, pct null ──
+d=$(tmpdir)
+issue=$(tmpfile)
+cat >"$issue" <<'JSON'
+{"key":"DESC-3","fields":{"summary":"Empty","status":{"name":"To Do","statusCategory":{"key":"new"}},"issuetype":{"name":"Story"},"priority":{"name":"Low"},"subtasks":[],"description":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"no checklist here"}]}]}}}
+JSON
+BOARD_DIR="$d" BOARD_TICKET_ISSUE_FILE="$issue" bash "$WRITER" DESC-3 >/dev/null 2>&1
+expected_none="null/none"
+actual_none=$(jq -r '"\(.ac.pct)/\(.ac.source)"' "$d/ticket-DESC-3.json")
+check "no subtasks and no checklist → source none, pct null" "$expected_none" "$actual_none"
+
+# ── 11 · YouTrack AC falls to the markdown checklist when no subtasks exist ──
+d=$(tmpdir)
+issue=$(tmpfile)
+cat >"$issue" <<'JSON'
+{"idReadable":"YTD-1","summary":"YT desc","resolved":null,"customFields":[{"name":"State","value":{"name":"Open"}}],"links":[],"description":"## Acceptance\n- [x] one\n- [x] two\n- [ ] three\n"}
+JSON
+BOARD_DIR="$d" BOARD_TICKET_ISSUE_FILE="$issue" bash "$WRITER" YTD-1 --tracker youtrack >/dev/null 2>&1
+expected_ytd="2/3/66/description"
+actual_ytd=$(jq -r '"\(.ac.met)/\(.ac.total)/\(.ac.pct)/\(.ac.source)"' "$d/ticket-YTD-1.json")
+check "youtrack AC falls to markdown checklist when no subtasks" "$expected_ytd" "$actual_ytd"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

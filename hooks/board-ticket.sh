@@ -82,7 +82,7 @@ fetch_jira() {
   http=$(curl -sS -o "$issue_file" -w "%{http_code}" \
     -u "$jira_email:$jira_token" \
     -H "Accept: application/json" \
-    "$BASE/rest/api/3/issue/$ISSUE_KEY?fields=summary,status,issuetype,priority,subtasks")
+    "$BASE/rest/api/3/issue/$ISSUE_KEY?fields=summary,status,issuetype,priority,subtasks,description")
   if [[ "$http" != 2* ]]; then
     echo "fetch issue failed for $ISSUE_KEY (http=$http)" >&2
     exit 1
@@ -103,6 +103,14 @@ normalize_jira() {
         priority: (($f.priority.name) // ""),
         url: ($base + "/browse/" + $key),
         source: "jira",
+        descAc: (
+          # A description checklist is an ADF taskList of taskItems; count them
+          # at any depth. state == "DONE" is met. Feeds the AC bar only when the
+          # ticket bears no subtasks — the shared shaper picks the source.
+          [ ($f.description // {}) | .. | objects | select(.type? == "taskItem") ] as $items
+          | { met: ($items | map(select(.attrs.state? == "DONE")) | length),
+              total: ($items | length) }
+        ),
         subtasks: (($f.subtasks // []) | map(
           ((.fields.status.name // "") | ascii_downcase) as $sname
           | {
@@ -134,7 +142,7 @@ fetch_youtrack() {
     exit 1
   fi
   BASE="${yt_url%/}"
-  local fields="idReadable,summary,resolved,customFields(name,value(name)),links(direction,linkType(name),issues(idReadable,summary,resolved,customFields(name,value(name))))"
+  local fields="idReadable,summary,description,resolved,customFields(name,value(name)),links(direction,linkType(name),issues(idReadable,summary,resolved,customFields(name,value(name))))"
   http=$(curl -sS -o "$issue_file" -w "%{http_code}" \
     -H "Authorization: Bearer $yt_token" \
     -H "Accept: application/json" \
@@ -161,6 +169,14 @@ normalize_youtrack() {
         priority: (cf(.customFields; "Priority")),
         url: ($base + "/issue/" + $key),
         source: "youtrack",
+        descAc: (
+          # A YouTrack description is markdown; its checklist is "- [ ]" / "- [x]"
+          # lines. Feeds the AC bar only when the ticket bears no subtasks.
+          [ (.description // "") | split("\n")[]
+            | select(test("^[[:space:]]*[-*+][[:space:]]+\\[[ xX]\\]")) ] as $lines
+          | { met: ($lines | map(select(test("\\[[xX]\\]"))) | length),
+              total: ($lines | length) }
+        ),
         subtasks: (
           (.links // [])
           | map(select((.linkType.name == "Subtask") and (.direction == "OUTWARD")))
@@ -189,8 +205,15 @@ esac
 jq --arg active "$ACTIVE" --arg now "$NOW" '
   . as $n
   | ($n.subtasks) as $roster
-  | ($roster | length) as $total
-  | ($roster | map(select(.done)) | length) as $met
+  | ($roster | length) as $subTotal
+  | ($roster | map(select(.done)) | length) as $subMet
+  # Subtasks are the AC roster where they exist; a ticket without them falls to
+  # the description checklist; a ticket with neither has no AC to show.
+  | (if $subTotal > 0
+       then {met: $subMet, total: $subTotal, source: "subtasks"}
+     elif (($n.descAc.total) // 0) > 0
+       then {met: $n.descAc.met, total: $n.descAc.total, source: "description"}
+     else {met: 0, total: 0, source: "none"} end) as $acc
   | {
       channel: "ticket",
       id: $n.id,
@@ -201,9 +224,10 @@ jq --arg active "$ACTIVE" --arg now "$NOW" '
       priority: $n.priority,
       blocked: (($n.status // "") | ascii_downcase | test("block")),
       ac: {
-        met: $met,
-        total: $total,
-        pct: (if $total > 0 then (($met * 100 / $total) | floor) else null end)
+        met: $acc.met,
+        total: $acc.total,
+        pct: (if $acc.total > 0 then (($acc.met * 100 / $acc.total) | floor) else null end),
+        source: $acc.source
       },
       subtasks: $roster,
       active: ($active == "true"),
@@ -214,24 +238,10 @@ jq --arg active "$ACTIVE" --arg now "$NOW" '
 ' "$norm_file" > "$out_file"
 
 # Exactly one hero: when this ticket is active, clear active on every other
-# ticket channel, so the board never shows two active tickets at once.
+# ticket channel, so the board never shows two active tickets at once. The flip
+# is single-homed in board-active.py, shared with the page's click endpoint.
 if [[ "$ACTIVE" == "true" ]]; then
-  python3 - "$BOARD_DIR" "$ISSUE_KEY" <<'PY'
-import json, os, sys, glob
-board, key = sys.argv[1], sys.argv[2]
-current = "ticket-%s.json" % key
-for path in glob.glob(os.path.join(board, "ticket-*.json")):
-    if os.path.basename(path) == current:
-        continue
-    try:
-        data = json.load(open(path, encoding="utf-8"))
-    except (ValueError, OSError):
-        continue
-    if data.get("active"):
-        data["active"] = False
-        with open(path, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, ensure_ascii=False, indent=2)
-PY
+  python3 "$SCRIPT_DIR/board-active.py" "$BOARD_DIR" "$ISSUE_KEY"
 fi
 
 # Regenerate the manifest over every channel present (tickets, growth, …).
