@@ -110,7 +110,7 @@ PY
     # so a boot that fails is reported, not papered over with a dead link.
     port="$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')"
     echo "$port" > "$BOARD_DIR/.board-port"
-    nohup python3 -m http.server "$port" --bind 127.0.0.1 --directory "$BOARD_DIR" >"$BOARD_DIR/.board-log" 2>&1 &
+    nohup python3 "$DIR/board-server.py" "$port" "$BOARD_DIR" >"$BOARD_DIR/.board-log" 2>&1 &
     disown
     if curl -sf -o /dev/null --retry 15 --retry-delay 1 --retry-connrefused "http://127.0.0.1:$port/index.html"; then
       echo "http://localhost:$port/"

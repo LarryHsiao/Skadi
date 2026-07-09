@@ -508,13 +508,36 @@
       function otherCard(t) {
         const ac = t.ac || {};
         return `
-    <div class="card">
+    <div class="card" data-key="${esc(t.id)}" title="Click to make active" style="cursor:pointer">
       <div class="ttl">${esc(t.id)} <span class="src">${esc(t.status)}</span></div>
       <div class="nm" style="font-size:0.74rem">${esc(t.title)}</div>
       <div class="kpi" style="font-size:1.1rem">${ac.pct == null ? "—" : ac.pct + "%"}<small> AC</small></div>
       <div class="meter thin"><i style="width:${ac.pct || 0}%${t.blocked ? ";background:var(--red)" : ""}"></i></div>
       <a class="enter" href="${esc(t.url)}" target="_blank" rel="noopener">Enter ↵</a>
     </div>`;
+      }
+
+      // Click a non-hero card to promote it — the board's one write. The Enter
+      // link keeps its own job (opening the ticket), so a click on it is let by.
+      document.getElementById("bento").addEventListener("click", (e) => {
+        if (e.target.closest("a.enter")) return;
+        const card = e.target.closest(".card[data-key]");
+        if (card) promote(card.getAttribute("data-key"));
+      });
+
+      // Paint the new hero at once, then persist it. The next poll reconciles
+      // from disk — so a failed POST simply reverts within a poll, no rollback.
+      async function promote(key) {
+        for (const c of channels) {
+          if (c.channel === "ticket") c.active = c.id === key;
+        }
+        lastSig = null; // let the next poll re-render even if stamps are unchanged
+        render();
+        try {
+          await fetch("active/" + encodeURIComponent(key), { method: "POST" });
+        } catch (e) {
+          mark(false);
+        }
       }
 
       poll();

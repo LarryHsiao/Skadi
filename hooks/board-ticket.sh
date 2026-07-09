@@ -214,24 +214,10 @@ jq --arg active "$ACTIVE" --arg now "$NOW" '
 ' "$norm_file" > "$out_file"
 
 # Exactly one hero: when this ticket is active, clear active on every other
-# ticket channel, so the board never shows two active tickets at once.
+# ticket channel, so the board never shows two active tickets at once. The flip
+# is single-homed in board-active.py, shared with the page's click endpoint.
 if [[ "$ACTIVE" == "true" ]]; then
-  python3 - "$BOARD_DIR" "$ISSUE_KEY" <<'PY'
-import json, os, sys, glob
-board, key = sys.argv[1], sys.argv[2]
-current = "ticket-%s.json" % key
-for path in glob.glob(os.path.join(board, "ticket-*.json")):
-    if os.path.basename(path) == current:
-        continue
-    try:
-        data = json.load(open(path, encoding="utf-8"))
-    except (ValueError, OSError):
-        continue
-    if data.get("active"):
-        data["active"] = False
-        with open(path, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, ensure_ascii=False, indent=2)
-PY
+  python3 "$SCRIPT_DIR/board-active.py" "$BOARD_DIR" "$ISSUE_KEY"
 fi
 
 # Regenerate the manifest over every channel present (tickets, growth, …).

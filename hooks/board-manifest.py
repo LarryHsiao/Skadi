@@ -22,7 +22,8 @@ def channel_files(board):
         if name in SKIP:
             continue
         try:
-            data = json.load(open(path, encoding="utf-8"))
+            with open(path, encoding="utf-8") as fh:
+                data = json.load(fh)
         except (ValueError, OSError) as err:
             # A torn write shouldn't blank the whole board — skip it, but say so,
             # lest a channel vanish invisibly.
