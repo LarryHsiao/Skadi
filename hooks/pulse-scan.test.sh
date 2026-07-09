@@ -170,6 +170,20 @@ expected_man="yes"
 actual_man=$(python3 -c "import json; print('yes' if 'pulse.json' in json.load(open('$board/channels.json')).get('channels',[]) else 'no')" 2>/dev/null || echo "no-manifest")
 check "engine regenerates board manifest (tile discoverable)" "$expected_man" "$actual_man"
 
+# ── 10 · the dashboard is copied into the board dir so the tile's Enter link resolves ──
+d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir); hen=$(tmpdir)
+mkdir -p "$d/r1/projects/p"
+cat >"$d/r1/projects/p/s.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"hi"}}
+{"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"content":[{"type":"text","text":"hello"}]}}
+JSON
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" python3 "$SCAN" >/dev/null 2>&1
+expected_door="yes/pulse.html"
+have_copy="$([[ -f "$board/pulse.html" ]] && echo yes || echo no)"
+snap_url=$(python3 -c "import json;print(json.load(open('$board/pulse.json'))['url'])")
+actual_door="$have_copy/$snap_url"
+check "dashboard copied into board dir, url points to it" "$expected_door" "$actual_door"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

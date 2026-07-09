@@ -30,6 +30,10 @@ own once rendered.
 - **Markers only.** The first cut scores machine-checkable signals — per-skill
   completion and grammar rate. Two rule items (commit-footer, PR assignee) are
   defined but marked `pending` until their git/forge probes are built.
+- **Subagent verdicts under-report.** A skill that posts its verdict through a
+  subagent — `/council`'s `[COUNSEL]`, `/celebrimbor`'s `[GWAITH]` — writes that
+  marker in the tracker, not the main-thread transcript the pulse reads, so those
+  rows read low. A known first-cut limitation, not a failure of the skill.
 - **Honest tiers.** Each item carries a confidence tier, and the headline shows a
   figure per tier; a single cross-tier average is shown too, but always labelled as
   such and never standing alone.

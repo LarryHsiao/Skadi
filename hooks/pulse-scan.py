@@ -12,6 +12,7 @@ import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -347,6 +348,21 @@ def _regenerate_board_manifest(board_dir):
         pass
 
 
+def _copy_dashboard_to_board(henneth_dir, board_dir):
+    """Copy the rendered dashboard into the board dir so the tile's Enter link
+    resolves — the board server serves the board dir, not the Henneth dir. Mirrors
+    board-growth.sh. Returns the board-relative door, or None if the copy fails."""
+    src = os.path.join(henneth_dir, "adherence-pulse.html")
+    dst = os.path.join(board_dir, "pulse.html")
+    try:
+        os.makedirs(board_dir, exist_ok=True)
+        shutil.copyfile(src, dst)
+        return "pulse.html"
+    except OSError as err:
+        print("pulse-scan: cannot copy dashboard to board: %s" % err, file=sys.stderr)
+        return None
+
+
 def main():
     from datetime import datetime, timezone
     here = os.path.dirname(os.path.abspath(__file__))
@@ -359,7 +375,8 @@ def main():
     files = session_files(_default_roots(), WINDOW_DAYS, now.timestamp())
     items = apply_rubric(files, rubric)
     door = render_dashboard(items, pulse_dir, henneth_dir, now_iso)
-    write_outputs(items, pulse_dir, board_dir, now_iso, WINDOW_DAYS, door)
+    board_door = _copy_dashboard_to_board(henneth_dir, board_dir) if door else None
+    write_outputs(items, pulse_dir, board_dir, now_iso, WINDOW_DAYS, board_door)
     _regenerate_board_manifest(board_dir)
     overall = _overall(items)
     print("adherence pulse: overall %s%% across %d sessions" %

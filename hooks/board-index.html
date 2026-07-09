@@ -441,10 +441,10 @@
     ${
       pulse && pulse.headline
         ? `<div class="tile"><div class="lbl">Adherence</div>
-      <div class="kpi">${pulse.headline.overall == null ? "—" : pulse.headline.overall + "%"}<small> avg</small></div>
+      <div class="kpi">${pulse.headline.overall == null ? "—" : esc(pulse.headline.overall) + "%"}<small> avg</small></div>
       <div class="muted" style="font-size:0.6rem">${
         Object.entries(pulse.headline.byTier || {})
-          .map(([t, v]) => esc(t.slice(0, 6)) + " " + v + "%")
+          .map(([t, v]) => esc(t.slice(0, 6)) + " " + esc(v) + "%")
           .join(" · ") || "—"
       }</div>
       ${pulse.url ? `<a class="enter" href="${esc(pulse.url)}" target="_blank" rel="noopener" style="font-size:0.7rem">Enter ↵</a>` : ""}</div>`
