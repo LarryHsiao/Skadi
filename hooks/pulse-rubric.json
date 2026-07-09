@@ -81,6 +81,36 @@
     "denom": "messages"
   },
   {
+    "id": "rule.task-sizing",
+    "label": "Free-form edit carries the Task Sizing gauge",
+    "kind": "freeform-gate",
+    "gate": "sizing",
+    "tier": "heuristic",
+    "applies": "",
+    "complied": "Size ▰",
+    "denom": "mutating runs"
+  },
+  {
+    "id": "rule.acceptance",
+    "label": "Free-form edit names Acceptance before touching the tree",
+    "kind": "freeform-gate",
+    "gate": "acceptance",
+    "tier": "heuristic",
+    "applies": "",
+    "complied": "(?i)\\bAcceptance\\b",
+    "denom": "mutating runs"
+  },
+  {
+    "id": "rule.change-approval",
+    "label": "Free-form edit is preceded by a summary (Change Approval)",
+    "kind": "freeform-gate",
+    "gate": "approval",
+    "tier": "heuristic",
+    "applies": "",
+    "complied": "",
+    "denom": "mutating runs"
+  },
+  {
     "id": "rule.commit-footer",
     "label": "Commit bears the session footer",
     "kind": "git-probe",

@@ -36,6 +36,39 @@ def _turn_text(message):
     return ""
 
 
+def _tool_names(message):
+    """The tools an assistant turn invoked (Edit, Write, Bash, ...) — dropped by
+    _turn_text, which only keeps prose. Needed to tell a free-form edit apart
+    from a free-form Q&A the same run-boundary logic would otherwise conflate."""
+    if not isinstance(message, dict):
+        return []
+    content = message.get("content")
+    if not isinstance(content, list):
+        return []
+    return [
+        b.get("name")
+        for b in content
+        if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name")
+    ]
+
+
+def _bash_commands(message):
+    """The shell command text of any Bash tool_use blocks in an assistant turn.
+    The tool name 'Bash' alone doesn't say whether it mutated anything (git
+    status vs. git commit), so the command text is what _mutates actually
+    judges."""
+    if not isinstance(message, dict):
+        return []
+    content = message.get("content")
+    if not isinstance(content, list):
+        return []
+    return [
+        b.get("input", {}).get("command", "")
+        for b in content
+        if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") == "Bash"
+    ]
+
+
 def read_turns(path):
     """Ordered turns from one transcript; torn lines skipped, not fatal."""
     turns = []
@@ -56,12 +89,31 @@ def read_turns(path):
             t = d.get("type")
             if t not in ("user", "assistant"):
                 continue
+            message = d.get("message", {})
             turns.append({
                 "type": t,
-                "text": _turn_text(d.get("message", {})),
+                "text": _turn_text(message),
+                "tools": _tool_names(message) if t == "assistant" else [],
+                "bash_commands": _bash_commands(message) if t == "assistant" else [],
                 "ts": d.get("timestamp", ""),
             })
     return turns
+
+
+_SWEEP_MARKER_RE = re.compile(r"<command-name>/(loop|amon-sul)</command-name>")
+
+
+def _is_sweep_session(turns):
+    """A session is sweep-driven if /loop or /amon-sul appears anywhere in it —
+    both re-fire a rider (e.g. /aule) on a cadence, and each fire renders as a
+    plain <command-name>/aule</command-name> turn indistinguishable from the
+    user typing it by hand. Session-level, not per-run: a human's genuinely
+    hand-typed command inside a session that also hosts a loop is mis-bucketed
+    as sweep too — a known, accepted imprecision, not a per-run classifier."""
+    return any(
+        turn["type"] == "user" and _SWEEP_MARKER_RE.search(turn["text"])
+        for turn in turns
+    )
 
 
 def session_files(roots, window_days, now_epoch):
@@ -100,6 +152,17 @@ def _ends_run(turn):
         _is_prompt(turn["text"]) or "<command-name>" in turn["text"])
 
 
+def _run_span(turns, i):
+    """The turns belonging to the run opened by turns[i], as [i+1, j) — used by
+    every scorer that walks 'what happened after this user turn, until the next
+    one'."""
+    j = i + 1
+    n = len(turns)
+    while j < n and not _ends_run(turns[j]):
+        j += 1
+    return j
+
+
 def score_workflow(turns, entry):
     """applied = invocations; complied = runs where the verdict token appears."""
     applies = re.compile(entry["applies"])
@@ -112,13 +175,9 @@ def score_workflow(turns, entry):
         turn = turns[i]
         if turn["type"] == "user" and applies.search(turn["text"]):
             applied += 1
-            j = i + 1
-            run_text = []
-            while j < n and not _ends_run(turns[j]):
-                if turns[j]["type"] == "assistant":
-                    run_text.append(turns[j]["text"])
-                j += 1
-            if complied_re.search("\n".join(run_text)):
+            j = _run_span(turns, i)
+            run_text = "\n".join(t["text"] for t in turns[i + 1:j] if t["type"] == "assistant")
+            if complied_re.search(run_text):
                 complied += 1
             i = j
             continue
@@ -137,14 +196,74 @@ def score_grammar(turns, entry):
         turn = turns[i]
         if turn["type"] == "user" and _is_prompt(turn["text"]):
             applied += 1
-            j = i + 1
-            run_text = []
-            while j < n and not _ends_run(turns[j]):
-                if turns[j]["type"] == "assistant":
-                    run_text.append(turns[j]["text"])
-                j += 1
-            if not marker.search("\n".join(run_text)):
+            j = _run_span(turns, i)
+            run_text = "\n".join(t["text"] for t in turns[i + 1:j] if t["type"] == "assistant")
+            if not marker.search(run_text):
                 complied += 1
+            i = j
+            continue
+        i += 1
+    return applied, complied
+
+
+_MUTATING_BASH_RE = re.compile(
+    r"\bgit\s+(commit|push|add|merge|rebase|reset|clean|checkout\s+-b)\b"
+    r"|\b(rm|mkdir|mv|cp|touch|chmod|chown)\s"
+    r"|\bsed\s+-i\b"
+    r"|\b(npm|pnpm|yarn)\s+(install|uninstall|update|add|remove)\b"
+    r"|\bpip\s+install\b"
+    r"|\binstall\.sh\b"
+    r"|>>?\s+(?!/dev/null\b)(?!nul\b)|\btee\s"
+)
+
+
+def _mutates(turn):
+    """An assistant turn that took a tree-changing action — the signal a
+    free-form Change Approval gate is judged against. Edit/Write are always
+    mutating; a Bash call only counts if its command matches a known write
+    verb, so a read (git status, cat, ls) doesn't false-positive."""
+    if turn["type"] != "assistant":
+        return False
+    if any(name in ("Edit", "Write") for name in turn.get("tools", [])):
+        return True
+    return any(_MUTATING_BASH_RE.search(cmd) for cmd in turn.get("bash_commands", []))
+
+
+def _gate_complies(gate, complied_re, pre_text):
+    """Whether a run's pre-edit narration satisfies this gate's marker."""
+    if gate == "approval":
+        return bool(pre_text.strip())
+    return bool(complied_re and complied_re.search(pre_text))
+
+
+def score_freeform_gate(turns, entry):
+    """applied = free-form runs that took a mutating action with no skill frame
+    (the case CLAUDE.md's Task Sizing / Acceptance / Change Approval sections
+    bind); complied depends on entry['gate']:
+      - 'sizing' / 'acceptance': the marker text appears in the assistant prose
+        BEFORE the first mutating turn in the run.
+      - 'approval': some narration preceded the first mutating turn at all —
+        the run didn't jump straight to editing with no summary first.
+    Known limitation: _MUTATING_BASH_RE is a fixed verb list, not a full shell
+    parse — an unlisted mutating command (a custom deploy script, a raw curl
+    -X POST with a side effect) still won't be caught."""
+    complied_re = re.compile(entry["complied"]) if entry.get("complied") else None
+    gate = entry.get("gate")
+    applied = 0
+    complied = 0
+    i = 0
+    n = len(turns)
+    while i < n:
+        turn = turns[i]
+        if turn["type"] == "user" and _is_prompt(turn["text"]):
+            j = _run_span(turns, i)
+            run = turns[i + 1:j]
+            mutating_idx = next((k for k, t in enumerate(run) if _mutates(t)), None)
+            if mutating_idx is not None:
+                applied += 1
+                pre_text = "\n".join(t["text"] for t in run[:mutating_idx] if t["type"] == "assistant")
+                if _gate_complies(gate, complied_re, pre_text):
+                    complied += 1
             i = j
             continue
         i += 1
@@ -156,9 +275,14 @@ def _rate(applied, complied):
 
 
 def apply_rubric(files, rubric):
-    """One result per rubric entry, aggregated across every session file."""
-    scorers = {"workflow": score_workflow, "grammar": score_grammar}
+    """One result per rubric entry, aggregated across every session file.
+    workflow-kind items additionally split into direct (top-level, the
+    human running the rider by hand) vs sweep (item["sweep"], a /loop- or
+    /amon-sul-fired repeat) — see _is_sweep_session."""
+    scorers = {"workflow": score_workflow, "grammar": score_grammar,
+               "freeform-gate": score_freeform_gate}
     sessions = [read_turns(f) for f in files]
+    session_is_sweep = [_is_sweep_session(turns) for turns in sessions]
     items = []
     for entry in rubric:
         kind = entry["kind"]
@@ -170,12 +294,21 @@ def apply_rubric(files, rubric):
             continue
         try:
             applied = complied = 0
-            for turns in sessions:
+            sweep_applied = sweep_complied = 0
+            for turns, is_sweep in zip(sessions, session_is_sweep):
                 a, c = scorers[kind](turns, entry)
-                applied += a
-                complied += c
-            items.append({**base, "applied": applied, "complied": complied,
-                          "rate": _rate(applied, complied), "status": "ok"})
+                if kind == "workflow" and is_sweep:
+                    sweep_applied += a
+                    sweep_complied += c
+                else:
+                    applied += a
+                    complied += c
+            item = {**base, "applied": applied, "complied": complied,
+                     "rate": _rate(applied, complied), "status": "ok"}
+            if kind == "workflow":
+                item["sweep"] = {"applied": sweep_applied, "complied": sweep_complied,
+                                  "rate": _rate(sweep_applied, sweep_complied)}
+            items.append(item)
         except re.error as err:
             print("pulse-scan: %s matcher error: %s" % (entry["id"], err), file=sys.stderr)
             items.append({**base, "applied": None, "complied": None,
@@ -245,7 +378,9 @@ def _default_roots():
     return ["~/.claude", "~/.claude-personal", "~/.claude-work"]
 
 
-def _history_overalls(pulse_dir):
+def _history_series(pulse_dir):
+    """Every prior run as {ts, overall}, in file order — the raw material for a
+    time-scaled trend line, not just an ordered list of numbers."""
     path = os.path.join(pulse_dir, "history.jsonl")
     series = []
     if os.path.exists(path):
@@ -258,15 +393,17 @@ def _history_overalls(pulse_dir):
                     rec = json.loads(line)
                 except ValueError:
                     continue
-                if isinstance(rec.get("overall"), (int, float)):
-                    series.append(rec["overall"])
+                if isinstance(rec.get("overall"), (int, float)) and rec.get("ts"):
+                    series.append({"ts": rec["ts"], "overall": rec["overall"]})
     return series
 
 
 def render_dashboard(items, pulse_dir, henneth_dir, now_iso):
     """A self-contained Henneth page with the scorecard + trend inlined."""
-    series = _history_overalls(pulse_dir) + [_overall(items)]
-    series = [s for s in series if isinstance(s, (int, float))]
+    series = _history_series(pulse_dir)
+    overall = _overall(items)
+    if isinstance(overall, (int, float)):
+        series = series + [{"ts": now_iso, "overall": overall}]
     data = json.dumps({"items": items, "series": series, "ts": now_iso})
     html = _PAGE.replace("/*DATA*/", data)
     try:
@@ -289,46 +426,113 @@ _PAGE = """<meta charset="utf-8">
   .tiers{display:flex;gap:.6rem;margin:.4rem 0;flex-wrap:wrap;}
   .tierchip{border:1px solid #cbb89a;border-radius:6px;padding:.25rem .55rem;font-size:.8rem;}
   .tierchip b{font-size:1.1rem;}
-  table{border-collapse:collapse;width:100%;margin-top:1rem;font-size:.85rem;}
+  .trendlabel{font-size:.7rem;color:#87795e;margin-top:.6rem;}
+  table{border-collapse:collapse;width:100%;margin-top:.6rem;font-size:.85rem;}
   th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid #cbb89a;}
+  th{font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:#87795e;}
+  tbody tr:nth-child(even){background:rgba(203,184,154,.12);}
+  .tiergroup td{padding-top:.9rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#87795e;border-bottom:1px solid #cbb89a;}
   .badge{font-size:.6rem;text-transform:uppercase;border:1px solid #cbb89a;border-radius:999px;padding:.05rem .4rem;}
-  .pending{opacity:.5;} .meter{height:6px;background:#e2d6bb;border-radius:999px;overflow:hidden;}
+  .badge.pending,.badge.no-sweep{border-color:#a99b7d;} .badge.error{border-color:#a33;color:#a33;}
+  .pending{opacity:.5;} .meter{height:6px;background:#e2d6bb;border-radius:999px;overflow:hidden;margin-top:.25rem;}
   .meter i{display:block;height:100%;background:#7a5c2e;}
+  .tabs{display:flex;gap:.4rem;margin:.6rem 0 .2rem;}
+  .tabbtn{border:1px solid #cbb89a;border-radius:6px;padding:.3rem .8rem;font-size:.8rem;background:none;cursor:pointer;color:inherit;}
+  .tabbtn.active{background:#7a5c2e;color:#fff;border-color:#7a5c2e;}
+  .tabnote{font-size:.7rem;color:#87795e;margin:.2rem 0 0;}
 </style>
 <h1>Adherence Pulse</h1>
+<div class="tabs" id="tabs">
+  <button class="tabbtn active" data-tab="direct">Direct</button>
+  <button class="tabbtn" data-tab="sweep">Sweep</button>
+</div>
+<div class="tabnote" id="tabnote"></div>
 <div class="tiers" id="tiers"></div>
 <div class="kpi" id="overall">—</div>
 <div class="avglabel">cross-tier average</div>
-<svg id="spark" width="320" height="40"></svg>
-<table id="rows"></table>
+<div class="trendlabel">trend, by run date</div>
+<svg id="spark" width="320" height="60"></svg>
+<table>
+  <thead><tr><th>Item</th><th>Rate</th><th>n</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
 <script>
 const DATA = /*DATA*/;
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
-const rated = DATA.items.filter(i => typeof i.rate === "number");
-const overall = rated.length ? Math.round(rated.reduce((a,i)=>a+i.rate,0)/rated.length) : null;
-document.getElementById("overall").textContent = overall == null ? "—" : overall + "%";
-const byTier = {};
-rated.forEach(i => { (byTier[i.tier] = byTier[i.tier] || []).push(i.rate); });
-document.getElementById("tiers").innerHTML = Object.keys(byTier).sort().map(t => {
-  const avg = Math.round(byTier[t].reduce((a,v)=>a+v,0)/byTier[t].length);
-  return `<span class="tierchip">${esc(t)} <b>${avg}%</b></span>`;
-}).join("") || `<span class="tierchip">no rated items yet</span>`;
-document.getElementById("rows").innerHTML =
-  "<tr><th>Item</th><th>Tier</th><th>Rate</th><th>n</th></tr>" +
-  DATA.items.map(i => {
-    const rate = i.status === "pending" ? "pending" : i.status === "error" ? "error" : (i.rate == null ? "—" : i.rate + "%");
+const TIER_ORDER = ["heuristic", "structural", "deterministic"];
+const tierRank = (t) => { const i = TIER_ORDER.indexOf(t); return i === -1 ? TIER_ORDER.length : i; };
+
+const TAB_NOTES = {
+  direct: "workflow rows count sessions with no /loop or /amon-sul in them — a hand-typed command inside such a session is still counted as sweep.",
+  sweep: "workflow rows count only /loop- and /amon-sul-fired sessions; grammar and free-form rows are unchanged (they carry no sweep concept).",
+};
+
+function viewFor(tab) {
+  if (tab !== "sweep") return DATA.items;
+  return DATA.items.map(i => {
+    if (i.kind !== "workflow" || i.status !== "ok") return i;
+    const sw = i.sweep || { applied: 0, complied: 0, rate: null };
+    return { ...i, rate: sw.rate, applied: sw.applied, complied: sw.complied,
+             status: sw.applied ? "ok" : "no-sweep" };
+  });
+}
+
+function render(tab) {
+  document.getElementById("tabnote").textContent = TAB_NOTES[tab];
+  const items = viewFor(tab);
+  const rated = items.filter(i => typeof i.rate === "number");
+  const overall = rated.length ? Math.round(rated.reduce((a,i)=>a+i.rate,0)/rated.length) : null;
+  document.getElementById("overall").textContent = overall == null ? "—" : overall + "%";
+  const byTier = {};
+  rated.forEach(i => { (byTier[i.tier] = byTier[i.tier] || []).push(i.rate); });
+  document.getElementById("tiers").innerHTML = Object.keys(byTier).sort().map(t => {
+    const avg = Math.round(byTier[t].reduce((a,v)=>a+v,0)/byTier[t].length);
+    return `<span class="tierchip">${esc(t)} <b>${avg}%</b></span>`;
+  }).join("") || `<span class="tierchip">no rated items yet</span>`;
+
+  const groups = {};
+  items.forEach(i => { (groups[i.tier] = groups[i.tier] || []).push(i); });
+  const rowHtml = (i) => {
+    const rate = i.status === "pending" ? "pending" : i.status === "error" ? "error"
+      : i.status === "no-sweep" ? "no sweep data" : (i.rate == null ? "—" : i.rate + "%");
     const n = i.applied == null ? "" : i.complied + " / " + i.applied;
     const bar = typeof i.rate === "number" ? `<div class="meter"><i style="width:${i.rate}%"></i></div>` : "";
-    return `<tr class="${i.status === "pending" ? "pending" : ""}">
-      <td><code>${esc(i.id)}</code><br>${esc(i.label)}${bar}</td>
-      <td><span class="badge">${esc(i.tier)}</span></td>
+    const statusBadge = i.status !== "ok" ? `<span class="badge ${esc(i.status)}">${esc(i.status)}</span>` : "";
+    return `<tr class="${i.status !== "ok" ? "pending" : ""}">
+      <td><code>${esc(i.id)}</code> ${statusBadge}<br>${esc(i.label)}${bar}</td>
       <td>${esc(rate)}</td><td>${esc(n)}</td></tr>`;
-  }).join("");
-const s = DATA.series, W = 320, H = 40;
+  };
+  document.getElementById("rows").innerHTML = Object.keys(groups).sort((a, b) => tierRank(a) - tierRank(b)).map(t =>
+    `<tr class="tiergroup"><td colspan="3">${esc(t)}</td></tr>` + groups[t].map(rowHtml).join("")
+  ).join("");
+}
+
+document.querySelectorAll(".tabbtn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tabbtn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    render(btn.dataset.tab);
+  });
+});
+render("direct");
+
+const s = DATA.series, W = 320, H = 60, PAD = 14;
 if (s.length) {
-  const max = Math.max(...s, 100), min = Math.min(...s, 0);
-  const pts = s.map((v,i) => `${(i/(Math.max(1,s.length-1)))*W},${H-((v-min)/Math.max(1,max-min))*H}`).join(" ");
-  document.getElementById("spark").innerHTML = `<polyline fill="none" stroke="#7a5c2e" stroke-width="2" points="${pts}"/>`;
+  const times = s.map(p => Date.parse(p.ts));
+  const vals = s.map(p => p.overall);
+  const tMin = Math.min(...times), tMax = Math.max(...times);
+  const vMax = Math.max(...vals, 100), vMin = Math.min(...vals, 0);
+  const x = (t) => times.length > 1 ? ((t - tMin) / Math.max(1, tMax - tMin)) * W : W / 2;
+  const y = (v) => (H - PAD) - ((v - vMin) / Math.max(1, vMax - vMin)) * (H - PAD);
+  const pts = times.map((t, i) => `${x(t)},${y(vals[i])}`).join(" ");
+  const fmt = (t) => new Date(t).toISOString().slice(0, 10);
+  const dots = times.map((t, i) =>
+    `<circle cx="${x(t)}" cy="${y(vals[i])}" r="2.5" fill="#7a5c2e"><title>${esc(s[i].ts)} — ${esc(vals[i])}%</title></circle>`
+  ).join("");
+  document.getElementById("spark").innerHTML =
+    `<polyline fill="none" stroke="#7a5c2e" stroke-width="2" points="${pts}"/>${dots}` +
+    `<text x="0" y="${H}" font-size="9" fill="#87795e">${esc(fmt(tMin))}</text>` +
+    `<text x="${W}" y="${H}" font-size="9" text-anchor="end" fill="#87795e">${esc(fmt(tMax))}</text>`;
 }
 </script>
 """
