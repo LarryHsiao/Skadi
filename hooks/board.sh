@@ -8,7 +8,8 @@
 #
 # Passthroughs to the channel writers: `growth` refreshes the metis growth tile,
 # `sweep <name> <verdict> [detail] [scope]` records an amon-sul sweep verdict —
-# the optional scope pins one skill's ride to a project so two scopes coexist.
+# the optional scope pins one skill's ride to a project so two scopes coexist,
+# `pulse` recomputes the adherence pulse channel + dashboard.
 #
 # Data lives under ~/.skadi/board/ (override with BOARD_DIR). The ticket writer,
 # the growth writer, the henneth-link writer, the shared manifest, and the page
@@ -37,6 +38,10 @@ case "$cmd" in
 
   sweep)
     exec "$DIR/board-sweep.sh" "$@"
+    ;;
+
+  pulse)
+    exec python3 "$DIR/pulse-scan.py" "$@"
     ;;
 
   remove)

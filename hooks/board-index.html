@@ -374,7 +374,8 @@
         const tickets = channels.filter((c) => c.channel === "ticket");
         const growth = channels.find((c) => c.channel === "growth");
         const sweeps = channels.filter((c) => c.channel === "sweep");
-        renderStrip(tickets, growth, sweeps);
+        const pulse = channels.find((c) => c.channel === "pulse");
+        renderStrip(tickets, growth, sweeps, pulse);
         renderBody(tickets);
         renderSweeps(sweeps);
       }
@@ -397,7 +398,7 @@
         return `${arrow}${Math.abs(p)}% wow`;
       }
 
-      function renderStrip(tickets, growth, sweeps) {
+      function renderStrip(tickets, growth, sweeps, pulse) {
         const withPct = tickets.filter((t) => t.ac && t.ac.pct != null);
         const avg = withPct.length
           ? Math.round(
@@ -436,6 +437,18 @@
       <div class="muted">${mend} mend · ${quiet} quiet</div></div>`
         : `<div class="tile ghost"><div class="lbl">Sweeps</div><div class="kpi">—</div>
       <div class="muted">channel not wired</div></div>`
+    }
+    ${
+      pulse && pulse.headline
+        ? `<div class="tile"><div class="lbl">Adherence</div>
+      <div class="kpi">${pulse.headline.overall == null ? "—" : pulse.headline.overall + "%"}<small> avg</small></div>
+      <div class="muted" style="font-size:0.6rem">${
+        Object.entries(pulse.headline.byTier || {})
+          .map(([t, v]) => esc(t.slice(0, 6)) + " " + v + "%")
+          .join(" · ") || "—"
+      }</div>
+      ${pulse.url ? `<a class="enter" href="${esc(pulse.url)}" target="_blank" rel="noopener" style="font-size:0.7rem">Enter ↵</a>` : ""}</div>`
+        : ""
     }`;
       }
 
