@@ -30,8 +30,9 @@ own once rendered.
 - **Markers only.** The first cut scores machine-checkable signals — per-skill
   completion and grammar rate. Two rule items (commit-footer, PR assignee) are
   defined but marked `pending` until their git/forge probes are built.
-- **Honest tiers.** Each item carries a confidence tier; the page never blends them
-  into one number.
+- **Honest tiers.** Each item carries a confidence tier, and the headline shows a
+  figure per tier; a single cross-tier average is shown too, but always labelled as
+  such and never standing alone.
 - **Standing cadence.** The skill arms nothing. For a recurring pulse, wrap it:
   `/loop 6h /estë`, or a cron.
 - **Tests ride beside the hook** — `pulse-scan.test.sh` runs offline via injected

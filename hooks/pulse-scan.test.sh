@@ -139,6 +139,25 @@ names_item="$(grep -q 'workflow.glorfindel' "$hen/adherence-pulse.html" && echo 
 actual_render="$have_file/$names_item"
 check "dashboard rendered, names the item" "$expected_render" "$actual_render"
 
+# ── 8 · the snapshot headline carries a per-tier breakdown, not just one number ──
+d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir)
+mkdir -p "$d/r1/projects/p"
+cat >"$d/r1/projects/p/s.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"user","timestamp":"2026-07-09T10:00:01Z","message":{"content":"Base directory for this skill: /x"}}
+{"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"content":[{"type":"text","text":"Glorfindel — STIRRED."}]}}
+{"type":"user","timestamp":"2026-07-09T10:01:00Z","message":{"content":"good, thanks"}}
+{"type":"assistant","timestamp":"2026-07-09T10:01:05Z","message":{"content":[{"type":"text","text":"You are welcome."}]}}
+JSON
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" python3 "$SCAN" >/dev/null 2>&1
+expected_tier="100/100"
+actual_tier=$(python3 -c "
+import json
+h=json.load(open('$board/pulse.json'))['headline']['byTier']
+print('%s/%s'%(h.get('structural'), h.get('deterministic')))
+")
+check "headline carries per-tier breakdown" "$expected_tier" "$actual_tier"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

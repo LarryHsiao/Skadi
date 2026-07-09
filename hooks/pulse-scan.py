@@ -186,6 +186,16 @@ def _overall(items):
     return round(sum(rates) / len(rates)) if rates else None
 
 
+def _by_tier(items):
+    """Mean rate per tier, over items with a numeric rate — so the headline
+    never rests on a single cross-tier number."""
+    buckets = {}
+    for i in items:
+        if isinstance(i.get("rate"), (int, float)):
+            buckets.setdefault(i["tier"], []).append(i["rate"])
+    return {t: round(sum(v) / len(v)) for t, v in buckets.items()}
+
+
 def _prev_overall(history_path):
     if not os.path.exists(history_path):
         return None
@@ -216,7 +226,7 @@ def write_outputs(items, pulse_dir, board_dir, now_iso, window_days, door):
                             ensure_ascii=False) + "\n")
     snapshot = {
         "channel": "pulse",
-        "headline": {"overall": overall, "delta": delta},
+        "headline": {"overall": overall, "delta": delta, "byTier": _by_tier(items)},
         "items": items,
         "updated": now_iso,
         "url": door,
@@ -273,6 +283,10 @@ _PAGE = """<meta charset="utf-8">
 <style>
   body{font-family:ui-sans-serif,system-ui,sans-serif;margin:1.2rem;}
   .kpi{font-size:2.4rem;font-weight:700;}
+  .avglabel{font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:#87795e;margin-top:-.3rem;}
+  .tiers{display:flex;gap:.6rem;margin:.4rem 0;flex-wrap:wrap;}
+  .tierchip{border:1px solid #cbb89a;border-radius:6px;padding:.25rem .55rem;font-size:.8rem;}
+  .tierchip b{font-size:1.1rem;}
   table{border-collapse:collapse;width:100%;margin-top:1rem;font-size:.85rem;}
   th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid #cbb89a;}
   .badge{font-size:.6rem;text-transform:uppercase;border:1px solid #cbb89a;border-radius:999px;padding:.05rem .4rem;}
@@ -280,7 +294,9 @@ _PAGE = """<meta charset="utf-8">
   .meter i{display:block;height:100%;background:#7a5c2e;}
 </style>
 <h1>Adherence Pulse</h1>
+<div class="tiers" id="tiers"></div>
 <div class="kpi" id="overall">—</div>
+<div class="avglabel">cross-tier average</div>
 <svg id="spark" width="320" height="40"></svg>
 <table id="rows"></table>
 <script>
@@ -289,6 +305,12 @@ const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, c => ({"&":"&amp
 const rated = DATA.items.filter(i => typeof i.rate === "number");
 const overall = rated.length ? Math.round(rated.reduce((a,i)=>a+i.rate,0)/rated.length) : null;
 document.getElementById("overall").textContent = overall == null ? "—" : overall + "%";
+const byTier = {};
+rated.forEach(i => { (byTier[i.tier] = byTier[i.tier] || []).push(i.rate); });
+document.getElementById("tiers").innerHTML = Object.keys(byTier).sort().map(t => {
+  const avg = Math.round(byTier[t].reduce((a,v)=>a+v,0)/byTier[t].length);
+  return `<span class="tierchip">${esc(t)} <b>${avg}%</b></span>`;
+}).join("") || `<span class="tierchip">no rated items yet</span>`;
 document.getElementById("rows").innerHTML =
   "<tr><th>Item</th><th>Tier</th><th>Rate</th><th>n</th></tr>" +
   DATA.items.map(i => {
@@ -300,7 +322,6 @@ document.getElementById("rows").innerHTML =
       <td><span class="badge">${esc(i.tier)}</span></td>
       <td>${esc(rate)}</td><td>${esc(n)}</td></tr>`;
   }).join("");
-// sparkline of overall across runs
 const s = DATA.series, W = 320, H = 40;
 if (s.length) {
   const max = Math.max(...s, 100), min = Math.min(...s, 0);
