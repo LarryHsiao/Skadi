@@ -79,6 +79,25 @@ def session_files(roots, window_days, now_epoch):
     return found
 
 
+def _is_prompt(text):
+    """A genuine user prompt — not a slash command, a harness injection, or a
+    tool result. Skill runs inject their body as a user turn ("Base directory
+    for this skill:"), and tool results are empty user turns; a naive
+    'next user turn' boundary would see an empty run, so those are skipped."""
+    if not text:
+        return False
+    noise = ("<command-name>", "<command-message>", "<command-args>",
+             "Base directory for this skill:", "<local-command-stdout>",
+             "<local-command-caveat>")
+    return not any(tok in text for tok in noise)
+
+
+def _ends_run(turn):
+    """A run ends at a genuine user prompt or a new command invocation."""
+    return turn["type"] == "user" and (
+        _is_prompt(turn["text"]) or "<command-name>" in turn["text"])
+
+
 def score_workflow(turns, entry):
     """applied = invocations; complied = runs where the verdict token appears."""
     applies = re.compile(entry["applies"])
@@ -93,7 +112,7 @@ def score_workflow(turns, entry):
             applied += 1
             j = i + 1
             run_text = []
-            while j < n and turns[j]["type"] != "user":
+            while j < n and not _ends_run(turns[j]):
                 if turns[j]["type"] == "assistant":
                     run_text.append(turns[j]["text"])
                 j += 1
@@ -106,20 +125,27 @@ def score_workflow(turns, entry):
 
 
 def score_grammar(turns, entry):
-    """applied = genuine user prompts; complied = those drawing no grammar note."""
+    """applied = genuine user prompts; complied = those whose run drew no grammar note."""
     marker = re.compile(entry["complied"])
     applied = 0
     complied = 0
-    for i, turn in enumerate(turns):
-        if turn["type"] != "user":
+    i = 0
+    n = len(turns)
+    while i < n:
+        turn = turns[i]
+        if turn["type"] == "user" and _is_prompt(turn["text"]):
+            applied += 1
+            j = i + 1
+            run_text = []
+            while j < n and not _ends_run(turns[j]):
+                if turns[j]["type"] == "assistant":
+                    run_text.append(turns[j]["text"])
+                j += 1
+            if not marker.search("\n".join(run_text)):
+                complied += 1
+            i = j
             continue
-        text = turn["text"]
-        if not text or "<command-name>" in text:
-            continue  # empty (tool_result) or a slash invocation — not a prompt
-        applied += 1
-        nxt = turns[i + 1] if i + 1 < len(turns) else None
-        if not (nxt and nxt["type"] == "assistant" and marker.search(nxt["text"])):
-            complied += 1
+        i += 1
     return applied, complied
 
 

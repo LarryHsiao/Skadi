@@ -59,9 +59,11 @@ check "read_turns extracts turns, skips torn line" "$expected_turns" "$actual_tu
 d=$(tmpdir)
 cat >"$d/done.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"user","timestamp":"2026-07-09T10:00:01Z","message":{"content":"Base directory for this skill: /x\n# Glorfindel"}}
 {"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"content":[{"type":"text","text":"Glorfindel — STIRRED, streak 0."}]}}
-{"type":"user","timestamp":"2026-07-09T10:01:00Z","message":{"content":"ok"}}
+{"type":"user","timestamp":"2026-07-09T10:01:00Z","message":{"content":"ok thanks"}}
 {"type":"user","timestamp":"2026-07-09T10:02:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"user","timestamp":"2026-07-09T10:02:01Z","message":{"content":"Base directory for this skill: /x\n# Glorfindel"}}
 {"type":"assistant","timestamp":"2026-07-09T10:02:05Z","message":{"content":[{"type":"text","text":"working on it, no verdict yet"}]}}
 JSON
 expected_wf="2/1"
@@ -80,6 +82,7 @@ d=$(tmpdir)
 cat >"$d/g.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"please do the thing"}}
 {"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"content":[{"type":"text","text":"Done."}]}}
+{"type":"user","timestamp":"2026-07-09T10:00:30Z","message":{"content":"Base directory for this skill: /x"}}
 {"type":"user","timestamp":"2026-07-09T10:01:00Z","message":{"content":"can you did it again"}}
 {"type":"assistant","timestamp":"2026-07-09T10:01:05Z","message":{"content":[{"type":"text","text":"Sure.\n> **Grammar:** \"did\" → \"do\""}]}}
 {"type":"user","timestamp":"2026-07-09T10:02:00Z","message":{"content":"<command-name>/board</command-name>"}}
