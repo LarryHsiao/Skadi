@@ -207,8 +207,82 @@ def _default_roots():
     return ["~/.claude", "~/.claude-personal", "~/.claude-work"]
 
 
+def _history_overalls(pulse_dir):
+    path = os.path.join(pulse_dir, "history.jsonl")
+    series = []
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(rec.get("overall"), (int, float)):
+                    series.append(rec["overall"])
+    return series
+
+
 def render_dashboard(items, pulse_dir, henneth_dir, now_iso):
-    return None  # replaced in Task 6
+    """A self-contained Henneth page with the scorecard + trend inlined."""
+    series = _history_overalls(pulse_dir) + [_overall(items)]
+    series = [s for s in series if isinstance(s, (int, float))]
+    data = json.dumps({"items": items, "series": series, "ts": now_iso})
+    html = _PAGE.replace("/*DATA*/", data)
+    try:
+        os.makedirs(henneth_dir, exist_ok=True)
+        with open(os.path.join(henneth_dir, "adherence-pulse.html"), "w", encoding="utf-8") as fh:
+            fh.write(html)
+    except OSError as err:
+        print("pulse-scan: cannot render dashboard: %s" % err, file=sys.stderr)
+        return None
+    return "adherence-pulse.html"
+
+
+_PAGE = """<meta charset="utf-8">
+<link rel="stylesheet" href="skadi-theme.css">
+<title>Adherence Pulse</title>
+<style>
+  body{font-family:ui-sans-serif,system-ui,sans-serif;margin:1.2rem;}
+  .kpi{font-size:2.4rem;font-weight:700;}
+  table{border-collapse:collapse;width:100%;margin-top:1rem;font-size:.85rem;}
+  th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid #cbb89a;}
+  .badge{font-size:.6rem;text-transform:uppercase;border:1px solid #cbb89a;border-radius:999px;padding:.05rem .4rem;}
+  .pending{opacity:.5;} .meter{height:6px;background:#e2d6bb;border-radius:999px;overflow:hidden;}
+  .meter i{display:block;height:100%;background:#7a5c2e;}
+</style>
+<h1>Adherence Pulse</h1>
+<div class="kpi" id="overall">—</div>
+<svg id="spark" width="320" height="40"></svg>
+<table id="rows"></table>
+<script>
+const DATA = /*DATA*/;
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const rated = DATA.items.filter(i => typeof i.rate === "number");
+const overall = rated.length ? Math.round(rated.reduce((a,i)=>a+i.rate,0)/rated.length) : null;
+document.getElementById("overall").textContent = overall == null ? "—" : overall + "%";
+document.getElementById("rows").innerHTML =
+  "<tr><th>Item</th><th>Tier</th><th>Rate</th><th>n</th></tr>" +
+  DATA.items.map(i => {
+    const rate = i.status === "pending" ? "pending" : i.status === "error" ? "error" : (i.rate == null ? "—" : i.rate + "%");
+    const n = i.applied == null ? "" : i.complied + " / " + i.applied;
+    const bar = typeof i.rate === "number" ? `<div class="meter"><i style="width:${i.rate}%"></i></div>` : "";
+    return `<tr class="${i.status === "pending" ? "pending" : ""}">
+      <td><code>${esc(i.id)}</code><br>${esc(i.label)}${bar}</td>
+      <td><span class="badge">${esc(i.tier)}</span></td>
+      <td>${esc(rate)}</td><td>${esc(n)}</td></tr>`;
+  }).join("");
+// sparkline of overall across runs
+const s = DATA.series, W = 320, H = 40;
+if (s.length) {
+  const max = Math.max(...s, 100), min = Math.min(...s, 0);
+  const pts = s.map((v,i) => `${(i/(Math.max(1,s.length-1)))*W},${H-((v-min)/Math.max(1,max-min))*H}`).join(" ");
+  document.getElementById("spark").innerHTML = `<polyline fill="none" stroke="#7a5c2e" stroke-width="2" points="${pts}"/>`;
+}
+</script>
+"""
 
 
 def main():

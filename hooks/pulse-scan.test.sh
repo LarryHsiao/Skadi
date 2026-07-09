@@ -122,6 +122,20 @@ expected_hist="2"
 actual_hist=$(wc -l < "$pulse/history.jsonl" | tr -d ' ')
 check "history grows one line per run" "$expected_hist" "$actual_hist"
 
+# ── 7 · render writes a self-contained dashboard naming each item and its tier ──
+d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir); hen=$(tmpdir)
+mkdir -p "$d/r1/projects/p"
+cat >"$d/r1/projects/p/s.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"content":[{"type":"text","text":"Glorfindel — STIRRED."}]}}
+JSON
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" python3 "$SCAN" >/dev/null 2>&1
+expected_render="yes/yes"
+have_file="$([[ -f "$hen/adherence-pulse.html" ]] && echo yes || echo no)"
+names_item="$(grep -q 'workflow.glorfindel' "$hen/adherence-pulse.html" && echo yes || echo no)"
+actual_render="$have_file/$names_item"
+check "dashboard rendered, names the item" "$expected_render" "$actual_render"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
