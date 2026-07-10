@@ -73,7 +73,7 @@ import importlib.util as u, sys
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 turns = m.read_turns(sys.argv[2])
 entry = {"applies": "<command-name>/glorfindel</command-name>", "complied": r"\b(STIRRED|QUIET)\b"}
-a, c = m.score_workflow(turns, entry)
+a, c, _ = m.score_workflow(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
@@ -95,7 +95,7 @@ import importlib.util as u, sys
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 turns = m.read_turns(sys.argv[2])
 entry = {"complied": r"> \*\*Grammar:\*\*"}
-a, c = m.score_grammar(turns, entry)
+a, c, _ = m.score_grammar(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
@@ -237,7 +237,7 @@ rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
 turns = m.read_turns(sys.argv[3])
 out = []
 for rid in ("rule.task-sizing", "rule.acceptance", "rule.change-approval"):
-    a, c = m.score_freeform_gate(turns, rubric[rid])
+    a, c, _ = m.score_freeform_gate(turns, rubric[rid])
     out.append("%d/%d" % (a, c))
 print("|".join(out))
 PY
@@ -258,7 +258,7 @@ import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
 turns = m.read_turns(sys.argv[3])
-a, c = m.score_freeform_gate(turns, rubric["rule.task-sizing"])
+a, c, _ = m.score_freeform_gate(turns, rubric["rule.task-sizing"])
 print("%d/%d" % (a, c))
 PY
 )
@@ -305,11 +305,84 @@ import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
 turns = m.read_turns(sys.argv[3])
-a, c = m.score_freeform_gate(turns, rubric["rule.task-sizing"])
+a, c, _ = m.score_freeform_gate(turns, rubric["rule.task-sizing"])
 print("%d/%d" % (a, c))
 PY
 )
 check "redirect to /dev/null isn't mutating; a real file write is" "$expected_redirect" "$actual_redirect"
+
+# ── 16 · score_workflow tallies applied/complied per the run's model ──
+d=$(tmpdir)
+cat >"$d/model.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Glorfindel — STIRRED."}]}}
+{"type":"user","timestamp":"2026-07-09T10:01:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-07-09T10:01:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"still working"}]}}
+JSON
+expected_bymodel_unit="opus:1/1|sonnet:1/0"
+actual_bymodel_unit=$(python3 - "$SCAN" "$d/model.jsonl" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+turns = m.read_turns(sys.argv[2])
+entry = {"applies": "<command-name>/glorfindel</command-name>", "complied": r"\b(STIRRED|QUIET)\b"}
+a, c, bm = m.score_workflow(turns, entry)
+o = bm.get("claude-opus-4-8", {"applied": 0, "complied": 0})
+s = bm.get("claude-sonnet-5", {"applied": 0, "complied": 0})
+print("opus:%d/%d|sonnet:%d/%d" % (o["applied"], o["complied"], s["applied"], s["complied"]))
+PY
+)
+check "score_workflow tallies applied/complied per model" "$expected_bymodel_unit" "$actual_bymodel_unit"
+
+# ── 17 · the board snapshot carries each item's per-model rate split ──
+d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir); hen=$(tmpdir)
+mkdir -p "$d/r1/projects/a" "$d/r1/projects/b"
+cat >"$d/r1/projects/a/s.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Glorfindel — STIRRED."}]}}
+JSON
+cat >"$d/r1/projects/b/s.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"still working"}]}}
+JSON
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" python3 "$SCAN" >/dev/null 2>&1
+expected_bymodel_snap="100/0"
+actual_bymodel_snap=$(python3 - "$board/pulse.json" <<'PY'
+import json, sys
+by = {i["id"]: i for i in json.load(open(sys.argv[1], encoding="utf-8"))["items"]}
+g = by["workflow.glorfindel"]["byModel"]
+print("%s/%s" % (g["claude-opus-4-8"]["rate"], g["claude-sonnet-5"]["rate"]))
+PY
+)
+check "board snapshot carries per-model rate split" "$expected_bymodel_snap" "$actual_bymodel_snap"
+
+# ── 18 · the dashboard embeds the model roster and a chip container to switch them ──
+expected_dashmodel="yes/yes"
+have_roster=$(grep -qF '"models": ["claude-opus-4-8", "claude-sonnet-5"]' "$hen/adherence-pulse.html" && echo yes || echo no)
+have_chips=$(grep -q 'id="modelchips"' "$hen/adherence-pulse.html" && echo yes || echo no)
+actual_dashmodel="$have_roster/$have_chips"
+check "dashboard embeds model roster and chip container" "$expected_dashmodel" "$actual_dashmodel"
+
+# ── 19 · trend series carries each run's items, so the client can recompute per tab/model ──
+d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir); hen=$(tmpdir)
+mkdir -p "$d/r1/projects/p"
+cat >"$d/r1/projects/p/s.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Glorfindel — STIRRED."}]}}
+JSON
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" python3 "$SCAN" >/dev/null 2>&1
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" python3 "$SCAN" >/dev/null 2>&1
+expected_trend="2/yes"
+actual_trend=$(python3 - "$hen/adherence-pulse.html" <<'PY'
+import re, json, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r"const DATA = (\{.*\});", html)
+data = json.loads(m.group(1))
+series = data["series"]
+has_items = all("items" in p and isinstance(p["items"], list) for p in series)
+print("%d/%s" % (len(series), "yes" if has_items else "no"))
+PY
+)
+check "trend series carries per-run items for client-side recompute" "$expected_trend" "$actual_trend"
 
 echo ""
 echo "── $pass passed, $fail failed ──"

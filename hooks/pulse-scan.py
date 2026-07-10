@@ -95,6 +95,7 @@ def read_turns(path):
                 "text": _turn_text(message),
                 "tools": _tool_names(message) if t == "assistant" else [],
                 "bash_commands": _bash_commands(message) if t == "assistant" else [],
+                "model": message.get("model") if t == "assistant" else None,
                 "ts": d.get("timestamp", ""),
             })
     return turns
@@ -163,12 +164,34 @@ def _run_span(turns, i):
     return j
 
 
+def _run_model(run):
+    """The model that authored this run — the first real (non-synthetic) model
+    named on an assistant turn in the run, or None if none is attributable."""
+    for turn in run:
+        model = turn.get("model")
+        if model and model != "<synthetic>":
+            return model
+    return None
+
+
+def _bump_model(by_model, model, complied):
+    """Tally one applied (and maybe complied) instance against its model."""
+    if model is None:
+        return
+    bucket = by_model.setdefault(model, {"applied": 0, "complied": 0})
+    bucket["applied"] += 1
+    if complied:
+        bucket["complied"] += 1
+
+
 def score_workflow(turns, entry):
-    """applied = invocations; complied = runs where the verdict token appears."""
+    """applied = invocations; complied = runs where the verdict token appears.
+    by_model tallies the same applied/complied split against each run's model."""
     applies = re.compile(entry["applies"])
     complied_re = re.compile(entry["complied"])
     applied = 0
     complied = 0
+    by_model = {}
     i = 0
     n = len(turns)
     while i < n:
@@ -176,20 +199,25 @@ def score_workflow(turns, entry):
         if turn["type"] == "user" and applies.search(turn["text"]):
             applied += 1
             j = _run_span(turns, i)
-            run_text = "\n".join(t["text"] for t in turns[i + 1:j] if t["type"] == "assistant")
-            if complied_re.search(run_text):
+            run = turns[i + 1:j]
+            run_text = "\n".join(t["text"] for t in run if t["type"] == "assistant")
+            ok = bool(complied_re.search(run_text))
+            if ok:
                 complied += 1
+            _bump_model(by_model, _run_model(run), ok)
             i = j
             continue
         i += 1
-    return applied, complied
+    return applied, complied, by_model
 
 
 def score_grammar(turns, entry):
-    """applied = genuine user prompts; complied = those whose run drew no grammar note."""
+    """applied = genuine user prompts; complied = those whose run drew no grammar note.
+    by_model tallies the same applied/complied split against each run's model."""
     marker = re.compile(entry["complied"])
     applied = 0
     complied = 0
+    by_model = {}
     i = 0
     n = len(turns)
     while i < n:
@@ -197,13 +225,16 @@ def score_grammar(turns, entry):
         if turn["type"] == "user" and _is_prompt(turn["text"]):
             applied += 1
             j = _run_span(turns, i)
-            run_text = "\n".join(t["text"] for t in turns[i + 1:j] if t["type"] == "assistant")
-            if not marker.search(run_text):
+            run = turns[i + 1:j]
+            run_text = "\n".join(t["text"] for t in run if t["type"] == "assistant")
+            ok = not marker.search(run_text)
+            if ok:
                 complied += 1
+            _bump_model(by_model, _run_model(run), ok)
             i = j
             continue
         i += 1
-    return applied, complied
+    return applied, complied, by_model
 
 
 _MUTATING_BASH_RE = re.compile(
@@ -251,6 +282,7 @@ def score_freeform_gate(turns, entry):
     gate = entry.get("gate")
     applied = 0
     complied = 0
+    by_model = {}
     i = 0
     n = len(turns)
     while i < n:
@@ -262,23 +294,53 @@ def score_freeform_gate(turns, entry):
             if mutating_idx is not None:
                 applied += 1
                 pre_text = "\n".join(t["text"] for t in run[:mutating_idx] if t["type"] == "assistant")
-                if _gate_complies(gate, complied_re, pre_text):
+                ok = _gate_complies(gate, complied_re, pre_text)
+                if ok:
                     complied += 1
+                _bump_model(by_model, _run_model(run), ok)
             i = j
             continue
         i += 1
-    return applied, complied
+    return applied, complied, by_model
 
 
 def _rate(applied, complied):
     return round(100 * complied / applied) if applied else None
 
 
+def _rated_by_model(by_model):
+    """{model: {applied, complied}} → the same, each bucket carrying its rate."""
+    return {m: {**c, "rate": _rate(c["applied"], c["complied"])} for m, c in by_model.items()}
+
+
+def _merge_by_model(total, addition):
+    for model, counts in addition.items():
+        bucket = total.setdefault(model, {"applied": 0, "complied": 0})
+        bucket["applied"] += counts["applied"]
+        bucket["complied"] += counts["complied"]
+
+
+def _all_models(sessions):
+    """Every real (non-synthetic) model seen authoring an assistant turn across
+    the scanned window — the chip roster, independent of whether a given model
+    ever triggered a rubric-applicable run."""
+    models = set()
+    for turns in sessions:
+        for turn in turns:
+            model = turn.get("model")
+            if model and model != "<synthetic>":
+                models.add(model)
+    return sorted(models)
+
+
 def apply_rubric(files, rubric):
     """One result per rubric entry, aggregated across every session file.
     workflow-kind items additionally split into direct (top-level, the
     human running the rider by hand) vs sweep (item["sweep"], a /loop- or
-    /amon-sul-fired repeat) — see _is_sweep_session."""
+    /amon-sul-fired repeat) — see _is_sweep_session. Every ok item also carries
+    byModel (and sweep items carry sweep.byModel), the same split re-cut by
+    which model authored the run. Returns (items, models) — models is the full
+    chip roster, see _all_models."""
     scorers = {"workflow": score_workflow, "grammar": score_grammar,
                "freeform-gate": score_freeform_gate}
     sessions = [read_turns(f) for f in files]
@@ -295,25 +357,31 @@ def apply_rubric(files, rubric):
         try:
             applied = complied = 0
             sweep_applied = sweep_complied = 0
+            by_model = {}
+            sweep_by_model = {}
             for turns, is_sweep in zip(sessions, session_is_sweep):
-                a, c = scorers[kind](turns, entry)
+                a, c, bm = scorers[kind](turns, entry)
                 if kind == "workflow" and is_sweep:
                     sweep_applied += a
                     sweep_complied += c
+                    _merge_by_model(sweep_by_model, bm)
                 else:
                     applied += a
                     complied += c
+                    _merge_by_model(by_model, bm)
             item = {**base, "applied": applied, "complied": complied,
-                     "rate": _rate(applied, complied), "status": "ok"}
+                     "rate": _rate(applied, complied), "status": "ok",
+                     "byModel": _rated_by_model(by_model)}
             if kind == "workflow":
                 item["sweep"] = {"applied": sweep_applied, "complied": sweep_complied,
-                                  "rate": _rate(sweep_applied, sweep_complied)}
+                                  "rate": _rate(sweep_applied, sweep_complied),
+                                  "byModel": _rated_by_model(sweep_by_model)}
             items.append(item)
         except re.error as err:
             print("pulse-scan: %s matcher error: %s" % (entry["id"], err), file=sys.stderr)
             items.append({**base, "applied": None, "complied": None,
                           "rate": None, "status": "error"})
-    return items
+    return items, _all_models(sessions)
 
 
 def _overall(items):
@@ -379,8 +447,9 @@ def _default_roots():
 
 
 def _history_series(pulse_dir):
-    """Every prior run as {ts, overall}, in file order — the raw material for a
-    time-scaled trend line, not just an ordered list of numbers."""
+    """Every prior run as {ts, overall, items}, in file order — items rides along
+    so the trend can be re-cut by tab/model on the client, not just redraw the
+    one cross-tier number every run was reduced to at the time."""
     path = os.path.join(pulse_dir, "history.jsonl")
     series = []
     if os.path.exists(path):
@@ -394,17 +463,18 @@ def _history_series(pulse_dir):
                 except ValueError:
                     continue
                 if isinstance(rec.get("overall"), (int, float)) and rec.get("ts"):
-                    series.append({"ts": rec["ts"], "overall": rec["overall"]})
+                    series.append({"ts": rec["ts"], "overall": rec["overall"],
+                                    "items": rec.get("items", [])})
     return series
 
 
-def render_dashboard(items, pulse_dir, henneth_dir, now_iso):
+def render_dashboard(items, models, pulse_dir, henneth_dir, now_iso):
     """A self-contained Henneth page with the scorecard + trend inlined."""
     series = _history_series(pulse_dir)
     overall = _overall(items)
     if isinstance(overall, (int, float)):
-        series = series + [{"ts": now_iso, "overall": overall}]
-    data = json.dumps({"items": items, "series": series, "ts": now_iso})
+        series = series + [{"ts": now_iso, "overall": overall, "items": items}]
+    data = json.dumps({"items": items, "series": series, "ts": now_iso, "models": models})
     html = _PAGE.replace("/*DATA*/", data)
     try:
         os.makedirs(henneth_dir, exist_ok=True)
@@ -433,24 +503,28 @@ _PAGE = """<meta charset="utf-8">
   tbody tr:nth-child(even){background:rgba(203,184,154,.12);}
   .tiergroup td{padding-top:.9rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#87795e;border-bottom:1px solid #cbb89a;}
   .badge{font-size:.6rem;text-transform:uppercase;border:1px solid #cbb89a;border-radius:999px;padding:.05rem .4rem;}
-  .badge.pending,.badge.no-sweep{border-color:#a99b7d;} .badge.error{border-color:#a33;color:#a33;}
+  .badge.pending,.badge.no-sweep,.badge.no-data{border-color:#a99b7d;} .badge.error{border-color:#a33;color:#a33;}
   .pending{opacity:.5;} .meter{height:6px;background:#e2d6bb;border-radius:999px;overflow:hidden;margin-top:.25rem;}
   .meter i{display:block;height:100%;background:#7a5c2e;}
   .tabs{display:flex;gap:.4rem;margin:.6rem 0 .2rem;}
   .tabbtn{border:1px solid #cbb89a;border-radius:6px;padding:.3rem .8rem;font-size:.8rem;background:none;cursor:pointer;color:inherit;}
   .tabbtn.active{background:#7a5c2e;color:#fff;border-color:#7a5c2e;}
   .tabnote{font-size:.7rem;color:#87795e;margin:.2rem 0 0;}
+  .modelchips{display:flex;gap:.35rem;margin:.5rem 0 .2rem;flex-wrap:wrap;}
+  .chip{border:1px solid #cbb89a;border-radius:999px;padding:.18rem .7rem;font-size:.72rem;background:none;cursor:pointer;color:inherit;}
+  .chip.active{background:#a68a52;color:#fff;border-color:#a68a52;}
 </style>
 <h1>Adherence Pulse</h1>
 <div class="tabs" id="tabs">
   <button class="tabbtn active" data-tab="direct">Direct</button>
   <button class="tabbtn" data-tab="sweep">Sweep</button>
 </div>
+<div class="modelchips" id="modelchips"></div>
 <div class="tabnote" id="tabnote"></div>
 <div class="tiers" id="tiers"></div>
 <div class="kpi" id="overall">—</div>
 <div class="avglabel">cross-tier average</div>
-<div class="trendlabel">trend, by run date</div>
+<div class="trendlabel" id="trendlabel">trend, by run date</div>
 <svg id="spark" width="320" height="60"></svg>
 <table>
   <thead><tr><th>Item</th><th>Rate</th><th>n</th></tr></thead>
@@ -466,23 +540,81 @@ const TAB_NOTES = {
   direct: "workflow rows count sessions with no /loop or /amon-sul in them — a hand-typed command inside such a session is still counted as sweep.",
   sweep: "workflow rows only — grammar and free-form gate rows carry no sweep concept, so they're dropped from this tab.",
 };
+const MODEL_LABELS = {
+  "claude-opus-4-8": "Opus 4.8",
+  "claude-sonnet-5": "Sonnet 5",
+  "claude-fable-5": "Fable 5",
+};
+const modelLabel = (m) => MODEL_LABELS[m] || m;
 
-function viewFor(tab) {
-  if (tab !== "sweep") return DATA.items;
-  return DATA.items.filter(i => i.kind === "workflow").map(i => {
+function viewFor(items, tab) {
+  if (tab !== "sweep") return items;
+  return items.filter(i => i.kind === "workflow").map(i => {
     if (i.status !== "ok") return i;
-    const sw = i.sweep || { applied: 0, complied: 0, rate: null };
+    const sw = i.sweep || { applied: 0, complied: 0, rate: null, byModel: {} };
     return { ...i, rate: sw.rate, applied: sw.applied, complied: sw.complied,
-             status: sw.applied ? "ok" : "no-sweep" };
+             byModel: sw.byModel || {}, status: sw.applied ? "ok" : "no-sweep" };
   });
 }
 
-function render(tab) {
-  document.getElementById("tabnote").textContent = TAB_NOTES[tab];
-  const items = viewFor(tab);
+function applyModel(items, model) {
+  if (model === "Overall") return items;
+  return items.map(i => {
+    if (i.status !== "ok") return i;
+    const bm = (i.byModel || {})[model];
+    if (!bm) return { ...i, rate: null, applied: 0, complied: 0, status: "no-data" };
+    return { ...i, rate: bm.rate, applied: bm.applied, complied: bm.complied };
+  });
+}
+
+function overallFor(items, tab, model) {
+  const viewed = applyModel(viewFor(items, tab), model);
+  const rated = viewed.filter(i => typeof i.rate === "number");
+  return rated.length ? Math.round(rated.reduce((a,i)=>a+i.rate,0)/rated.length) : null;
+}
+
+function renderTrend(tab, model) {
+  const spark = document.getElementById("spark");
+  const pts = (DATA.series || [])
+    .map(p => ({ ts: p.ts, overall: overallFor(p.items || [], tab, model) }))
+    .filter(p => typeof p.overall === "number");
+  const W = 320, H = 60, PAD = 14;
+  if (!pts.length) { spark.innerHTML = ""; return; }
+  const times = pts.map(p => Date.parse(p.ts));
+  const vals = pts.map(p => p.overall);
+  const tMin = Math.min(...times), tMax = Math.max(...times);
+  const vMax = Math.max(...vals, 100), vMin = Math.min(...vals, 0);
+  const x = (t) => times.length > 1 ? ((t - tMin) / Math.max(1, tMax - tMin)) * W : W / 2;
+  const y = (v) => (H - PAD) - ((v - vMin) / Math.max(1, vMax - vMin)) * (H - PAD);
+  const linePts = times.map((t, i) => `${x(t)},${y(vals[i])}`).join(" ");
+  const fmt = (t) => new Date(t).toISOString().slice(0, 10);
+  const dots = times.map((t, i) =>
+    `<circle cx="${x(t)}" cy="${y(vals[i])}" r="2.5" fill="#7a5c2e"><title>${esc(pts[i].ts)} — ${esc(vals[i])}%</title></circle>`
+  ).join("");
+  spark.innerHTML =
+    `<polyline fill="none" stroke="#7a5c2e" stroke-width="2" points="${linePts}"/>${dots}` +
+    `<text x="0" y="${H}" font-size="9" fill="#87795e">${esc(fmt(tMin))}</text>` +
+    `<text x="${W}" y="${H}" font-size="9" text-anchor="end" fill="#87795e">${esc(fmt(tMax))}</text>`;
+}
+
+let currentTab = "direct";
+let currentModel = "Overall";
+
+function render(tab, model) {
+  currentTab = tab;
+  currentModel = model;
+  const modelNote = model === "Overall" ? "" : ` · showing only ${modelLabel(model)}'s runs, recomputed independently.`;
+  document.getElementById("tabnote").textContent = TAB_NOTES[tab] + modelNote;
+  document.getElementById("modelchips").innerHTML = ["Overall", ...DATA.models].map(m =>
+    `<button class="chip ${m === model ? "active" : ""}" data-model="${esc(m)}">${esc(modelLabel(m))}</button>`
+  ).join("");
+  const items = applyModel(viewFor(DATA.items, tab), model);
   const rated = items.filter(i => typeof i.rate === "number");
   const overall = rated.length ? Math.round(rated.reduce((a,i)=>a+i.rate,0)/rated.length) : null;
   document.getElementById("overall").textContent = overall == null ? "—" : overall + "%";
+  document.getElementById("trendlabel").textContent =
+    `trend, by run date · ${tab === "sweep" ? "Sweep" : "Direct"} · ${model === "Overall" ? "Overall" : modelLabel(model)}`;
+  renderTrend(tab, model);
   const byTier = {};
   rated.forEach(i => { (byTier[i.tier] = byTier[i.tier] || []).push(i.rate); });
   document.getElementById("tiers").innerHTML = Object.keys(byTier).sort().map(t => {
@@ -494,7 +626,8 @@ function render(tab) {
   items.forEach(i => { (groups[i.tier] = groups[i.tier] || []).push(i); });
   const rowHtml = (i) => {
     const rate = i.status === "pending" ? "pending" : i.status === "error" ? "error"
-      : i.status === "no-sweep" ? "no sweep data" : (i.rate == null ? "—" : i.rate + "%");
+      : i.status === "no-sweep" ? "no sweep data" : i.status === "no-data" ? "no data"
+      : (i.rate == null ? "—" : i.rate + "%");
     const n = i.applied == null ? "" : i.complied + " / " + i.applied;
     const bar = typeof i.rate === "number" ? `<div class="meter"><i style="width:${i.rate}%"></i></div>` : "";
     const statusBadge = i.status !== "ok" ? `<span class="badge ${esc(i.status)}">${esc(i.status)}</span>` : "";
@@ -511,29 +644,15 @@ document.querySelectorAll(".tabbtn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tabbtn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
-    render(btn.dataset.tab);
+    render(btn.dataset.tab, currentModel);
   });
 });
-render("direct");
-
-const s = DATA.series, W = 320, H = 60, PAD = 14;
-if (s.length) {
-  const times = s.map(p => Date.parse(p.ts));
-  const vals = s.map(p => p.overall);
-  const tMin = Math.min(...times), tMax = Math.max(...times);
-  const vMax = Math.max(...vals, 100), vMin = Math.min(...vals, 0);
-  const x = (t) => times.length > 1 ? ((t - tMin) / Math.max(1, tMax - tMin)) * W : W / 2;
-  const y = (v) => (H - PAD) - ((v - vMin) / Math.max(1, vMax - vMin)) * (H - PAD);
-  const pts = times.map((t, i) => `${x(t)},${y(vals[i])}`).join(" ");
-  const fmt = (t) => new Date(t).toISOString().slice(0, 10);
-  const dots = times.map((t, i) =>
-    `<circle cx="${x(t)}" cy="${y(vals[i])}" r="2.5" fill="#7a5c2e"><title>${esc(s[i].ts)} — ${esc(vals[i])}%</title></circle>`
-  ).join("");
-  document.getElementById("spark").innerHTML =
-    `<polyline fill="none" stroke="#7a5c2e" stroke-width="2" points="${pts}"/>${dots}` +
-    `<text x="0" y="${H}" font-size="9" fill="#87795e">${esc(fmt(tMin))}</text>` +
-    `<text x="${W}" y="${H}" font-size="9" text-anchor="end" fill="#87795e">${esc(fmt(tMax))}</text>`;
-}
+document.getElementById("modelchips").addEventListener("click", (e) => {
+  const btn = e.target.closest(".chip");
+  if (!btn) return;
+  render(currentTab, btn.dataset.model);
+});
+render("direct", "Overall");
 </script>
 """
 
@@ -577,8 +696,8 @@ def main():
     board_dir = os.environ.get("BOARD_DIR", os.path.expanduser("~/.skadi/board"))
     henneth_dir = os.environ.get("HENNETH_DIR", os.path.expanduser("~/.claude/previews/henneth"))
     files = session_files(_default_roots(), WINDOW_DAYS, now.timestamp())
-    items = apply_rubric(files, rubric)
-    door = render_dashboard(items, pulse_dir, henneth_dir, now_iso)
+    items, models = apply_rubric(files, rubric)
+    door = render_dashboard(items, models, pulse_dir, henneth_dir, now_iso)
     board_door = _copy_dashboard_to_board(henneth_dir, board_dir) if door else None
     write_outputs(items, pulse_dir, board_dir, now_iso, WINDOW_DAYS, board_door)
     _regenerate_board_manifest(board_dir)
