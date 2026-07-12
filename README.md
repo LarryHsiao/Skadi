@@ -21,8 +21,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 
 - **Grammar check** — Every user message is silently checked for grammar and phrasing. If anything's off, a single corrected line is appended to the response with the changed tokens bolded on both sides (e.g. `"should **i** go?"` → `"should **I** go?"`). A counter hook tallies corrections per session so trends stay visible.
 - **Tolkien narrator tone** — Measured cadence, a touch formal, a storyteller's weight. Tight sentences; no breathless filler, no hype.
-- **Task sizing** — Every free-form action is weighed on the craftsman's triad (reach, depth, reversibility) and rendered as a three-tier gauge before a line is written. Medium and heavy tasks come with a best-effort breakdown into minimum-sized steps.
-- **Change approval** — Slash-invoked skills run straight through; free-form edits pause for a brief summary and the user's word before touching the tree.
+- **Free-form gate** — Every free-form mutating turn opens with one block — a three-tier size gauge (reach, depth, reversibility), acceptance outcomes, and a change summary — then waits for the user's word; slash-invoked skills run straight through. A `gate-reminder.sh` hook re-injects the gate with every prompt so lower-tier models hold to it.
 - **Multi-root install** — `/install` copies this repo into every root listed in memory (`~/.claude`, `~/.claude-personal`, `~/.claude-work`) so switching contexts stays consistent.
 - **Source of truth** — `~/.claude/` is a copy. Edits there get overwritten on the next install; every change must land in this repo first.
 

@@ -240,6 +240,10 @@
           },
           {
             "type": "command",
+            "command": "~/.claude/hooks/gate-reminder.sh"
+          },
+          {
+            "type": "command",
             "command": "~/.claude/hooks/handoff-poll.sh"
           }
         ]

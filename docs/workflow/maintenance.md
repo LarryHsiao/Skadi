@@ -9,7 +9,7 @@
 | Target | May a session change it? |
 |---|---|
 | Memory files (`memory/` in a project's auto-memory) | Freely — that is what memory is for. |
-| `docs/workflow/*`, `docs/style/*`, `docs/tools/*` | Propose the edit and wait for the user's word (CLAUDE.md's *Change Approval*). Wording fixes and factual corrections are still proposals. |
+| `docs/workflow/*`, `docs/style/*`, `docs/tools/*` | Propose the edit and wait for the user's word (CLAUDE.md's *Free-Form Gate*). Wording fixes and factual corrections are still proposals. |
 | Skills (`skills/*/SKILL.md`) | Propose + word. Never edit the copies under `~/.claude*` — repo first, then `/install`. |
 | `CLAUDE.md`, `settings.json`, `hooks/*` | Propose + word, and name the blast radius: these load into (or gate) every session on every machine. |
 | Live copies under `~/.claude*/` | Never. They are overwritten on the next install sweep. The repo is the source of truth. |

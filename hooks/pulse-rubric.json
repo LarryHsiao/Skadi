@@ -73,7 +73,7 @@
   },
   {
     "id": "rule.grammar",
-    "label": "Grammar clean (no correction)",
+    "label": "User prompt clean (no grammar note drawn — measures the user's typing, not the model)",
     "kind": "grammar",
     "tier": "deterministic",
     "applies": "",

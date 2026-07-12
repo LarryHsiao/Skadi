@@ -1,6 +1,6 @@
 # Task Sizing — Worked Example
 
-> A reference for the `## Task Sizing` rule in `CLAUDE.md`. The rule names the gauge and the cleavage discipline; this file shows one cleavage end-to-end.
+> A reference for the Task Sizing part of the `## Free-Form Gate` rule in `CLAUDE.md`. The rule names the gauge and the cleavage discipline; this file shows one cleavage end-to-end.
 
 "Add a session-summary hook" rings **medium** — a new script, a settings wire-up, a README line, an end-to-end check. It cleaves so:
 
