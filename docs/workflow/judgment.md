@@ -99,3 +99,23 @@ user pick. What is forbidden is presenting a coin-flip as a verdict.
   the user choose.
 - ❌ *Wrong:* the session silently picks one, reports "refactored to the
   cleaner design", and the user discovers the choice three commits later.
+
+## 6 · Verifying a UI fix — drive the state the bug lives in
+
+Fresh evidence for a UI fix must exercise the state the bug lives in, not the
+page at rest. A screenshot at first load does not vouch for a bug that only
+appears once interaction changes an element's size, visibility, or content — a
+search dropdown open, a modal shown, a validation error rendered, a loading
+spinner up.
+
+**Action:** before claiming a UI fix done, name the state the bug lives in,
+drive the page into it, and check the fix there. When the same layout shape
+recurs elsewhere on the page (a second flex row, a repeated component), check
+those instances in the same state too — one may hide the identical bug.
+
+- ✅ *Right:* a flex row misaligns when the recipient field's search dropdown
+  opens and grows taller than its siblings; you open the dropdown, screenshot,
+  confirm the alignment holds in that state, then report done.
+- ❌ *Wrong:* you fix the row against its empty first-load screenshot and report
+  done — the user opens the live dropdown and finds the identical bug in the
+  same row, untouched, because the taller state was never driven.
