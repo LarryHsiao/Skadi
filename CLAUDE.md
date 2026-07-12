@@ -10,6 +10,7 @@ This repository tracks my personal Claude Code setup: global instructions, setti
 - `hooks/` — hook scripts copied into `~/.claude/hooks/`
 - `docs/` — style, tool, and workflow guides, copied into `~/.claude/docs/`
 - `statusline.sh` — status line script, copied to `~/.claude/statusline.sh`
+- `previews/henneth/skadi-theme.css` — shared preview stylesheet, copied beside the Henneth artifacts
 - `install.sh` — copies everything into `~/.claude/` (idempotent, safe to re-run)
 
 **This repo is the source of truth for the live Claude config.** Files under `~/.claude/` are copies, not symlinks — edits there will be overwritten on the next install run. Any change to the live config must be made in this repo first, then propagated by invoking the `/install` skill. Never edit `~/.claude/` directly.
@@ -68,13 +69,13 @@ If a step turns out heavier than its gauge billed — reach widens, depth deepen
 
 The loop closes only when the verification produces what the plan called for. Do not bend the verification to fit the slip — return to the code.
 
-**Verification must be fresh.** When the time comes to report the task done, run the verification once more in the current turn — prior runs do not count. A passing test from three messages ago, a build that succeeded before the last edit, a Compliance Review fix applied after the last green run: none of these prove the *current* state of the tree. The evidence the user reads must come from the same turn as the claim it backs; a claim without a same-turn run is a guess wearing the clothes of a fact. The end-of-task gates run in order: Compliance Review first, then its fixes, then this fresh verification — the Iron Law's run is the last gate before "done".
+**Verification must be fresh.** When the time comes to report the task done, run the verification once more in the current turn — prior runs do not count. A passing test from three messages ago, a build that succeeded before the last edit, a Compliance Review fix applied after the last green run: none of these prove the *current* state of the tree. The evidence the user reads must come from the same turn as the claim it backs; a claim without a same-turn run is a guess wearing the clothes of a fact. The end-of-task gates run in order: Compliance Review first, then its fixes, then this fresh verification — the last gate before "done".
 
 Should the context near its end mid-task, write the baton to a `/handoff` channel named after the repo's directory (e.g. `skadi`) before anything else — the unfinished work must survive the session, and a successor session in the same repo knows where to look.
 
 ## Compliance Review
 
-Before the "done" report is rendered, spawn a lighter read-only agent (Sonnet for the spec pass, Haiku for the quality pass — or a single Sonnet call carrying both, when the spawn cost matters more than the granularity) and ask it to run two checks against the cumulative diff, in order — spec compliance first, code quality second. The over-built code is as much a failure as the under-built; both stray from what was named, and the spec pass must clear before quality issues are weighed.
+Before the "done" report is rendered, spawn a lighter read-only agent (the default-worker tier for the spec pass, the mechanical tier for the quality pass — or a single default-worker call carrying both, when the spawn cost matters more than the granularity; tier-to-model mapping lives in the `docs/workflow/delegation.md` roster) and ask it to run two checks against the cumulative diff, in order — spec compliance first, code quality second. The over-built code is as much a failure as the under-built; both stray from what was named, and the spec pass must clear before quality issues are weighed.
 
 **Spec compliance** asks: did the change build what the plan named, nothing more, nothing less? Name anything missing — a step half-finished, a branch unexercised, a feature requested but not built — and anything *added* beyond the plan — a flag the user did not ask for, an abstraction raised for a single caller, a helper no spec required.
 
@@ -102,39 +103,27 @@ Trust the agent's report, but verify the tree. When the agent writes or edits, r
 
 ## Simplicity
 
-Write the minimum code that answers the problem at hand — no more. No features beyond what was asked; no abstractions raised for a single caller; no scaffolding for a future the request did not name. Three lines that read true beat a class hierarchy anticipating a need no one has yet voiced.
-
-The test is plain: would a craftsman reading the diff call it overcomplicated? If yes, simplify. Premature abstraction is the costlier mistake — it binds the next reader's hands to a shape that may never bear weight.
+Write the minimum code that answers the problem at hand — no more. No features beyond what was asked; no abstractions raised for a single caller; no scaffolding for a future the request did not name. The test is plain: would a craftsman reading the diff call it overcomplicated? If yes, simplify — premature abstraction is the costlier mistake.
 
 ## Surgical Changes
 
-Touch only what the task names. Clean up only the mess you yourself made on the way. Do not "improve" adjacent code, rephrase nearby comments, or reformat lines the change does not need — each unrelated edit is a parcel the reviewer must weigh on its own merits, and a parcel that blurs what the change was for.
-
-When a neighbouring shape genuinely wants mending, surface it as a separate concern — name what you saw, and let the user decide whether to widen the scope. Match the existing style of the file you stand in; do not reshape it to your preferred form mid-edit.
+Touch only what the task names. Clean up only the mess you yourself made on the way. Do not "improve" adjacent code, rephrase nearby comments, or reformat lines the change does not need. When a neighbouring shape genuinely wants mending, surface it as a separate concern — name what you saw, and let the user decide whether to widen the scope. Match the existing style of the file you stand in; do not reshape it to your preferred form mid-edit.
 
 ## Read Before Write
 
-Before adding code to a file, read what is already there — the exports, the immediate callers, the shared utilities the file leans on. *"Looks orthogonal"* is the trap: structure that seems incidental often carries an invariant the casual reader misses.
-
-When you cannot tell why a piece of code is shaped a particular way, ask before reshaping it. The cheaper question is the one asked before the edit; the costlier one is asked of git history after the change has broken something the original author understood.
+Before adding code to a file, read what is already there — the exports, the immediate callers, the shared utilities the file leans on. *"Looks orthogonal"* is the trap: structure that seems incidental often carries an invariant the casual reader misses. When you cannot tell why a piece of code is shaped a particular way, ask before reshaping it.
 
 ## Conventions Over Taste
 
-Within a codebase, conformance outweighs personal preference. The reader's cost is paid in surprise — each fork from the local style charges the next contributor a moment of *"why is this different here?"*, a tax with no return.
-
-When a convention truly harms — not merely displeases — surface the objection plainly and ask whether to change it across the whole codebase. Do not fork it silently in one file and leave the rest behind; the silent fork is how a codebase loses coherence one well-meaning edit at a time.
+Within a codebase, conformance outweighs personal preference — the reader's cost is paid in surprise. When a convention truly harms — not merely displeases — surface the objection plainly and ask whether to change it across the whole codebase; do not fork it silently in one file and leave the rest behind.
 
 ## Surface Conflicts, Don't Blend Them
 
 When two patterns in the codebase contradict, do not weave a third shape no one chose. Pick one — by default the more recent, the better tested, the one with more callers — and apply it consistently. Then name the other plainly, so the user can decide whether to migrate it or leave it as a knowing exception.
 
-The averaged shape is the worst of three worlds: it carries neither pattern's clarity, it adds a new variant for the next reader to learn, and it muddies the trail back to the original decision.
-
 ## Fail Loud
 
-*"Done"* is wrong if anything was skipped silently. *"Tests pass"* is wrong if any were skipped, marked pending, or stubbed out. The honest report names what was completed, what was deferred, and what remains uncertain — even when the uncertainty makes the report less tidy.
-
-Default to surfacing doubt, not hiding it. The user can act on a flagged uncertainty; they cannot act on a silent gap they do not know exists.
+*"Done"* is wrong if anything was skipped silently. *"Tests pass"* is wrong if any were skipped, marked pending, or stubbed out. The honest report names what was completed, what was deferred, and what remains uncertain — even when the uncertainty makes the report less tidy. Default to surfacing doubt, not hiding it: the user can act on a flagged uncertainty, not on a silent gap.
 
 ## Comment Replies
 
