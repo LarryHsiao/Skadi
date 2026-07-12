@@ -42,7 +42,7 @@ esac
 
 SERVE_URL="${BW_SERVE_URL:-http://localhost:8087}"
 
-if curl -sS --max-time 1 "$SERVE_URL/status" >/dev/null 2>&1; then
+if curl -sS --max-time 3 "$SERVE_URL/status" >/dev/null 2>&1; then
   items_resp=$(curl -sS --max-time 5 "$SERVE_URL/list/object/items" 2>/dev/null || true)
   if [[ -n "$items_resp" ]]; then
     case "$FIELD" in
@@ -87,7 +87,7 @@ else
   echo "secret.sh: '$SERVICE.$FIELD' not in Vaultwarden (bw serve at $SERVE_URL) or env \$$ENV_OVERRIDE" >&2
 fi
 
-if curl -sS --max-time 1 "$SERVE_URL/status" >/dev/null 2>&1; then
+if curl -sS --max-time 3 "$SERVE_URL/status" >/dev/null 2>&1; then
   items=$(curl -sS --max-time 5 "$SERVE_URL/list/object/items" 2>/dev/null \
     | jq -r 'select(.success == true) | .data.data[].name' 2>/dev/null \
     | sort -u || true)
