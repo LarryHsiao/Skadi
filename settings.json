@@ -146,7 +146,7 @@
       "PowerShell(Join-Path *)"
     ]
   },
-  "model": "sonnet",
+  "model": "opusplan",
   "hooks": {
     "PostToolUse": [
       {
