@@ -53,6 +53,7 @@ in_allowed_dir() {
     "$HOME_DIR"/.claude-work|"$HOME_DIR"/.claude-work/*) return 0 ;;
     /tmp|/tmp/*) return 0 ;;
     /private/tmp|/private/tmp/*) return 0 ;;
+    /dev/null|/dev/stdout|/dev/stderr|/dev/tty) return 0 ;;
   esac
   for _d in "${DEV_DIRS[@]}"; do
     case "$p" in
