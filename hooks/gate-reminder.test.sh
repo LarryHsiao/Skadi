@@ -44,7 +44,16 @@ PY
 rm -f "$hook_out"
 check "reminder carries the scorer's sizing and acceptance tokens" "$expected_tokens" "$actual_tokens"
 
-# ── 3 · the reminder names its own exemptions, so it cannot misfire on skill runs ──
+# ── 3 · the reminder carries the Non-goals line ──
+expected_nongoals="yes"
+actual_nongoals=$(bash "$HOOK" | python3 -c "
+import json, sys
+ctx = json.load(sys.stdin)['hookSpecificOutput']['additionalContext']
+print('yes' if 'Non-goals:' in ctx else 'no')
+")
+check "reminder carries the Non-goals line" "$expected_nongoals" "$actual_nongoals"
+
+# ── 4 · the reminder names its own exemptions, so it cannot misfire on skill runs ──
 expected_exempt="yes"
 actual_exempt=$(bash "$HOOK" | python3 -c "
 import json, sys

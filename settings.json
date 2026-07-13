@@ -104,6 +104,7 @@
       "Bash(~/.claude/hooks/youtrack-attach.sh:*)",
       "Bash(~/.claude/hooks/council-jira-fetch.sh:*)",
       "Bash(~/.claude/hooks/council-jira-comment.sh:*)",
+      "Bash(~/.claude/hooks/mandos-record.sh:*)",
       "Bash(~/.claude/hooks/council-plan-html.py:*)",
       "Bash(~/.claude/hooks/jira-attach.sh:*)",
       "Bash(~/.claude/hooks/jira-comment-edit.sh:*)",

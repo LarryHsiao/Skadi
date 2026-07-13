@@ -44,12 +44,14 @@ Before the first mutating tool call, output this block, then wait for the user's
 Size ▰▰▱ medium — <one line: reach, depth, reversibility>
 Acceptance:
 - <observable outcome a test or eye can check>
+Non-goals: <what this turn will deliberately not touch> (or: none)
 Changes: <files and intent, one or two lines>
 ```
 
 - **Tiers:** `▰▱▱ minimum` — narrow reach, shallow depth, trivial to undo. `▰▰▱ medium` — several files or a shared concern. `▰▰▰ heavy` — broad reach, deep thought, or hard to reverse. Size is not scope: a narrow request may still ring heavy.
 - **Medium or heavy:** also offer a breakdown into minimum-sized steps (worked example: `docs/style/task-sizing-example.md`). If it will not cleave, say so and move on.
 - **Acceptance lines are outcomes, not actions** — "the empty list renders the placeholder", not "render the placeholder". A pure refactor or docs edit writes `none — internal change`. Before "done" is reported, walk each line and name the same-turn evidence that meets it — a line with no evidence beside it is not met. The Implementation Loop verifies against these lines; the Compliance Review reads them as "what the plan named".
+- **Non-goals names what the turn will deliberately not touch** — write `none` when scope is unambiguous, so trivial turns bear no ceremony. It earns its place when scope could be read two ways, or adjacent code tempts a widen the task did not ask for. The Compliance Review's spec-compliance pass reads it as the line a diff must not cross.
 - The `gate-reminder.sh` hook re-injects this gate with every prompt; this section is its specification.
 
 ## Previews (Henneth)

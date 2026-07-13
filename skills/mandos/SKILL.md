@@ -344,6 +344,22 @@ The `--plain` and `--lore` flags override either default; they are mutually excl
 
 **Closing paragraph** — three sentences at most. Names the chief gap (for Hold / Astray) or plainly affirms the work (for Faithful). In lore mode the paragraph may carry Mandos / Valar / Elrond diction; in plain mode it stays in neutral reviewer voice with no persona, no similes, no lore-words.
 
+## Record
+
+Immediately after **Render** produces the verdict — on every path, read or write, holistic or `--deep` — pipe a one-line summary to the fidelity recorder:
+
+```bash
+echo '<json>' | ~/.claude/hooks/mandos-record.sh
+```
+
+The JSON carries the ticket-id, the rendered tier, and the Blocker/Nice-to-have/Nit counts tallied from the **Missing** and **Scope-crept** sections (a section omitted because it's empty counts as all zeros):
+
+```json
+{"ticket":"<ticket-id>","tier":"<Faithful|Hold|Astray>","missing":{"blocker":N,"nice":N,"nit":N},"scope":{"blocker":N,"nice":N,"nit":N}}
+```
+
+This is measurement, not part of the verdict: never let a recording failure surface to the user or block the render — the hook is silent on failure by design. Fire it once per invocation, before any write-path step runs (write-paths render via this same step, so no separate wiring is needed there).
+
 ## Write-path: post
 
 `/mandos post TICKET-ID` threads a `[DOOM]`-prefixed verdict onto the ticket.
