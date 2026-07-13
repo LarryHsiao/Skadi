@@ -36,6 +36,20 @@ done
 # ── a genuinely disallowed absolute path is still denied — no regression ──
 check "command referencing a real outside path is still denied" "deny" "$(run_cmd "cat /etc/passwd")"
 
+# ── an allowed path glued to a trailing shell operator (no space) is still allowed —
+# shlex.split doesn't treat these as separators, so a naive check would see
+# ".claude-work;" and miss the exact/glob match against ".claude-work" ──
+for op in ";" "&&" "||" "|" ")" ">"; do
+  check "allowed path glued to trailing '$op' is still allowed" "allow" "$(run_cmd "echo $HOME/.claude-work$op echo done")"
+done
+
+# ── a disallowed path glued to a trailing operator is still denied, not smuggled through ──
+check "disallowed path glued to trailing ';' is still denied" "deny" "$(run_cmd "cat /etc/passwd; echo done")"
+
+# ── a forward-slash Windows path (C:/..., what Git Bash users actually type) is
+# caught by the same check that already catches the backslash form (C:\...) ──
+check "forward-slash Windows path is denied like its backslash form" "deny" "$(run_cmd 'cat C:/Windows/System32/config')"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

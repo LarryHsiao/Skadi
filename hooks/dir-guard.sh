@@ -99,10 +99,15 @@ fi
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command' 2>/dev/null)
 if [ -n "$CMD" ]; then
   TOKENS=$(python3 - "$CMD" 2>/dev/null <<'PYEOF'
-import sys, shlex
+import re, sys, shlex
 try:
     for token in shlex.split(sys.argv[1]):
-        print(token)
+        # shlex only understands words and quoting, not shell control
+        # operators — a trailing ";", "&&", "||", "|", ")", ">" glued to a
+        # path with no space (e.g. "for x in a; do") rides along as part of
+        # the token instead of being split off. Strip it so the path check
+        # compares the real path, not the path plus punctuation.
+        print(re.sub(r'[;&|()<>]+$', '', token))
 except ValueError:
     pass  # unparseable (e.g. bare heredoc) — skip path checks
 PYEOF
@@ -111,8 +116,9 @@ PYEOF
     case "$TOKEN" in
       ~*|--*|-*|"") continue ;;
     esac
-    # Check for absolute paths (/c/..., /usr/..., C:\...)
-    if [[ "$TOKEN" =~ ^/[a-zA-Z] ]] || [[ "$TOKEN" =~ ^[A-Za-z]:\\ ]]; then
+    # Check for absolute paths (/c/..., /usr/..., C:\..., C:/... — the
+    # forward-slash form is what Git Bash users actually type on Windows).
+    if [[ "$TOKEN" =~ ^/[a-zA-Z] ]] || [[ "$TOKEN" =~ ^[A-Za-z]:\\ ]] || [[ "$TOKEN" =~ ^[A-Za-z]:/ ]]; then
       NORM=$(normalize "$TOKEN")
       if ! in_allowed_dir "$NORM"; then
         printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: command references path (%s) outside project and dev directories"}}' "$NORM"
