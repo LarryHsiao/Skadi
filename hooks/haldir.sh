@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Launches one native background Claude Code session per repo, each named
-# for its repo, isolated into its own worktree, and subscribed to a handoff
-# channel of the same name.
+# for its repo, isolated into its own worktree, running in auto-mode (no TTY
+# to answer interactive prompts), and subscribed to a handoff channel of the
+# same name.
 #
 # The repo list is read from a global flat file — one absolute path per
 # markdown bullet ("- /path/to/repo") — NOT auto-memory: auto-memory is
@@ -30,7 +31,7 @@ for repo in "${REPOS[@]}"; do
   (
     cd "$repo"
     claude "Run /handoff subscribe $name --from $name to join your channel, then run /loop with no interval so you keep watching it and act on whatever arrives." \
-      --bg --name "$name" --worktree "$name"
+      --bg --name "$name" --worktree "$name" --permission-mode auto
   )
   echo "launched: $name ($repo)"
 done
