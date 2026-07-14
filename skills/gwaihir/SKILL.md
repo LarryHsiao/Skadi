@@ -1,6 +1,6 @@
 ---
 name: gwaihir
-description: Use when the user runs /gwaihir [channel] [hours]. Gathers Outlook mail and Microsoft Teams messages into one read-only "what needs me?" brief — the communications analog of /palantír. Surfaces the few items worth a look (mail) and the threads that want a reply (Teams); never acts. Renders whichever source answers and footer-notes a silent one (Teams stays dormant until tenant consent). Actions stay with /triage and /vor.
+description: Use when the user runs /gwaihir [channel] [hours]. Gathers Outlook mail and Microsoft Teams messages into one read-only "what needs me?" brief — the communications analog of /palantír. Surfaces the few items worth a look (mail) and the threads that want a reply (Teams); never acts. Renders whichever source answers and footer-notes a silent one — both halves read via the Microsoft 365 claude.ai connector by preference, Teams falling back to a Graph delta poller when the connector tool is absent. Actions stay with /triage and /vor.
 user_invocable: true
 ---
 
@@ -17,9 +17,10 @@ surfaces. It never acts.**
 
 - `mail` → mail channel only.
 - `teams` → Teams channel only.
-- A bare integer → the mail lookback window in hours (default `24`). Mirrors
-  `/triage`. Ignored when scope is `teams` — Teams has no window; its poller
-  reads the delta since its last cursor.
+- A bare integer → the lookback window in hours (default `24`), applied to
+  mail and to the Teams connector route's `afterDateTime`. Mirrors `/triage`.
+  The poller fallback still ignores it — it reads the delta since its last
+  cursor, not a window.
 - No args → both channels, 24h mail window.
 
 If the integer is non-numeric or absent, default to `24` without prompting.
@@ -68,7 +69,24 @@ selection.
 
 ### 2. Teams  *(skip when scope is `mail`)*
 
-Run the poller and read its exit code first:
+Two routes, connector preferred — mirrors `/vor` step 1.
+
+**Primary — Microsoft 365 claude.ai connector.** Locate
+`mcp__claude_ai_Microsoft_365__chat_message_search` (a deferred tool; load its
+schema with ToolSearch first —
+`select:mcp__claude_ai_Microsoft_365__chat_message_search`, or search
+`chat message search` if the exact name differs). If present, search with
+query `*` and `afterDateTime` set to the `hours` window, then normalize
+field-by-field: `id`←`id`, `sender`←`from.displayName`, `text`←`summary`
+(HTML tags stripped), `thread`←`chatId`, `timestamp`←`createdDateTime`,
+`mentionsMe`←best-effort via one `get_me` call matched against `text` (the
+connector carries no mention metadata, so this is a heuristic). Two named
+limits: it misses **channels** (only chats) once `afterDateTime` is set, and
+with no delta cursor, dedup is by time window — re-running within the same
+window can resurface messages.
+
+**Fallback — Graph delta poller**, used when the connector tool is absent from
+the session:
 
     ~/.claude/hooks/vor-teams-poll.sh
 
@@ -80,7 +98,9 @@ Run the poller and read its exit code first:
   `consent for Chat.Read/ChannelMessage.Read.All not yet granted`.
 - `0` — proceed. Stdout is a JSON array of normalized messages
   (`{id, sender, text, thread, timestamp, mentionsMe}`); an empty array means
-  nothing new (no surfaced threads, `routineTeams = 0`).
+  nothing new (no surfaced threads, `routineTeams = 0`). Its `mentionsMe` is
+  authoritative (real Graph mention metadata) and it covers channels the
+  connector route misses.
 
 Organize as `/vor` does: group by `thread`. Surface, in order, threads where
 `mentionsMe` is true (`kind = mention`), then threads asking a direct question
@@ -136,9 +156,10 @@ with any source-gap footer notes beneath it, so the user knows *why* it is empty
 ## Read-only guarantee
 
 Gwaihir issues only read-shaped calls: the connector's `outlook_email_search`,
-the `vor-teams-poll.sh` GET poller, and the `outlook-classify.sh` lookup. It has
-no mark-read, no move, no post, no draft-send, and no run-stamp. Never add one —
-mutation is out of scope; the acting verbs live in `/triage` and `/vor`.
+`chat_message_search`, and `get_me`, the `vor-teams-poll.sh` GET poller, and the
+`outlook-classify.sh` lookup. It has no mark-read, no move, no post, no
+draft-send, and no run-stamp. Never add one — mutation is out of scope; the
+acting verbs live in `/triage` and `/vor`.
 
 ## Rules
 
@@ -149,4 +170,6 @@ mutation is out of scope; the acting verbs live in `/triage` and `/vor`.
   copy it here.
 - No Teams drafting — name the threads that want a reply; `/vor` composes.
 - Default Outlook account only — for another mailbox, run `/triage <account>`.
-- Fetch each source once — one poll, one connector search, one brief.
+- Fetch each source once — one connector search per channel in scope (plus one
+  `get_me` for Teams mentions), or one poll when Teams falls back to the
+  poller; one brief.
