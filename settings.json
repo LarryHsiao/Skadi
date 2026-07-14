@@ -148,6 +148,9 @@
     ]
   },
   "model": "opusplan",
+  "env": {
+    "CLAUDE_DEV_DIRS": "~/.pub-cache"
+  },
   "hooks": {
     "PostToolUse": [
       {
