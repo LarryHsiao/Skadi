@@ -10,13 +10,16 @@ SECRET="$(dirname "$0")/secret.sh"
 JIRA_BASE_URL_VAULT="$("$SECRET" jira uri - 2>/dev/null || true)"
 JIRA_EMAIL_VAULT="$("$SECRET" jira username - 2>/dev/null || true)"
 
-# Memory file fallback (project-local override, kept for legacy/offline use).
-CONFIG_FILE="$HOME/.claude-personal/projects/$(pwd | sed 's|/|-|g')/memory/jira_config.md"
+# Flat-file fallback (offline/legacy use), NOT auto-memory: auto-memory is
+# scoped per project directory and would be invisible when this hook runs
+# from a repo other than skadi. Same reasoning as protected_repos.md /
+# mend_repos.md / repo-watch/repos.md.
+CONFIG_FILE="$HOME/.skadi/jira/config.md"
 JIRA_BASE_URL_MEM=""
 JIRA_EMAIL_MEM=""
 if [[ -f "$CONFIG_FILE" ]]; then
-  JIRA_BASE_URL_MEM=$(awk -F'`' '/JIRA_BASE_URL/{print $4; exit}' "$CONFIG_FILE")
-  JIRA_EMAIL_MEM=$(awk -F'`' '/JIRA_EMAIL/{print $4; exit}' "$CONFIG_FILE")
+  JIRA_BASE_URL_MEM=$(awk -F'`' '/JIRA_BASE_URL/{v=$3; sub(/^: */,"",v); print v; exit}' "$CONFIG_FILE")
+  JIRA_EMAIL_MEM=$(awk -F'`' '/JIRA_EMAIL/{v=$3; sub(/^: */,"",v); print v; exit}' "$CONFIG_FILE")
 fi
 
 JIRA_BASE_URL="${JIRA_BASE_URL_VAULT:-${JIRA_BASE_URL_MEM:-${JIRA_BASE_URL:-https://jubo.atlassian.net}}}"
