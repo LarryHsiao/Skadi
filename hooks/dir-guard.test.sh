@@ -50,6 +50,15 @@ check "disallowed path glued to trailing ';' is still denied" "deny" "$(run_cmd 
 # caught by the same check that already catches the backslash form (C:\...) ──
 check "forward-slash Windows path is denied like its backslash form" "deny" "$(run_cmd 'cat C:/Windows/System32/config')"
 
+# ── a command's own executable path outside the project is exempt — locating
+# a binary isn't a sandbox escape the way an out-of-project file argument is ──
+check "command's own absolute path is allowed" "allow" "$(run_cmd "/opt/homebrew/bin/git status")"
+check "command's own absolute path is allowed in every chain slot" "allow" "$(run_cmd "echo hi && /opt/homebrew/bin/git status")"
+
+# ── the same path used as an *argument*, not the command being run, is still
+# denied — the exemption covers the executable slot only ──
+check "outside path used as an argument is still denied" "deny" "$(run_cmd "cat /opt/homebrew/bin/git")"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

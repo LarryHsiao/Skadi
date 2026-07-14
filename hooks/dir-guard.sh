@@ -96,26 +96,50 @@ fi
 # Check command arguments for absolute paths outside the project.
 # Uses Python's shlex for quote-aware tokenization so paths inside
 # quoted strings (e.g. commit messages, echo args) are not flagged.
+# Each token is tagged CMD (the executable being invoked — its own
+# location, not a file it reads/writes) or ARG (everything else). A CMD
+# token is exempt from the path-escape checks below: referencing where a
+# binary lives (e.g. /opt/homebrew/bin/git) isn't a sandbox escape the way
+# an out-of-project file argument is. Every command's own executable slot
+# in a chain gets this — not just the first word of the whole string — so
+# `cmd1 && /opt/homebrew/bin/git status` is covered too.
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command' 2>/dev/null)
 if [ -n "$CMD" ]; then
   TOKENS=$(python3 - "$CMD" 2>/dev/null <<'PYEOF'
 import re, sys, shlex
 try:
-    for token in shlex.split(sys.argv[1]):
-        # shlex only understands words and quoting, not shell control
-        # operators — a trailing ";", "&&", "||", "|", ")", ">" glued to a
-        # path with no space (e.g. "for x in a; do") rides along as part of
-        # the token instead of being split off. Strip it so the path check
-        # compares the real path, not the path plus punctuation.
-        print(re.sub(r'[;&|()<>]+$', '', token))
+    raw_tokens = shlex.split(sys.argv[1])
 except ValueError:
-    pass  # unparseable (e.g. bare heredoc) — skip path checks
+    raw_tokens = []  # unparseable (e.g. bare heredoc) — skip path checks
+
+expect_cmd = True
+for raw in raw_tokens:
+    # A token made entirely of shell operator characters (;, &&, ||, |, (,
+    # )) is a command separator, not a word — it resets command position
+    # for whatever follows and is not itself emitted (matches prior
+    # behavior, which stripped these to nothing).
+    if raw and all(c in ';&|()<>' for c in raw):
+        expect_cmd = True
+        continue
+    # shlex only understands words and quoting, not shell control
+    # operators — a trailing ";", "&&", "||", "|", ")", ">" glued to a
+    # path with no space (e.g. "for x in a; do") rides along as part of
+    # the token instead of being split off. Strip it so the path check
+    # compares the real path, not the path plus punctuation.
+    token = re.sub(r'[;&|()<>]+$', '', raw)
+    print(('CMD:' if expect_cmd else 'ARG:') + token)
+    expect_cmd = False
 PYEOF
 )
-  while IFS= read -r TOKEN; do
+  while IFS= read -r LINE; do
+    TAG="${LINE%%:*}"
+    TOKEN="${LINE#*:}"
     case "$TOKEN" in
       ~*|--*|-*|"") continue ;;
     esac
+    if [ "$TAG" = "CMD" ]; then
+      continue
+    fi
     # Check for absolute paths (/c/..., /usr/..., C:\..., C:/... — the
     # forward-slash form is what Git Bash users actually type on Windows).
     if [[ "$TOKEN" =~ ^/[a-zA-Z] ]] || [[ "$TOKEN" =~ ^[A-Za-z]:\\ ]] || [[ "$TOKEN" =~ ^[A-Za-z]:/ ]]; then
