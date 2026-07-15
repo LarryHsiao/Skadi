@@ -40,12 +40,28 @@ in cost.
 **Action:** follow `delegation.md`'s escalation ladder. Escalation without the
 failure trail is a fresh coin-flip, not an escalation.
 
+**In the main session itself** (no subagent to re-dispatch), the ladder has no
+lever to pull — say so instead of quietly trying another angle. When Rubric 1's
+signals fire twice running in the direct back-and-forth with the user, name it
+plainly and offer the choice: *"Two genuinely different fixes failed the same
+way — this may be past what the current model tier can reliably do. Want to
+switch to a stronger model, or should I try a third angle first?"* Do not
+silently downgrade either — if the task turns out mechanical after a stronger
+model solves it, name that too, so the user can drop back down next time.
+
 - ✅ *Right:* a Sonnet session twice produces a decorator chain that breaks a
   test in a new way each time; it dispatches to `opus` with both diffs, both
   failures, and what was ruled out.
 - ❌ *Wrong:* a Haiku search agent returns "no matches" once, and the session
   spawns Opus to re-run the same grep. The failure was a bad pattern, not a
   thin model — fix the pattern, stay cheap.
+- ✅ *Right:* the main session (no subagent involved) tries two structurally
+  different fixes for a flaky test, both fail the same way; it stops and tells
+  the user plainly, naming the model-ceiling possibility, instead of trying a
+  third patch silently.
+- ❌ *Wrong:* the main session keeps re-patching the same function for five
+  turns, each attempt slightly different, never naming that the road might be
+  wrong or that a stronger model might be warranted.
 
 ## 3 · When to stop and ask the user
 

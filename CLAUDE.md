@@ -91,6 +91,12 @@ Surface findings in the end-of-task summary alongside what was completed. Treat 
 
 When a plugin process skill (superpowers' verification and review skills, and their kin) speaks to a gate governed by this file's process sections — the Free-Form Gate, Implementation Loop, or this Compliance Review — those sections rule; a skill may add checks, never replace or loosen them.
 
+## Cross-Workspace Edits
+
+`dir-guard.sh` blocks a Bash command whose target resolves outside this session's project directory and outside `CLAUDE_DEV_DIRS` — a session rooted in one repo cannot reach into another. When a task needs to touch a path dir-guard refuses, do not fight the guard — no `CLAUDE_DEV_DIRS` sprawl, no routing around it through a subshell.
+
+Name the blocked path plainly, then advise the user to open a second Claude Code session rooted at that target path themselves. Once that session stands, hand off the change to it: `/handoff send <channel> <the change>` (or `/handoff send <channel>` with no message, for baton mode, when a fuller context transfer is warranted), naming a channel the two sessions share. The second session picks it up with `/handoff read <channel>` (or `/handoff subscribe <channel>` for live pickup) and applies the change locally, where dir-guard permits it.
+
 ## Delegation Discipline
 
 When a task warrants a subagent — research that would clutter the main context, parallel investigations, a code-review pass against the diff — observe the rules that keep delegation honest. The subagent is a stranger walking into the room: it has not seen this conversation, it does not know why the task matters, and its report describes what it *intended* to do, not what it *did*.
