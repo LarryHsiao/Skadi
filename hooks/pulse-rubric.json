@@ -114,7 +114,6 @@
     "id": "rule.compliance-review",
     "label": "Compliance Review renders a verdict after a mutating run",
     "kind": "post-gate",
-    "gate": "compliance-review",
     "tier": "heuristic",
     "applies": "",
     "complied": "Compliance Review:\\s*(PASS|FAIL)",
