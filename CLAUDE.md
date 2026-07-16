@@ -89,6 +89,8 @@ The review reads, it does not write. When the harness offers a dedicated code-re
 
 Surface findings in the end-of-task summary alongside what was completed. Treat each item as a known debt, not a silent flaw: fix it before reporting done, or name it plainly as a knowing exception with a one-line why.
 
+End the end-of-task summary with a literal line: `Compliance Review: PASS` or `Compliance Review: FAIL` — so the pulse can detect it reliably instead of guessing at prose.
+
 When a plugin process skill (superpowers' verification and review skills, and their kin) speaks to a gate governed by this file's process sections — the Free-Form Gate, Implementation Loop, or this Compliance Review — those sections rule; a skill may add checks, never replace or loosen them.
 
 ## Cross-Workspace Edits

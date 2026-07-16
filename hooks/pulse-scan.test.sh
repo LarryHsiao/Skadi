@@ -23,7 +23,7 @@ expected_rubric="ok"
 actual_rubric=$(python3 - "$RUBRIC" <<'PY'
 import json, sys
 rows = json.load(open(sys.argv[1]))
-kinds = {"workflow", "grammar", "freeform-gate", "git-probe", "forge-probe"}
+kinds = {"workflow", "grammar", "freeform-gate", "post-gate", "git-probe", "forge-probe"}
 tiers = {"deterministic", "structural", "heuristic"}
 req = {"id", "label", "kind", "tier", "applies", "complied", "denom"}
 for r in rows:
@@ -383,6 +383,28 @@ print("%d/%s" % (len(series), "yes" if has_items else "no"))
 PY
 )
 check "trend series carries per-run items for client-side recompute" "$expected_trend" "$actual_trend"
+
+# ── 20 · post-gate scorer: marker checked AFTER the last mutating turn, not before ──
+d=$(tmpdir)
+cat >"$d/postgate.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-16T10:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-16T10:00:05Z","message":{"content":[{"type":"text","text":"Editing now."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-16T10:00:10Z","message":{"content":[{"type":"text","text":"Ran tests, all green.\nCompliance Review: PASS"}]}}
+{"type":"user","timestamp":"2026-07-16T10:01:00Z","message":{"content":"now fix the other widget"}}
+{"type":"assistant","timestamp":"2026-07-16T10:01:05Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS\nEditing now."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-16T10:01:10Z","message":{"content":[{"type":"text","text":"Done, no verdict this time."}]}}
+JSON
+expected_postgate="2/1"
+actual_postgate=$(python3 - "$SCAN" "$RUBRIC" "$d/postgate.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_post_gate(turns, rubric["rule.compliance-review"])
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer checks marker after the last mutation, not before" "$expected_postgate" "$actual_postgate"
 
 echo ""
 echo "── $pass passed, $fail failed ──"
