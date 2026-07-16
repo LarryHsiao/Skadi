@@ -30,7 +30,7 @@ for repo in "${REPOS[@]}"; do
   name=$(basename "$repo")
   (
     cd "$repo"
-    claude "Run /handoff subscribe $name --from $name to join your channel, then run /loop with no interval so you keep watching it and act on whatever arrives." \
+    claude "Run /handoff subscribe $name --from $name to join your channel. Read it with /handoff read $name, act on anything waiting, then clear it with /handoff clear $name (no need to confirm — this is a routine startup sweep) so old messages don't linger. Then run /loop with no interval so you keep watching it and act on whatever arrives. Never self-stop the loop on quiet ticks — always re-arm ScheduleWakeup with the -dynamic sentinel and keep watching, even when idle. Only stop if explicitly told to." \
       --bg --name "$name" --worktree "$name" --permission-mode auto
   )
   echo "launched: $name ($repo)"
