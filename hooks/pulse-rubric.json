@@ -111,6 +111,16 @@
     "denom": "mutating runs"
   },
   {
+    "id": "rule.compliance-review",
+    "label": "Compliance Review renders a verdict after a mutating run",
+    "kind": "post-gate",
+    "gate": "compliance-review",
+    "tier": "heuristic",
+    "applies": "",
+    "complied": "Compliance Review:\\s*(PASS|FAIL)",
+    "denom": "mutating runs"
+  },
+  {
     "id": "rule.commit-footer",
     "label": "Commit bears the session footer",
     "kind": "git-probe",

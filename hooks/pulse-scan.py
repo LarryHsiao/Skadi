@@ -304,6 +304,38 @@ def score_freeform_gate(turns, entry):
     return applied, complied, by_model
 
 
+def score_post_gate(turns, entry):
+    """Like score_freeform_gate, but the marker is checked in the assistant
+    prose AFTER the last mutating turn in the run — for gates (Compliance
+    Review) that close a run rather than open it."""
+    complied_re = re.compile(entry["complied"])
+    applied = 0
+    complied = 0
+    by_model = {}
+    i = 0
+    n = len(turns)
+    while i < n:
+        turn = turns[i]
+        if turn["type"] == "user" and _is_prompt(turn["text"]):
+            j = _run_span(turns, i)
+            run = turns[i + 1:j]
+            mutating_indices = [k for k, t in enumerate(run) if _mutates(t)]
+            if mutating_indices:
+                applied += 1
+                last = mutating_indices[-1]
+                post_text = "\n".join(
+                    t["text"] for t in run[last + 1:] if t["type"] == "assistant"
+                )
+                ok = bool(complied_re.search(post_text))
+                if ok:
+                    complied += 1
+                _bump_model(by_model, _run_model(run), ok)
+            i = j
+            continue
+        i += 1
+    return applied, complied, by_model
+
+
 def _rate(applied, complied):
     return round(100 * complied / applied) if applied else None
 
@@ -342,7 +374,7 @@ def apply_rubric(files, rubric):
     which model authored the run. Returns (items, models) — models is the full
     chip roster, see _all_models."""
     scorers = {"workflow": score_workflow, "grammar": score_grammar,
-               "freeform-gate": score_freeform_gate}
+               "freeform-gate": score_freeform_gate, "post-gate": score_post_gate}
     sessions = [read_turns(f) for f in files]
     session_is_sweep = [_is_sweep_session(turns) for turns in sessions]
     items = []
