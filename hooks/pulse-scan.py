@@ -307,7 +307,11 @@ def score_freeform_gate(turns, entry):
 def score_post_gate(turns, entry):
     """Like score_freeform_gate, but the marker is checked in the assistant
     prose AFTER the last mutating turn in the run — for gates (Compliance
-    Review) that close a run rather than open it."""
+    Review) that close a run rather than open it. The marker alone isn't
+    proof a review happened — CLAUDE.md's Compliance Review is a subagent
+    dispatch, and a model could type the closing line unearned — so complied
+    additionally requires an Agent tool_use turn at or before the turn
+    bearing the marker, within that same post-mutation span."""
     complied_re = re.compile(entry["complied"])
     applied = 0
     complied = 0
@@ -322,11 +326,15 @@ def score_post_gate(turns, entry):
             mutating_indices = [k for k, t in enumerate(run) if _mutates(t)]
             if mutating_indices:
                 applied += 1
-                last = mutating_indices[-1]
-                post_text = "\n".join(
-                    t["text"] for t in run[last + 1:] if t["type"] == "assistant"
-                )
-                ok = bool(complied_re.search(post_text))
+                post = run[mutating_indices[-1] + 1:]
+                marker_idx = next(
+                    (k for k, t in enumerate(post)
+                     if t["type"] == "assistant" and complied_re.search(t["text"])), None)
+                agent_idx = next(
+                    (k for k, t in enumerate(post)
+                     if t["type"] == "assistant" and "Agent" in t.get("tools", [])), None)
+                ok = (marker_idx is not None and agent_idx is not None
+                      and agent_idx <= marker_idx)
                 if ok:
                     complied += 1
                 _bump_model(by_model, _run_model(run), ok)

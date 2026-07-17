@@ -34,6 +34,12 @@ own once rendered.
   subagent — `/council`'s `[COUNSEL]`, `/celebrimbor`'s `[GWAITH]` — writes that
   marker in the tracker, not the main-thread transcript the pulse reads, so those
   rows read low. A known first-cut limitation, not a failure of the skill.
+- **Compliance Review requires delegation evidence, not just the closing line.**
+  `rule.compliance-review` only counts a run as compliant when an `Agent` tool
+  call appears in the post-mutation span at or before the turn bearing
+  `Compliance Review: PASS|FAIL` — the literal marker alone no longer suffices,
+  since a model could type it unearned without ever spawning the review agent
+  CLAUDE.md calls for.
 - **Honest tiers.** Each item carries a confidence tier, and the headline shows a
   figure per tier; a single cross-tier average is shown too, but always labelled as
   such and never standing alone.

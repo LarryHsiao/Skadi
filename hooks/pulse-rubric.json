@@ -112,7 +112,7 @@
   },
   {
     "id": "rule.compliance-review",
-    "label": "Compliance Review renders a verdict after a mutating run",
+    "label": "Compliance Review dispatches an agent and renders a verdict after a mutating run",
     "kind": "post-gate",
     "tier": "heuristic",
     "applies": "",

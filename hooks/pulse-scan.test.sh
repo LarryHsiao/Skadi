@@ -389,6 +389,7 @@ d=$(tmpdir)
 cat >"$d/postgate.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-16T10:00:00Z","message":{"content":"fix the widget"}}
 {"type":"assistant","timestamp":"2026-07-16T10:00:05Z","message":{"content":[{"type":"text","text":"Editing now."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-16T10:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
 {"type":"assistant","timestamp":"2026-07-16T10:00:10Z","message":{"content":[{"type":"text","text":"Ran tests, all green.\nCompliance Review: PASS"}]}}
 {"type":"user","timestamp":"2026-07-16T10:01:00Z","message":{"content":"now fix the other widget"}}
 {"type":"assistant","timestamp":"2026-07-16T10:01:05Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS\nEditing now."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
@@ -405,6 +406,25 @@ print("%d/%d" % (a, c))
 PY
 )
 check "post-gate scorer checks marker after the last mutation, not before" "$expected_postgate" "$actual_postgate"
+
+# ── 21 · post-gate scorer: the marker alone doesn't comply — an Agent spawn must back it ──
+d=$(tmpdir)
+cat >"$d/postgate-noagent.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-17T10:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-17T10:00:05Z","message":{"content":[{"type":"text","text":"Editing now."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-17T10:00:10Z","message":{"content":[{"type":"text","text":"Ran tests, all green.\nCompliance Review: PASS"}]}}
+JSON
+expected_postgate_noagent="1/0"
+actual_postgate_noagent=$(python3 - "$SCAN" "$RUBRIC" "$d/postgate-noagent.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_post_gate(turns, rubric["rule.compliance-review"])
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: marker with no Agent spawn does not comply" "$expected_postgate_noagent" "$actual_postgate_noagent"
 
 echo ""
 echo "── $pass passed, $fail failed ──"
