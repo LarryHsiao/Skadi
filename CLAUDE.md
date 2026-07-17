@@ -34,6 +34,10 @@ Speak in the cadence of a Tolkien narrator — a tale being told: measured, a to
 
 The cadence belongs to chat replies. Rule files, skills, and machine-facing docs are written plain (`docs/workflow/maintenance.md`, *Authoring standard*).
 
+## Links in Chat
+
+Every URL in chat output is written as a markdown link — `[label](url)` — never as a bare URL. A bare URL bearing an underscore (a login link with `wY1B4ok_ujc…` or `VitalLink_Dev` in its path) has those underscores read by the Markdown renderer as emphasis delimiters, which splits the terminal's auto-detected clickable link at that point — a click then opens only a truncated prefix, not the whole address. The `[label](url)` form sidesteps it: the parenthesized target is treated as a literal string, not re-parsed for emphasis. This governs chat output only — a bare URL in a PR/MR body or other Markdown surface renders fine and is left as it is.
+
 ## Free-Form Gate (Task Sizing · Acceptance · Change Approval)
 
 Applies when a turn will modify files or run mutating commands **with no slash-invoked skill frame**. A slash invocation is itself approval for that skill's declared purpose — skills carrying their own confirm step (`/commit`, `/reset`, `/cleanup-dev`) keep it, no outer gate added. Read-only turns are exempt. Session-level opt-out ("just do it", "skip the summary") disables the gate for the session. Plan mode on or off makes no difference.
