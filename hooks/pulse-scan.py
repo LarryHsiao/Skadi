@@ -143,7 +143,7 @@ def _is_prompt(text):
         return False
     noise = ("<command-name>", "<command-message>", "<command-args>",
              "Base directory for this skill:", "<local-command-stdout>",
-             "<local-command-caveat>")
+             "<local-command-caveat>", "<task-notification>")
     return not any(tok in text for tok in noise)
 
 
@@ -304,43 +304,95 @@ def score_freeform_gate(turns, entry):
     return applied, complied, by_model
 
 
-def score_post_gate(turns, entry):
-    """Like score_freeform_gate, but the marker is checked in the assistant
-    prose AFTER the last mutating turn in the run — for gates (Compliance
-    Review) that close a run rather than open it. The marker alone isn't
-    proof a review happened — CLAUDE.md's Compliance Review is a subagent
-    dispatch, and a model could type the closing line unearned — so complied
-    additionally requires an Agent tool_use turn at or before the turn
-    bearing the marker, within that same post-mutation span."""
-    complied_re = re.compile(entry["complied"])
-    applied = 0
-    complied = 0
-    by_model = {}
+def _prompt_runs(turns, since):
+    """Every prompt-opened run as (run_turns, is_mutating), skipping runs whose
+    opening prompt predates `since` (the rule's birth date — before it the rule
+    did not exist, so the run could not have complied, and billing it only
+    drowns the signal in dead history). Empty `since` bills every run."""
+    runs = []
     i = 0
     n = len(turns)
     while i < n:
         turn = turns[i]
         if turn["type"] == "user" and _is_prompt(turn["text"]):
             j = _run_span(turns, i)
-            run = turns[i + 1:j]
-            mutating_indices = [k for k, t in enumerate(run) if _mutates(t)]
-            if mutating_indices:
-                applied += 1
-                post = run[mutating_indices[-1] + 1:]
-                marker_idx = next(
-                    (k for k, t in enumerate(post)
-                     if t["type"] == "assistant" and complied_re.search(t["text"])), None)
-                agent_idx = next(
-                    (k for k, t in enumerate(post)
-                     if t["type"] == "assistant" and "Agent" in t.get("tools", [])), None)
-                ok = (marker_idx is not None and agent_idx is not None
-                      and agent_idx <= marker_idx)
-                if ok:
-                    complied += 1
-                _bump_model(by_model, _run_model(run), ok)
+            if turn["ts"][:10] >= since:
+                run = turns[i + 1:j]
+                runs.append((run, any(_mutates(t) for t in run)))
             i = j
             continue
         i += 1
+    return runs
+
+
+def _task_segments(runs):
+    """Runs folded into task segments. CLAUDE.md's Compliance Review is owed
+    once per task ("before the done report"), but a task unfolds over many
+    prompt turns — the user steering ("no, the arrow points left") between
+    edits. So: a segment opens at a mutating run, carries the following
+    mutating streak, and keeps the read-only runs after it as its wind-down
+    tail; the next mutating run after that tail opens a new segment. Known
+    trade-off: two tasks back-to-back with no read-only run between them
+    merge into one segment — slight under-billing, preferred over the
+    per-turn over-billing it replaces."""
+    segments = []
+    seg = None
+    in_tail = False
+    for run, is_mutating in runs:
+        if is_mutating:
+            if seg is None or in_tail:
+                if seg is not None:
+                    segments.append(seg)
+                seg = list(run)
+                in_tail = False
+            else:
+                seg.extend(run)
+        elif seg is not None:
+            seg.extend(run)
+            in_tail = True
+    if seg is not None:
+        segments.append(seg)
+    return segments
+
+
+def _segment_complies(seg, complied_re):
+    """A segment complies when the verdict marker appears after its last
+    mutating turn AND an Agent tool_use turn stands at or before the marker
+    turn — the marker alone isn't proof a review happened; a model could type
+    the closing line unearned. The Agent lookup spans the whole segment, not
+    just the post-mutation tail: CLAUDE.md's order is review, then fix the
+    findings (more mutating turns), then verify, then the verdict — so the
+    Agent call routinely precedes the segment's last edit."""
+    mutating_indices = [k for k, t in enumerate(seg) if _mutates(t)]
+    if not mutating_indices:
+        return False
+    post = seg[mutating_indices[-1] + 1:]
+    marker_offset = next(
+        (k for k, t in enumerate(post)
+         if t["type"] == "assistant" and complied_re.search(t["text"])), None)
+    if marker_offset is None:
+        return False
+    marker_idx = mutating_indices[-1] + 1 + marker_offset
+    return any(t["type"] == "assistant" and "Agent" in t.get("tools", [])
+               for t in seg[:marker_idx + 1])
+
+
+def score_post_gate(turns, entry):
+    """Like score_freeform_gate, but for gates (Compliance Review) that close
+    a task rather than open it. applied = task segments (see _task_segments);
+    complied = segments whose close carries both the verdict marker and Agent
+    delegation evidence (see _segment_complies). entry['since'] (optional,
+    ISO date) drops runs from before the rule existed (see _prompt_runs)."""
+    complied_re = re.compile(entry["complied"])
+    applied = 0
+    complied = 0
+    by_model = {}
+    for seg in _task_segments(_prompt_runs(turns, entry.get("since", ""))):
+        applied += 1
+        ok = _segment_complies(seg, complied_re)
+        if ok:
+            complied += 1
+        _bump_model(by_model, _run_model(seg), ok)
     return applied, complied, by_model
 
 

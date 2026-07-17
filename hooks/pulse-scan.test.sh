@@ -385,12 +385,16 @@ PY
 check "trend series carries per-run items for client-side recompute" "$expected_trend" "$actual_trend"
 
 # ── 20 · post-gate scorer: marker checked AFTER the last mutating turn, not before ──
+# A read-only run stands between the two tasks so they land in separate segments —
+# the second task's marker precedes its edit, which must not count.
 d=$(tmpdir)
 cat >"$d/postgate.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-16T10:00:00Z","message":{"content":"fix the widget"}}
 {"type":"assistant","timestamp":"2026-07-16T10:00:05Z","message":{"content":[{"type":"text","text":"Editing now."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
 {"type":"assistant","timestamp":"2026-07-16T10:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
 {"type":"assistant","timestamp":"2026-07-16T10:00:10Z","message":{"content":[{"type":"text","text":"Ran tests, all green.\nCompliance Review: PASS"}]}}
+{"type":"user","timestamp":"2026-07-16T10:00:30Z","message":{"content":"what did the review say?"}}
+{"type":"assistant","timestamp":"2026-07-16T10:00:35Z","message":{"content":[{"type":"text","text":"It found nothing of note."}]}}
 {"type":"user","timestamp":"2026-07-16T10:01:00Z","message":{"content":"now fix the other widget"}}
 {"type":"assistant","timestamp":"2026-07-16T10:01:05Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS\nEditing now."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
 {"type":"assistant","timestamp":"2026-07-16T10:01:10Z","message":{"content":[{"type":"text","text":"Done, no verdict this time."}]}}
@@ -425,6 +429,120 @@ print("%d/%d" % (a, c))
 PY
 )
 check "post-gate scorer: marker with no Agent spawn does not comply" "$expected_postgate_noagent" "$actual_postgate_noagent"
+
+# ── 22 · post-gate scorer: review → fix → verdict still complies (Agent precedes the LAST mutation) ──
+d=$(tmpdir)
+cat >"$d/postgate-reviewfix.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T10:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-18T10:00:05Z","message":{"content":[{"type":"text","text":"Editing now."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T10:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T10:00:12Z","message":{"content":[{"type":"text","text":"Found one nit; fixing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T10:00:15Z","message":{"content":[{"type":"text","text":"Fixed and reverified.\nCompliance Review: PASS"}]}}
+JSON
+expected_postgate_reviewfix="1/1"
+actual_postgate_reviewfix=$(python3 - "$SCAN" "$RUBRIC" "$d/postgate-reviewfix.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_post_gate(turns, rubric["rule.compliance-review"])
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: an Agent call before a later fix-edit still complies" "$expected_postgate_reviewfix" "$actual_postgate_reviewfix"
+
+# ── 23 · a <task-notification> harness turn is not a prompt — it opens no run ──
+d=$(tmpdir)
+cat >"$d/tasknotif.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T09:00:00Z","message":{"content":"<task-notification> <task-id>abc</task-id> background job finished </task-notification>"}}
+{"type":"assistant","timestamp":"2026-07-18T09:00:05Z","message":{"content":[{"type":"text","text":"Picking the result up."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+JSON
+expected_tasknotif="0/0"
+actual_tasknotif=$(python3 - "$SCAN" "$RUBRIC" "$d/tasknotif.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_post_gate(turns, rubric["rule.compliance-review"])
+print("%d/%d" % (a, c))
+PY
+)
+check "task-notification turn opens no run" "$expected_tasknotif" "$actual_tasknotif"
+
+# ── 24 · post-gate scorer: a run opened before the item's `since` date is not billed ──
+# The pre-cutoff run would fully comply (Agent + marker) — proving it's excluded
+# by date, not by failing the gate; the post-cutoff run lacks an Agent call, so
+# the expected split is 1 applied / 0 complied.
+d=$(tmpdir)
+cat >"$d/since.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-10T09:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-10T09:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-10T09:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-10T09:00:10Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"}]}}
+{"type":"user","timestamp":"2026-07-17T09:00:00Z","message":{"content":"fix the other widget"}}
+{"type":"assistant","timestamp":"2026-07-17T09:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-17T09:00:10Z","message":{"content":[{"type":"text","text":"Done."}]}}
+JSON
+expected_since="1/0"
+actual_since=$(python3 - "$SCAN" "$RUBRIC" "$d/since.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_post_gate(turns, rubric["rule.compliance-review"])
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: runs before the item's since date are not billed" "$expected_since" "$actual_since"
+
+# ── 25 · post-gate scorer bills per task segment, not per prompt turn ──
+# (a) a steering sequence — two consecutive mutating runs closed by one verdict —
+# is ONE segment, complied; (b) two tasks split by a read-only run are TWO
+# segments, of which only the first closed with a verdict.
+d=$(tmpdir)
+cat >"$d/segment-steer.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T11:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-18T11:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-18T11:01:00Z","message":{"content":"no, the arrow points left"}}
+{"type":"assistant","timestamp":"2026-07-18T11:01:05Z","message":{"content":[{"type":"text","text":"Adjusting."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T11:01:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T11:01:12Z","message":{"content":[{"type":"text","text":"Reviewed and verified.\nCompliance Review: PASS"}]}}
+JSON
+expected_segment_steer="1/1"
+actual_segment_steer=$(python3 - "$SCAN" "$RUBRIC" "$d/segment-steer.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_post_gate(turns, rubric["rule.compliance-review"])
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: a steering sequence bills one segment" "$expected_segment_steer" "$actual_segment_steer"
+
+d=$(tmpdir)
+cat >"$d/segment-split.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T12:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-18T12:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T12:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T12:00:12Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"}]}}
+{"type":"user","timestamp":"2026-07-18T12:01:00Z","message":{"content":"what does the config flag do?"}}
+{"type":"assistant","timestamp":"2026-07-18T12:01:05Z","message":{"content":[{"type":"text","text":"It toggles the cache."}]}}
+{"type":"user","timestamp":"2026-07-18T12:02:00Z","message":{"content":"now fix the other widget"}}
+{"type":"assistant","timestamp":"2026-07-18T12:02:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T12:02:10Z","message":{"content":[{"type":"text","text":"Done, no verdict."}]}}
+JSON
+expected_segment_split="2/1"
+actual_segment_split=$(python3 - "$SCAN" "$RUBRIC" "$d/segment-split.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_post_gate(turns, rubric["rule.compliance-review"])
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: a read-only run splits two task segments" "$expected_segment_split" "$actual_segment_split"
 
 echo ""
 echo "── $pass passed, $fail failed ──"

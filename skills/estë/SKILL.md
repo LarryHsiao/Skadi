@@ -34,12 +34,22 @@ own once rendered.
   subagent — `/council`'s `[COUNSEL]`, `/celebrimbor`'s `[GWAITH]` — writes that
   marker in the tracker, not the main-thread transcript the pulse reads, so those
   rows read low. A known first-cut limitation, not a failure of the skill.
+- **Compliance Review bills per task segment, not per prompt turn.**
+  `rule.compliance-review` folds consecutive mutating runs (the user steering
+  between edits) plus their read-only wind-down into one segment — CLAUDE.md
+  owes the review once per task, "before the done report", not after every
+  turn that touched a file. Known trade-off: two tasks back-to-back with no
+  read-only run between them merge and bill once. A `since` date on the
+  rubric entry drops runs from before the rule existed.
 - **Compliance Review requires delegation evidence, not just the closing line.**
-  `rule.compliance-review` only counts a run as compliant when an `Agent` tool
-  call appears in the post-mutation span at or before the turn bearing
-  `Compliance Review: PASS|FAIL` — the literal marker alone no longer suffices,
-  since a model could type it unearned without ever spawning the review agent
-  CLAUDE.md calls for.
+  A segment only complies when an `Agent` tool call appears at or before the
+  turn bearing `Compliance Review: PASS|FAIL` (which itself must follow the
+  segment's last mutating turn) — the literal marker alone no longer
+  suffices, since a model could type it unearned without ever spawning the
+  review agent CLAUDE.md calls for. The Agent lookup spans the whole
+  segment: CLAUDE.md's order is review, then fix the findings (more mutating
+  turns), then verify, then the verdict, so the Agent call routinely
+  precedes the segment's last edit.
 - **Honest tiers.** Each item carries a confidence tier, and the headline shows a
   figure per tier; a single cross-tier average is shown too, but always labelled as
   such and never standing alone.

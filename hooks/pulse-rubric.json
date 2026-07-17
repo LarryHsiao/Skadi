@@ -112,9 +112,10 @@
   },
   {
     "id": "rule.compliance-review",
-    "label": "Compliance Review dispatches an agent and renders a verdict after a mutating run",
+    "label": "Compliance Review dispatches an agent and renders a verdict closing a mutating task segment",
     "kind": "post-gate",
     "tier": "heuristic",
+    "since": "2026-07-16",
     "applies": "",
     "complied": "Compliance Review:\\s*(PASS|FAIL)",
     "denom": "mutating runs"
