@@ -305,10 +305,12 @@ def score_freeform_gate(turns, entry):
 
 
 def _prompt_runs(turns, since):
-    """Every prompt-opened run as (run_turns, is_mutating), skipping runs whose
-    opening prompt predates `since` (the rule's birth date — before it the rule
-    did not exist, so the run could not have complied, and billing it only
-    drowns the signal in dead history). Empty `since` bills every run."""
+    """Every prompt-opened run as (prompt_text, run_turns, is_mutating),
+    skipping runs whose opening prompt predates `since` (the rule's birth
+    date — before it the rule did not exist, so the run could not have
+    complied, and billing it only drowns the signal in dead history). Empty
+    `since` bills every run. prompt_text is the opening user prompt, kept so
+    the task-shot scorer can read its tone."""
     runs = []
     i = 0
     n = len(turns)
@@ -318,7 +320,7 @@ def _prompt_runs(turns, since):
             j = _run_span(turns, i)
             if turn["ts"][:10] >= since:
                 run = turns[i + 1:j]
-                runs.append((run, any(_mutates(t) for t in run)))
+                runs.append((turn["text"], run, any(_mutates(t) for t in run)))
             i = j
             continue
         i += 1
@@ -326,33 +328,39 @@ def _prompt_runs(turns, since):
 
 
 def _task_segments(runs):
-    """Runs folded into task segments. CLAUDE.md's Compliance Review is owed
-    once per task ("before the done report"), but a task unfolds over many
-    prompt turns — the user steering ("no, the arrow points left") between
-    edits. So: a segment opens at a mutating run, carries the following
-    mutating streak, and keeps the read-only runs after it as its wind-down
-    tail; the next mutating run after that tail opens a new segment. Known
-    trade-off: two tasks back-to-back with no read-only run between them
-    merge into one segment — slight under-billing, preferred over the
-    per-turn over-billing it replaces."""
+    """Runs folded into task segments, each a list of (prompt_text, run_turns,
+    is_mutating) triples so callers can still see run boundaries and opening
+    prompts (flatten with _segment_turns when only the turn stream matters).
+    A task unfolds over many prompt turns — the user steering ("no, the arrow
+    points left") between edits — so: a segment opens at a mutating run, carries the
+    following mutating streak, and keeps the read-only runs after it as its
+    wind-down tail; the next mutating run after that tail opens a new
+    segment. Known trade-off: two tasks back-to-back with no read-only run
+    between them merge into one segment — slight under-billing, preferred
+    over the per-turn over-billing it replaces."""
     segments = []
     seg = None
     in_tail = False
-    for run, is_mutating in runs:
+    for prompt, run, is_mutating in runs:
         if is_mutating:
             if seg is None or in_tail:
                 if seg is not None:
                     segments.append(seg)
-                seg = list(run)
+                seg = [(prompt, run, is_mutating)]
                 in_tail = False
             else:
-                seg.extend(run)
+                seg.append((prompt, run, is_mutating))
         elif seg is not None:
-            seg.extend(run)
+            seg.append((prompt, run, is_mutating))
             in_tail = True
     if seg is not None:
         segments.append(seg)
     return segments
+
+
+def _segment_turns(seg):
+    """A segment's runs flattened into one ordered turn stream."""
+    return [t for _, run, _ in seg for t in run]
 
 
 def _segment_complies(seg, complied_re):
@@ -388,11 +396,37 @@ def score_post_gate(turns, entry):
     complied = 0
     by_model = {}
     for seg in _task_segments(_prompt_runs(turns, entry.get("since", ""))):
+        seg_turns = _segment_turns(seg)
         applied += 1
-        ok = _segment_complies(seg, complied_re)
+        ok = _segment_complies(seg_turns, complied_re)
         if ok:
             complied += 1
-        _bump_model(by_model, _run_model(seg), ok)
+        _bump_model(by_model, _run_model(seg_turns), ok)
+    return applied, complied, by_model
+
+
+def score_task_shot(turns, entry):
+    """applied = task segments; complied = segments whose rework count stays
+    within entry['threshold']. A rework run is a mutating run after the
+    segment's first whose opening prompt reads as a correction
+    (entry['rework'] regex — "no, the arrow points left"), as opposed to an
+    additive follow-up ("also commit and push"), which is progress, not a
+    miss. Measures the model's first-shot success, not a config rule — so no
+    'since' gate by default, and the byModel split is the headline cut. The
+    tone regex is a keyword heuristic; mixed-language prompts can slip it."""
+    rework_re = re.compile(entry["rework"])
+    threshold = entry.get("threshold", 0)
+    applied = 0
+    complied = 0
+    by_model = {}
+    for seg in _task_segments(_prompt_runs(turns, entry.get("since", ""))):
+        applied += 1
+        reworks = sum(1 for prompt, _, is_mutating in seg[1:]
+                      if is_mutating and rework_re.search(prompt))
+        ok = reworks <= threshold
+        if ok:
+            complied += 1
+        _bump_model(by_model, _run_model(_segment_turns(seg)), ok)
     return applied, complied, by_model
 
 
@@ -434,7 +468,8 @@ def apply_rubric(files, rubric):
     which model authored the run. Returns (items, models) — models is the full
     chip roster, see _all_models."""
     scorers = {"workflow": score_workflow, "grammar": score_grammar,
-               "freeform-gate": score_freeform_gate, "post-gate": score_post_gate}
+               "freeform-gate": score_freeform_gate, "post-gate": score_post_gate,
+               "task-shot": score_task_shot}
     sessions = [read_turns(f) for f in files]
     session_is_sweep = [_is_sweep_session(turns) for turns in sessions]
     items = []

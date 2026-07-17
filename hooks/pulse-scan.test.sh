@@ -22,8 +22,8 @@ check() { # desc expected actual
 expected_rubric="ok"
 actual_rubric=$(python3 - "$RUBRIC" <<'PY'
 import json, sys
-rows = json.load(open(sys.argv[1]))
-kinds = {"workflow", "grammar", "freeform-gate", "post-gate", "git-probe", "forge-probe"}
+rows = json.load(open(sys.argv[1], encoding="utf-8"))
+kinds = {"workflow", "grammar", "freeform-gate", "post-gate", "task-shot", "git-probe", "forge-probe"}
 tiers = {"deterministic", "structural", "heuristic"}
 req = {"id", "label", "kind", "tier", "applies", "complied", "denom"}
 for r in rows:
@@ -543,6 +543,68 @@ print("%d/%d" % (a, c))
 PY
 )
 check "post-gate scorer: a read-only run splits two task segments" "$expected_segment_split" "$actual_segment_split"
+
+# ── 27 · task-shot scorer: an additive follow-up ("also…") is not rework — first-shot holds ──
+d=$(tmpdir)
+cat >"$d/shot-additive.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T13:00:00Z","message":{"content":"add a placeholder to the empty list"}}
+{"type":"assistant","timestamp":"2026-07-18T13:00:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-18T13:01:00Z","message":{"content":"looks good, also commit and push"}}
+{"type":"assistant","timestamp":"2026-07-18T13:01:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Committing."},{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"git commit -m x && git push"}}]}}
+JSON
+expected_shot_additive="1/1"
+actual_shot_additive=$(python3 - "$SCAN" "$RUBRIC" "$d/shot-additive.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_task_shot(turns, rubric["model.first-shot"])
+print("%d/%d" % (a, c))
+PY
+)
+check "task-shot scorer: additive follow-up is not rework" "$expected_shot_additive" "$actual_shot_additive"
+
+# ── 28 · task-shot scorer: a correction-toned follow-up is rework — first-shot lost ──
+d=$(tmpdir)
+cat >"$d/shot-rework.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T14:00:00Z","message":{"content":"draw the arrow on the selected stack"}}
+{"type":"assistant","timestamp":"2026-07-18T14:00:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-18T14:01:00Z","message":{"content":"no, the arrow should point left"}}
+{"type":"assistant","timestamp":"2026-07-18T14:01:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Fixing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+JSON
+expected_shot_rework="1/0"
+actual_shot_rework=$(python3 - "$SCAN" "$RUBRIC" "$d/shot-rework.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_task_shot(turns, rubric["model.first-shot"])
+print("%d/%d" % (a, c))
+PY
+)
+check "task-shot scorer: correction-toned follow-up loses first-shot" "$expected_shot_rework" "$actual_shot_rework"
+
+# ── 29 · task-shot scorer: a mid-sentence "not" (descriptive, not a correction) is not rework ──
+# "the border which are not selected" describes WHICH border, it does not say the
+# model erred — a bare \bnot\b anywhere would false-positive; the cue must lead.
+d=$(tmpdir)
+cat >"$d/shot-notmid.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T15:00:00Z","message":{"content":"dim the unselected borders"}}
+{"type":"assistant","timestamp":"2026-07-18T15:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-18T15:01:00Z","message":{"content":"the borders which are not selected should also be dimmer"}}
+{"type":"assistant","timestamp":"2026-07-18T15:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Adjusting."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+JSON
+expected_shot_notmid="1/1"
+actual_shot_notmid=$(python3 - "$SCAN" "$RUBRIC" "$d/shot-notmid.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_task_shot(turns, rubric["model.first-shot"])
+print("%d/%d" % (a, c))
+PY
+)
+check "task-shot scorer: a mid-sentence 'not' is not rework" "$expected_shot_notmid" "$actual_shot_notmid"
 
 echo ""
 echo "── $pass passed, $fail failed ──"

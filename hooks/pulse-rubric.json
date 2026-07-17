@@ -121,6 +121,17 @@
     "denom": "mutating runs"
   },
   {
+    "id": "model.first-shot",
+    "label": "Task lands first-shot — no correction-toned rework runs in its segment (model capability, not a config rule)",
+    "kind": "task-shot",
+    "tier": "heuristic",
+    "threshold": 0,
+    "rework": "(?i)\\b(wrong|revert|undo|redo|broken)\\b|^\\s*(no|nope|nah|nvm|not|still|didn'?t|doesn'?t|isn'?t)\\b|不對|不行|重來|改回|退回|(?<!不)錯",
+    "applies": "",
+    "complied": "",
+    "denom": "task segments"
+  },
+  {
     "id": "rule.commit-footer",
     "label": "Commit bears the session footer",
     "kind": "git-probe",

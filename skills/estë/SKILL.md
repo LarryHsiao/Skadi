@@ -50,6 +50,20 @@ own once rendered.
   segment: CLAUDE.md's order is review, then fix the findings (more mutating
   turns), then verify, then the verdict, so the Agent call routinely
   precedes the segment's last edit.
+- **First-shot rate measures the model, not a rule.** `model.first-shot` asks a
+  different question from every other row: not "did the model keep the config's
+  rule" but "how good is the model" — what fraction of task segments landed
+  without the user coming back to correct it. Within a segment (the same task
+  fold `rule.compliance-review` uses), a *rework* run is a mutating run after
+  the first whose opening prompt reads as a correction (`rework` regex — "no,
+  the arrow points left"; both English and Chinese cues). An *additive*
+  follow-up ("also commit and push") is progress, not a miss, and does not
+  count. A segment is first-shot when its rework count stays within
+  `threshold` (default 0 — strict). Read the `byModel` split, not the overall
+  rate: the point is comparing Opus / Sonnet / Fable. The tone regex is a
+  keyword heuristic — a mixed-language or oddly-phrased correction can slip it,
+  so the row reads slightly optimistic; it sits in the heuristic tier for that
+  reason.
 - **Honest tiers.** Each item carries a confidence tier, and the headline shows a
   figure per tier; a single cross-tier average is shown too, but always labelled as
   such and never standing alone.
