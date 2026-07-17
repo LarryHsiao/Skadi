@@ -145,9 +145,10 @@
       "Bash(xcrun:*)",
       "Bash(sed:*)",
       "PowerShell(Join-Path *)"
-    ]
+    ],
+    "defaultMode": "plan"
   },
-  "model": "opusplan",
+  "model": "opus",
   "env": {
     "CLAUDE_DEV_DIRS": "~/.pub-cache"
   },
