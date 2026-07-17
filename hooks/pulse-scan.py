@@ -476,7 +476,8 @@ def apply_rubric(files, rubric):
     for entry in rubric:
         kind = entry["kind"]
         base = {"id": entry["id"], "label": entry["label"],
-                "tier": entry["tier"], "kind": kind}
+                "tier": entry["tier"], "kind": kind,
+                "criterion": entry.get("criterion", "")}
         if kind not in scorers:  # git-probe / forge-probe — not built yet
             items.append({**base, "applied": None, "complied": None,
                           "rate": None, "status": "pending"})
@@ -640,6 +641,12 @@ _PAGE = """<meta charset="utf-8">
   .modelchips{display:flex;gap:.35rem;margin:.5rem 0 .2rem;flex-wrap:wrap;}
   .chip{border:1px solid #cbb89a;border-radius:999px;padding:.18rem .7rem;font-size:.72rem;background:none;cursor:pointer;color:inherit;}
   .chip.active{background:#a68a52;color:#fff;border-color:#a68a52;}
+  .info{border:1px solid #cbb89a;border-radius:999px;width:1.15rem;height:1.15rem;line-height:1;font-size:.8rem;padding:0;background:none;cursor:pointer;color:#87795e;vertical-align:middle;}
+  .info:hover{border-color:#7a5c2e;color:#7a5c2e;} .info.active{background:#7a5c2e;color:#fff;border-color:#7a5c2e;}
+  .critrow{display:none;} .critrow.open{display:table-row;}
+  .critrow td{background:rgba(203,184,154,.18);border-bottom:1px solid #cbb89a;}
+  .crit{font-size:.78rem;line-height:1.5;color:#5c5138;padding:.15rem .1rem;}
+  .crit .ok{color:#3f7a3f;font-weight:700;} .crit .no{color:#a33;font-weight:700;}
 </style>
 <h1>Adherence Pulse</h1>
 <div class="tabs" id="tabs">
@@ -660,6 +667,9 @@ _PAGE = """<meta charset="utf-8">
 <script>
 const DATA = /*DATA*/;
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const criterionHtml = (s) => esc(s)
+  .replace(/✓/g, '<span class="ok">✓</span>')
+  .replace(/✗/g, '<span class="no">✗</span>');
 const TIER_ORDER = ["heuristic", "structural", "deterministic"];
 const tierRank = (t) => { const i = TIER_ORDER.indexOf(t); return i === -1 ? TIER_ORDER.length : i; };
 
@@ -758,9 +768,11 @@ function render(tab, model) {
     const n = i.applied == null ? "" : i.complied + " / " + i.applied;
     const bar = typeof i.rate === "number" ? `<div class="meter"><i style="width:${i.rate}%"></i></div>` : "";
     const statusBadge = i.status !== "ok" ? `<span class="badge ${esc(i.status)}">${esc(i.status)}</span>` : "";
+    const info = i.criterion ? `<button class="info" data-info="${esc(i.id)}" title="What counts as success / failure">&#9432;</button>` : "";
+    const critRow = i.criterion ? `<tr class="critrow" data-crit="${esc(i.id)}"><td colspan="3"><div class="crit">${criterionHtml(i.criterion)}</div></td></tr>` : "";
     return `<tr class="${i.status !== "ok" ? "pending" : ""}">
-      <td><code>${esc(i.id)}</code> ${statusBadge}<br>${esc(i.label)}${bar}</td>
-      <td>${esc(rate)}</td><td>${esc(n)}</td></tr>`;
+      <td><code>${esc(i.id)}</code> ${info} ${statusBadge}<br>${esc(i.label)}${bar}</td>
+      <td>${esc(rate)}</td><td>${esc(n)}</td></tr>${critRow}`;
   };
   document.getElementById("rows").innerHTML = Object.keys(groups).sort((a, b) => tierRank(a) - tierRank(b)).map(t =>
     `<tr class="tiergroup"><td colspan="3">${esc(t)}</td></tr>` + groups[t].map(rowHtml).join("")
@@ -778,6 +790,14 @@ document.getElementById("modelchips").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip");
   if (!btn) return;
   render(currentTab, btn.dataset.model);
+});
+document.getElementById("rows").addEventListener("click", (e) => {
+  const btn = e.target.closest(".info");
+  if (!btn) return;
+  const row = document.querySelector(`.critrow[data-crit="${CSS.escape(btn.dataset.info)}"]`);
+  if (!row) return;
+  const open = row.classList.toggle("open");
+  btn.classList.toggle("active", open);
 });
 render("direct", "Overall");
 </script>

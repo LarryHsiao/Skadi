@@ -64,6 +64,11 @@ own once rendered.
   keyword heuristic — a mixed-language or oddly-phrased correction can slip it,
   so the row reads slightly optimistic; it sits in the heuristic tier for that
   reason.
+- **Success/failure is one click away.** Every rubric item carries a plain-language
+  `criterion` — what counts as a pass, what counts as a miss (✓ … · ✗ …). On the
+  dashboard each row bears an ⓘ button; clicking it unfolds the criterion beneath
+  the row, clicking again folds it. The text is the single source: it lives on the
+  rubric entry, flows into the page's data, and reads the same as this skill's notes.
 - **Honest tiers.** Each item carries a confidence tier, and the headline shows a
   figure per tier; a single cross-tier average is shown too, but always labelled as
   such and never standing alone.

@@ -25,7 +25,7 @@ import json, sys
 rows = json.load(open(sys.argv[1], encoding="utf-8"))
 kinds = {"workflow", "grammar", "freeform-gate", "post-gate", "task-shot", "git-probe", "forge-probe"}
 tiers = {"deterministic", "structural", "heuristic"}
-req = {"id", "label", "kind", "tier", "applies", "complied", "denom"}
+req = {"id", "label", "kind", "tier", "applies", "complied", "denom", "criterion"}
 for r in rows:
     assert req <= set(r), "missing keys in %s" % r.get("id")
     assert r["kind"] in kinds, "bad kind %s" % r["kind"]
@@ -142,6 +142,21 @@ have_file="$([[ -f "$hen/adherence-pulse.html" ]] && echo yes || echo no)"
 names_item="$(grep -q 'workflow.glorfindel' "$hen/adherence-pulse.html" && echo yes || echo no)"
 actual_render="$have_file/$names_item"
 check "dashboard rendered, names the item" "$expected_render" "$actual_render"
+
+# ── 7b · dashboard carries each item's success/failure criterion + the info-button toggle ──
+expected_crit="yes/yes/yes"
+has_crit_data=$(python3 - "$hen/adherence-pulse.html" <<'PY'
+import re, json, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+data = json.loads(re.search(r"const DATA = (\{.*\});", html).group(1))
+item = next(i for i in data["items"] if i["id"] == "workflow.glorfindel")
+print("yes" if item.get("criterion") else "no")
+PY
+)
+has_info_toggle=$(grep -q 'class="critrow"' "$hen/adherence-pulse.html" && echo yes || echo no)
+has_info_btn=$(grep -q 'data-info=' "$hen/adherence-pulse.html" && echo yes || echo no)
+actual_crit="$has_crit_data/$has_info_toggle/$has_info_btn"
+check "dashboard carries per-item criterion and info toggle" "$expected_crit" "$actual_crit"
 
 # ── 8 · the snapshot headline carries a per-tier breakdown, not just one number ──
 d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir)
