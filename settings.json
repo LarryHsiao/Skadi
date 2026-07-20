@@ -148,7 +148,7 @@
     ],
     "defaultMode": "plan"
   },
-  "model": "opus",
+  "model": "opusplan",
   "env": {
     "CLAUDE_DEV_DIRS": "~/.pub-cache"
   },
