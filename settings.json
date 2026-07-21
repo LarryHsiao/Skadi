@@ -135,6 +135,7 @@
       "Bash(~/.claude/hooks/feanor-shot.sh:*)",
       "Bash(~/.claude/hooks/feanor-flutter-shot.sh:*)",
       "Bash(~/.claude/hooks/handoff.sh:*)",
+      "Bash(~/.claude/hooks/handoff-autosub.sh:*)",
       "Bash(~/.claude/hooks/vor-teams-poll.sh:*)",
       "Bash(~/.claude/hooks/vor-normalize.sh:*)",
       "Bash({{SKADI_ROOT}}/install.sh:*)",
@@ -260,6 +261,10 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/session-readme.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/handoff-autosub.sh"
           }
         ]
       }

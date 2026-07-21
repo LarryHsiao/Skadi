@@ -68,7 +68,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/henneth` — Boot (or reuse) one standing background server, shared across all sessions, serving a live gallery of rendered artifacts; the page lists every wireframe, image, and diagram dropped into `~/.claude/previews/henneth/` newest-first and follows the latest in its main pane unless pinned. An optional `<artifact>.json` sidecar names a title/note; absent, the filename is humanized. Drop a file and the open screen updates on its own; a row's delete button removes an artifact from the folder (it never edits one)
 - `/feanor` — Align a web page (or a booted Flutter app) to a visual reference by an automatic render→compare→mend loop: shoot the target to a PNG, name the deltas against the spec, and edit the source to close them. Exits early when aligned or when progress stalls; a hard `--max` (default 3) is the backstop. Renders into the Henneth window so convergence is watchable
 - `/growth` — Render a growth dashboard into the Henneth window — DAU/WAU/MAU with week- and month-over-month deltas, a 12-week trend chart, and a 30-day sparkline — from the GA4 → BigQuery export. Read-only, and within BigQuery's free monthly tier
-- `/handoff` — An async file mailbox between Claude Code sessions: one session leaves a message (or a whole context baton) on a named channel, another reads it on demand or subscribes for live auto-pickup. No server — messages live under `~/.skadi/handoff/`
+- `/handoff` — An async file mailbox between Claude Code sessions: one session leaves a message (or a whole context baton) on a named channel, another reads it on demand or subscribes for live auto-pickup. Sessions standing in the same repo join its channel automatically at start, so no subscribing is needed to reach a sibling session. No server — messages live under `~/.skadi/handoff/`
 - `/cleanup-dev` — Free disk space by clearing dev caches and build artifacts
 - `/vocab` — Personal vocabulary deck: look up a word in EN + ZH-TW, store as a card under `~/.skadi/vocab/`, surface due cards via spaced repetition
 - `/publish` — Build Flutter release archives and collect into `build/publish/`; macOS builds are signed (Developer ID) and notarized
@@ -118,7 +118,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **outlook-token**, **outlook-fetch**, **outlook-classify**, **outlook-folders**, **outlook-folder-create**, **outlook-mark-read**, **outlook-move** — Microsoft Graph I/O (token, fetch, classify, list/create folders, mark read, move) for `/triage` and `/gwaihir`
 - **vor-teams-poll**, **vor-normalize**, **vor-cursor** — Teams delta fetch, message normalization, and the read-cursor for `/vor`
 - **working-jira-ticket**, **working-jira-open**, **working-jira-transitions** — Resolve a ticket, open its draft PR/MR, and drive its state transitions for `/working`
-- **handoff**, **handoff-poll** — The mailbox store and the subscribe-poll loop for `/handoff`
+- **handoff**, **handoff-poll**, **handoff-autosub** — The mailbox store, the subscribe-poll loop, and the session-start join to the repo's own channel for `/handoff`
 - **appgrowth** — Query the GA4 → BigQuery export for `/growth`
 - **scribe** — Export a Minerva section to YouTrack, Outline, or disk for `/scribe`
 - **galadriel-render**, **mirror-server** — Render the `/galadriel` plan mirror to HTML and serve it live

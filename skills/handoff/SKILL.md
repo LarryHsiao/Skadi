@@ -16,6 +16,14 @@ receiving session whenever you want the thread. **Live** — `/handoff subscribe
 channel without a `read`. Sessions are turn-based — there is no instant push — so
 "live" means the message lands the next time the receiving session takes a turn.
 
+**The repo's own channel needs no subscribing.** At session start the
+`handoff-autosub.sh` hook joins this session to a channel named for the git
+toplevel it stands in — a session in `~/phantom/skadi` lands on `skadi` — so two
+sessions in one repo are already live to each other with nothing typed. A session
+standing outside any repo has no repo to name and joins nothing. Reach for the
+`subscribe` verb only to join a channel *outside* the current repo, or to trade
+the default identity for a chosen name.
+
 ## Storage
 
 - One folder per channel under `~/.skadi/handoff/<channel>/`.
@@ -88,6 +96,9 @@ Watch a channel so this session auto-picks-up its new messages every turn — no
 `read` needed. Run it once per channel (one channel per call); each call adds to
 this session's subscription.
 
+The repo's own channel is joined automatically at session start (see above), so
+this verb serves the other cases.
+
 ```bash
 ~/.claude/hooks/handoff.sh subscribe <channel> [--from <label>]
 ```
@@ -106,6 +117,13 @@ a *different* `--from`. The self-filter keys on `from`: if both called themselve
 `reviewer`, each would mistake the other's notes for its own and pick up nothing.
 Same channel, different names — that is what makes the two-way flow work. The
 identity set here also becomes this session's default `from` for `send`.
+
+Left alone, the default already satisfies this: each session's `from` is a slice
+of its own session id, distinct by construction. That is why
+`handoff-autosub.sh` leaves identity to the default rather than naming a session
+after the repo it stands in — sessions sharing a repo would then share a name,
+and the self-filter would silence every one of them. The warning above binds only
+when you override with `--from`.
 
 ## Verb: read
 
