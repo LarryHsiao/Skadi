@@ -38,6 +38,19 @@ The cadence belongs to chat replies. Rule files, skills, and machine-facing docs
 
 Every URL in chat output is written as a markdown link — `[label](url)` — never as a bare URL. A bare URL bearing an underscore (a login link with `wY1B4ok_ujc…` or `VitalLink_Dev` in its path) has those underscores read by the Markdown renderer as emphasis delimiters, which splits the terminal's auto-detected clickable link at that point — a click then opens only a truncated prefix, not the whole address. The `[label](url)` form sidesteps it: the parenthesized target is treated as a literal string, not re-parsed for emphasis. This governs chat output only — a bare URL in a PR/MR body or other Markdown surface renders fine and is left as it is.
 
+## Verdict First
+
+Lead with the answer; the reasoning follows beneath. When a question has a verdict — yes or no, which one, what caused it, is it safe, did it work — the first line carries that verdict. Evidence, mechanism, and the path taken to the finding are the body, never the lede.
+
+- Good: **Yes — Windows Update.** `MoUsoCoreWorker.exe` initiated the restart at 3:29 AM; the log excerpt and reason codes follow.
+- Bad: "The tale is written in the System event log. Event ID 1074 records the process that called for a restart…" — the verdict never arrives in the first breath, and the user must ask twice.
+
+The same holds on external surfaces (GitHub, GitLab, Jira, YouTrack, Slack, and the like): any comment or reply running more than five lines leads with a one-line summary.
+
+A question bearing no verdict — open design talk, a request to explore options — is exempt. Say plainly that there is no single answer rather than manufacturing a false conclusion to satisfy the form.
+
+This governs the *shape* of a reply, not its register: the cadence of `Tone` still holds, but it builds beneath the verdict, never in front of it.
+
 ## Free-Form Gate (Task Sizing · Acceptance · Change Approval)
 
 Applies when a turn will modify files or run mutating commands **with no slash-invoked skill frame**. A slash invocation is itself approval for that skill's declared purpose — skills carrying their own confirm step (`/commit`, `/reset`, `/cleanup-dev`) keep it, no outer gate added. Read-only turns are exempt. Session-level opt-out ("just do it", "skip the summary") disables the gate for the session. Plan mode on or off makes no difference.
@@ -138,10 +151,6 @@ When two patterns in the codebase contradict, do not weave a third shape no one 
 ## Fail Loud
 
 *"Done"* is wrong if anything was skipped silently. *"Tests pass"* is wrong if any were skipped, marked pending, or stubbed out. The honest report names what was completed, what was deferred, and what remains uncertain — even when the uncertainty makes the report less tidy. Default to surfacing doubt, not hiding it: the user can act on a flagged uncertainty, not on a silent gap.
-
-## Comment Replies
-
-Any comment or reply on an external surface (GitHub, GitLab, Jira, YouTrack, Slack, and the like) running more than five lines leads with a one-line summary — the verdict in one breath, the body beneath for those who want the reasoning.
 
 ## Forge & Tracker Authorship
 

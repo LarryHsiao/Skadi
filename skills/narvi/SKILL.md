@@ -315,7 +315,7 @@ b. Compose the body. The default is a **short confirmation in the thread's langu
   (Reply to <comment-url>)
   ```
 
-**Write more only when there is something the reviewer would not already know** — a disagreement with the suggestion, a step added beyond the ask, a partial address, or an answer to a question. In those cases, lead the longer body with a one-line summary if it runs over five lines (per `CLAUDE.md` comment-replies).
+**Write more only when there is something the reviewer would not already know** — a disagreement with the suggestion, a step added beyond the ask, a partial address, or an answer to a question. In those cases, lead the longer body with a one-line summary if it runs over five lines (per `CLAUDE.md` verdict-first).
 
 c. Pipe the body to the reply hook for the forge:
 
