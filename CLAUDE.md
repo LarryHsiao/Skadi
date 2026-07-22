@@ -114,7 +114,7 @@ When a plugin process skill (superpowers' verification and review skills, and th
 
 `dir-guard.sh` blocks a Bash command whose target resolves outside this session's project directory and outside `CLAUDE_DEV_DIRS` — a session rooted in one repo cannot reach into another. When a task needs to touch a path dir-guard refuses, do not fight the guard — no `CLAUDE_DEV_DIRS` sprawl, no routing around it through a subshell.
 
-Name the blocked path plainly, then advise the user to open a second Claude Code session rooted at that target path themselves. Once that session stands, hand off the change to it: `/handoff send <channel> <the change>` (or `/handoff send <channel>` with no message, for baton mode, when a fuller context transfer is warranted), naming a channel the two sessions share. The second session picks it up with `/handoff read <channel>` (or `/handoff subscribe <channel>` for live pickup) and applies the change locally, where dir-guard permits it.
+Name the blocked path plainly, then advise the user to open a second Claude Code session rooted at that target path themselves. Once that session stands, hand off the change to it: `/handoff send <target-repo> <the change>` (or `/handoff send <target-repo>` with no message, for baton mode, when a fuller context transfer is warranted), naming the channel after the target repo's directory — that session already auto-joined a channel of that name at its own start, so the baton lands live on its next turn with nothing further to run. `/handoff read <target-repo>` remains there for an on-demand check. The second session then applies the change locally, where dir-guard permits it.
 
 ## Delegation Discipline
 

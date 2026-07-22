@@ -24,6 +24,14 @@ standing outside any repo has no repo to name and joins nothing. Reach for the
 `subscribe` verb only to join a channel *outside* the current repo, or to trade
 the default identity for a chosen name.
 
+**Sending to a session in another repo: name the channel after that repo.** A
+session rooted elsewhere already auto-joined the channel named for its own
+toplevel, sanitized the same way `send` sanitizes it — so `send <target-repo>
+<message>` lands on a channel the target session is already watching, and the
+baton shows up live on its next turn with no `subscribe` or `read` required on
+that end. This only holds when the target stands in a repo; a target outside
+any repo has no auto-channel, so fall back to an explicitly-shared name there.
+
 ## Storage
 
 - One folder per channel under `~/.skadi/handoff/<channel>/`.
