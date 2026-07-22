@@ -118,6 +118,8 @@ PAGE = r"""<!DOCTYPE html>
   .chk { position:absolute; left:14px; top:12px; display:none; accent-color:var(--accent); pointer-events:none; }
   .selecting .item { padding-left:38px; }
   .selecting .chk { display:block; }
+  .gchk { display:none; margin:0; accent-color:var(--accent); cursor:pointer; }
+  .selecting .gchk { display:inline-block; }
   .selecting .item .del { display:none !important; }
   .stage { flex:1; overflow:auto; display:flex; align-items:center; justify-content:center; padding:18px; }
   .stage img { max-width:100%; max-height:100%; object-fit:contain; }
@@ -190,12 +192,29 @@ function itemHtml(a){
     `<button class="del" data-del="${esc(a.name)}" title="Delete">&times;</button></div>`;
 }
 
+// Names how many of a group's artifacts are selected: fully (all), partially
+// (some, rendered as the header box's indeterminate dash), or not at all.
+function groupSel(items){
+  const n = items.reduce((c,a) => c + (selected.has(a.name) ? 1 : 0), 0);
+  return { all: n > 0 && n === items.length, some: n > 0 && n < items.length };
+}
+
+function toggleGroupSel(name){
+  const g = groupsOf(artifacts).find(x => x.name === name);
+  if(!g) return;
+  if(groupSel(g.items).all) g.items.forEach(a => selected.delete(a.name));
+  else g.items.forEach(a => selected.add(a.name));
+  renderTools(); renderList();
+}
+
 function renderList(){
   const list = document.getElementById("list");
   if(!artifacts.length){ list.innerHTML = '<div class="item empty">No artifacts yet.</div>'; return; }
-  list.innerHTML = groupsOf(artifacts).map(g => {
+  const groups = groupsOf(artifacts);
+  list.innerHTML = groups.map(g => {
     const closed = collapsed.has(g.name);
     const head = `<div class="ghead" data-group="${esc(g.name)}">` +
+      `<input type="checkbox" class="gchk" tabindex="-1"${groupSel(g.items).all?' checked':''}>` +
       `<span class="chev">${closed ? "&#9656;" : "&#9662;"}</span>` +
       `<span class="gname">${esc(g.name)}</span>` +
       `<span class="gcount">${g.items.length}</span></div>`;
@@ -205,8 +224,13 @@ function renderList(){
     el.onclick = () => selecting ? toggleSel(el.dataset.name) : select(el.dataset.name));
   list.querySelectorAll(".del[data-del]").forEach(el =>
     el.onclick = e => { e.stopPropagation(); remove(el.dataset.del); });
-  list.querySelectorAll(".ghead[data-group]").forEach(el =>
-    el.onclick = () => toggleGroup(el.dataset.group));
+  list.querySelectorAll(".ghead[data-group]").forEach(el => {
+    const g = groups.find(x => x.name === el.dataset.group);
+    const box = el.querySelector(".gchk");
+    box.indeterminate = groupSel(g.items).some;
+    box.onclick = e => { e.stopPropagation(); toggleGroupSel(g.name); };
+    el.onclick = () => toggleGroup(el.dataset.group);
+  });
 }
 
 function toggleGroup(name){

@@ -206,6 +206,19 @@ class DeleteTest(unittest.TestCase):
             outside.unlink()
 
 
+class GroupSelectionTest(unittest.TestCase):
+    def test_group_header_checkbox_wiring_present(self):
+        expected_markers = [
+            "toggleGroupSel",
+            "groupSel",
+            'class="gchk"',
+            ".indeterminate",
+            ".selecting .gchk { display:inline-block; }",
+        ]
+        for marker in expected_markers:
+            self.assertIn(marker, mirror.PAGE)
+
+
 class PageLayoutTest(unittest.TestCase):
     def test_collapsed_panel_keeps_main_full_width(self):
         # With the side panel hidden (display:none), a two-track collapsed grid
