@@ -59,6 +59,34 @@ check "command's own absolute path is allowed in every chain slot" "allow" "$(ru
 # denied — the exemption covers the executable slot only ──
 check "outside path used as an argument is still denied" "deny" "$(run_cmd "cat /opt/homebrew/bin/git")"
 
+# Runs the hook from inside the repo (a known-allowed cwd) as a Write/Edit-style
+# call — tool_input carries file_path instead of command — and reports whether
+# the result denies. An optional third arg sets CLAUDE_DEV_DIRS for the call.
+run_write() { # file_path [dev_dirs]
+  local decision
+  decision=$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" CLAUDE_DEV_DIRS="${2:-}" \
+    printf '{"tool_input":{"file_path":%s}}' "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1")" \
+    | CLAUDE_PROJECT_DIR="$REPO" CLAUDE_DEV_DIRS="${2:-}" bash "$HOOK" \
+    | python3 -c "
+import json, sys
+d = json.load(sys.stdin)['hookSpecificOutput']
+print('deny' if d.get('permissionDecision') == 'deny' else 'allow')
+")
+  printf '%s' "$decision"
+}
+
+# ── Write/Edit/NotebookEdit tools carry file_path, not command — the guard
+# must gate that field too, not just Bash's command string ──
+check "Write file_path inside project is allowed" "allow" "$(run_write "$REPO/hooks/dir-guard.sh")"
+check "Write file_path outside project is denied" "deny" "$(run_write "/etc/passwd")"
+check "Write file_path under .claude-personal is allowed" "allow" "$(run_write "$HOME/.claude-personal/hooks/foo.sh")"
+
+# ── the CLAUDE_DEV_DIRS whitelist governs file_path exactly as it governs
+# Bash command args — same in_allowed_dir check, same allowance ──
+OUTSIDE_PATH="$HOME/some-other-project/file.txt"
+check "Write file_path outside project with no dev-dir whitelist is denied" "deny" "$(run_write "$OUTSIDE_PATH")"
+check "Write file_path inside CLAUDE_DEV_DIRS whitelist is allowed" "allow" "$(run_write "$OUTSIDE_PATH" "$HOME/some-other-project")"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

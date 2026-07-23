@@ -147,7 +147,7 @@
       "Bash(sed:*)",
       "PowerShell(Join-Path *)"
     ],
-    "defaultMode": "plan"
+    "defaultMode": "default"
   },
   "model": "opusplan",
   "env": {
@@ -214,6 +214,11 @@
       {
         "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/dir-guard.sh",
+            "statusMessage": "Checking directory..."
+          },
           {
             "type": "command",
             "command": "~/.claude/hooks/worktree-guard.sh",

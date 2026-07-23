@@ -1,5 +1,5 @@
 #!/bin/bash
-# PreToolUse hook: Log cwd and block Bash commands outside the project directory
+# PreToolUse hook: Log cwd and block Bash commands or file-tool paths outside the project directory
 
 # Capture stdin immediately (hook input JSON)
 INPUT=$(cat)
@@ -165,6 +165,18 @@ PYEOF
       fi
     fi
   done <<< "$TOKENS"
+fi
+
+# Check the target path for Write/Edit/MultiEdit/NotebookEdit tools. These
+# tools always receive an absolute path, so — unlike the Bash ARG check above
+# — no relative-path resolution is needed.
+FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' 2>/dev/null)
+if [ -n "$FILE_PATH" ]; then
+  NORM=$(normalize "$FILE_PATH")
+  if ! in_allowed_dir "$NORM"; then
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: file path (%s) is outside project and dev directories"}}' "$NORM"
+    exit 0
+  fi
 fi
 
 # All checks passed — log cwd as informational message

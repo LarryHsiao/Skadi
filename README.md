@@ -76,7 +76,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 
 ### Hooks
 
-- **dir-guard** — Block Bash commands that run outside the project directory
+- **dir-guard** — Block Bash commands and Write/Edit/NotebookEdit file paths that run outside the project directory
 - **pre-commit-guard** — Prevent unauthorized commits
 - **destructive-warn** — Warn on destructive shell commands
 - **secret** — Resolve a credential field for a service from Vaultwarden via `bw serve`, falling back to an env var
