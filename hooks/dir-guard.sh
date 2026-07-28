@@ -8,6 +8,13 @@ INPUT=$(cat)
 CWD=$(cd "$PWD" 2>/dev/null && pwd -W 2>/dev/null || pwd -P 2>/dev/null || echo "$PWD")
 HOME_DIR=$(cd "$HOME" 2>/dev/null && pwd -W 2>/dev/null || pwd -P 2>/dev/null || echo "$HOME")
 PROJECT_DIR=$(cd "$CLAUDE_PROJECT_DIR" 2>/dev/null && pwd -W 2>/dev/null || pwd -P 2>/dev/null || echo "$CLAUDE_PROJECT_DIR")
+# TMPDIR_RAW keeps the unresolved form (e.g. macOS's /var/folders/... before
+# its /private/var symlink is followed) — callers like skadi-worktree.sh build
+# paths from $TMPDIR directly, without resolving through pwd -P, so both the
+# raw and resolved forms must be admitted (mirrors the /tmp vs /private/tmp
+# pair already handled below).
+TMPDIR_RAW="${TMPDIR:-/tmp}"
+TMPDIR_DIR=$(cd "${TMPDIR:-/tmp}" 2>/dev/null && pwd -W 2>/dev/null || pwd -P 2>/dev/null || echo "${TMPDIR:-/tmp}")
 
 # Normalize: lowercase everything, forward slashes, strip trailing slash
 normalize() {
@@ -33,6 +40,8 @@ normalize() {
 CWD=$(normalize "$CWD")
 HOME_DIR=$(normalize "$HOME_DIR")
 PROJECT_DIR=$(normalize "$PROJECT_DIR")
+TMPDIR_RAW=$(normalize "$TMPDIR_RAW")
+TMPDIR_DIR=$(normalize "$TMPDIR_DIR")
 
 # User dev directories — colon-separated, set via CLAUDE_DEV_DIRS env var
 # e.g. export CLAUDE_DEV_DIRS="~/phantom:~/work"
@@ -53,6 +62,8 @@ in_allowed_dir() {
     "$HOME_DIR"/.claude-work|"$HOME_DIR"/.claude-work/*) return 0 ;;
     /tmp|/tmp/*) return 0 ;;
     /private/tmp|/private/tmp/*) return 0 ;;
+    "$TMPDIR_DIR"|"$TMPDIR_DIR"/*) return 0 ;;
+    "$TMPDIR_RAW"|"$TMPDIR_RAW"/*) return 0 ;;
     /dev/null|/dev/stdout|/dev/stderr|/dev/tty) return 0 ;;
   esac
   for _d in "${DEV_DIRS[@]}"; do

@@ -36,6 +36,16 @@ done
 # ── a genuinely disallowed absolute path is still denied — no regression ──
 check "command referencing a real outside path is still denied" "deny" "$(run_cmd "cat /etc/passwd")"
 
+# ── a path under $TMPDIR is allowed in both its raw form (what callers like
+# skadi-worktree.sh build paths from directly) and its symlink-resolved form
+# (e.g. macOS's /var/folders/... vs /private/var/folders/...) — not just the
+# literal /tmp and /private/tmp aliases ──
+TMPDIR_RAW="${TMPDIR:-/tmp}"
+TMPDIR_RAW="${TMPDIR_RAW%/}"
+check "command referencing a path under raw \$TMPDIR is allowed" "allow" "$(run_cmd "cat $TMPDIR_RAW/scratch-file")"
+TMPDIR_RESOLVED=$(cd "${TMPDIR:-/tmp}" && pwd -P)
+check "command referencing a path under resolved \$TMPDIR is allowed" "allow" "$(run_cmd "cat $TMPDIR_RESOLVED/scratch-file")"
+
 # ── an allowed path glued to a trailing shell operator (no space) is still allowed —
 # shlex.split doesn't treat these as separators, so a naive check would see
 # ".claude-work;" and miss the exact/glob match against ".claude-work" ──
