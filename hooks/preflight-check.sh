@@ -61,44 +61,6 @@ else
   echo "triage|never|no record|warn"
 fi
 
-# --- vocab ---
-vocab_hook="$HOME/.claude/hooks/vocab-cards.sh"
-if [ -x "$vocab_hook" ]; then
-  vocab_total=0
-  vocab_due=0
-  vocab_oldest_overdue=0
-  vocab_next_due=0
-  vocab_next_seen=0
-  while IFS=$'\t' read -r v_word v_ease v_interval v_last v_due_in; do
-    [ -z "${v_word:-}" ] && continue
-    vocab_total=$((vocab_total + 1))
-    if [ "$v_due_in" -le 0 ]; then
-      vocab_due=$((vocab_due + 1))
-      if [ "$v_due_in" -lt "$vocab_oldest_overdue" ]; then
-        vocab_oldest_overdue=$v_due_in
-      fi
-    else
-      if [ "$vocab_next_seen" -eq 0 ] || [ "$v_due_in" -lt "$vocab_next_due" ]; then
-        vocab_next_due=$v_due_in
-        vocab_next_seen=1
-      fi
-    fi
-  done < <("$vocab_hook" 2>/dev/null)
-
-  if [ "$vocab_total" -eq 0 ]; then
-    echo "vocab|empty|no cards yet — seed with /vocab <word>|"
-  elif [ "$vocab_due" -gt 0 ]; then
-    if [ "$vocab_oldest_overdue" -lt 0 ]; then
-      v_detail="oldest overdue by $(( -vocab_oldest_overdue )) day(s)"
-    else
-      v_detail="due today"
-    fi
-    echo "vocab|${vocab_due} due|${v_detail}|warn"
-  else
-    echo "vocab|all caught up|next due in ${vocab_next_due} day(s)|"
-  fi
-fi
-
 # --- nazgul-checks ---
 nazgul_checks_dir=""
 for candidate in \

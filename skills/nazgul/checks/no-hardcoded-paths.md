@@ -28,7 +28,7 @@ Do not flag:
 - Lock files, build artefacts, or IDE settings checked into the repo (`pubspec.lock`, `package-lock.json`, `Cargo.lock`, `Podfile.lock`, `.idea/`, `*.xcworkspace/`, `*.xcodeproj/`) — paths there are mechanical, not authored.
 - System paths that are genuinely portable in their context (`/tmp/`, `/var/log/`, `/etc/`) when used in tooling that targets that system.
 - References to environment variables that *expand to* a home path (`$HOME/.config`, `${USERPROFILE}\AppData`, `$env:USERPROFILE`).
-- Documentation that describes layout in tilde form (`~/.skadi/vocab/<slug>.md` is fine; `/Users/larryhsiao/.skadi/...` is not).
+- Documentation that describes layout in tilde form (`~/.skadi/handoff/<channel>.json` is fine; `/Users/larryhsiao/.skadi/...` is not).
 - Generated source under conventional roots (`*.g.dart`, `*_pb.go`, `__generated__/`, `node_modules/`, `vendor/`).
 
 On fail, name each occurrence as `file:line` and quote the offending path prefix. For project scope with many findings, list up to five and append "and N more".

@@ -58,7 +58,7 @@ gate flags are how you turn it off.
 
 ## The two memory files
 
-Both live under `~/.skadi/rhovanion/` — the global skadi store, beside `/vocab`'s and
+Both live under `~/.skadi/rhovanion/` — the global skadi store, beside `/handoff`'s and
 `/moria`'s own state. They are **not** in the per-project memory directory (where
 `default_filters.md` and `repo_routing.md` live): the watershed is yours across every
 project, and — crucially — the cursor is persistent state. Were it keyed per working

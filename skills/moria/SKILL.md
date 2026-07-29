@@ -46,7 +46,7 @@ There is **no repo argument** — the roots come from the global list.
 ## The global list
 
 Read `mend_repos.md` from `~/.skadi/moria/` — the global skadi store, beside
-`/vocab`'s and `/rhovanion`'s own state. It is **not** in the per-project memory
+`/handoff`'s and `/rhovanion`'s own state. It is **not** in the per-project memory
 directory (where `repo_routing.md` and `default_filters.md` live), for the mend list
 is yours across every repo, not any one project's — so it reads the same from
 whatever directory you summon Moria. Its body is a flat list of absolute repo roots,

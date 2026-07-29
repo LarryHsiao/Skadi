@@ -70,7 +70,6 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/growth` — Render a growth dashboard into the Henneth window — DAU/WAU/MAU with week- and month-over-month deltas, a 12-week trend chart, and a 30-day sparkline — from the GA4 → BigQuery export. Read-only, and within BigQuery's free monthly tier
 - `/handoff` — An async file mailbox between Claude Code sessions: one session leaves a message (or a whole context baton) on a named channel, another reads it on demand or subscribes for live auto-pickup. Sessions standing in the same repo join its channel automatically at start, so no subscribing is needed to reach a sibling session. No server — messages live under `~/.skadi/handoff/`
 - `/cleanup-dev` — Free disk space by clearing dev caches and build artifacts
-- `/vocab` — Personal vocabulary deck: look up a word in EN + ZH-TW, store as a card under `~/.skadi/vocab/`, surface due cards via spaced repetition
 - `/publish` — Build Flutter release archives and collect into `build/publish/`; macOS builds are signed (Developer ID) and notarized
 - `/publish-macos` — Bump version, build, and publish a macOS Xcode project to GitHub Releases or the Mac App Store
 
@@ -106,7 +105,6 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **amon-din-gitlab**, **amon-din-teamcity** — Fetch the most recent CI runs via `glab` (GitLab pipelines) or REST (TeamCity builds) for `/amon-din`
 - **youtrack-state**, **jira-state** — Idempotent state transitions on YouTrack and Jira tickets, used by `/glorfindel` (on `[FORTH]`) and `/celebrimbor` (after `[GWAITH]`)
 - **publish-macos-target** — Remember whether a macOS project publishes to GitHub Releases or the Mac App Store
-- **vocab-cards** — Emit every vocab card with SRS state and days-until-due as TSV for `/vocab review` and `/vocab list`
 - **nazgul-checks-mark-reviewed** — Stamp the rubric-review state file consumed by `/preflight`; called by `/nazgul reviewed`
 - **skeleton-rung** — Derives the loop's next action for a skeleton-stage YouTrack issue
 - **youtrack-comment-edit** — Edits a YouTrack comment in place
