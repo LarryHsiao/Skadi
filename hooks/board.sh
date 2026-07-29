@@ -67,6 +67,7 @@ case "$cmd" in
     done
     "$DIR/board-growth.sh" || echo "board: growth refresh failed (skipped)" >&2
     "$DIR/board-henneth.sh" || echo "board: henneth link refresh failed (skipped)" >&2
+    "$DIR/board-galadriel.sh" || echo "board: galadriel link refresh failed (skipped)" >&2
     ;;
 
   list)
@@ -102,6 +103,7 @@ PY
     [[ -f "$THEME_SRC" ]] && cp "$THEME_SRC" "$BOARD_DIR/skadi-theme.css"
     [[ -f "$BOARD_DIR/ac-done-statuses.json" ]] || printf '%s\n' "$DEFAULT_DONE" > "$BOARD_DIR/ac-done-statuses.json"
     "$DIR/board-henneth.sh" >/dev/null || echo "board: henneth link refresh failed (skipped)" >&2
+    "$DIR/board-galadriel.sh" >/dev/null || echo "board: galadriel link refresh failed (skipped)" >&2
 
     # Reuse a live server if the lockfile names one that still answers.
     if [[ -f "$BOARD_DIR/.board-port" ]]; then
