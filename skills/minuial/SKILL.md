@@ -1,6 +1,6 @@
 ---
 name: minuial
-description: Use when the user runs /minuial. The morning-start ritual — boots (or reuses) the standing Henneth window, serves the situation board, then refreshes it (tickets + metis growth), printing both URLs. Read-only; the one call that lights every dashboard before the day's work begins.
+description: Use when the user runs /minuial. The morning-start ritual — boots (or reuses) the standing Henneth window, serves the situation board, refreshes it (tickets + metis growth), then computes the /estë adherence pulse, printing all URLs. Read-only; the one call that lights every dashboard before the day's work begins.
 user_invocable: true
 ---
 
@@ -12,7 +12,7 @@ every window before the day's work begins.
 
 ## Workflow
 
-Three skills, one after another, no gate between them — this composes existing
+Four skills, one after another, no gate between them — this composes existing
 read-only skills; there is nothing here to weigh or branch on.
 
 ### 1. Henneth
@@ -33,17 +33,23 @@ the metis growth numbers. `board.sh refresh` already runs the growth hook
 part of its own sweep — a separate `/growth` call would only repeat the same
 BigQuery pull, so Minuial does not make one.
 
-### 4. Report
+### 4. Estë
+
+Invoke `/estë` through the Skill tool. Computes the adherence pulse, appends the
+run to history, and renders its own dashboard into the Henneth window already
+booted in step 1.
+
+### 5. Report
 
 Print both URLs — Henneth's window and the Board's — and let `/board refresh`'s
-own output stand for what it pulled. Nothing further to report; nothing was
-written, forged, or posted.
+and `/estë`'s own output stand for what each pulled or computed. Nothing further
+to report; nothing was written, forged, or posted.
 
 ## Notes
 
 - **Read-only.** Every step it composes is itself read-only — Henneth boots a
-  server, Board serves and refreshes from Jira/YouTrack and BigQuery. Minuial
-  opens no PR, posts no comment, changes no ticket.
+  server, Board serves and refreshes from Jira/YouTrack and BigQuery, Estë reads
+  transcripts. Minuial opens no PR, posts no comment, changes no ticket.
 - **No seated tickets is not an error.** If the board carries no ticket channels
   yet, `/board refresh`'s ticket loop is simply empty — the growth pull still
   runs. Seat one first with `/board add <KEY> [--active]` to have it on the
