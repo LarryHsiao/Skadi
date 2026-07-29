@@ -55,29 +55,39 @@ The argument names it; absent, default to `docs/plans/` in the current project.
 
 ### 2. Render
 
-Call the renderer into the session previews directory (per the Local Preview rules
-in CLAUDE.md — `~/.claude/previews/<session>/`):
+Call the renderer into the shared Henneth folder (`docs/workflow/previews.md`,
+*Where files land*):
 
 ```bash
-~/.claude/hooks/galadriel-render.py <plans-folder> ~/.claude/previews/<session>/plan-dashboard.html
+~/.claude/hooks/galadriel-render.py <plans-folder> ~/.claude/previews/henneth/plan-dashboard.html
 ```
 
 It parses every `.md`, derives lifecycle, and writes one self-contained HTML file.
 
-### 3. Serve and surface the URL
+### 3. Surface the URL
 
-Once per session, bind a local server in the previews directory and surface the URL:
+**Do not start a server.** The standing Henneth window already serves that folder;
+boot it once with `/henneth` if it is not running. Read the port it recorded and
+print the URL inline:
 
 ```bash
-cd ~/.claude/previews/<session> && python3 -m http.server <free-port>
+printf 'http://localhost:%s/plan-dashboard.html\n' "$(cat ~/.claude/previews/henneth/.henneth-port)"
 ```
 
-Run it in the background; print `http://localhost:<port>/plan-dashboard.html` inline.
-If a server is already bound this session, reuse it — the running server picks up a
-re-rendered file with no restart.
+A re-render is picked up with no restart.
 
-If the port will not bind or Python is absent, fall back to an ASCII sketch of the
-selector / preview / dashboard layout inline, per the Local Preview fallback.
+**Open the dashboard in its own tab — not in the Henneth gallery pane.** The
+gallery embeds each artifact with `sandbox="allow-scripts"` and no
+`allow-same-origin` (`hooks/mirror-server.py:331`), which gives the frame an
+opaque origin. This page reads `localStorage` at the top of its script — the
+first is `galadriel-render.py:274`, before anything renders — so inside that pane
+that read raises `SecurityError` and the whole script dies: a blank panel, not a
+degraded one.
+Served directly at the URL above it is same-origin and works. This is why the
+dashboard is the one artifact that wants its own tab.
+
+If Henneth cannot be booted or Python is absent, fall back to an ASCII sketch of
+the selector / preview / dashboard layout inline, per the previews fallback.
 
 ### 4. The edit loop
 
@@ -94,8 +104,10 @@ show that step's diff behind its toggle.
 
 ## Notes
 
-- **Defers authoring to you and the user.** The skill renders and serves; it does not
-  invent plan content. Pair it with the superpowers planning skills if you want a
-  formal spec/plan written first, then drop the result into the plans folder.
+- **Defers authoring to you and the user.** The skill renders; it does not invent
+  plan content. `/rumil` is the authoring half — it translates a product spec into
+  a concept file in exactly this format, and writes it straight into the plans
+  folder. Any other planning skill works too, so long as its output matches the
+  concept format above.
 - **Per-project by default.** `docs/plans/` lives with the repo and travels with it.
   Point the argument elsewhere for a one-off folder.
