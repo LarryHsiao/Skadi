@@ -1,11 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# The digest maps below need associative arrays (bash 4.0) and namerefs (4.3).
+# macOS still ships 3.2 as /bin/bash, so say why rather than fail cryptically.
+if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 3))); then
+  echo "install.sh needs bash 4.3 or newer (found $BASH_VERSION)" >&2
+  exit 1
+fi
+
 # Use git rev-parse so the form ("C:/..." vs "/c/...") matches what the
 # /install skill passes when invoking this script. Fall back to pwd outside a
 # git repo (rare; install.sh always lives inside the skadi clone).
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && (git rev-parse --show-toplevel 2>/dev/null || pwd))"
 CLAUDE_DIR="${1:-$HOME/.claude}"
+
+# Content digests, keyed by absolute path, for the source tree and the live one.
+# Filled once per run by hash_tree; read by install_file.
+declare -A SRC_MD5 DST_MD5
+
+# Hash every file under the given paths (directories or single files) into the
+# named map. One md5sum for the whole tree replaces the per-file `diff` this
+# script used to fork: on Windows a process spawn costs 40-170ms, and at ~260
+# files that dominated the run. md5sum prints "<32-char digest> *<path>", so the
+# digest and the path sit at fixed offsets.
+hash_tree() {
+  local -n map="$1"
+  shift
+  local line
+  while IFS= read -r line; do
+    map["${line:34}"]="${line:0:32}"
+  done < <(find "$@" -name '.*' -prune -o -type f -print0 | xargs -0 -r md5sum)
+}
 
 install_file() {
   local src="$1"
@@ -14,7 +39,9 @@ install_file() {
   # Remove stale symlink if present
   [ -L "$dst" ] && rm "$dst"
 
-  if [ -e "$dst" ] && diff -q "$src" "$dst" &>/dev/null; then
+  # Distinct fallbacks on the two lookups, so a path absent from either map
+  # never reads as a match.
+  if [ -e "$dst" ] && [ "${SRC_MD5[$src]-src}" = "${DST_MD5[$dst]-dst}" ]; then
     # Content matches; ensure the executable bit matches too.
     # cp without -p drops mode, so older installs of hook scripts ended up
     # non-executable in dst even when source was +x.
@@ -62,6 +89,19 @@ install_settings() {
   echo "installed:      $dst"
 }
 
+# Recreate a source tree's directory skeleton under dst in a single mkdir,
+# rather than one call per copied file.
+mirror_dirs() {
+  local src="$1"
+  local dst="$2"
+  local dirs=("$dst")
+  local dir
+  while IFS= read -r -d '' dir; do
+    dirs+=("$dst/${dir#$src/}")
+  done < <(find "$src" -mindepth 1 -name '.*' -prune -o -type d -print0)
+  mkdir -p "${dirs[@]}"
+}
+
 # Remove files in dst that have no counterpart in src, then sweep empty dirs.
 # Hidden files and directories under dst are left alone — those belong to the
 # user, not to skadi.
@@ -81,6 +121,23 @@ prune_tree() {
   find "$dst" -depth -mindepth 1 -type d -empty -not -name '.*' -delete 2>/dev/null || true
 }
 
+# Digest both trees up front — every install_file below reads these maps.
+# settings.json is absent: install_settings compares the rendered text instead.
+hash_tree SRC_MD5 \
+  "$REPO/hooks" "$REPO/skills" "$REPO/docs" \
+  "$REPO/CLAUDE.md" "$REPO/CLAUDE.stub.md" "$REPO/statusline.sh" \
+  "$REPO/previews/henneth/skadi-theme.css"
+
+live=()
+for path in hooks skills docs CLAUDE.md statusline.sh previews/henneth/skadi-theme.css; do
+  if [ -e "$CLAUDE_DIR/$path" ]; then
+    live+=("$CLAUDE_DIR/$path")
+  fi
+done
+if [ ${#live[@]} -gt 0 ]; then
+  hash_tree DST_MD5 "${live[@]}"
+fi
+
 # Global CLAUDE.md — stub for the default root; full content for profile roots.
 if [ "$CLAUDE_DIR" = "$HOME/.claude" ]; then
   install_file "$REPO/CLAUDE.stub.md" "$CLAUDE_DIR/CLAUDE.md"
@@ -98,27 +155,26 @@ install_file "$REPO/statusline.sh" "$CLAUDE_DIR/statusline.sh"
 mkdir -p "$CLAUDE_DIR/hooks"
 for hook in "$REPO/hooks/"*; do
   [ -f "$hook" ] || continue
-  [[ "$(basename "$hook")" == ".gitkeep" ]] && continue
-  install_file "$hook" "$CLAUDE_DIR/hooks/$(basename "$hook")"
+  hook_name="${hook##*/}"
+  [[ "$hook_name" == ".gitkeep" ]] && continue
+  install_file "$hook" "$CLAUDE_DIR/hooks/$hook_name"
 done
 prune_tree "$REPO/hooks" "$CLAUDE_DIR/hooks"
 
 # Skills
-mkdir -p "$CLAUDE_DIR/skills"
+mirror_dirs "$REPO/skills" "$CLAUDE_DIR/skills"
 for skill in "$REPO/skills/"*; do
-  [[ "$(basename "$skill")" == ".gitkeep" ]] && continue
+  skill_name="${skill##*/}"
+  [[ "$skill_name" == ".gitkeep" ]] && continue
   if [ -d "$skill" ]; then
-    skill_name="$(basename "$skill")"
-    mkdir -p "$CLAUDE_DIR/skills/$skill_name"
     # Mirror every file under the skill directory, preserving structure.
     while IFS= read -r -d '' src; do
       rel="${src#$skill/}"
       dst="$CLAUDE_DIR/skills/$skill_name/$rel"
-      mkdir -p "$(dirname "$dst")"
       install_file "$src" "$dst"
     done < <(find "$skill" -name '.*' -prune -o -type f -print0)
   elif [ -f "$skill" ]; then
-    skill_name="$(basename "${skill%.*}")"
+    skill_name="${skill_name%.*}"
     mkdir -p "$CLAUDE_DIR/skills/$skill_name"
     install_file "$skill" "$CLAUDE_DIR/skills/$skill_name/SKILL.md"
   fi
@@ -127,11 +183,10 @@ prune_tree "$REPO/skills" "$CLAUDE_DIR/skills"
 
 # Docs
 if [ -d "$REPO/docs" ]; then
-  mkdir -p "$CLAUDE_DIR/docs"
+  mirror_dirs "$REPO/docs" "$CLAUDE_DIR/docs"
   while IFS= read -r -d '' src; do
     rel="${src#$REPO/docs/}"
     dst="$CLAUDE_DIR/docs/$rel"
-    mkdir -p "$(dirname "$dst")"
     install_file "$src" "$dst"
   done < <(find "$REPO/docs" -name '.*' -prune -o -type f -print0)
   prune_tree "$REPO/docs" "$CLAUDE_DIR/docs"
