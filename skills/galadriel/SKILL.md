@@ -1,6 +1,6 @@
 ---
 name: galadriel
-description: Use when the user runs /galadriel [folder]. Renders a folder of plan concepts (markdown, default docs/plans/) into one local HTML page — a left selector grouped by lifecycle (shaping/active/done), the chosen concept's preview in the main area, and a progress dashboard along the bottom. Read-only viewer; the user directs edits in chat and the page is re-rendered. The Mirror shows what was, is, and may yet be — done, in-flight, pending.
+description: Use when the user runs /galadriel [folder]. Renders a folder of plan concepts (markdown, default docs/plans/) into one local HTML page — a left selector grouped by lifecycle (shaping/active/done), the chosen concept's preview in the main area, and a progress dashboard along the bottom. Edits are directed in chat and the page re-rendered; the one change the page makes itself is deleting a concept, which moves it to the plans folder's .trash/ and needs the standing server. The Mirror shows what was, is, and may yet be — done, in-flight, pending.
 user_invocable: true
 ---
 
@@ -8,9 +8,11 @@ user_invocable: true
 
 A local HTML mirror of your plan concepts. Each concept is one markdown file in a
 plans folder; the page shows them all behind a left selector, renders the chosen
-one, and tracks its step progress in a dashboard below. The page reads — it never
-writes. To manipulate a concept (reorder, reword, add, cut steps) the user tells you
-in chat; you edit the file and re-render.
+one, and tracks its step progress in a dashboard below. To manipulate a concept
+(reorder, reword, add, cut steps) the user tells you in chat; you edit the file and
+re-render. The page makes exactly one change of its own — deleting a concept, which
+moves the file to `.trash/` rather than unlinking it, and only while the standing
+server is up.
 
 ## Concept file format
 
@@ -62,9 +64,11 @@ panes. It gets its own home, one per project, so two repos never overwrite each
 other's mirror:
 
 ```bash
-DEST=~/.claude/galadriel/<project>/plan-dashboard.html
+PROJ=<project>
+DEST=~/.claude/galadriel/$PROJ/plan-dashboard.html
 mkdir -p "$(dirname "$DEST")"
 ~/.claude/hooks/galadriel-render.py <plans-folder> "$DEST"
+printf '%s' <plans-folder> > ~/.claude/galadriel/$PROJ/source
 ```
 
 `<project>` is the plans folder's repository name — the basename of
@@ -72,39 +76,86 @@ mkdir -p "$(dirname "$DEST")"
 it is not a repo. Keep it **stable**: the path is what an open tab holds across
 re-renders, and a changing name orphans the tab.
 
+**The `source` marker is not optional.** It records which plans folder this
+mirror was rendered from, and the server resolves every delete through it
+(`galadriel-server.py`, `concept_path`). Without it the page still renders and
+still shows its delete controls, but every delete answers 404 — a failure that
+looks like a bug rather than a missing file. Write it on every render.
+
 The renderer parses every `.md`, derives lifecycle, and writes one self-contained
 HTML file — no external assets, no build step.
 
-### 3. Open it
+### 3. Boot or reuse the standing server
 
-**No server is required.** Print the file URL and let the user open it:
+One server serves every project's mirror, exactly as one Henneth window serves
+every artifact. Whichever session runs `/galadriel` first boots it; the rest reuse
+it.
 
-```bash
-printf 'file://%s\n' ~/.claude/galadriel/<project>/plan-dashboard.html
-```
+**Reuse before booting.** Read `~/.claude/galadriel/.galadriel-port`. If it names a
+port that answers a quick GET to `http://localhost:<port>/index.json`, the server
+is already up — print the URL and launch nothing. A lockfile alone proves nothing:
+a killed server leaves its port file behind.
 
-The page works fully from disk — selector, preview, dashboard, and the collapse and
-resize controls all read `localStorage`, which is permitted on `file://`.
-
-The **one** thing a server buys is auto-reload: the page polls its own URL every
-few seconds and reloads when the bytes change (`galadriel-render.py:436`). Over
-`file://` that fetch is refused, and the call swallows its own failure — so the
-page is whole, it simply will not refresh itself. Press reload after a re-render,
-or bind a server in that directory if the auto-refresh is worth a process:
+**Otherwise boot it in the background**, detached so it outlives the turn:
 
 ```bash
-cd ~/.claude/galadriel/<project> && python3 -m http.server <free-port>
+python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()"
+~/.claude/hooks/galadriel-server.py ~/.claude/galadriel <port>
 ```
 
-If Python is absent and the file cannot be opened, fall back to an ASCII sketch of
-the selector / preview / dashboard layout inline.
+It records its own port in `.galadriel-port` on boot.
+
+**Then surface two URLs** — `http://localhost:<port>/` for the index of every
+project, and `http://localhost:<port>/<project>/plan-dashboard.html` for the one
+just rendered.
+
+**Say what the page can do**, in a line, the first time a mirror is served in a
+session. A user who is not told will not find it: the affordances are a `◀` and a
+`☐`, and nothing on screen explains either. Name the three — the sidebar collapses
+with `◀`; the panes drag-resize; and `☐` enters selection mode, where checked
+concepts can be moved to `.trash/`. Without that line the delete feature is
+present and invisible.
+
+**Why a server at all, when the page opens from disk.** Reading needs none: over
+`file://` the selector, preview, dashboard, collapse and resize all work. Two
+things need HTTP. Auto-reload — the page polls its own URL and refreshes when the
+bytes change (`galadriel-render.py:537`); over `file://` that fetch is refused and
+the call swallows its own failure, so the page is whole but will not refresh
+itself. And **deleting** — `DELETE` is an HTTP verb, so from disk the selection
+controls are removed outright rather than offering a button that cannot work.
+
+If the port will not bind or Python is absent, render anyway and print the
+`file://` path, saying plainly that deleting is unavailable until a server stands.
+
+### 3b. Deleting a concept
+
+The `☐` button beside the sidebar toggle enters selection mode: each concept gains
+a checkbox, and a **Delete selected (N)** bar appears. Confirming moves each chosen
+`.md` into `<plans-folder>/.trash/` and re-renders.
+
+**Nothing is unlinked.** Restoring a plan is moving its file back out of `.trash/`;
+emptying the trash is yours to do by hand. The renderer never sees it, because
+`collect()` globs the top level only.
+
+Since `.trash/` sits inside the repo's plans folder, add it to `.gitignore` when a
+project first uses the feature:
+
+```
+docs/plans/.trash/
+```
+
+A delete that fails is reported in the page and its concepts stay selected — it
+does not reload into a view that looks as though everything worked.
 
 ### 4. The edit loop
 
-The viewer is read-only. When the user asks to change a concept — "swap steps 3 and
+Every edit but deleting happens in chat. When the user asks to change a concept — "swap steps 3 and
 4", "mark the decorator done", "cut the last step", "add an overview" — edit the
 concept's `.md` file directly, then re-run the renderer (step 2). The path does not
-change, so the open tab stays valid — reload it to see the change.
+change, so the open tab stays valid; served, it refreshes itself within a few
+seconds. Cutting a concept entirely is the one edit the page does itself — see
+*Deleting a concept* above. The sidebar collapses via the `◀` beside the brand,
+and that state persists; it needs nothing from you.
 
 This is how "manipulate before you start" works: shape the draft concept by chat
 until it reads true, then begin the work — ticking `- [ ]` to `- [~]` to `- [x]` as
