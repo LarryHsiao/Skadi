@@ -295,6 +295,9 @@
           <a class="hlink" id="henneth" target="_blank" rel="noopener" hidden
             >Henneth ↗</a
           >
+          <a class="hlink" id="galadriel" target="_blank" rel="noopener" hidden
+            >Plans ↗</a
+          >
         </div>
         <div class="strip" id="strip"></div>
       </div>
@@ -339,24 +342,30 @@
         } catch (e) {
           mark(false);
         }
-        updateHenneth();
+        updateServices();
       }
 
-      // Show the Henneth button only when henneth.json names a URL that a live
-      // server answered for — a down Henneth leaves the button hidden.
-      async function updateHenneth() {
-        const btn = document.getElementById("henneth");
+      // Show a service button only when its json names a URL that a live server
+      // answered for — a down service leaves the button hidden rather than
+      // offering a link into nothing.
+      async function updateService(id, file) {
+        const btn = document.getElementById(id);
         try {
-          const h = await (await fetch("henneth.json?_=" + Date.now())).json();
+          const h = await (await fetch(file + "?_=" + Date.now())).json();
           if (h && h.url) {
             btn.href = h.url;
             btn.hidden = false;
             return;
           }
         } catch (e) {
-          /* no henneth.json yet, or unreadable — leave it hidden */
+          /* not written yet, or unreadable — leave it hidden */
         }
         btn.hidden = true;
+      }
+
+      async function updateServices() {
+        await updateService("henneth", "henneth.json");
+        await updateService("galadriel", "galadriel.json");
       }
 
       function mark(ok) {
