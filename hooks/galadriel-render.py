@@ -12,7 +12,9 @@ A step may name the commits that landed it with a trailing marker —
 `git show` for each sha against the repo (the third argument, or the repo found
 from the plans folder) and tucks the patch behind a per-step toggle in the page.
 
-The page is read-only; edits happen in chat and a re-render refreshes it.
+Edits happen in chat and a re-render refreshes the page. The one change the
+page makes itself is deleting a concept, and only when served -- see
+galadriel-server.py.
 """
 
 import html
@@ -268,7 +270,7 @@ TEMPLATE = r"""<!DOCTYPE html>
 <div class="frame">
   <aside class="side"><div class="brand"><span class="brand-txt">&#9681; PLAN MIRROR</span><button class="collapse" id="selToggle" title="Select concepts to delete">&#9744;</button><button class="collapse" id="sideToggle" title="Collapse / expand sidebar">&#9666;</button></div><div id="nav"></div>
     <div class="delbar" id="delbar"><button id="delsel" disabled>Delete selected</button><span class="delnote" id="delnote"></span></div>
-    <div class="note">read-only viewer &middot; edits via chat &middot; re-render to refresh<br><span id="folder">__FOLDER__</span></div>
+    <div class="note">edits via chat &middot; re-render to refresh<br><span id="folder">__FOLDER__</span></div>
   </aside>
   <div class="vsplit" id="vsplit"></div>
   <main class="main" id="main"></main>
