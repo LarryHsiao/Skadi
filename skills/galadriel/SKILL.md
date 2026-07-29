@@ -55,46 +55,56 @@ The argument names it; absent, default to `docs/plans/` in the current project.
 
 ### 2. Render
 
-Call the renderer into the shared Henneth folder (`docs/workflow/previews.md`,
-*Where files land*):
+**The dashboard is not a Henneth artifact.** Henneth holds *static* previews —
+wireframes, diagrams, screenshots. This page is a small application: it keeps view
+state in `localStorage`, polls its own URL to live-reload, and has drag-resizable
+panes. It gets its own home, one per project, so two repos never overwrite each
+other's mirror:
 
 ```bash
-~/.claude/hooks/galadriel-render.py <plans-folder> ~/.claude/previews/henneth/plan-dashboard.html
+DEST=~/.claude/galadriel/<project>/plan-dashboard.html
+mkdir -p "$(dirname "$DEST")"
+~/.claude/hooks/galadriel-render.py <plans-folder> "$DEST"
 ```
 
-It parses every `.md`, derives lifecycle, and writes one self-contained HTML file.
+`<project>` is the plans folder's repository name — the basename of
+`git -C <plans-folder> rev-parse --show-toplevel`, or of the folder's parent when
+it is not a repo. Keep it **stable**: the path is what an open tab holds across
+re-renders, and a changing name orphans the tab.
 
-### 3. Surface the URL
+The renderer parses every `.md`, derives lifecycle, and writes one self-contained
+HTML file — no external assets, no build step.
 
-**Do not start a server.** The standing Henneth window already serves that folder;
-boot it once with `/henneth` if it is not running. Read the port it recorded and
-print the URL inline:
+### 3. Open it
+
+**No server is required.** Print the file URL and let the user open it:
 
 ```bash
-printf 'http://localhost:%s/plan-dashboard.html\n' "$(cat ~/.claude/previews/henneth/.henneth-port)"
+printf 'file://%s\n' ~/.claude/galadriel/<project>/plan-dashboard.html
 ```
 
-A re-render is picked up with no restart.
+The page works fully from disk — selector, preview, dashboard, and the collapse and
+resize controls all read `localStorage`, which is permitted on `file://`.
 
-**Open the dashboard in its own tab — not in the Henneth gallery pane.** The
-gallery embeds each artifact with `sandbox="allow-scripts"` and no
-`allow-same-origin` (`hooks/mirror-server.py:331`), which gives the frame an
-opaque origin. This page reads `localStorage` at the top of its script — the
-first is `galadriel-render.py:274`, before anything renders — so inside that pane
-that read raises `SecurityError` and the whole script dies: a blank panel, not a
-degraded one.
-Served directly at the URL above it is same-origin and works. This is why the
-dashboard is the one artifact that wants its own tab.
+The **one** thing a server buys is auto-reload: the page polls its own URL every
+few seconds and reloads when the bytes change (`galadriel-render.py:436`). Over
+`file://` that fetch is refused, and the call swallows its own failure — so the
+page is whole, it simply will not refresh itself. Press reload after a re-render,
+or bind a server in that directory if the auto-refresh is worth a process:
 
-If Henneth cannot be booted or Python is absent, fall back to an ASCII sketch of
-the selector / preview / dashboard layout inline, per the previews fallback.
+```bash
+cd ~/.claude/galadriel/<project> && python3 -m http.server <free-port>
+```
+
+If Python is absent and the file cannot be opened, fall back to an ASCII sketch of
+the selector / preview / dashboard layout inline.
 
 ### 4. The edit loop
 
 The viewer is read-only. When the user asks to change a concept — "swap steps 3 and
 4", "mark the decorator done", "cut the last step", "add an overview" — edit the
-concept's `.md` file directly, then re-run the renderer (step 2). The open tab
-refreshes on reload; no server restart.
+concept's `.md` file directly, then re-run the renderer (step 2). The path does not
+change, so the open tab stays valid — reload it to see the change.
 
 This is how "manipulate before you start" works: shape the draft concept by chat
 until it reads true, then begin the work — ticking `- [ ]` to `- [~]` to `- [x]` as
