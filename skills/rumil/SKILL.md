@@ -1,6 +1,6 @@
 ---
 name: rumil
-description: Use when the user runs /rumil <spec> [--folder=<path>], or asks in plain words to "break this spec into tasks", "plan this out", "turn this PM/design spec into something we can build". Translates a product specification — the plan-shaped document a PM or UI designer writes, which reads like a plan but cannot be coded from — into an engineering plan under docs/plans/. Takes a text spec and its UI mockups together in one invocation, because a feature usually arrives as two documents: the text carries the rules and never draws the flow, the mockups draw the flow and never state the rules. A UI spec may be a figma.com/design URL, which is preferred over screenshots — the file is structured data, so frame names give the screen vocabulary, same-row x/y order gives the flow, slash-named components give design-system bindings, and get_variable_defs gives typography and colour as decided values rather than pixels to estimate. Wires the two to each other — every screen bound to the rule that governs it, every rule to the screen that exercises it — and raises the three findings that fall out (an orphan screen, an orphan rule, a text-versus-mock contradiction) as numbered questions, never resolving a contradiction quietly. That correspondence is written down nowhere else; today it exists only in the head of whichever engineer reads both. Binds every product noun to a real file:line, refuses to carry the spec's milestones across as steps, turns product acceptance nothing can fail ("feels instant") into a numbered question rather than an invented threshold, and walks a checklist of the states designers leave undrawn (empty, loading, error, offline, permission, overflow, interruption). Questions are written so their author can answer them without opening the codebase; a step awaiting one carries [blocked on Qn]. Names the Purpose and the Acceptance criteria, then sifts the work through a repeating loop: gauge every step against four objective signals (one seam, one check, one revert, no conjunction), split whatever fails, renumber, and gauge again from the top until nothing above minimum remains or four passes elapse. Steps gather under phase headings, carry global numbers, and declare [independent] / [depends on N]. A spec that changes screens also gets a UI flow rendered as docs/plans/flow-<slug>.html, which /galadriel inlines beside the plan. Writes plans only — never code, never commits, never a PR.
+description: Use when the user runs /rumil <spec> [--folder=<path>], or asks in plain words to "break this spec into tasks", "plan this out", "turn this PM/design spec into something we can build". Translates a product specification — the plan-shaped document a PM or UI designer writes, which reads like a plan but cannot be coded from — into an engineering plan under docs/plans/. Takes a text spec and its UI mockups together in one invocation, because a feature usually arrives as two documents: the text carries the rules and never draws the flow, the mockups draw the flow and never state the rules. A text spec may be an Outline wiki document read via seshat, and given only a ticket key it searches Outline and confirms the title before reading — the tracker ticket is where a human finds the links, never a spec Rúmil parses. A UI spec may be a figma.com/design URL, which is preferred over screenshots — the file is structured data, so frame names give the screen vocabulary, same-row x/y order gives the flow, slash-named components give design-system bindings, and get_variable_defs gives typography and colour as decided values rather than pixels to estimate. Wires the two to each other — every screen bound to the rule that governs it, every rule to the screen that exercises it — and raises the three findings that fall out (an orphan screen, an orphan rule, a text-versus-mock contradiction) as numbered questions, never resolving a contradiction quietly. That correspondence is written down nowhere else; today it exists only in the head of whichever engineer reads both. Binds every product noun to a real file:line, refuses to carry the spec's milestones across as steps, turns product acceptance nothing can fail ("feels instant") into a numbered question rather than an invented threshold, and walks a checklist of the states designers leave undrawn (empty, loading, error, offline, permission, overflow, interruption). Questions are written so their author can answer them without opening the codebase; a step awaiting one carries [blocked on Qn]. Names the Purpose and the Acceptance criteria, then sifts the work through a repeating loop: gauge every step against four objective signals (one seam, one check, one revert, no conjunction), split whatever fails, renumber, and gauge again from the top until nothing above minimum remains or four passes elapse. Steps gather under phase headings, carry global numbers, and declare [independent] / [depends on N]. A spec that changes screens also gets a UI flow rendered as docs/plans/flow-<slug>.html, which /galadriel inlines beside the plan. Writes plans only — never code, never commits, never a PR.
 user_invocable: true
 ---
 
@@ -20,7 +20,7 @@ Rúmil authors. `/galadriel` renders what he writes. The two compose: the concep
 | **Shape** | [5](#5-order-number-and-tag) · [6](#6-sketch-the-ui-flow) | phases, global numbers, dependency and blocked tags, the UI flow |
 | **Land** | [7](#7-write-the-concept) · [8](#8-mirror-and-report) | write the concept, mirror it, report the findings |
 
-Reference, read on demand: **`format.md`** (the output shape — read it before writing a concept) · [The refine round](#the-refine-round) · [Rules](#rules).
+Reference, read on demand: **`sources.md`** (how to read an Outline or Figma URL — read it before step 1 touches either) · **`format.md`** (the output shape — read it before writing a concept) · [The refine round](#the-refine-round) · [Rules](#rules).
 
 ## Argument parsing
 
@@ -36,9 +36,13 @@ Reference, read on demand: **`format.md`** (the output shape — read it before 
 
 Each argument is one of:
 
-- a **text spec** — a markdown or text file (`docs/specs/offline-receipts.md`)
+- a **text spec** — an Outline document (a `/doc/…` slug or a UUID — see step 1),
+  or a markdown or text file (`docs/specs/offline-receipts.md`)
 - a **UI spec** — a `figma.com/design/…` URL (**preferred** — see step 1), an image
   (`mock/receipts.png`), or a directory of them
+- a **ticket key** (`PSG-4630`) — not read as a spec. Rúmil does not open trackers;
+  the ticket is where a *human* finds the two links. Given one, search Outline for
+  the spec (step 1) and ask for the Figma URL.
 - a **slug** naming an existing concept (`offline-receipts`) — the **refine round**, below
 - bare prose typed after the command
 - `--folder=<path>` — the plans folder. Default `docs/plans/`, matching `/galadriel`'s default.
@@ -49,13 +53,6 @@ If only a text spec arrives and it names screens, say plainly that the flow is m
 
 Absent all arguments, ask via AskUserQuestion; do not guess.
 
-## What Rúmil does not do
-
-- **He does not write code.** No implementation, no scaffolding, not one line. He describes what ought to be done, in what order, and why.
-- **He does not commit, push, or open a PR.**
-- **He does not decide.** The user approves the plan; the Implementation Loop in CLAUDE.md works it afterwards.
-- **He does not rewrite the spec.** If the spec is wrong, say so in *Open questions*; the author's words are the author's to change.
-
 ## Workflow
 
 ### 1. Read the spec
@@ -64,57 +61,15 @@ Absent all arguments, ask via AskUserQuestion; do not guess.
 
 Read by kind:
 
+- **Outline document** — `sources.md`, *Reading an Outline spec*.
 - **Text or markdown file** — read it whole.
-- **Figma URL** — the richest source; see *Reading a Figma file* below.
+- **Figma URL** — the richest source; `sources.md`, *Reading a Figma file*.
 - **Image** — read it with the Read tool, which presents it visually. Name the screens, the regions, the controls, and the states you can see.
 - **Prose in chat** — take it as given.
 
-#### Reading a Figma file
-
-A design file is **structured data, not a picture**. A screenshot of it is a lossy
-export someone chose the crop for; reading the file directly keeps what the crop
-throws away. Prefer it whenever the tools answer.
-
-Extract `fileKey` and `nodeId` from the URL —
-`figma.com/design/<fileKey>/<name>?node-id=57-13988` gives `fileKey=<fileKey>`,
-`nodeId=57:13988` (the hyphen becomes a colon). Then, **in this order**:
-
-1. `mcp__plugin_figma_figma__get_metadata` — with no `nodeId` it lists the
-   document's pages; with one it returns the subtree. This is the frame
-   inventory, and it feeds the wiring step directly:
-   - **Frame names are the screen vocabulary.** `Offline Data List`, `Login_JP`,
-     `Add Measure` bind to rules far more surely than a product noun you inferred.
-   - **Same-row `x`/`y` order is the flow.** Artboards sharing a `y`, read
-     left-to-right by `x`, are one journey. This is the flow the text spec never
-     contains — read it off the coordinates rather than guessing.
-   - **Slash-named components are design-system bindings.**
-     `Button/Contained`, `Text Field/Outlined`, `Table/Elements/TableHead` name a
-     library component, which step 2 can bind to code.
-2. `mcp__plugin_figma_figma__get_variable_defs` — the design tokens for a node:
-   colours, and typography as real values (`Body 1` = family, 16px, weight 400,
-   line-height 1.5, letter-spacing 0.15). A value defined here is **decided** —
-   do not invent a number a token already answers. This settles token *values*
-   only; it says nothing about the screen *states* of step 3b, which stay
-   undrawn until the author answers them.
-3. `mcp__plugin_figma_figma__get_screenshot` — last, and only for a node whose
-   *look* you must judge. It returns a short-lived URL; `maxDimension` caps the
-   longer edge. Names and structure come from steps 1–2; the picture is for what
-   they cannot express.
-
-**Guard the context.** A real spec page's metadata runs to tens of thousands of
-characters. Fetch the page list first, then one section, and summarise structure
-— counts, distinct names, row order — rather than carrying the XML forward.
-
-**When Figma is not connected** the `mcp__plugin_figma_figma__*` tools are absent
-from the tool list. Say so plainly, ask for exported PNGs, and read them as
-images. Do not stall on it — a flattened frame still works, it just costs the
-names, the flow order, and the tokens. Name what was lost so the gap is visible.
-
-Then hold three rules over whatever you read:
-
-- **Its milestones are not your steps.** "M2 — sync" is a product phase covering a fortnight of work. It may become a phase heading; it is never a step.
-- **Its acceptance is not your acceptance.** "Feels instant", "delightful", "works reliably" are product intent, not checks. Step 3 says what becomes of them.
-- **What is not drawn is not decided.** A screen sketched in one state has had one state designed, not all of them. Do not read the absence of an error state as "there is no error state".
+A spec that arrives as a URL — an Outline document or a Figma file — is read
+per `<skill-dir>/sources.md`. **Read that file before touching either**; both
+sources carry ordering and context-guarding rules that a naive read gets wrong.
 
 ### 1b. Wire the specs to each other
 
@@ -305,6 +260,10 @@ If splitting a done step is genuinely necessary, stop and say so; that is the us
 ## Rules
 
 - Plans only. No code, no commits, no PRs, no tracker.
+- **Rúmil does not decide.** The user approves the plan; CLAUDE.md's Implementation
+  Loop works it afterwards.
+- **Rúmil does not rewrite the spec.** If the spec is wrong, say so in *Open
+  questions*; the author's words are the author's to change.
 - The sift table is rendered in chat every pass. A silent sift is not a sift.
 - A step is minimum only when all four signals hold. Never relabel to force convergence.
 - Four passes is the ceiling; a step that will not cleave is named, not hidden.
