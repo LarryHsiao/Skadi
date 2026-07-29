@@ -95,17 +95,23 @@ class EscapeTest(unittest.TestCase):
             expected = None
             self.assertEqual(expected, gs.concept_path(root, "/linked/any.md"))
 
-    def test_a_url_encoded_climb_is_not_decoded_into_an_escape(self):
+    def test_a_url_encoded_climb_is_refused_even_though_paths_are_decoded(self):
+        """Decoding is required for real names, and must not reopen traversal.
+
+        `%2e%2e%2f` decodes to `../`, which becomes its own path segment and so
+        fails the two-segment check before any file is touched.
+        """
         expected = None
         with tempfile.TemporaryDirectory() as tmp:
             root, _ = scaffold(tmp)
             self.assertEqual(expected, gs.concept_path(root, "/skadi/%2e%2e%2fone.md"))
 
-    def test_a_query_string_denies_rather_than_opens(self):
+    def test_an_encoded_climb_into_a_sibling_folder_is_refused(self):
         expected = None
         with tempfile.TemporaryDirectory() as tmp:
-            root, _ = scaffold(tmp)
-            self.assertEqual(expected, gs.concept_path(root, "/skadi/one.md?x=1"))
+            root, plans = scaffold(tmp)
+            (plans.parent / "outside.md").write_text("# no\n", encoding="utf-8")
+            self.assertEqual(expected, gs.concept_path(root, "/skadi/..%2Foutside.md"))
 
     def test_a_dot_segment_project_is_refused(self):
         expected = None
@@ -121,6 +127,33 @@ class EscapeTest(unittest.TestCase):
             sibling.write_text("# no\n", encoding="utf-8")
             expected = None
             self.assertEqual(expected, gs.concept_path(root, "/skadi/../outside.md"))
+
+
+class EncodedNameTest(unittest.TestCase):
+    """The page percent-encodes each concept name; the server must decode it.
+
+    Every plan filename in this repo today is kebab-case, so this never fires in
+    practice — which is exactly why it is pinned rather than left to convention.
+    """
+
+    def test_a_name_bearing_a_space_round_trips(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, plans = scaffold(tmp, concepts=("user auth flow.md",))
+            expected = (plans / "user auth flow.md").resolve()
+            self.assertEqual(expected,
+                             gs.concept_path(root, "/skadi/user%20auth%20flow.md"))
+
+    def test_a_name_bearing_a_hash_round_trips(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, plans = scaffold(tmp, concepts=("step #2.md",))
+            expected = (plans / "step #2.md").resolve()
+            self.assertEqual(expected, gs.concept_path(root, "/skadi/step%20%232.md"))
+
+    def test_a_query_string_is_stripped_rather_than_breaking_the_match(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, plans = scaffold(tmp)
+            expected = (plans / "one.md").resolve()
+            self.assertEqual(expected, gs.concept_path(root, "/skadi/one.md?v=2"))
 
 
 class ToTrashTest(unittest.TestCase):

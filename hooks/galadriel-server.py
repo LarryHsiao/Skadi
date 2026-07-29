@@ -24,6 +24,7 @@ import sys
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import unquote
 
 PORT_FILE = ".galadriel-port"
 TRASH = ".trash"
@@ -65,7 +66,14 @@ def concept_path(root, rel):
     Guards the two ways this could reach outside the tree: a project that is not a
     direct child of the root, and a concept name that climbs out of its own plans
     folder. Both resolve fully before the containment check.
+
+    The path is percent-decoded first, because the page encodes each name — a
+    concept called "user auth flow" arrives as `user%20auth%20flow.md` and must
+    match the file on disk. Decoding cannot reopen traversal: a decoded `..`
+    becomes its own path segment, so it fails the two-segment check below, and
+    anything subtler still has to survive the resolve-and-compare that follows.
     """
+    rel = unquote(rel.split("?", 1)[0])
     parts = [p for p in rel.strip("/").split("/") if p]
     if len(parts) != 2 or not parts[1].endswith(".md"):
         return None
