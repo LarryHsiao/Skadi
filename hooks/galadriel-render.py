@@ -177,7 +177,7 @@ TEMPLATE = r"""<!DOCTYPE html>
 <title>Plan Mirror</title>
 <style>
   :root { --line:#3a3a3a; --muted:#8a8a8a; --bg:#1e1e1e; --panel:#262626; --ink:#e6e6e6; --accent:#7aa2f7;
-          --side-w:240px; --dash-h:210px; }
+          --side-w:240px; --dash-h:210px; --pick:#3a2422; }
   * { box-sizing:border-box; }
   body { margin:0; font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
   .frame { display:grid; grid-template-columns:var(--side-w) 5px 1fr; grid-template-rows:1fr 5px var(--dash-h);
@@ -249,11 +249,25 @@ TEMPLATE = r"""<!DOCTYPE html>
   .empty { color:var(--muted); font-style:italic; }
   code { font:0.92em ui-monospace,Menlo,Consolas,monospace; background:#2d2d2d; color:#e0b074; padding:1px 5px; border-radius:4px; }
   .note { margin-top:auto; padding:12px 16px; border-top:1px solid var(--line); font-size:11px; color:var(--muted); word-break:break-word; }
+  /* Selection mode — only reachable when the page is served, since deleting is
+     an HTTP DELETE the file: protocol cannot make. */
+  .item .box { display:none; margin-right:8px; vertical-align:-1px; }
+  body.selecting .item .box { display:inline-block; }
+  body.selecting .item.picked { background:var(--pick); }
+  .delbar { display:none; padding:10px 14px; border-top:1px solid var(--line); }
+  body.selecting .delbar { display:block; }
+  body.side-collapsed .delbar { display:none; }
+  .delbar button { width:100%; padding:7px 10px; border-radius:6px; cursor:pointer;
+    background:#3a1f1c; color:#f0b3aa; border:1px solid #7d3b32; font-size:12px; }
+  .delbar button:disabled { opacity:.45; cursor:default; }
+  .delnote { display:block; margin-top:6px; font-size:11px; color:var(--muted); }
+  .delnote.bad { color:#f0b3aa; }
 </style>
 </head>
 <body>
 <div class="frame">
-  <aside class="side"><div class="brand"><span class="brand-txt">&#9681; PLAN MIRROR</span><button class="collapse" id="sideToggle" title="Collapse / expand sidebar">&#9666;</button></div><div id="nav"></div>
+  <aside class="side"><div class="brand"><span class="brand-txt">&#9681; PLAN MIRROR</span><button class="collapse" id="selToggle" title="Select concepts to delete">&#9744;</button><button class="collapse" id="sideToggle" title="Collapse / expand sidebar">&#9666;</button></div><div id="nav"></div>
+    <div class="delbar" id="delbar"><button id="delsel" disabled>Delete selected</button><span class="delnote" id="delnote"></span></div>
     <div class="note">read-only viewer &middot; edits via chat &middot; re-render to refresh<br><span id="folder">__FOLDER__</span></div>
   </aside>
   <div class="vsplit" id="vsplit"></div>
@@ -297,12 +311,87 @@ function renderNav(){
     out += `<div class="sect">${label}</div>`;
     for(const c of group){
       const on = c.id===current ? " active" : "";
-      out += `<div class="item${on}" data-id="${esc(c.id)}">${esc(c.title)}<small>${subtitle(c)}</small></div>`;
+      const picked = selected.has(c.id) ? " picked" : "";
+      const box = `<input class="box" type="checkbox" ${selected.has(c.id) ? "checked" : ""}>`;
+      out += `<div class="item${on}${picked}" data-id="${esc(c.id)}">${box}${esc(c.title)}<small>${subtitle(c)}</small></div>`;
     }
   }
   document.getElementById("nav").innerHTML = out || '<div class="sect">No concepts</div>';
   document.querySelectorAll(".item").forEach(el =>
-    el.onclick = () => { current = el.dataset.id; localStorage.setItem("galadriel-current", current); draw(); });
+    el.onclick = () => {
+      // In selection mode a click picks rather than navigates, so the concept
+      // being deleted need not become the one on screen.
+      if(selecting){ togglePick(el.dataset.id); return; }
+      current = el.dataset.id; localStorage.setItem("galadriel-current", current); draw();
+    });
+  renderDelbar();
+}
+
+// ---- selection & delete -------------------------------------------------
+// DELETE is an HTTP verb, so these controls exist only when the page is served.
+// Opened straight from disk the whole affordance stays hidden rather than
+// offering a button that could not work.
+const servable = location.protocol !== "file:";
+const selected = new Set();
+let selecting = false;
+
+function togglePick(id){
+  if(selected.has(id)) selected.delete(id); else selected.add(id);
+  renderNav();
+}
+
+function renderDelbar(){
+  const btn = document.getElementById("delsel");
+  if(!btn) return;
+  btn.disabled = selected.size === 0;
+  btn.textContent = selected.size ? `Delete selected (${selected.size})` : "Delete selected";
+}
+
+function setSelecting(on){
+  selecting = on;
+  if(!on) selected.clear();
+  document.body.classList.toggle("selecting", on);
+  const t = document.getElementById("selToggle");
+  if(t) t.innerHTML = on ? "&#9746;" : "&#9744;";
+  note("");
+  renderNav();
+}
+
+function note(text, bad){
+  const el = document.getElementById("delnote");
+  if(!el) return;
+  el.textContent = text;
+  el.className = bad ? "delnote bad" : "delnote";
+}
+
+// `/[project]/plan-dashboard.html` -> `/[project]/[concept].md`
+function conceptUrl(id){
+  return location.pathname.replace(/[^/]*$/, "") + encodeURIComponent(id) + ".md";
+}
+
+async function deleteSelected(){
+  const ids = [...selected];
+  if(!ids.length) return;
+  const plural = ids.length === 1 ? "this concept" : `these ${ids.length} concepts`;
+  if(!confirm(`Move ${plural} to .trash/ ?\n\n${ids.join("\n")}`)) return;
+  note("deleting…");
+  const failed = [];
+  for(const id of ids){
+    try {
+      const res = await fetch(conceptUrl(id), {method:"DELETE"});
+      if(!res.ok) failed.push(id);
+    } catch(_) { failed.push(id); }
+  }
+  if(failed.length){
+    // Loud, not swallowed: some files moved, some did not, and the page would
+    // otherwise reload looking as though all of it worked.
+    note(`could not delete: ${failed.join(", ")}`, true);
+    selected.clear();
+    failed.forEach(f => selected.add(f));
+    renderNav();
+    return;
+  }
+  location.reload();
 }
 
 function overviewHtml(text){
@@ -396,6 +485,16 @@ document.getElementById("sideToggle").onclick = () => {
   localStorage.setItem("galadriel-side-collapsed", sideCollapsed ? "1" : "0");
   applyCollapse();
 };
+
+// Selection is only offered on a served page; from disk the controls are removed
+// outright rather than left to fail on a click.
+if(servable){
+  document.getElementById("selToggle").onclick = () => setSelecting(!selecting);
+  document.getElementById("delsel").onclick = deleteSelected;
+} else {
+  document.getElementById("selToggle").remove();
+  document.getElementById("delbar").remove();
+}
 
 // Resizable panels — drag the splitters to set sidebar width / dashboard height,
 // clamped to sane bounds and remembered across re-renders via localStorage.
