@@ -1,6 +1,6 @@
 ---
 name: rumil
-description: Use when the user runs /rumil <spec> [--folder=<path>], or asks in plain words to "break this spec into tasks", "plan this out", "turn this PM/design spec into something we can build". Translates a product specification — the plan-shaped document a PM or UI designer writes, which reads like a plan but cannot be coded from — into an engineering plan under docs/plans/. Takes a markdown or text file, a UI mockup image, or prose in chat. Binds every product noun to a real file:line, refuses to carry the spec's milestones across as steps, turns product acceptance nothing can fail ("feels instant") into a numbered question rather than an invented threshold, and walks a checklist of the states designers leave undrawn (empty, loading, error, offline, permission, overflow, interruption). Questions are written so their author can answer them without opening the codebase; a step awaiting one carries [blocked on Qn]. Names the Purpose and the Acceptance criteria, then sifts the work through a repeating loop: gauge every step against four objective signals (one seam, one check, one revert, no conjunction), split whatever fails, renumber, and gauge again from the top until nothing above minimum remains or four passes elapse. Steps gather under phase headings, carry global numbers, and declare [independent] / [depends on N]. A spec that changes screens also gets a UI flow rendered as docs/plans/flow-<slug>.html, which /galadriel inlines beside the plan. Writes plans only — never code, never commits, never a PR.
+description: Use when the user runs /rumil <spec> [--folder=<path>], or asks in plain words to "break this spec into tasks", "plan this out", "turn this PM/design spec into something we can build". Translates a product specification — the plan-shaped document a PM or UI designer writes, which reads like a plan but cannot be coded from — into an engineering plan under docs/plans/. Takes a text spec and its UI mockups together in one invocation, because a feature usually arrives as two documents: the text carries the rules and never draws the flow, the mockups draw the flow and never state the rules. Wires the two to each other — every screen bound to the rule that governs it, every rule to the screen that exercises it — and raises the three findings that fall out (an orphan screen, an orphan rule, a text-versus-mock contradiction) as numbered questions, never resolving a contradiction quietly. That correspondence is written down nowhere else; today it exists only in the head of whichever engineer reads both. Binds every product noun to a real file:line, refuses to carry the spec's milestones across as steps, turns product acceptance nothing can fail ("feels instant") into a numbered question rather than an invented threshold, and walks a checklist of the states designers leave undrawn (empty, loading, error, offline, permission, overflow, interruption). Questions are written so their author can answer them without opening the codebase; a step awaiting one carries [blocked on Qn]. Names the Purpose and the Acceptance criteria, then sifts the work through a repeating loop: gauge every step against four objective signals (one seam, one check, one revert, no conjunction), split whatever fails, renumber, and gauge again from the top until nothing above minimum remains or four passes elapse. Steps gather under phase headings, carry global numbers, and declare [independent] / [depends on N]. A spec that changes screens also gets a UI flow rendered as docs/plans/flow-<slug>.html, which /galadriel inlines beside the plan. Writes plans only — never code, never commits, never a PR.
 user_invocable: true
 ---
 
@@ -10,17 +10,42 @@ Rúmil of Tirion devised the first letters, and so turned speech into a record t
 
 Rúmil authors. `/galadriel` renders what he writes. The two compose: the concept file is the seam between them.
 
+**The road, in one screen.** A feature arrives as two documents — text and mockups — and leaves as one plan plus a list of questions.
+
+| | Step | What it does |
+|---|---|---|
+| **Read** | [1](#1-read-the-spec) · [1b](#1b-wire-the-specs-to-each-other) · [2](#2-read-the-ground) | read both specs, **wire them to each other**, bind every product noun to a `file:line` |
+| **Distil** | [3](#3-distil-purpose-and-acceptance) · [3b](#3b-walk-the-undrawn-states) · [3c](#3c-write-the-questions-for-the-author) | Purpose and checkable Acceptance; walk the undrawn states; number the questions |
+| **Sift** | [4](#4-the-sift) | the loop — gauge, split, renumber, gauge again, until nothing exceeds minimum |
+| **Shape** | [5](#5-order-number-and-tag) · [6](#6-sketch-the-ui-flow) | phases, global numbers, dependency and blocked tags, the UI flow |
+| **Land** | [7](#7-write-the-concept) · [8](#8-mirror-and-report) | write the concept, mirror it, report the findings |
+
+Reference, read on demand: **`format.md`** (the output shape — read it before writing a concept) · [The refine round](#the-refine-round) · [Rules](#rules).
+
 ## Argument parsing
 
-`/rumil <spec> [--folder=<path>]`
+`/rumil <spec> [<spec> …] [--folder=<path>]`
 
-- `<spec>` — one of:
-  - a path to a text or markdown file (`docs/specs/offline-receipts.md`)
-  - a path to an image (`mock/receipts.png`) — a UI mockup or screenshot
-  - a slug naming an existing concept (`offline-receipts`) — this is the **refine round**, below
-  - bare prose typed after the command
-  - absent — ask the user for the spec via AskUserQuestion; do not guess.
-- `--folder=<path>` — the plans folder. Default `docs/plans/` in the current project, matching `/galadriel`'s default.
+**A feature usually arrives as two documents, not one.** The text spec carries the rules; the UI spec — mockups, screenshots, a Figma export — carries the screens and the flow between them. Neither contains the other. Accept them together in one invocation:
+
+```
+/rumil docs/specs/offline-receipts.md mock/capture.png mock/sync.png mock/failures.png
+/rumil docs/specs/offline-receipts.md mock/          # a directory takes every file in it
+```
+
+Each argument is one of:
+
+- a **text spec** — a markdown or text file (`docs/specs/offline-receipts.md`)
+- a **UI spec** — an image (`mock/receipts.png`), or a directory of them
+- a **slug** naming an existing concept (`offline-receipts`) — the **refine round**, below
+- bare prose typed after the command
+- `--folder=<path>` — the plans folder. Default `docs/plans/`, matching `/galadriel`'s default.
+
+Classify every argument by role before reading, and **say in chat which role each was given** — "1 text spec, 3 UI frames". A misfiled input poisons everything downstream, and the user can correct it in one word.
+
+If only a text spec arrives and it names screens, say plainly that the flow is missing and ask whether mockups exist. If only images arrive, say the rules are missing. Neither is fatal — the plan proceeds with the gap named — but a silent half-spec is how the wiring below gets skipped.
+
+Absent all arguments, ask via AskUserQuestion; do not guess.
 
 ## What Rúmil does not do
 
@@ -46,6 +71,28 @@ Then hold three rules over whatever you read:
 - **Its milestones are not your steps.** "M2 — sync" is a product phase covering a fortnight of work. It may become a phase heading; it is never a step.
 - **Its acceptance is not your acceptance.** "Feels instant", "delightful", "works reliably" are product intent, not checks. Step 3 says what becomes of them.
 - **What is not drawn is not decided.** A screen sketched in one state has had one state designed, not all of them. Do not read the absence of an error state as "there is no error state".
+
+### 1b. Wire the specs to each other
+
+**This is the step nobody else performs.** The text spec states the rules and never draws the flow; the UI spec draws the flow and never states the rules. The correspondence between them is written down nowhere — today it is assembled in the head of whichever engineer reads both documents, and it evaporates when they move to other work. Recording that wiring is Rúmil's work, not a by-product of it.
+
+Skip this only when a single document genuinely arrived alone.
+
+**Build the correspondence.** List every screen the UI spec shows. List every rule the text spec states. Then bind them both ways — each screen to the rule that governs it, each rule to the screen where it is exercised.
+
+Three findings fall out, and **each is a numbered question, never a silent reconciliation**:
+
+| Finding | What it looks like | What Rúmil does |
+|---|---|---|
+| **Orphan screen** | a screen in the mockups that no rule covers | ask what governs it — a screen nobody wrote rules for is either unowned behaviour or a rule that lives in someone's head |
+| **Orphan rule** | a requirement no screen exercises | ask where the user does this — the flow may be missing a frame, or the rule may be stale |
+| **Contradiction** | the text says auto-retry; the mock draws a Retry button | ask which rules. **Never pick a winner** — a contradiction resolved quietly becomes your decision wearing the author's name |
+
+The contradiction is the highest-value catch on the whole road. It is also the one most easily lost: both documents read plausibly on their own, and the clash only appears when someone holds them side by side. That is precisely why it must land in the file rather than in a passing thought.
+
+**A transition is a rule too.** An arrow between two screens — what carries the user from capture to the failures list — is behaviour the text spec usually never mentions. Wire each transition, or mark it unwired and ask.
+
+The wiring goes into the concept file (see *The concept file format*) and into the flow diagram, where each arrow carries the rule that governs it.
 
 ### 2. Read the ground
 
@@ -168,13 +215,13 @@ Only when the spec changes screens. Two artifacts, both optional if the change i
 
 `/galadriel` inlines that file into a sandboxed `<iframe>` above the steps, so the flow is read beside the plan it belongs to.
 
-The page shows each screen as a box and each transition as a labelled arrow — what the user taps, what carries them onward, where an error path leads. **Inline every style**; the iframe is loaded via `srcdoc` with no base URL, so a linked stylesheet dangles (`docs/workflow/previews.md`, *Shared theme*). Begin with `<meta charset="utf-8">`.
+The page shows each screen as a box and each transition as a labelled arrow — what the user taps, what carries them onward, where an error path leads. **Each arrow carries the rule that governs it** (`§5`), or is marked unwired with its question number — this is where the wiring from step 1b becomes visible at a glance, and an unwired arrow should be obvious rather than buried in a list. **Inline every style**; the iframe is loaded via `srcdoc` with no base URL, so a linked stylesheet dangles (`docs/workflow/previews.md`, *Shared theme*). Begin with `<meta charset="utf-8">`.
 
 **The wireframes.** Per CLAUDE.md's *Previews (Henneth)*, a screen that holds data is sketched in **both states** — populated and empty. Render these into the Henneth folder per `docs/workflow/previews.md`; read that file before writing any of them.
 
 ### 7. Write the concept
 
-Write `<plans-folder>/<slug>.md` in the format below. Derive `<slug>` from the title — lowercase, hyphenated, no date prefix (`/galadriel` sorts by derived lifecycle, not by name).
+**Read `<skill-dir>/format.md` first** — it holds the output shape, and its three constraints fail silently when broken. Then write `<plans-folder>/<slug>.md` in that shape. Derive `<slug>` from the title — lowercase, hyphenated, no date prefix (`/galadriel` sorts by derived lifecycle, not by name).
 
 If the folder does not exist, create it and say so. If a concept of that slug already exists, this is a refine round — see below; never silently overwrite.
 
@@ -187,6 +234,7 @@ Then report, short:
 - The concept path, and the step count.
 - How many sift passes ran, and how many steps were split.
 - Any step marked `[WILL NOT CLEAVE]`, with its failing signal.
+- **The wiring's findings** — how many orphan screens, orphan rules, and contradictions the two specs produced when held side by side. A contradiction is named in full, with both sides quoted; it is the finding least likely to survive being summarised.
 - **The open questions, in full** — these are the reason the plan goes back to its author, so they belong in the report and not only in the file. Name how many steps stand `[blocked on Qn]`.
 - Any product noun from the spec you could not bind to a code surface.
 - A hint to run `/galadriel` to see it in the Mirror.
@@ -195,47 +243,10 @@ Do not reproduce the whole plan in chat — it lives in the file now.
 
 ## The concept file format
 
-`/galadriel`'s parser imposes two constraints invisible in the markdown itself. Both are pinned by `hooks/test_rumil_format.py`; run it if you change this shape.
-
-- **Acceptance criteria are plain `-` bullets, never `- [ ]`.** Every checkbox line in the file is collected as a step, whatever heading it sits under (`galadriel-render.py:108`). Three criteria written as checkboxes read as three unfinished steps and poison the progress bar.
-- **Purpose and Acceptance lead with a bold run, not a heading.** Lines matching `^#{1,6}\s+` are dropped from the overview walk (`galadriel-render.py:116`), so `## Purpose` renders as a headless blob of prose.
-
-```markdown
-<!-- preview: flow-offline-receipts.html -->
-# Offline receipt cache
-
-**Purpose** — Receipts captured without a network must survive until the
-device can post them, so a courier in a basement loses no work.
-
-**Acceptance** — the outcomes that mark the whole done:
-- a receipt queued offline survives an app restart
-- the queue drains in capture order once the network returns
-- a receipt rejected by the server surfaces in the failures list
-
-**Spec source** — docs/specs/offline-receipts.md (product plan, Dana)
-
-**Open questions** — for whoever wrote the spec:
-- Q1: When a receipt is rejected by the server, does the app retry on its own,
-  or wait for the courier to resubmit it?
-- Q2: While receipts are syncing, what does the courier see — a banner, a
-  spinner on each row, or nothing until it finishes?
-- Q3: The spec asks that syncing "feel instant". What is the budget, and
-  measured from which moment?
-
-## Steps
-
-### Phase 1 — the store
-
-- [ ] 1. Add the ReceiptQueue table and its migration [independent]
-- [ ] 2. Write ReceiptQueue.enqueue with its test [depends on 1]
-
-### Phase 2 — the drain
-
-- [ ] 3. Write ReceiptDrain.next with its test [depends on 2]
-- [ ] 4. Render the syncing indicator on the receipt row [depends on 3] [blocked on Q2]
-```
-
-Steps are written unticked. The Implementation Loop ticks them — `- [ ]` to `- [~]` in flight to `- [x]` done — and stamps the landing commit into a `<!-- sha: … -->` marker, which `/galadriel` expands into that step's diff.
+The output shape — the three renderer constraints, the worked example, and the
+rules the example carries — lives in `<skill-dir>/format.md`. Read that file
+before writing a concept; it is short, and every constraint in it fails
+silently rather than loudly.
 
 ## The refine round
 
@@ -257,6 +268,9 @@ If splitting a done step is genuinely necessary, stop and say so; that is the us
 - The UI flow file is a sibling of the concept, with inline styles.
 - Every step carries a global number and a dependency tag.
 - A concept whose slug already exists is refined, never overwritten.
+- **A text spec and a UI spec are read together, and wired to each other.** The correspondence exists nowhere else; recording it is the work.
+- **A contradiction between text and mock is never resolved quietly.** Both sides are quoted, and the question goes back. Picking a winner makes it your decision wearing the author's name.
+- **An orphan screen and an orphan rule are findings, not noise.** Each earns a numbered question.
 - **The spec's milestones are never carried across as steps.** They may become phases; the steps are yours to derive.
 - **Product acceptance that nothing can fail becomes a question, never a criterion.** Do not invent the threshold the author left unstated.
 - **An undrawn state is unanswered, not absent.** Walk the checklist; raise what is missing rather than defaulting it.

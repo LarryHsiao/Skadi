@@ -14,6 +14,7 @@ file pins both so a future edit to either side fails loudly:
 """
 
 import importlib.util
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -37,7 +38,15 @@ device can post them, so a courier in a basement loses no work.
 - the queue drains in capture order once the network returns
 - a receipt rejected by the server surfaces in the failures list
 
-**Spec source** — docs/specs/offline-receipts.md (product plan, Dana)
+**Spec source** — docs/specs/offline-receipts.md (rules, Dana) + mock/*.png (3 frames, Ines)
+
+**The wiring** — each screen bound to the rule that governs it:
+- Capture screen → §2 "capture works offline" — wired
+- Failures list → §5 "rejected receipts are visible" — wired
+- Capture → Failures (tap the banner) → no rule names this transition — Q4
+- Sync banner → no rule in the text spec — orphan screen — Q2
+- §4 "a courier may delete a queued receipt" → no frame shows it — orphan rule — Q5
+- Retry: §5 says the app retries on its own; the mock draws a Retry button — Q1
 
 **Open questions** — for whoever wrote the spec:
 - Q1: When a receipt is rejected by the server, does the app retry on its own,
@@ -46,6 +55,10 @@ device can post them, so a courier in a basement loses no work.
   spinner on each row, or nothing until it finishes?
 - Q3: The spec asks that syncing "feel instant". What is the budget, and
   measured from which moment?
+- Q4: What carries the courier from the capture screen to the failures list —
+  tapping the sync banner, or somewhere else?
+- Q5: §4 says a courier may delete a queued receipt, but no frame shows it.
+  Where does that happen?
 
 ## Steps
 
@@ -114,6 +127,58 @@ class StepCollectionTest(unittest.TestCase):
         """A step awaiting an answer keeps both tags, so the gap stays visible."""
         expected = "4. Render the syncing indicator on the receipt row [depends on 3] [blocked on Q2]"
         self.assertEqual(expected, parse(RUMIL_CONCEPT)["steps"][3]["label"])
+
+
+class DocumentedShapeTest(unittest.TestCase):
+    """The example in format.md and this fixture must stay one artifact.
+
+    They have drifted twice — once on wording, once on what `Q4` referred to —
+    and both times a human reviewer caught it. This makes the mirror mechanical.
+    """
+
+    def test_the_fixture_matches_the_example_in_format_md(self):
+        doc = HERE.parent / "skills" / "rumil" / "format.md"
+        if not doc.exists():          # the skill may be vendored without its docs
+            self.skipTest(f"{doc} not present")
+        block = re.search(r"```markdown\n(.*?)```", doc.read_text(encoding="utf-8"), re.S)
+        self.assertIsNotNone(block, "format.md carries no ```markdown example")
+        # The preview marker is exercised separately by FlowPreviewTest, which
+        # supplies its own; the fixture omits it.
+        expected = [ln for ln in block.group(1).splitlines()
+                    if not ln.startswith("<!-- preview:")]
+        self.assertEqual(expected, RUMIL_CONCEPT.splitlines())
+
+
+class WiringTest(unittest.TestCase):
+    """The text-spec-to-UI-spec correspondence, which lives nowhere else."""
+
+    def test_wiring_bullets_do_not_leak_into_the_step_labels(self):
+        """The wiring is a record for the reader, not work to tick off."""
+        expected_absent = "→"
+        labels = " ".join(s["label"] for s in parse(RUMIL_CONCEPT)["steps"])
+        self.assertNotIn(expected_absent, labels)
+
+    def test_a_contradiction_survives_into_the_overview(self):
+        """The highest-value finding, and the one least likely to survive summarising."""
+        expected = "§5 says the app retries on its own; the mock draws a Retry button"
+        self.assertIn(expected, parse(RUMIL_CONCEPT)["overview"])
+
+    def test_an_orphan_screen_survives_into_the_overview(self):
+        expected = "Sync banner → no rule in the text spec — orphan screen"
+        self.assertIn(expected, parse(RUMIL_CONCEPT)["overview"])
+
+    def test_every_cited_question_is_also_defined(self):
+        """A wiring line pointing at an undefined Qn is a dangling reference.
+
+        The skill tells its reader to list the open questions in full; a concept
+        citing Q4 with no Q4 beneath it models the opposite.
+        """
+        parsed = parse(RUMIL_CONCEPT)
+        body = parsed["overview"] + " ".join(s["label"] for s in parsed["steps"])
+        defined = set(re.findall(r"\b(Q\d+):", body))
+        cited = set(re.findall(r"\b(Q\d+)\b(?!:)", body))
+        expected_dangling = set()
+        self.assertEqual(expected_dangling, cited - defined)
 
 
 class OverviewTest(unittest.TestCase):
