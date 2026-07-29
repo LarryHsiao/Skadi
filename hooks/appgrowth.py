@@ -232,6 +232,7 @@ def main():
 
 PAGE = Template(r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>metis — Growth</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><text y=%2213%22 font-size=%2214%22>%F0%9F%93%88</text></svg>">
 <style>
   :root{ --bg:#1e1e1e; --panel:#262626; --line:#3a3a3a; --ink:#e6e6e6; --muted:#8a8a8a;
     --accent:#7aa2f7; --up:#9ece6a; --down:#f7768e; }
