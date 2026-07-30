@@ -5,6 +5,15 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HOOK="$HERE/dir-guard.sh"
 REPO="$(cd "$HERE/.." && pwd)"
+# The hook's own shebang (#!/bin/bash) is what actually runs it in
+# production on macOS — the ancient system bash 3.2, not whatever newer
+# bash a dev machine's PATH prefers. The two parse some constructs (a
+# heredoc nested inside $(...), notably) differently: a hook that broke
+# bash 3.2's parser once shipped clean here because this suite invoked
+# the bare `bash` word, which resolved through PATH to a newer bash that
+# had no trouble with it. Pinning to /bin/bash directly is what makes
+# this suite test the same interpreter production actually uses.
+HOOK_BASH="/bin/bash"
 pass=0
 fail=0
 
@@ -19,7 +28,7 @@ run_cmd() { # command
   local decision
   decision=$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" \
     printf '{"tool_input":{"command":%s}}' "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1")" \
-    | CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+    | CLAUDE_PROJECT_DIR="$REPO" "$HOOK_BASH" "$HOOK" \
     | python3 -c "
 import json, sys
 d = json.load(sys.stdin)['hookSpecificOutput']
@@ -186,7 +195,7 @@ run_write() { # file_path [dev_dirs]
   local decision
   decision=$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" CLAUDE_DEV_DIRS="${2:-}" \
     printf '{"tool_input":{"file_path":%s}}' "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1")" \
-    | CLAUDE_PROJECT_DIR="$REPO" CLAUDE_DEV_DIRS="${2:-}" bash "$HOOK" \
+    | CLAUDE_PROJECT_DIR="$REPO" CLAUDE_DEV_DIRS="${2:-}" "$HOOK_BASH" "$HOOK" \
     | python3 -c "
 import json, sys
 d = json.load(sys.stdin)['hookSpecificOutput']
