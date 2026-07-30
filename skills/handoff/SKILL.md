@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Use when the user runs /handoff send <channel> [message], /handoff read <channel>, /handoff list, /handoff subscribe <channel>, or /handoff clear <channel>. An async file mailbox between Claude Code sessions — one session leaves a message (or a whole context baton) on a named channel, another reads it on demand or subscribes for live auto-pickup. No server. Messages live under ~/.skadi/handoff/.
+description: Use when the user runs /handoff send <channel> [message], /handoff read <channel> [--older-than <Nd>], /handoff list, /handoff subscribe <channel>, or /handoff clear <channel> [--older-than <Nd>] [--all]. An async file mailbox between Claude Code sessions — one session leaves a message (or a whole context baton) on a named channel, another reads it on demand or subscribes for live auto-pickup. No server. Messages live under ~/.skadi/handoff/. `clear` with no flag prunes messages older than 3 days by default; `--all` wipes the channel outright.
 user_invocable: true
 ---
 
@@ -48,10 +48,13 @@ the verbs and, in baton mode, composes the body.
 
 - No arg or `help` → print the verbs and stop.
 - `send <channel> [message...]` → send a message (baton mode when no message).
-- `read <channel>` → print the channel thread.
+- `read <channel> [--older-than <Nd>]` → print the channel thread, optionally
+  filtered to just the messages older than `<Nd>` (e.g. `30d`).
 - `list` → list channels.
 - `subscribe <channel>` → watch a channel for live auto-pickup this session.
-- `clear <channel>` → remove a channel's messages (confirm first).
+- `clear <channel> [--older-than <Nd>] [--all]` → prune a channel's messages
+  (confirm first). No flag prunes anything older than 3 days; `--older-than`
+  overrides that cutoff; `--all` bypasses age entirely and wipes the channel.
 
 The sender tag (`from`) defaults to a short slice of this session's id; pass
 `--from <label>` anywhere in a `send` to override it with a human name
@@ -135,14 +138,19 @@ when you override with `--from`.
 
 ## Verb: read
 
-`/handoff read <channel>`
+`/handoff read <channel> [--older-than <Nd>]`
 
 ```bash
-~/.claude/hooks/handoff.sh read <channel>
+~/.claude/hooks/handoff.sh read <channel> [--older-than <Nd>]
 ```
 
 Render the thread to the user oldest-to-newest. If the hook reports no messages,
 relay that plainly and suggest `/handoff list` to see live channels.
+
+With `--older-than <Nd>` (e.g. `30d`), the thread narrows to just the messages
+that age covers — this is how `clear` (below) previews exactly what a prune
+would remove before it runs. `read` itself defaults to the full thread; the
+filter is opt-in, never automatic.
 
 ## Verb: list
 
@@ -165,29 +173,44 @@ to open one.
 
 ## Verb: clear
 
-`/handoff clear <channel>`
+`/handoff clear <channel> [--older-than <Nd>] [--all]`
 
 A channel's messages are append-only and persist until cleared — `read` never
-consumes them. This verb removes a spent channel. It is destructive, so it
-carries its own confirm gate (like `/commit` and `/reset`):
+consumes them. This verb prunes a channel. It is destructive, so it carries its
+own confirm gate (like `/commit` and `/reset`), and it always previews first so
+the confirm names an exact count, never a guess:
 
-1. Read the channel first so the count is known:
+1. Resolve the cutoff: `--older-than <Nd>` if the user named one, else the
+   3-day default, unless `--all` was named (no cutoff at all — everything goes).
 
-   ```bash
-   ~/.claude/hooks/handoff.sh read <channel>
-   ```
-
-2. Ask the user via `AskUserQuestion` to confirm deletion, naming the channel
-   and how many messages will go. On **no**, stop and change nothing.
-
-3. On **yes**, clear it:
+2. Preview exactly what will go:
 
    ```bash
-   ~/.claude/hooks/handoff.sh clear <channel>
+   ~/.claude/hooks/handoff.sh read <channel> [--older-than <Nd-or-default>]
    ```
 
-   Relay the hook's one-line confirmation. If the hook reports no such channel,
-   say so plainly.
+   With `--all`, preview the full thread instead (plain `read <channel>`, no
+   `--older-than`) — everything in the channel is what's about to be removed.
+
+3. Ask the user via `AskUserQuestion` to confirm, naming the channel, the
+   cutoff (or "all messages" for `--all`), and the exact count from step 2. On
+   **no**, stop and change nothing.
+
+4. On **yes**, clear it:
+
+   ```bash
+   ~/.claude/hooks/handoff.sh clear <channel> [--older-than <Nd-or-default>] [--all]
+   ```
+
+   Relay the hook's one-line confirmation (`pruned '<channel>' (N of M
+   removed...)` or, for `--all`, `cleared '<channel>' (N removed)`). If the
+   hook reports no such channel, say so plainly.
+
+**Why a default cutoff at all.** Before this, `clear` always wiped the whole
+channel — the only way to prune old messages while keeping recent ones was to
+delete everything and start over. The 3-day default makes "no flag" the safe,
+routine case (stale batons age out on their own) and reserves `--all` for the
+deliberate "this channel is spent, wipe it" act.
 
 ## Rules
 

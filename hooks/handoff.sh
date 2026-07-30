@@ -7,15 +7,18 @@
 #
 # Usage:
 #   handoff.sh send <channel> [--from <label>] [--session <id>]  # body on stdin
-#   handoff.sh read <channel>                    # print thread, oldest -> newest
+#   handoff.sh read <channel> [--older-than <Nd>]  # print thread, oldest -> newest
 #   handoff.sh list                              # channels: name<TAB>count<TAB>last
-#   handoff.sh clear <channel>                   # remove a channel's messages
+#   handoff.sh clear <channel> [--older-than <Nd>] [--all]  # prune/remove messages
 #   handoff.sh subscribe <channel> [--from <label>] [--session <id>]  # watch it
 #   handoff.sh poll [--session <id>]             # print new, non-self messages on
 #                                                # subscribed channels; advance cursors
 #
 # `clear` deletes without prompting — the confirm gate is the caller's (skill's)
-# job, matching how /commit and /reset guard destructive acts.
+# job, matching how /commit and /reset guard destructive acts. With no flag it
+# prunes messages older than DEFAULT_PRUNE_DAYS; `--older-than <Nd>` overrides
+# the cutoff, `--all` bypasses age entirely and wipes the whole channel (the
+# hook's original, unconditional behavior).
 #
 # A session's identity (`from`) is: explicit --from > its subscribe profile's
 # from > the first 8 chars of its session id > "unknown". Subscriptions live in
@@ -28,11 +31,40 @@
 set -euo pipefail
 
 HANDOFF_ROOT="${HANDOFF_ROOT:-$HOME/.skadi/handoff}"
+DEFAULT_PRUNE_DAYS=3
 shopt -s nullglob
 
 # Lowercase a name and replace every char outside [a-z0-9._-] with '_'.
 sanitize() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9._-' '_'
+}
+
+# "<N>d" -> N; anything else fails (bad unit, non-digits, empty) so the caller
+# reports one consistent usage error rather than a numeric-context crash.
+parse_age() {
+  local n="${1%d}"
+  case "$1" in
+    *d) ;;
+    *) return 1 ;;
+  esac
+  case "$n" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  printf '%s' "$n"
+}
+
+# The filename-comparable UTC cutoff for "N days ago" — a message is older
+# than N days exactly when its filename sorts before this string. Message
+# filenames embed a lexicographically-sortable timestamp (send's fname_ts), so
+# "older than" reduces to a string compare, never a per-file date parse.
+# GNU date wants `-d @epoch`; BSD/macOS date wants `-r epoch` (same fallback
+# idiom as rhovanion-jira-probe.sh).
+cutoff_fname() {
+  local days="$1" now cutoff
+  now="$(date -u +%s)"
+  cutoff=$((now - days * 86400))
+  date -u -d "@$cutoff" +%Y-%m-%dT%H-%M-%SZ 2>/dev/null \
+    || date -u -r "$cutoff" +%Y-%m-%dT%H-%M-%SZ
 }
 
 # Resolve the session id: explicit arg > $CLAUDE_CODE_SESSION_ID > "unknown".
@@ -121,20 +153,43 @@ cmd_send() {
 }
 
 cmd_read() {
-  local channel="${1:-}"
-  [ -n "$channel" ] || { echo "usage: handoff.sh read <channel>" >&2; exit 2; }
+  local channel="" older=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --older-than) older="${2:-}"; shift 2 ;;
+      --older-than=*) older="${1#--older-than=}"; shift ;;
+      *) [ -z "$channel" ] && channel="$1"; shift ;;
+    esac
+  done
+  [ -n "$channel" ] || { echo "usage: handoff.sh read <channel> [--older-than <Nd>]" >&2; exit 2; }
   channel="$(sanitize "$channel")"
 
-  local dir="$HANDOFF_ROOT/$channel" found=0 f
+  local cutoff=""
+  if [ -n "$older" ]; then
+    local days
+    days="$(parse_age "$older")" \
+      || { echo "usage: handoff.sh read: --older-than wants '<N>d' (e.g. 30d)" >&2; exit 2; }
+    cutoff="$(cutoff_fname "$days")"
+  fi
+
+  local dir="$HANDOFF_ROOT/$channel" found=0 f base
   if [ -d "$dir" ]; then
     for f in "$dir"/*.md; do
+      base="$(basename "$f")"
+      [ -n "$cutoff" ] && [[ ! "$base" < "$cutoff" ]] && continue
       found=1
       echo "────────────────────────────────────────────"
       cat "$f"
       echo
     done
   fi
-  [ "$found" -eq 1 ] || echo "no messages in channel '$channel'"
+  if [ "$found" -eq 0 ]; then
+    if [ -n "$cutoff" ]; then
+      echo "no messages older than $older in channel '$channel'"
+    else
+      echo "no messages in channel '$channel'"
+    fi
+  fi
 }
 
 cmd_list() {
@@ -161,20 +216,60 @@ cmd_list() {
 }
 
 cmd_clear() {
-  local channel="${1:-}"
-  [ -n "$channel" ] || { echo "usage: handoff.sh clear <channel>" >&2; exit 2; }
-  channel="$(sanitize "$channel")"
+  local channel="" older="" all=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --all) all=1; shift ;;
+      --older-than) older="${2:-}"; shift 2 ;;
+      --older-than=*) older="${1#--older-than=}"; shift ;;
+      *) [ -z "$channel" ] && channel="$1"; shift ;;
+    esac
+  done
+  [ -n "$channel" ] || { echo "usage: handoff.sh clear <channel> [--older-than <Nd>] [--all]" >&2; exit 2; }
+  if [ "$all" -eq 1 ] && [ -n "$older" ]; then
+    echo "usage: handoff.sh clear: --all and --older-than are mutually exclusive" >&2
+    exit 2
+  fi
 
-  local dir="$HANDOFF_ROOT/$channel" count=0 f
+  channel="$(sanitize "$channel")"
+  local dir="$HANDOFF_ROOT/$channel"
   if [ ! -d "$dir" ]; then
     echo "no such channel '$channel'"
     return 0
   fi
+
+  if [ "$all" -eq 1 ]; then
+    local count=0 f
+    for f in "$dir"/*.md; do
+      count=$((count + 1))
+    done
+    rm -rf "$dir"
+    echo "cleared '$channel' ($count message(s) removed)"
+    return 0
+  fi
+
+  local days
+  if [ -n "$older" ]; then
+    days="$(parse_age "$older")" \
+      || { echo "usage: handoff.sh clear: --older-than wants '<N>d' (e.g. 30d)" >&2; exit 2; }
+  else
+    days="$DEFAULT_PRUNE_DAYS"
+  fi
+  local cutoff total=0 removed=0 f base
+  cutoff="$(cutoff_fname "$days")"
   for f in "$dir"/*.md; do
-    count=$((count + 1))
+    total=$((total + 1))
+    base="$(basename "$f")"
+    if [[ "$base" < "$cutoff" ]]; then
+      rm -f "$f"
+      removed=$((removed + 1))
+    fi
   done
-  rm -rf "$dir"
-  echo "cleared '$channel' ($count message(s) removed)"
+  # Drop the now-empty channel dir so `list` never carries a ghost 0-message
+  # channel. rmdir failing (not actually empty, permission hiccup) is fine —
+  # cleanup here is best-effort, not the point of the command.
+  [ "$removed" -eq "$total" ] && { rmdir "$dir" 2>/dev/null || true; }
+  echo "pruned '$channel' ($removed of $total message(s) removed, older than ${days}d)"
 }
 
 cmd_subscribe() {
@@ -290,9 +385,9 @@ main() {
       cat <<'EOF'
 usage:
   handoff.sh send <channel> [--from <label>]   # message body on stdin
-  handoff.sh read <channel>
+  handoff.sh read <channel> [--older-than <Nd>]
   handoff.sh list
-  handoff.sh clear <channel>
+  handoff.sh clear <channel> [--older-than <Nd>] [--all]
   handoff.sh subscribe <channel> [--from <label>]
   handoff.sh poll [--session <id>]
 EOF
