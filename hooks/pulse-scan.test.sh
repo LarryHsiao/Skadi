@@ -13,6 +13,42 @@ ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT
 tmpdir() { mktemp -d "$ROOT/d.XXXXXX"; }
 
+# A small fixture rubric for tests that run the engine end-to-end (PULSE_RUBRIC
+# below) — decoupled from the live pulse-rubric.json so trimming production's
+# rubric down to plan.accepted doesn't take this suite's coverage of
+# score_workflow/score_grammar with it. Carries only the ids these tests need.
+FIXTURE_RUBRIC="$ROOT/fixture-rubric.json"
+cat >"$FIXTURE_RUBRIC" <<'JSON'
+[
+  {"id": "workflow.glorfindel", "label": "Glorfindel completes", "kind": "workflow",
+   "tier": "structural", "applies": "<command-name>/glorfindel</command-name>",
+   "complied": "\\b(STIRRED|QUIET)\\b", "denom": "invocations", "criterion": "stub"},
+  {"id": "workflow.aule", "label": "Aulë completes", "kind": "workflow",
+   "tier": "structural", "applies": "<command-name>/aule</command-name>",
+   "complied": "\\b(STIRRED|QUIET)\\b", "denom": "invocations", "criterion": "stub"},
+  {"id": "rule.grammar", "label": "User prompt clean", "kind": "grammar",
+   "tier": "deterministic", "applies": "", "complied": "> \\*\\*Grammar:\\*\\*",
+   "denom": "messages", "criterion": "stub"},
+  {"id": "rule.commit-footer", "label": "Commit bears the session footer", "kind": "git-probe",
+   "tier": "deterministic", "applies": "", "complied": "Claude-Session:",
+   "denom": "commits", "criterion": "stub"}
+]
+JSON
+
+# Shared fixture entries for the post-gate and task-shot scorer tests below —
+# each dict recurs across several test blocks, so it's lifted to one file per
+# entry rather than retyped at each call site (docs/style/universal.md: lift
+# duplicate shapes on the third recurrence).
+COMPLIANCE_ENTRY="$ROOT/compliance-review-entry.json"
+cat >"$COMPLIANCE_ENTRY" <<'JSON'
+{"complied": "Compliance Review:\\s*(PASS|FAIL)", "since": "2026-07-16"}
+JSON
+
+FIRSTSHOT_ENTRY="$ROOT/first-shot-entry.json"
+cat >"$FIRSTSHOT_ENTRY" <<'JSON'
+{"rework": "(?i)\\b(wrong|revert|undo|redo|broken)\\b|^\\s*(no|nope|nah|nvm|not|still|didn'?t|doesn'?t|isn'?t)\\b|不對|不行|重來|改回|退回|(?<!不)錯", "threshold": 0}
+JSON
+
 check() { # desc expected actual
   if [[ "$2" == "$3" ]]; then echo "  ok  · $1"; pass=$((pass + 1))
   else echo "  FAIL · $1 — expected [$2] got [$3]"; fail=$((fail + 1)); fi
@@ -111,7 +147,7 @@ cat >"$d/r1/projects/proj-a/s.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-09T10:01:00Z","message":{"content":"good, thanks"}}
 {"type":"assistant","timestamp":"2026-07-09T10:01:05Z","message":{"content":[{"type":"text","text":"You are welcome."}]}}
 JSON
-out=$(PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" python3 "$SCAN" 2>/dev/null)
+out=$(PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" PULSE_RUBRIC="$FIXTURE_RUBRIC" python3 "$SCAN" 2>/dev/null)
 # glorfindel: 1/1 → 100 ; grammar: 1 clean prompt ("good, thanks") → 1/1 → 100 ; commit-footer: pending
 expected_orch="100/100/pending"
 actual_orch=$(python3 - "$board/pulse.json" <<'PY'
@@ -125,7 +161,7 @@ PY
 check "orchestration aggregates and marks pending" "$expected_orch" "$actual_orch"
 
 # ── 6 · history append: a second run adds a second line ──
-PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" python3 "$SCAN" >/dev/null 2>&1
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" PULSE_RUBRIC="$FIXTURE_RUBRIC" python3 "$SCAN" >/dev/null 2>&1
 expected_hist="2"
 actual_hist=$(wc -l < "$pulse/history.jsonl" | tr -d ' ')
 check "history grows one line per run" "$expected_hist" "$actual_hist"
@@ -137,7 +173,7 @@ cat >"$d/r1/projects/p/s.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
 {"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"content":[{"type":"text","text":"Glorfindel — STIRRED."}]}}
 JSON
-PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" python3 "$SCAN" >/dev/null 2>&1
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" PULSE_RUBRIC="$FIXTURE_RUBRIC" python3 "$SCAN" >/dev/null 2>&1
 expected_render="yes/yes"
 have_file="$([[ -f "$hen/adherence-pulse.html" ]] && echo yes || echo no)"
 names_item="$(grep -q 'workflow.glorfindel' "$hen/adherence-pulse.html" && echo yes || echo no)"
@@ -169,7 +205,7 @@ cat >"$d/r1/projects/p/s.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-09T10:01:00Z","message":{"content":"good, thanks"}}
 {"type":"assistant","timestamp":"2026-07-09T10:01:05Z","message":{"content":[{"type":"text","text":"You are welcome."}]}}
 JSON
-PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" python3 "$SCAN" >/dev/null 2>&1
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" PULSE_RUBRIC="$FIXTURE_RUBRIC" python3 "$SCAN" >/dev/null 2>&1
 expected_tier="100/100"
 actual_tier=$(python3 - "$board/pulse.json" <<'PY'
 import json, sys
@@ -186,7 +222,7 @@ cat >"$d/r1/projects/p/s.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"hi"}}
 {"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"content":[{"type":"text","text":"hello"}]}}
 JSON
-PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" python3 "$SCAN" >/dev/null 2>&1
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" PULSE_RUBRIC="$FIXTURE_RUBRIC" python3 "$SCAN" >/dev/null 2>&1
 expected_man="yes"
 actual_man=$(python3 - "$board/channels.json" <<'PY'
 import json, sys
@@ -206,7 +242,7 @@ cat >"$d/r1/projects/p/s.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"hi"}}
 {"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"content":[{"type":"text","text":"hello"}]}}
 JSON
-PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" python3 "$SCAN" >/dev/null 2>&1
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" PULSE_RUBRIC="$FIXTURE_RUBRIC" python3 "$SCAN" >/dev/null 2>&1
 expected_door="yes/pulse.html"
 have_copy="$([[ -f "$board/pulse.html" ]] && echo yes || echo no)"
 snap_url=$(python3 - "$board/pulse.json" <<'PY'
@@ -246,14 +282,18 @@ cat >"$d/gate.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-09T10:02:05Z","message":{"content":[{"type":"text","text":"Sure, renaming."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
 JSON
 expected_gate="2/1|2/1|2/1"
-actual_gate=$(python3 - "$SCAN" "$RUBRIC" "$d/gate.jsonl" <<'PY'
-import importlib.util as u, sys, json
+actual_gate=$(python3 - "$SCAN" "$d/gate.jsonl" <<'PY'
+import importlib.util as u, sys
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
-rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
-turns = m.read_turns(sys.argv[3])
+fixtures = {
+    "rule.task-sizing": {"gate": "sizing", "complied": "Size ▰"},
+    "rule.acceptance": {"gate": "acceptance", "complied": r"(?i)\bAcceptance\b"},
+    "rule.change-approval": {"gate": "approval", "complied": ""},
+}
+turns = m.read_turns(sys.argv[2])
 out = []
 for rid in ("rule.task-sizing", "rule.acceptance", "rule.change-approval"):
-    a, c, _ = m.score_freeform_gate(turns, rubric[rid])
+    a, c, _ = m.score_freeform_gate(turns, fixtures[rid])
     out.append("%d/%d" % (a, c))
 print("|".join(out))
 PY
@@ -269,12 +309,12 @@ cat >"$d/bash-mutate.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-09T10:01:05Z","message":{"content":[{"type":"text","text":"Committing now."},{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"git commit -m x"}}]}}
 JSON
 expected_bashmut="1/0"
-actual_bashmut=$(python3 - "$SCAN" "$RUBRIC" "$d/bash-mutate.jsonl" <<'PY'
-import importlib.util as u, sys, json
+actual_bashmut=$(python3 - "$SCAN" "$d/bash-mutate.jsonl" <<'PY'
+import importlib.util as u, sys
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
-rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
-turns = m.read_turns(sys.argv[3])
-a, c, _ = m.score_freeform_gate(turns, rubric["rule.task-sizing"])
+entry = {"gate": "sizing", "complied": "Size ▰"}
+turns = m.read_turns(sys.argv[2])
+a, c, _ = m.score_freeform_gate(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
@@ -295,7 +335,7 @@ cat >"$d/r1/projects/swept/s.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-09T10:10:00Z","message":{"content":"<command-name>/aule</command-name>"}}
 {"type":"assistant","timestamp":"2026-07-09T10:10:05Z","message":{"content":[{"type":"text","text":"Aulë halts at the pre-flight gate."}]}}
 JSON
-PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" python3 "$SCAN" >/dev/null 2>&1
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" PULSE_RUBRIC="$FIXTURE_RUBRIC" python3 "$SCAN" >/dev/null 2>&1
 # direct: 1/1 → 100 ; sweep: 2 fired, 0 complied → 0
 expected_split="100/0"
 actual_split=$(python3 - "$board/pulse.json" <<'PY'
@@ -316,12 +356,12 @@ cat >"$d/redirect.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-09T10:01:05Z","message":{"content":[{"type":"text","text":"Saving now."},{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"echo done > report.txt"}}]}}
 JSON
 expected_redirect="1/0"
-actual_redirect=$(python3 - "$SCAN" "$RUBRIC" "$d/redirect.jsonl" <<'PY'
-import importlib.util as u, sys, json
+actual_redirect=$(python3 - "$SCAN" "$d/redirect.jsonl" <<'PY'
+import importlib.util as u, sys
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
-rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
-turns = m.read_turns(sys.argv[3])
-a, c, _ = m.score_freeform_gate(turns, rubric["rule.task-sizing"])
+entry = {"gate": "sizing", "complied": "Size ▰"}
+turns = m.read_turns(sys.argv[2])
+a, c, _ = m.score_freeform_gate(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
@@ -360,7 +400,7 @@ cat >"$d/r1/projects/b/s.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
 {"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"still working"}]}}
 JSON
-PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" python3 "$SCAN" >/dev/null 2>&1
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" PULSE_RUBRIC="$FIXTURE_RUBRIC" python3 "$SCAN" >/dev/null 2>&1
 expected_bymodel_snap="100/0"
 actual_bymodel_snap=$(python3 - "$board/pulse.json" <<'PY'
 import json, sys
@@ -385,8 +425,8 @@ cat >"$d/r1/projects/p/s.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-09T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
 {"type":"assistant","timestamp":"2026-07-09T10:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Glorfindel — STIRRED."}]}}
 JSON
-PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" python3 "$SCAN" >/dev/null 2>&1
-PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" python3 "$SCAN" >/dev/null 2>&1
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" PULSE_RUBRIC="$FIXTURE_RUBRIC" python3 "$SCAN" >/dev/null 2>&1
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" PULSE_RUBRIC="$FIXTURE_RUBRIC" python3 "$SCAN" >/dev/null 2>&1
 expected_trend="2/yes"
 actual_trend=$(python3 - "$hen/adherence-pulse.html" <<'PY'
 import re, json, sys
@@ -416,12 +456,12 @@ cat >"$d/postgate.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-16T10:01:10Z","message":{"content":[{"type":"text","text":"Done, no verdict this time."}]}}
 JSON
 expected_postgate="2/1"
-actual_postgate=$(python3 - "$SCAN" "$RUBRIC" "$d/postgate.jsonl" <<'PY'
+actual_postgate=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/postgate.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
-rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
 turns = m.read_turns(sys.argv[3])
-a, c, _ = m.score_post_gate(turns, rubric["rule.compliance-review"])
+a, c, _ = m.score_post_gate(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
@@ -435,12 +475,12 @@ cat >"$d/postgate-noagent.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-17T10:00:10Z","message":{"content":[{"type":"text","text":"Ran tests, all green.\nCompliance Review: PASS"}]}}
 JSON
 expected_postgate_noagent="1/0"
-actual_postgate_noagent=$(python3 - "$SCAN" "$RUBRIC" "$d/postgate-noagent.jsonl" <<'PY'
+actual_postgate_noagent=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/postgate-noagent.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
-rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
 turns = m.read_turns(sys.argv[3])
-a, c, _ = m.score_post_gate(turns, rubric["rule.compliance-review"])
+a, c, _ = m.score_post_gate(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
@@ -456,12 +496,12 @@ cat >"$d/postgate-reviewfix.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-18T10:00:15Z","message":{"content":[{"type":"text","text":"Fixed and reverified.\nCompliance Review: PASS"}]}}
 JSON
 expected_postgate_reviewfix="1/1"
-actual_postgate_reviewfix=$(python3 - "$SCAN" "$RUBRIC" "$d/postgate-reviewfix.jsonl" <<'PY'
+actual_postgate_reviewfix=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/postgate-reviewfix.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
-rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
 turns = m.read_turns(sys.argv[3])
-a, c, _ = m.score_post_gate(turns, rubric["rule.compliance-review"])
+a, c, _ = m.score_post_gate(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
@@ -474,12 +514,12 @@ cat >"$d/tasknotif.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-18T09:00:05Z","message":{"content":[{"type":"text","text":"Picking the result up."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
 JSON
 expected_tasknotif="0/0"
-actual_tasknotif=$(python3 - "$SCAN" "$RUBRIC" "$d/tasknotif.jsonl" <<'PY'
+actual_tasknotif=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/tasknotif.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
-rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
 turns = m.read_turns(sys.argv[3])
-a, c, _ = m.score_post_gate(turns, rubric["rule.compliance-review"])
+a, c, _ = m.score_post_gate(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
@@ -500,12 +540,12 @@ cat >"$d/since.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-17T09:00:10Z","message":{"content":[{"type":"text","text":"Done."}]}}
 JSON
 expected_since="1/0"
-actual_since=$(python3 - "$SCAN" "$RUBRIC" "$d/since.jsonl" <<'PY'
+actual_since=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/since.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
-rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
 turns = m.read_turns(sys.argv[3])
-a, c, _ = m.score_post_gate(turns, rubric["rule.compliance-review"])
+a, c, _ = m.score_post_gate(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
@@ -525,12 +565,12 @@ cat >"$d/segment-steer.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-18T11:01:12Z","message":{"content":[{"type":"text","text":"Reviewed and verified.\nCompliance Review: PASS"}]}}
 JSON
 expected_segment_steer="1/1"
-actual_segment_steer=$(python3 - "$SCAN" "$RUBRIC" "$d/segment-steer.jsonl" <<'PY'
+actual_segment_steer=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/segment-steer.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
-rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
 turns = m.read_turns(sys.argv[3])
-a, c, _ = m.score_post_gate(turns, rubric["rule.compliance-review"])
+a, c, _ = m.score_post_gate(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
@@ -549,12 +589,12 @@ cat >"$d/segment-split.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-18T12:02:10Z","message":{"content":[{"type":"text","text":"Done, no verdict."}]}}
 JSON
 expected_segment_split="2/1"
-actual_segment_split=$(python3 - "$SCAN" "$RUBRIC" "$d/segment-split.jsonl" <<'PY'
+actual_segment_split=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/segment-split.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
-rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
 turns = m.read_turns(sys.argv[3])
-a, c, _ = m.score_post_gate(turns, rubric["rule.compliance-review"])
+a, c, _ = m.score_post_gate(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
@@ -569,12 +609,12 @@ cat >"$d/shot-additive.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-18T13:01:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Committing."},{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"git commit -m x && git push"}}]}}
 JSON
 expected_shot_additive="1/1"
-actual_shot_additive=$(python3 - "$SCAN" "$RUBRIC" "$d/shot-additive.jsonl" <<'PY'
+actual_shot_additive=$(python3 - "$SCAN" "$FIRSTSHOT_ENTRY" "$d/shot-additive.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
-rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
 turns = m.read_turns(sys.argv[3])
-a, c, _ = m.score_task_shot(turns, rubric["model.first-shot"])
+a, c, _ = m.score_task_shot(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
@@ -589,12 +629,12 @@ cat >"$d/shot-rework.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-18T14:01:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Fixing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
 JSON
 expected_shot_rework="1/0"
-actual_shot_rework=$(python3 - "$SCAN" "$RUBRIC" "$d/shot-rework.jsonl" <<'PY'
+actual_shot_rework=$(python3 - "$SCAN" "$FIRSTSHOT_ENTRY" "$d/shot-rework.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
-rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
 turns = m.read_turns(sys.argv[3])
-a, c, _ = m.score_task_shot(turns, rubric["model.first-shot"])
+a, c, _ = m.score_task_shot(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
@@ -611,12 +651,12 @@ cat >"$d/shot-notmid.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-18T15:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Adjusting."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
 JSON
 expected_shot_notmid="1/1"
-actual_shot_notmid=$(python3 - "$SCAN" "$RUBRIC" "$d/shot-notmid.jsonl" <<'PY'
+actual_shot_notmid=$(python3 - "$SCAN" "$FIRSTSHOT_ENTRY" "$d/shot-notmid.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
-rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
 turns = m.read_turns(sys.argv[3])
-a, c, _ = m.score_task_shot(turns, rubric["model.first-shot"])
+a, c, _ = m.score_task_shot(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )

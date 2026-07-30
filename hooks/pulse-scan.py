@@ -1012,10 +1012,6 @@ _PAGE = """<meta charset="utf-8">
 <style>
   body{font-family:ui-sans-serif,system-ui,sans-serif;margin:1.2rem;}
   .kpi{font-size:2.4rem;font-weight:700;}
-  .avglabel{font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:#87795e;margin-top:-.3rem;}
-  .tiers{display:flex;gap:.6rem;margin:.4rem 0;flex-wrap:wrap;}
-  .tierchip{border:1px solid #cbb89a;border-radius:6px;padding:.25rem .55rem;font-size:.8rem;}
-  .tierchip b{font-size:1.1rem;}
   .trendlabel{font-size:.7rem;color:#87795e;margin-top:.6rem;}
   table{border-collapse:collapse;width:100%;margin-top:.6rem;font-size:.85rem;}
   th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid #cbb89a;}
@@ -1057,9 +1053,7 @@ _PAGE = """<meta charset="utf-8">
 </div>
 <div class="modelchips" id="modelchips"></div>
 <div class="tabnote" id="tabnote"></div>
-<div class="tiers" id="tiers"></div>
 <div class="kpi" id="overall">—</div>
-<div class="avglabel">cross-tier average</div>
 <div class="trendlabel" id="trendlabel">trend, by run date</div>
 <svg id="spark" width="320" height="60"></svg>
 <table>
@@ -1258,12 +1252,6 @@ function render(tab, model) {
   document.getElementById("trendlabel").textContent =
     `trend, by run date · ${tab === "sweep" ? "Sweep" : "Direct"} · ${model === "Overall" ? "Overall" : modelLabel(model)}`;
   renderTrend(tab, model);
-  const byTier = {};
-  rated.forEach(i => { (byTier[i.tier] = byTier[i.tier] || []).push(i.rate); });
-  document.getElementById("tiers").innerHTML = Object.keys(byTier).sort().map(t => {
-    const avg = Math.round(byTier[t].reduce((a,v)=>a+v,0)/byTier[t].length);
-    return `<span class="tierchip">${esc(t)} <b>${avg}%</b></span>`;
-  }).join("") || `<span class="tierchip">no rated items yet</span>`;
 
   const groups = {};
   items.forEach(i => { (groups[i.tier] = groups[i.tier] || []).push(i); });
@@ -1346,7 +1334,8 @@ def _copy_dashboard_to_board(henneth_dir, board_dir):
 def main():
     from datetime import datetime, timezone
     here = os.path.dirname(os.path.abspath(__file__))
-    rubric = json.load(open(os.path.join(here, "pulse-rubric.json"), encoding="utf-8"))
+    rubric_path = os.environ.get("PULSE_RUBRIC", os.path.join(here, "pulse-rubric.json"))
+    rubric = json.load(open(rubric_path, encoding="utf-8"))
     now = datetime.now(timezone.utc)
     now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     pulse_dir = _pulse_dir()
