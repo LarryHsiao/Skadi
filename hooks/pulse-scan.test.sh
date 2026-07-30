@@ -542,6 +542,49 @@ PY
 )
 check "task-notification turn opens no run" "$expected_tasknotif" "$actual_tasknotif"
 
+# ── 23b · a slash-command invocation DOES open a run — a skill's own mutating
+#          work, with no genuine prompt following it, must not fall into the
+#          gap between two boundary turns and vanish from every segment-based
+#          scorer ──
+d=$(tmpdir)
+cat >"$d/skillonly.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-25T09:00:00Z","message":{"content":"<command-name>/celebrimbor</command-name>"}}
+{"type":"user","timestamp":"2026-07-25T09:00:01Z","message":{"content":"Base directory for this skill: /x\n# Celebrimbor"}}
+{"type":"assistant","timestamp":"2026-07-25T09:00:05Z","message":{"content":[{"type":"text","text":"Forging."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-25T09:00:10Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"},{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+JSON
+expected_skillonly="1/1"
+actual_skillonly=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/skillonly.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_post_gate(turns, entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "a skill's own mutation, with no follow-up prompt, is captured and complies" "$expected_skillonly" "$actual_skillonly"
+
+# ── 23c · a read-only slash command opens a non-mutating run — it must not by
+#          itself start a segment, so it costs nothing on either side ──
+d=$(tmpdir)
+cat >"$d/skillreadonly.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-25T09:00:00Z","message":{"content":"<command-name>/daily</command-name>"}}
+{"type":"user","timestamp":"2026-07-25T09:00:01Z","message":{"content":"Base directory for this skill: /x\n# Daily"}}
+{"type":"assistant","timestamp":"2026-07-25T09:00:05Z","message":{"content":[{"type":"text","text":"Nothing due today."}]}}
+JSON
+expected_skillreadonly="0/0"
+actual_skillreadonly=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/skillreadonly.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_post_gate(turns, entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "a read-only skill invocation opens a run but starts no segment" "$expected_skillreadonly" "$actual_skillreadonly"
+
 # ── 24 · post-gate scorer: a run opened before the item's `since` date is not billed ──
 # The pre-cutoff run would fully comply (Agent + marker) — proving it's excluded
 # by date, not by failing the gate; the post-cutoff run lacks an Agent call, so

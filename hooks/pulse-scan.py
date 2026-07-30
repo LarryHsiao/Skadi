@@ -207,6 +207,19 @@ def _is_prompt(text):
     return not any(tok in text for tok in noise)
 
 
+def _is_run_boundary(text):
+    """A user turn that marks a run boundary: a genuine prompt, or a slash-
+    command invocation. Broader than _is_prompt alone — that function treats
+    <command-name> as noise so _reply_after/_picked_option correctly skip past
+    it when hunting for a gate's genuine reply, but a run *boundary* must also
+    open at a skill invocation: without this, any mutating work a skill does
+    on its own — with no genuine prompt following it in the transcript — falls
+    into the gap between two boundary turns and is never captured by any run,
+    hence invisible to every segment-based scorer (score_task_shot,
+    score_post_gate, score_bug_gate)."""
+    return _is_prompt(text) or "<command-name>" in text
+
+
 def _reply_after(turns, i):
     """The user's answer to the gate rendered at turns[i] — the next genuine
     prompt, skipping harness injections and the gate reminder that rides on
@@ -282,8 +295,7 @@ def _gate_sites(turns):
 
 def _ends_run(turn):
     """A run ends at a genuine user prompt or a new command invocation."""
-    return turn["type"] == "user" and (
-        _is_prompt(turn["text"]) or "<command-name>" in turn["text"])
+    return turn["type"] == "user" and _is_run_boundary(turn["text"])
 
 
 def _run_span(turns, i):
@@ -447,18 +459,21 @@ def score_freeform_gate(turns, entry):
 
 
 def _prompt_runs(turns, since):
-    """Every prompt-opened run as (prompt_text, run_turns, is_mutating),
-    skipping runs whose opening prompt predates `since` (the rule's birth
-    date — before it the rule did not exist, so the run could not have
+    """Every run opened by a genuine prompt OR a slash-command invocation, as
+    (prompt_text, run_turns, is_mutating) — see _is_run_boundary for why a
+    command invocation must open a run too: a skill's own mutating work would
+    otherwise sit in the gap between two boundary turns and never be
+    captured. Skips runs whose opening prompt predates `since` (the rule's
+    birth date — before it the rule did not exist, so the run could not have
     complied, and billing it only drowns the signal in dead history). Empty
-    `since` bills every run. prompt_text is the opening user prompt, kept so
+    `since` bills every run. prompt_text is the opening turn's text, kept so
     the task-shot scorer can read its tone."""
     runs = []
     i = 0
     n = len(turns)
     while i < n:
         turn = turns[i]
-        if turn["type"] == "user" and _is_prompt(turn["text"]):
+        if turn["type"] == "user" and _is_run_boundary(turn["text"]):
             j = _run_span(turns, i)
             if turn["ts"][:10] >= since:
                 run = turns[i + 1:j]
