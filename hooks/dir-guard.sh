@@ -136,7 +136,12 @@ fi
 # `cmd1 && /opt/homebrew/bin/git status` is covered too.
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command' 2>/dev/null)
 if [ -n "$CMD" ]; then
-  TOKENS=$(python3 - "$CMD" 2>/dev/null <<'PYEOF'
+  # Keep the heredoc outside command substitution itself. Bash 3.2 parses
+  # `$()` bodies before honoring a quoted heredoc delimiter, so Python text
+  # containing quote and `$(` examples can make the whole hook fail syntax
+  # validation even though newer Bash versions accept it.
+  tokenize_command() {
+    python3 - "$CMD" 2>/dev/null <<'PYEOF'
 import re, sys, shlex
 
 # shlex.split() knows shell quoting ('...', "...") but nothing about heredoc
@@ -335,17 +340,48 @@ def strip_heredocs(text):
 try:
     raw_tokens = shlex.split(strip_heredocs(sys.argv[1]))
 except ValueError:
-    raw_tokens = []  # unparseable (e.g. bare heredoc) — skip path checks
+    # A malformed command (unmatched quote, trailing escape, etc.) must not
+    # turn a tokenizer failure into a path-check bypass. The shell loop below
+    # treats this marker as a denial.
+    print("ERROR:command could not be parsed safely")
+    sys.exit(0)
 
 expect_cmd = True
+expect_redirect_target = False
 for raw in raw_tokens:
-    # A token made entirely of shell operator characters (;, &&, ||, |, (,
-    # )) is a command separator, not a word — it resets command position
-    # for whatever follows and is not itself emitted (matches prior
-    # behavior, which stripped these to nothing).
+    # A token made entirely of shell operator characters is either a command
+    # separator or a redirection. Separators reset command position;
+    # redirections make the next word an ARG while preserving the current
+    # command position. Treating `>` as a separator used to tag its target as
+    # CMD, exempting `cat foo > /etc/passwd` from path checks.
     if raw and all(c in ';&|()<>' for c in raw):
-        expect_cmd = True
+        if '<' in raw or '>' in raw:
+            expect_redirect_target = True
+        else:
+            expect_cmd = True
         continue
+
+    # An fd-prefixed redirection with a separated target (`2> /path`) is
+    # returned by shlex as `2>` and `/path`, rather than as an operator-only
+    # token. It has the same state transition as `> /path`.
+    if re.match(r'^\d+(?:<<<|<<|>>|<|>)$', raw):
+        expect_redirect_target = True
+        continue
+
+    # shlex does not split a redirection glued to its destination. Handle
+    # `>/path`, `2>>/path`, `<file`, and their here-string/heredoc-shaped
+    # counterparts as argument paths, not command words.
+    redirect = re.match(r'^\d*(?:<<<|<<|>>|<|>)(.+)$', raw)
+    if redirect:
+        print('ARG:' + redirect.group(1))
+        expect_redirect_target = False
+        continue
+
+    if expect_redirect_target:
+        print('ARG:' + raw)
+        expect_redirect_target = False
+        continue
+
     # shlex only understands words and quoting, not shell control
     # operators — a trailing ";", "&&", "||", "|", ")", ">" glued to a
     # path with no space (e.g. "for x in a; do") rides along as part of
@@ -355,10 +391,15 @@ for raw in raw_tokens:
     print(('CMD:' if expect_cmd else 'ARG:') + token)
     expect_cmd = False
 PYEOF
-)
+  }
+  TOKENS=$(tokenize_command)
   while IFS= read -r LINE; do
     TAG="${LINE%%:*}"
     TOKEN="${LINE#*:}"
+    if [ "$TAG" = "ERROR" ]; then
+      printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: command could not be parsed safely"}}'
+      exit 0
+    fi
     case "$TOKEN" in
       ~*|--*|-*|"") continue ;;
     esac

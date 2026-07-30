@@ -70,6 +70,22 @@ check "command's own absolute path is allowed in every chain slot" "allow" "$(ru
 # the command position ──
 check "outside path used as an argument is still denied" "deny" "$(run_cmd "cat /etc/hosts")"
 
+# ── redirection operators do not create a new executable slot. Their target
+# is an argument path and must be checked whether separated from the operator,
+# glued to it, fd-prefixed, or placed before the command itself ──
+check "space-separated redirect target outside project is denied" "deny" "$(run_cmd "cat foo > /etc/passwd")"
+check "glued redirect target outside project is denied" "deny" "$(run_cmd "cat foo >/etc/passwd")"
+check "fd-prefixed redirect target outside project is denied" "deny" "$(run_cmd "cat foo 2>>/etc/passwd")"
+check "fd-prefixed redirect with separated target is denied" "deny" "$(run_cmd "cat foo 2>> /etc/passwd")"
+check "command-prefix redirect target outside project is denied" "deny" "$(run_cmd "> /etc/passwd echo foo")"
+check "allowed command-prefix redirect preserves executable slot" "allow" "$(run_cmd "2> /tmp/stderr /outside/tool")"
+
+# ── invalid shell quoting must fail closed. Previously shlex raised
+# ValueError and the fallback silently returned no tokens, skipping every
+# command-path check ──
+check "unmatched quote cannot bypass path checks" "deny" "$(run_cmd "cat /etc/passwd '")"
+check "trailing escape cannot bypass path checks" "deny" "$(run_cmd 'cat /etc/passwd \')"
+
 # ── a well-known system/toolchain bin dir used as an *argument* is allowed —
 # referencing where a system binary lives (an existence check, `ls`, `file`)
 # is a read, not a sandbox escape, so it doesn't need the executable-slot
