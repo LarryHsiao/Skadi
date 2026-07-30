@@ -1140,7 +1140,7 @@ function gateSeries(item) {
     const applied = cells.reduce((a, p) => a + p.cell.applied, 0);
     const complied = cells.reduce((a, p) => a + p.cell.complied, 0);
     return {
-      label, colour, applied, complied,
+      label, colour, model: m, applied, complied,
       rate: applied ? Math.round(100 * complied / applied) : null,
       points: cells.map(p => ({ date: p.date, rate: p.cell.rate,
                                 n: p.cell.complied + "/" + p.cell.applied })),
@@ -1163,14 +1163,26 @@ function gateScales(dates) {
   };
 }
 
-function gateLines(series, scale) {
-  return series.map(s => {
+// The selected model's line draws at full strength; the rest dim to a faint
+// wash rather than vanish outright — the point is comparison at a glance
+// ("was this model the outlier"), which a hidden line can't answer. The
+// selected line draws last so it never sits under a dimmed one.
+const GATE_DIM_OPACITY = 0.22;
+
+function gateLines(series, scale, selectedModel) {
+  const isSelected = (s) =>
+    selectedModel === "Overall" ? s.model === null : s.model === selectedModel;
+  const ordered = [...series].sort((a, b) => isSelected(a) - isSelected(b));
+  return ordered.map(s => {
+    const dim = !isSelected(s);
+    const opacity = dim ? GATE_DIM_OPACITY : 1;
     const at = (p) => `${scale.x(p.date).toFixed(1)},${scale.y(p.rate).toFixed(1)}`;
     const dots = s.points.map(p =>
       `<circle cx="${scale.x(p.date).toFixed(1)}" cy="${scale.y(p.rate).toFixed(1)}" r="4"
-        fill="${s.colour}" stroke="rgba(252,252,251,.9)" stroke-width="2"
+        fill="${s.colour}" fill-opacity="${opacity}" stroke="rgba(252,252,251,.9)"
+        stroke-opacity="${opacity}" stroke-width="2"
         ><title>${esc(s.label)} · ${esc(p.date)} · ${esc(p.rate)}% (${esc(p.n)})</title></circle>`).join("");
-    return `<polyline fill="none" stroke="${s.colour}" stroke-width="2"
+    return `<polyline fill="none" stroke="${s.colour}" stroke-opacity="${opacity}" stroke-width="2"
       stroke-linejoin="round" points="${s.points.map(at).join(" ")}"/>${dots}`;
   }).join("");
 }
@@ -1187,7 +1199,7 @@ function gateLegend(series, abandoned) {
   return rows.join("");
 }
 
-function gateChart(item) {
+function gateChart(item, model) {
   const series = gateSeries(item);
   if (!series.length) {
     return `<div class="gempty">No plan gate has been judged yet — the rate and
@@ -1202,7 +1214,7 @@ function gateChart(item) {
       <line x1="${L}" y1="${H - B}" x2="${W - 4}" y2="${H - B}" stroke="#cbb89a"/>
       <text class="gaxis" x="2" y="${T + 4}">100</text>
       <text class="gaxis" x="14" y="${H - B + 3}">0</text>
-      ${gateLines(series, gateScales(dates))}
+      ${gateLines(series, gateScales(dates), model)}
       <text class="gaxis" x="${L}" y="${H - 4}">${esc(dates[0])}</text>
       ${dates.length > 1 ? `<text class="gaxis" x="${W - 4}" y="${H - 4}"
         text-anchor="end">${esc(dates[dates.length - 1])}</text>` : ""}
@@ -1266,9 +1278,10 @@ function render(tab, model) {
     const info = i.criterion ? `<button class="info" data-info="${esc(i.id)}" title="What counts as success / failure">&#9432;</button>` : "";
     const critRow = i.criterion ? `<tr class="critrow" data-crit="${esc(i.id)}"><td colspan="3"><div class="crit">${criterionHtml(i.criterion)}</div></td></tr>` : "";
     // The rate above obeys the selected chip, as every row does; the chart below
-    // always draws every model, so comparing them costs no clicks.
+    // still draws every model's line — comparing them costs no clicks — but dims
+    // every line except the selected one's, so the chip's choice reads there too.
     const gateRow = i.byDate !== undefined
-      ? `<tr class="gaterow"><td colspan="3">${gateChart(i)}</td></tr>` : "";
+      ? `<tr class="gaterow"><td colspan="3">${gateChart(i, model)}</td></tr>` : "";
     return `<tr class="${i.status !== "ok" ? "pending" : ""}">
       <td><code>${esc(i.id)}</code> ${info} ${statusBadge}<br>${esc(i.label)}${bar}</td>
       <td>${esc(rate)}</td><td>${esc(n)}</td></tr>${critRow}${gateRow}`;
