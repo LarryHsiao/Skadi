@@ -866,7 +866,9 @@ def apply_rubric(files, rubric):
         kind = entry["kind"]
         base = {"id": entry["id"], "label": entry["label"],
                 "tier": entry["tier"], "kind": kind,
-                "criterion": entry.get("criterion", "")}
+                "criterion": entry.get("criterion", ""),
+                "labelZh": entry.get("label_zh", ""),
+                "criterionZh": entry.get("criterion_zh", "")}
         if kind not in scorers:  # git-probe / forge-probe — not built yet
             items.append({**base, "applied": None, "complied": None,
                           "rate": None, "status": "pending"})
@@ -1046,8 +1048,16 @@ _PAGE = """<meta charset="utf-8">
   .glegend b{font-variant-numeric:tabular-nums;}
   .gnote{font-size:.72rem;color:#87795e;font-style:italic;margin:.15rem 0 0;}
   .gempty{font-size:.78rem;color:#87795e;font-style:italic;padding:.55rem .1rem;}
+  .headerrow{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.5rem;}
+  .langswitch{display:flex;gap:.35rem;}
 </style>
-<h1>Adherence Pulse</h1>
+<div class="headerrow">
+  <h1 id="pageTitle">Adherence Pulse</h1>
+  <div class="langswitch" id="langSwitch">
+    <button class="chip" data-lang="en">EN</button>
+    <button class="chip" data-lang="zh">中文</button>
+  </div>
+</div>
 <div class="tabs" id="tabs">
   <button class="tabbtn active" data-tab="direct">Direct</button>
   <button class="tabbtn" data-tab="sweep">Sweep</button>
@@ -1058,7 +1068,7 @@ _PAGE = """<meta charset="utf-8">
 <div class="trendlabel" id="trendlabel">trend, by run date</div>
 <svg id="spark" width="320" height="60"></svg>
 <table>
-  <thead><tr><th>Item</th><th>Rate</th><th>n</th></tr></thead>
+  <thead><tr><th id="colItem">Item</th><th id="colRate">Rate</th><th id="colN">n</th></tr></thead>
   <tbody id="rows"></tbody>
 </table>
 <script>
@@ -1070,16 +1080,61 @@ const criterionHtml = (s) => esc(s)
 const TIER_ORDER = ["heuristic", "structural", "deterministic"];
 const tierRank = (t) => { const i = TIER_ORDER.indexOf(t); return i === -1 ? TIER_ORDER.length : i; };
 
-const TAB_NOTES = {
-  direct: "workflow rows count sessions with no /loop or /amon-sul in them — a hand-typed command inside such a session is still counted as sweep.",
-  sweep: "workflow rows only — grammar and free-form gate rows carry no sweep concept, so they're dropped from this tab.",
+const STRINGS = {
+  en: {
+    title: "Adherence Pulse",
+    tabDirect: "Direct", tabSweep: "Sweep",
+    trend: "trend, by run date",
+    colItem: "Item", colRate: "Rate", colN: "n",
+    overall: "Overall",
+    pending: "pending", error: "error", noSweep: "no sweep data", noData: "no data",
+    infoTitle: "What counts as success / failure",
+    modelNote: (m) => ` · showing only ${m}'s runs, recomputed independently.`,
+    tabNotes: {
+      direct: "workflow rows count sessions with no /loop or /amon-sul in them — a hand-typed command inside such a session is still counted as sweep.",
+      sweep: "workflow rows only — grammar and free-form gate rows carry no sweep concept, so they're dropped from this tab.",
+    },
+    tiers: { heuristic: "heuristic", structural: "structural", deterministic: "deterministic" },
+    gateEmpty: "No plan gate has been judged yet — the rate and its trend fill in as gauges are answered.",
+    gateAbandoned: (n) => `${n} gate${n === 1 ? "" : "s"} abandoned — excluded from the rate, since silence is no verdict on a plan.`,
+    day: (n) => `${n} day${n === 1 ? "" : "s"}`,
+    gateAria: "Plan acceptance rate by session date, one line per model",
+  },
+  zh: {
+    title: "遵循度脈動",
+    tabDirect: "直接", tabSweep: "掃描",
+    trend: "趨勢（依執行日期）",
+    colItem: "項目", colRate: "比率", colN: "n",
+    overall: "總體",
+    pending: "待建", error: "錯誤", noSweep: "無掃描資料", noData: "無資料",
+    infoTitle: "什麼算通過／未通過",
+    modelNote: (m) => `．僅顯示 ${m} 的執行紀錄，獨立重新計算。`,
+    tabNotes: {
+      direct: "workflow 類項目計入沒有 /loop 或 /amon-sul 的 session——這類 session 裡手動輸入的指令仍算作 sweep。",
+      sweep: "只涵蓋 workflow 類項目——grammar 與 free-form gate 沒有 sweep 的概念，因此不列入這個分頁。",
+    },
+    tiers: { heuristic: "啟發式", structural: "結構性", deterministic: "確定性" },
+    gateEmpty: "尚未有任何計畫關卡被判定——比率與趨勢會隨著量表被回答而逐漸填入。",
+    gateAbandoned: (n) => `${n} 個關卡遭放棄——不計入比率，沉默不代表對計畫的任何判決。`,
+    day: (n) => `${n} 天`,
+    gateAria: "依 session 日期呈現的計畫接受率，每個模型一條線",
+  },
 };
+let currentLang = (navigator.language || "en").toLowerCase().startsWith("zh") ? "zh" : "en";
+const S = () => STRINGS[currentLang];
+const statusLabel = (status) => ({
+  pending: S().pending, error: S().error, "no-sweep": S().noSweep, "no-data": S().noData,
+}[status] || status);
+const tierLabel = (t) => S().tiers[t] || t;
+const itemLabel = (i) => (currentLang === "zh" && i.labelZh) ? i.labelZh : i.label;
+const itemCriterion = (i) => (currentLang === "zh" && i.criterionZh) ? i.criterionZh : i.criterion;
+
 const MODEL_LABELS = {
   "claude-opus-4-8": "Opus 4.8",
   "claude-sonnet-5": "Sonnet 5",
   "claude-fable-5": "Fable 5",
 };
-const modelLabel = (m) => MODEL_LABELS[m] || m;
+const modelLabel = (m) => m === "Overall" ? S().overall : (MODEL_LABELS[m] || m);
 
 function viewFor(items, tab) {
   if (tab !== "sweep") return items;
@@ -1146,7 +1201,7 @@ function gateSeries(item) {
                                 n: p.cell.complied + "/" + p.cell.applied })),
     };
   };
-  const out = [build("Overall", null, GATE_INK)];
+  const out = [build(modelLabel("Overall"), null, GATE_INK)];
   models.forEach((m, k) => out.push(
     build(modelLabel(m), m, k < GATE_HUES.length ? GATE_HUES[k] : GATE_OTHER)));
   return out.filter(s => s.points.length);
@@ -1188,13 +1243,11 @@ function gateLines(series, scale, selectedModel) {
 }
 
 function gateLegend(series, abandoned) {
-  const days = (n) => `${esc(n)} day${n === 1 ? "" : "s"}`;
   const rows = series.map(s =>
     `<div><i style="background:${s.colour}"></i>${esc(s.label)} — <b>${esc(s.rate)}%</b>
-      <span class="gaxis">${esc(s.complied)}/${esc(s.applied)} over ${days(s.points.length)}</span></div>`);
+      <span class="gaxis">${esc(s.complied)}/${esc(s.applied)} over ${esc(S().day(s.points.length))}</span></div>`);
   if (abandoned) {
-    rows.push(`<p class="gnote">${esc(abandoned)} gate${abandoned === 1 ? "" : "s"}
-      abandoned — excluded from the rate, since silence is no verdict on a plan.</p>`);
+    rows.push(`<p class="gnote">${esc(S().gateAbandoned(abandoned))}</p>`);
   }
   return rows.join("");
 }
@@ -1202,14 +1255,13 @@ function gateLegend(series, abandoned) {
 function gateChart(item, model) {
   const series = gateSeries(item);
   if (!series.length) {
-    return `<div class="gempty">No plan gate has been judged yet — the rate and
-      its trend fill in as gauges are answered.</div>`;
+    return `<div class="gempty">${esc(S().gateEmpty)}</div>`;
   }
   const dates = [...new Set(series.flatMap(s => s.points.map(p => p.date)))].sort();
   const { W, H, L, B, T } = GATE_BOX;
   return `<div class="gatewrap">
     <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img"
-      aria-label="Plan acceptance rate by session date, one line per model">
+      aria-label="${esc(S().gateAria)}">
       <line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" stroke="#cbb89a"/>
       <line x1="${L}" y1="${H - B}" x2="${W - 4}" y2="${H - B}" stroke="#cbb89a"/>
       <text class="gaxis" x="2" y="${T + 4}">100</text>
@@ -1253,8 +1305,8 @@ let currentModel = "Overall";
 function render(tab, model) {
   currentTab = tab;
   currentModel = model;
-  const modelNote = model === "Overall" ? "" : ` · showing only ${modelLabel(model)}'s runs, recomputed independently.`;
-  document.getElementById("tabnote").textContent = TAB_NOTES[tab] + modelNote;
+  const modelNote = model === "Overall" ? "" : S().modelNote(modelLabel(model));
+  document.getElementById("tabnote").textContent = S().tabNotes[tab] + modelNote;
   document.getElementById("modelchips").innerHTML = ["Overall", ...DATA.models].map(m =>
     `<button class="chip ${m === model ? "active" : ""}" data-model="${esc(m)}">${esc(modelLabel(m))}</button>`
   ).join("");
@@ -1263,31 +1315,29 @@ function render(tab, model) {
   const overall = rated.length ? Math.round(rated.reduce((a,i)=>a+i.rate,0)/rated.length) : null;
   document.getElementById("overall").textContent = overall == null ? "—" : overall + "%";
   document.getElementById("trendlabel").textContent =
-    `trend, by run date · ${tab === "sweep" ? "Sweep" : "Direct"} · ${model === "Overall" ? "Overall" : modelLabel(model)}`;
+    `${S().trend} · ${tab === "sweep" ? S().tabSweep : S().tabDirect} · ${modelLabel(model)}`;
   renderTrend(tab, model);
 
   const groups = {};
   items.forEach(i => { (groups[i.tier] = groups[i.tier] || []).push(i); });
   const rowHtml = (i) => {
-    const rate = i.status === "pending" ? "pending" : i.status === "error" ? "error"
-      : i.status === "no-sweep" ? "no sweep data" : i.status === "no-data" ? "no data"
-      : (i.rate == null ? "—" : i.rate + "%");
+    const rate = i.status !== "ok" ? statusLabel(i.status) : (i.rate == null ? "—" : i.rate + "%");
     const n = i.applied == null ? "" : i.complied + " / " + i.applied;
     const bar = typeof i.rate === "number" ? `<div class="meter"><i style="width:${i.rate}%"></i></div>` : "";
-    const statusBadge = i.status !== "ok" ? `<span class="badge ${esc(i.status)}">${esc(i.status)}</span>` : "";
-    const info = i.criterion ? `<button class="info" data-info="${esc(i.id)}" title="What counts as success / failure">&#9432;</button>` : "";
-    const critRow = i.criterion ? `<tr class="critrow" data-crit="${esc(i.id)}"><td colspan="3"><div class="crit">${criterionHtml(i.criterion)}</div></td></tr>` : "";
+    const statusBadge = i.status !== "ok" ? `<span class="badge ${esc(i.status)}">${esc(statusLabel(i.status))}</span>` : "";
+    const info = i.criterion ? `<button class="info" data-info="${esc(i.id)}" title="${esc(S().infoTitle)}">&#9432;</button>` : "";
+    const critRow = i.criterion ? `<tr class="critrow" data-crit="${esc(i.id)}"><td colspan="3"><div class="crit">${criterionHtml(itemCriterion(i))}</div></td></tr>` : "";
     // The rate above obeys the selected chip, as every row does; the chart below
     // still draws every model's line — comparing them costs no clicks — but dims
     // every line except the selected one's, so the chip's choice reads there too.
     const gateRow = i.byDate !== undefined
       ? `<tr class="gaterow"><td colspan="3">${gateChart(i, model)}</td></tr>` : "";
     return `<tr class="${i.status !== "ok" ? "pending" : ""}">
-      <td><code>${esc(i.id)}</code> ${info} ${statusBadge}<br>${esc(i.label)}${bar}</td>
+      <td><code>${esc(i.id)}</code> ${info} ${statusBadge}<br>${esc(itemLabel(i))}${bar}</td>
       <td>${esc(rate)}</td><td>${esc(n)}</td></tr>${critRow}${gateRow}`;
   };
   document.getElementById("rows").innerHTML = Object.keys(groups).sort((a, b) => tierRank(a) - tierRank(b)).map(t =>
-    `<tr class="tiergroup"><td colspan="3">${esc(t)}</td></tr>` + groups[t].map(rowHtml).join("")
+    `<tr class="tiergroup"><td colspan="3">${esc(tierLabel(t))}</td></tr>` + groups[t].map(rowHtml).join("")
   ).join("");
 }
 
@@ -1311,6 +1361,28 @@ document.getElementById("rows").addEventListener("click", (e) => {
   const open = row.classList.toggle("open");
   btn.classList.toggle("active", open);
 });
+
+function applyChrome() {
+  document.title = S().title;
+  document.getElementById("pageTitle").textContent = S().title;
+  document.querySelectorAll("#langSwitch .chip").forEach(b => {
+    b.classList.toggle("active", b.dataset.lang === currentLang);
+  });
+  document.querySelectorAll(".tabbtn").forEach(b => {
+    b.textContent = b.dataset.tab === "sweep" ? S().tabSweep : S().tabDirect;
+  });
+  document.getElementById("colItem").textContent = S().colItem;
+  document.getElementById("colRate").textContent = S().colRate;
+  document.getElementById("colN").textContent = S().colN;
+}
+document.getElementById("langSwitch").addEventListener("click", (e) => {
+  const btn = e.target.closest(".chip");
+  if (!btn || btn.dataset.lang === currentLang) return;
+  currentLang = btn.dataset.lang;
+  applyChrome();
+  render(currentTab, currentModel);
+});
+applyChrome();
 render("direct", "Overall");
 </script>
 """
