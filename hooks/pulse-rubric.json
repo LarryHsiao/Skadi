@@ -134,6 +134,16 @@
     "criterion": "Applies once per mutating task segment (consecutive edits + read-only wind-down), for segments dated on or after 2026-07-16. ✓ a 'Compliance Review: PASS|FAIL' line follows the segment's last edit AND an Agent review was dispatched at or before it · ✗ the marker is missing, or it was typed with no review agent spawned."
   },
   {
+    "id": "plan.accepted",
+    "label": "Plan accepted as proposed",
+    "kind": "plan-gate",
+    "tier": "heuristic",
+    "applies": "",
+    "complied": "",
+    "denom": "gates answered",
+    "criterion": "Applies to every run where a task-size gauge was rendered and answered — never to a run that owed no gauge, so an exempt slash-command run cannot count as a miss. ✓ the user let the plan proceed as proposed · ✗ the user altered the scope or approach, or declined. A gate walked away from is excluded from both sides and reported as an abandoned count — silence is no verdict on a plan. A gate no judge could answer is likewise absent rather than guessed. Every gate is judged, including those the user answered by picking an option the gate offered: the judge weighs which option was chosen, because passing those through as acceptance would pin a tenth of the denominator at 100% by construction. The call is made by a model and cached per gate, so it reads intent rather than keywords; it is still a judgment, hence the heuristic tier."
+  },
+  {
     "id": "model.first-shot",
     "label": "Task lands first-shot — no correction-toned rework runs in its segment (model capability, not a config rule)",
     "kind": "task-shot",

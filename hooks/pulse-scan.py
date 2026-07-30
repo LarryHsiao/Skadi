@@ -12,12 +12,36 @@ import glob
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 
 WINDOW_DAYS = 30
 SECONDS_PER_DAY = 86400
+
+# A gauge the assistant actually rendered: one filled bar followed by its tier
+# word. gate-reminder.sh injects the empty template into every user prompt
+# ("Size ▰▱▱|▰▰▱|▰▰▰ <minimum|medium|heavy>"), so a naive "Size ▰" match scores
+# the hook's own reminder as compliance — 1948 raw matches across the live
+# roots, of which only 252 are gates the assistant rendered.
+# Known false positive: an assistant turn that quotes a past gauge back — in a
+# summary, or reading a spec aloud — reads as a fresh gate. Fenced code blocks
+# cannot discriminate, since a real gate is rendered inside fences too. Such a
+# gate draws no reply and the judge marks it abandoned, which is excluded from
+# the rate, so the cost is a slightly padded abandoned count, not a wrong rate.
+GAUGE_RE = re.compile(r"Size (?:▰▱▱|▰▰▱|▰▰▰) +(?:minimum|medium|heavy)")
+REMINDER_RE = re.compile(r"Size ▰▱▱\|▰▰▱\|▰▰▰")
+
+JUDGE_BATCH = 20
+JUDGE_TIMEOUT = 600
+
+# How many assistant turns may stand between a gate and the question that
+# answers it. The harness splits prose from tool calls, so the legitimate shape
+# is gauge, then one turn carrying the question: 18 of the 19 such gates in the
+# live roots sit at exactly that distance, the 19th at four — which is the
+# assistant having worked on past its own gate, and should not be credited.
+GATE_QUESTION_REACH = 1
 
 
 def _turn_text(message):
@@ -52,6 +76,32 @@ def _tool_names(message):
     ]
 
 
+TOOL_RESULT_KEEP = 240
+ANSWERED_MARK = "Your questions have been answered"
+
+
+def _tool_results(message):
+    """The tool results a user turn carries, as {is_error, text}. _turn_text
+    keeps prose only, so a turn that is purely a tool result reads as empty —
+    but the plan-gate scorer must tell an answered AskUserQuestion from a
+    rejected one, and only the result block says which. The text is clipped:
+    the marker that decides it stands at the front."""
+    if not isinstance(message, dict):
+        return []
+    content = message.get("content")
+    if not isinstance(content, list):
+        return []
+    results = []
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "tool_result":
+            continue
+        body = block.get("content")
+        text = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
+        results.append({"is_error": bool(block.get("is_error")),
+                        "text": text[:TOOL_RESULT_KEEP]})
+    return results
+
+
 def _bash_commands(message):
     """The shell command text of any Bash tool_use blocks in an assistant turn.
     The tool name 'Bash' alone doesn't say whether it mutated anything (git
@@ -70,7 +120,10 @@ def _bash_commands(message):
 
 
 def read_turns(path):
-    """Ordered turns from one transcript; torn lines skipped, not fatal."""
+    """Ordered turns from one transcript; torn lines skipped, not fatal. Each
+    turn carries the session it came from, so a scorer can key a per-gate cache
+    by session and turn index."""
+    session = os.path.splitext(os.path.basename(path))[0]
     turns = []
     try:
         fh = open(path, encoding="utf-8", errors="ignore")
@@ -95,8 +148,10 @@ def read_turns(path):
                 "text": _turn_text(message),
                 "tools": _tool_names(message) if t == "assistant" else [],
                 "bash_commands": _bash_commands(message) if t == "assistant" else [],
+                "tool_results": _tool_results(message) if t == "user" else [],
                 "model": message.get("model") if t == "assistant" else None,
                 "ts": d.get("timestamp", ""),
+                "session": session,
             })
     return turns
 
@@ -147,6 +202,79 @@ def _is_prompt(text):
     return not any(tok in text for tok in noise)
 
 
+def _reply_after(turns, i):
+    """The user's answer to the gate rendered at turns[i] — the next genuine
+    prompt, skipping harness injections and the gate reminder that rides on
+    every prompt. '' when the gate went unanswered: either the session ended,
+    or the user walked away to a slash command, which is abandonment rather
+    than a verdict. Scanning past that command would staple a much later,
+    unrelated prompt onto this gate as its answer."""
+    for turn in turns[i + 1:]:
+        if turn["type"] != "user":
+            continue
+        text = turn["text"]
+        if "<command-name>" in text:
+            return ""
+        if not _is_prompt(text) or REMINDER_RE.search(text):
+            continue
+        return text.strip()
+    return ""
+
+
+def _picked_option(turns, i):
+    """The recorded selection, when the gate at turns[i] offered the user options
+    and they picked one; '' otherwise. It becomes that gate's reply, so the judge
+    weighs which option was chosen rather than the choice being waved through:
+    auto-accepting every picked option pinned a tenth of the denominator at 100%
+    by construction, which is no measurement at all.
+
+    The search runs from the gate to the first sign that work has begun: the run's
+    end, a mutating turn, a second gauge, or more than GATE_QUESTION_REACH
+    assistant turns of narration. The turn boundary alone cannot be the test,
+    because the harness records prose and a tool call as separate assistant turns
+    — in the live roots every gauge turn carries no tools and the question follows
+    on the next. But a question reached only after the assistant kept talking or
+    editing is about that work, not about whether this plan was approved, and
+    crediting the gate for it would flatter exactly the case this row exists to
+    catch. A rejected question is no answer either: the prose reply that follows
+    decides that gate instead."""
+    narration = 0
+    for turn in turns[i + 1:]:
+        if _ends_run(turn):
+            return ""
+        if turn["type"] == "assistant":
+            if _mutates(turn) or GAUGE_RE.search(turn["text"]):
+                return ""
+            narration += 1
+            if narration > GATE_QUESTION_REACH:
+                return ""
+            continue
+        for result in turn.get("tool_results", []):
+            if not result["is_error"] and ANSWERED_MARK in result["text"]:
+                return result["text"].strip()
+    return ""
+
+
+def _gate_sites(turns):
+    """Every gate the assistant rendered, as {key, gauge, reply, model, date}.
+    One site per assistant turn bearing a filled gauge. `reply` is what answered
+    it — the option the user picked, or failing that the next prompt they typed —
+    and is what the judge weighs; `date` is the session's own date, so the rate
+    can be cut by when the gate happened rather than when the pulse ran."""
+    sites = []
+    for i, turn in enumerate(turns):
+        if turn["type"] != "assistant" or not GAUGE_RE.search(turn["text"]):
+            continue
+        sites.append({
+            "key": "%s:%d" % (turn.get("session", ""), i),
+            "gauge": turn["text"].strip(),
+            "reply": _picked_option(turns, i) or _reply_after(turns, i),
+            "model": _real_model(turn.get("model")),
+            "date": (turn.get("ts") or "")[:10],
+        })
+    return sites
+
+
 def _ends_run(turn):
     """A run ends at a genuine user prompt or a new command invocation."""
     return turn["type"] == "user" and (
@@ -164,12 +292,21 @@ def _run_span(turns, i):
     return j
 
 
+SYNTHETIC_MODEL = "<synthetic>"
+
+
+def _real_model(model):
+    """A model name fit to tally against, or None. The synthetic sentinel names
+    no real author, so it must never become a chip or a chart series."""
+    return model if model and model != SYNTHETIC_MODEL else None
+
+
 def _run_model(run):
     """The model that authored this run — the first real (non-synthetic) model
     named on an assistant turn in the run, or None if none is attributable."""
     for turn in run:
-        model = turn.get("model")
-        if model and model != "<synthetic>":
+        model = _real_model(turn.get("model"))
+        if model:
             return model
     return None
 
@@ -430,6 +567,101 @@ def score_task_shot(turns, entry):
     return applied, complied, by_model
 
 
+def _pulse_dir():
+    """Where the run's history and the verdict cache live. PULSE_DIR is the test
+    seam, as it is for the rest of the outputs."""
+    return os.environ.get("PULSE_DIR", os.path.expanduser("~/.skadi/pulse"))
+
+
+def _pending_gates(turns):
+    """Every gate in one session, as the judge needs it. All of them go: a gate
+    the user answered by picking an option is judged on which option they picked,
+    not passed through unweighed."""
+    return [{"key": gate["key"], "gauge": gate["gauge"], "reply": gate["reply"]}
+            for gate in _gate_sites(turns)]
+
+
+PLAN_VERDICTS = {"accepted": True, "altered": False}
+ABANDONED_VERDICT = "abandoned"
+
+
+def _judged_gates(turns):
+    """Every gate in one session that carries a verdict on the plan, as
+    (gate, accepted).
+
+    One place decides what counts as a verdict and what counts as acceptance, so
+    the headline rate, the per-model split, and the date series cannot drift
+    apart. Kept together deliberately: that agreement is the point, and three
+    copies of the same filter would hold only until someone edited one of them."""
+    verdicts = _verdicts()
+    for gate in _gate_sites(turns):
+        accepted = PLAN_VERDICTS.get(verdicts.get(gate["key"]))
+        if accepted is not None:
+            yield gate, accepted
+
+
+def score_plan_gate(turns, entry):
+    """applied = gates whose verdict is a verdict on the plan; complied = those
+    the user accepted as proposed.
+
+    A gate the user walked away from is excluded from both sides — silence is no
+    verdict — and one the judge could not answer is likewise absent rather than
+    guessed (see judged_verdicts). Every gate is judged, including those answered
+    by picking an offered option: passing those through as acceptance pinned a
+    tenth of the denominator at 100% by construction. The rate answers 'was the
+    plan I proposed the right one', not 'was the ritual performed', so it never
+    counts a run that owed no gauge."""
+    applied = 0
+    complied = 0
+    by_model = {}
+    for gate, ok in _judged_gates(turns):
+        applied += 1
+        if ok:
+            complied += 1
+        _bump_model(by_model, gate["model"], ok)
+    return applied, complied, by_model
+
+
+def _gate_series(sessions):
+    """The rate's ingredients bucketed by the date each gate happened, oldest
+    first, each date carrying its own per-model split.
+
+    The page's existing sparkline plots the date the pulse *ran* and recomputes
+    over every session each time, so two dozen runs draw a near-flat line. Filing
+    each gate under the day it happened is what lets a week of better plans show
+    as a rise. An abandoned gate lands in no bucket, for the same reason it is
+    absent from the rate — it shares the headline's one walk, so the chart and the
+    headline cannot disagree. A gate whose transcript line carries no timestamp is
+    the one exception: it still scores in the headline, because it happened, but it
+    cannot be placed on a time axis, and an empty date would sort ahead of every
+    real one as a stray leading bucket."""
+    series = {}
+    for turns in sessions:
+        for gate, ok in _judged_gates(turns):
+            if not gate["date"]:
+                continue
+            day = series.setdefault(gate["date"],
+                                    {"applied": 0, "complied": 0, "byModel": {}})
+            day["applied"] += 1
+            if ok:
+                day["complied"] += 1
+            _bump_model(day["byModel"], gate["model"], ok)
+    return {date: {"applied": day["applied"], "complied": day["complied"],
+                   "rate": _rate(day["applied"], day["complied"]),
+                   "byModel": _rated_by_model(day["byModel"])}
+            for date, day in sorted(series.items())}
+
+
+def _abandoned_gates(sessions):
+    """Gates the user walked away from, counted so the row can report them
+    beside the rate rather than hide the exclusion. Not folded into
+    _judged_gates: that helper exists to keep the *scored* population identical
+    everywhere, and this counts the population it deliberately leaves out."""
+    verdicts = _verdicts()
+    return sum(1 for turns in sessions for gate in _gate_sites(turns)
+               if verdicts.get(gate["key"]) == ABANDONED_VERDICT)
+
+
 def _rate(applied, complied):
     return round(100 * complied / applied) if applied else None
 
@@ -453,10 +685,165 @@ def _all_models(sessions):
     models = set()
     for turns in sessions:
         for turn in turns:
-            model = turn.get("model")
-            if model and model != "<synthetic>":
+            model = _real_model(turn.get("model"))
+            if model:
                 models.add(model)
     return sorted(models)
+
+
+JUDGE_PROMPT = """You are grading whether a proposed plan was accepted as proposed.
+
+Each numbered gate below gives the size-gauge block the assistant rendered and
+the user's very next reply. Classify each reply as exactly one of:
+
+  accepted  - the user let the plan proceed as proposed: a bare go-ahead
+              ("go", "do it", "yes", "proceed", and the same in any language).
+  altered   - the user changed what was proposed: narrowed or widened the
+              scope, chose a different approach, corrected it, or declined.
+              "go, but only touch install.sh" is altered, not accepted.
+  abandoned - the reply is no verdict on this plan at all: the user changed
+              subject, ran an unrelated command, or never answered.
+
+When the reply reads "Your questions have been answered: ...", the gate offered
+the user a choice and this is the option they picked. Weigh which option it was:
+the one the gate recommended, or a decision the gate had already committed to, is
+accepted; an option that narrows, redirects, or overrides what the gate proposed
+is altered. Do not treat a recorded answer as acceptance merely because an answer
+was given.
+
+Reply with a JSON array and nothing else:
+[{"key": "<the key given>", "verdict": "accepted|altered|abandoned"}]
+"""
+
+
+def _judge_argv():
+    """The judging command line. PULSE_JUDGE_CMD is the test seam; either way
+    the prompt arrives on stdin and JSON is expected on stdout."""
+    return shlex.split(os.environ.get("PULSE_JUDGE_CMD", "claude -p"))
+
+
+def _ask_judge(prompt):
+    """One batched call. Returns the judge's stdout, or '' when no model
+    answers — the caller leaves those gates unjudged rather than guess."""
+    try:
+        done = subprocess.run(_judge_argv(), input=prompt, capture_output=True,
+                              text=True, encoding="utf-8", errors="replace",
+                              timeout=JUDGE_TIMEOUT)
+    except (OSError, ValueError, subprocess.SubprocessError) as err:
+        print("pulse-scan: judge unreachable (%s)" % err, file=sys.stderr)
+        return ""
+    if done.returncode != 0:
+        print("pulse-scan: judge exited %d: %s"
+              % (done.returncode, done.stderr.strip()[:200]), file=sys.stderr)
+        return ""
+    return done.stdout
+
+
+def _parse_verdicts(raw):
+    """The JSON array a judge returned, as {key: verdict}. Anything that is not
+    a legal verdict is dropped, so a malformed answer costs coverage rather
+    than correctness."""
+    start, end = raw.find("["), raw.rfind("]")
+    if start == -1 or end <= start:
+        return {}
+    try:
+        rows = json.loads(raw[start:end + 1])
+    except ValueError:
+        return {}
+    legal = tuple(PLAN_VERDICTS) + (ABANDONED_VERDICT,)
+    return {row["key"]: row["verdict"] for row in rows
+            if isinstance(row, dict) and row.get("key")
+            and row.get("verdict") in legal}
+
+
+def _judge_batch(batch):
+    parts = [JUDGE_PROMPT]
+    for gate in batch:
+        parts.append("--- key: %s\ngauge:\n%s\n\nreply:\n%s\n"
+                     % (gate["key"], gate["gauge"][:1200],
+                        gate["reply"][:800] or "(no reply)"))
+    return _parse_verdicts(_ask_judge("\n".join(parts)))
+
+
+def _load_verdicts(path):
+    """The cached verdicts, or {} when there are none. A cache that will not
+    parse is set aside as <path>.corrupt rather than silently read as empty:
+    losing it means paying for the whole backfill again, so the loss is made
+    visible instead of quietly absorbed."""
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            cache = json.load(fh)
+    except OSError as err:
+        print("pulse-scan: cannot read %s: %s" % (path, err), file=sys.stderr)
+        return {}
+    except ValueError:
+        cache = None
+    if isinstance(cache, dict):
+        return cache
+    os.replace(path, path + ".corrupt")
+    print("pulse-scan: %s did not parse — set aside as %s.corrupt, re-judging"
+          % (path, path), file=sys.stderr)
+    return {}
+
+
+def _save_verdicts(path, cache):
+    """Written whole, then renamed into place. A half-written cache reads as
+    corrupt on the next run and costs the entire backfill; os.replace is atomic
+    on both POSIX and Windows, so a reader sees the old file or the new one."""
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(cache, fh, ensure_ascii=False, sort_keys=True)
+    os.replace(tmp, path)
+    _VERDICTS_MEMO.pop(path, None)
+
+
+_VERDICTS_MEMO = {}
+
+
+def _verdicts():
+    """The verdict cache, parsed once per process. score_plan_gate runs once per
+    session — 800 of them in production — and the cache only grows, so reading
+    it per call would parse the same file 800 times. Keyed by path so a test
+    pointing PULSE_DIR elsewhere gets its own; dropped on write, so a warmed
+    cache is re-read rather than served stale."""
+    path = os.path.join(_pulse_dir(), "verdicts.json")
+    if path not in _VERDICTS_MEMO:
+        _VERDICTS_MEMO[path] = _load_verdicts(path)
+    return _VERDICTS_MEMO[path]
+
+
+def judged_verdicts(pending, pulse_dir):
+    """{key: verdict} for the given gates, judged once and cached on disk.
+    A closed transcript never changes, so a verdict keyed by session and turn is
+    written once and read by every run after: the first pass pays for the
+    backfill, later passes call no model at all. Gates the judge could not
+    answer are simply absent from the result — there is no keyword fallback,
+    because a silent one would change what the number means without saying so."""
+    path = os.path.join(pulse_dir, "verdicts.json")
+    cache = _load_verdicts(path)
+    fresh = [gate for gate in pending if gate["key"] not in cache]
+    for start in range(0, len(fresh), JUDGE_BATCH):
+        answered = _judge_batch(fresh[start:start + JUDGE_BATCH])
+        if answered:
+            # Checkpointed per batch, not once at the end: a backfill is many
+            # sequential calls, and a kill partway through must not throw away
+            # every verdict already paid for.
+            cache.update(answered)
+            _save_verdicts(path, cache)
+    return {gate["key"]: cache[gate["key"]]
+            for gate in pending if gate["key"] in cache}
+
+
+def _warm_gate_verdicts(sessions):
+    """Judge every unjudged gate across all sessions in one pass, so the
+    per-session scorer afterwards finds a warm cache and calls no model. Judging
+    inside the scorer would turn one batched call into one call per session."""
+    pending = [gate for turns in sessions for gate in _pending_gates(turns)]
+    if pending:
+        judged_verdicts(pending, _pulse_dir())
 
 
 def apply_rubric(files, rubric):
@@ -469,9 +856,11 @@ def apply_rubric(files, rubric):
     chip roster, see _all_models."""
     scorers = {"workflow": score_workflow, "grammar": score_grammar,
                "freeform-gate": score_freeform_gate, "post-gate": score_post_gate,
-               "task-shot": score_task_shot}
+               "task-shot": score_task_shot, "plan-gate": score_plan_gate}
     sessions = [read_turns(f) for f in files]
     session_is_sweep = [_is_sweep_session(turns) for turns in sessions]
+    if any(entry["kind"] == "plan-gate" for entry in rubric):
+        _warm_gate_verdicts(sessions)
     items = []
     for entry in rubric:
         kind = entry["kind"]
@@ -504,6 +893,9 @@ def apply_rubric(files, rubric):
                 item["sweep"] = {"applied": sweep_applied, "complied": sweep_complied,
                                   "rate": _rate(sweep_applied, sweep_complied),
                                   "byModel": _rated_by_model(sweep_by_model)}
+            if kind == "plan-gate":
+                item["abandoned"] = _abandoned_gates(sessions)
+                item["byDate"] = _gate_series(sessions)
             items.append(item)
         except re.error as err:
             print("pulse-scan: %s matcher error: %s" % (entry["id"], err), file=sys.stderr)
@@ -647,6 +1039,16 @@ _PAGE = """<meta charset="utf-8">
   .critrow td{background:rgba(203,184,154,.18);border-bottom:1px solid #cbb89a;}
   .crit{font-size:.78rem;line-height:1.5;color:#5c5138;padding:.15rem .1rem;}
   .crit .ok{color:#3f7a3f;font-weight:700;} .crit .no{color:#a33;font-weight:700;}
+  .gaterow td{background:rgba(203,184,154,.10);border-bottom:1px solid #cbb89a;}
+  .gatewrap{display:flex;gap:1.1rem;align-items:flex-start;flex-wrap:wrap;padding:.35rem .1rem .55rem;}
+  .gatewrap svg{background:rgba(203,184,154,.14);border:1px solid #cbb89a;border-radius:3px;}
+  .gaxis{font:400 8px/1 ui-sans-serif,system-ui,sans-serif;fill:#87795e;}
+  .glegend{font-size:.72rem;color:#4a4235;}
+  .glegend div{margin:.2rem 0;white-space:nowrap;}
+  .glegend i{display:inline-block;width:.85rem;height:.18rem;vertical-align:middle;margin-right:.35rem;}
+  .glegend b{font-variant-numeric:tabular-nums;}
+  .gnote{font-size:.72rem;color:#87795e;font-style:italic;margin:.15rem 0 0;}
+  .gempty{font-size:.78rem;color:#87795e;font-style:italic;padding:.55rem .1rem;}
 </style>
 <h1>Adherence Pulse</h1>
 <div class="tabs" id="tabs">
@@ -710,6 +1112,110 @@ function overallFor(items, tab, model) {
   return rated.length ? Math.round(rated.reduce((a,i)=>a+i.rate,0)/rated.length) : null;
 }
 
+// "Overall" is an aggregate, not a peer of the models, so it wears neutral ink;
+// only the models take a categorical hue. Hues are assigned in this fixed order
+// and never cycled — a fourth model folds into one muted "other" rather than
+// repeating a colour and lying about identity. Validated with the dataviz
+// palette checker on a light surface: all six checks pass, worst adjacent pair
+// ΔE 23.3 under protanopia and 24.0 with normal vision. The theme's own brown
+// and green failed that check at ΔE 2.4, which is why these are not them.
+const GATE_HUES = ["#1a5fb4", "#a8551a", "#6b3fa0"];
+const GATE_OTHER = "#87795e";
+const GATE_INK = "#4a4235";
+
+// Roster order first, then anything unrecognised — so a hue belongs to a model,
+// not to its rank in the data, and adding a model never repaints the others.
+function gateModels(byDate, dates) {
+  const seen = new Set();
+  dates.forEach(d => Object.keys(byDate[d].byModel || {}).forEach(m => seen.add(m)));
+  const roster = Object.keys(MODEL_LABELS);
+  return roster.filter(m => seen.has(m)).concat([...seen].filter(m => !roster.includes(m)));
+}
+
+function gateSeries(item) {
+  const dates = Object.keys(item.byDate || {});
+  if (!dates.length) return [];
+  const models = gateModels(item.byDate, dates);
+  const at = (d, m) => m === null ? item.byDate[d] : (item.byDate[d].byModel || {})[m];
+  const build = (label, m, colour) => {
+    const cells = dates.map(d => ({ date: d, cell: at(d, m) })).filter(p => p.cell);
+    // The legend carries the series' total across the window, not its last point.
+    // Showing the latest day there made every line read "100%" beside a headline
+    // of 73% — numbers that look like totals must be totals.
+    const applied = cells.reduce((a, p) => a + p.cell.applied, 0);
+    const complied = cells.reduce((a, p) => a + p.cell.complied, 0);
+    return {
+      label, colour, applied, complied,
+      rate: applied ? Math.round(100 * complied / applied) : null,
+      points: cells.map(p => ({ date: p.date, rate: p.cell.rate,
+                                n: p.cell.complied + "/" + p.cell.applied })),
+    };
+  };
+  const out = [build("Overall", null, GATE_INK)];
+  models.forEach((m, k) => out.push(
+    build(modelLabel(m), m, k < GATE_HUES.length ? GATE_HUES[k] : GATE_OTHER)));
+  return out.filter(s => s.points.length);
+}
+
+const GATE_BOX = { W: 300, H: 74, L: 26, B: 15, T: 7 };
+
+function gateScales(dates) {
+  const { W, H, L, B, T } = GATE_BOX;
+  return {
+    x: (d) => dates.length > 1
+      ? L + (dates.indexOf(d) / (dates.length - 1)) * (W - L - 6) : L + (W - L - 6) / 2,
+    y: (v) => T + (1 - v / 100) * (H - B - T),
+  };
+}
+
+function gateLines(series, scale) {
+  return series.map(s => {
+    const at = (p) => `${scale.x(p.date).toFixed(1)},${scale.y(p.rate).toFixed(1)}`;
+    const dots = s.points.map(p =>
+      `<circle cx="${scale.x(p.date).toFixed(1)}" cy="${scale.y(p.rate).toFixed(1)}" r="4"
+        fill="${s.colour}" stroke="rgba(252,252,251,.9)" stroke-width="2"
+        ><title>${esc(s.label)} · ${esc(p.date)} · ${esc(p.rate)}% (${esc(p.n)})</title></circle>`).join("");
+    return `<polyline fill="none" stroke="${s.colour}" stroke-width="2"
+      stroke-linejoin="round" points="${s.points.map(at).join(" ")}"/>${dots}`;
+  }).join("");
+}
+
+function gateLegend(series, abandoned) {
+  const days = (n) => `${esc(n)} day${n === 1 ? "" : "s"}`;
+  const rows = series.map(s =>
+    `<div><i style="background:${s.colour}"></i>${esc(s.label)} — <b>${esc(s.rate)}%</b>
+      <span class="gaxis">${esc(s.complied)}/${esc(s.applied)} over ${days(s.points.length)}</span></div>`);
+  if (abandoned) {
+    rows.push(`<p class="gnote">${esc(abandoned)} gate${abandoned === 1 ? "" : "s"}
+      abandoned — excluded from the rate, since silence is no verdict on a plan.</p>`);
+  }
+  return rows.join("");
+}
+
+function gateChart(item) {
+  const series = gateSeries(item);
+  if (!series.length) {
+    return `<div class="gempty">No plan gate has been judged yet — the rate and
+      its trend fill in as gauges are answered.</div>`;
+  }
+  const dates = [...new Set(series.flatMap(s => s.points.map(p => p.date)))].sort();
+  const { W, H, L, B, T } = GATE_BOX;
+  return `<div class="gatewrap">
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="Plan acceptance rate by session date, one line per model">
+      <line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" stroke="#cbb89a"/>
+      <line x1="${L}" y1="${H - B}" x2="${W - 4}" y2="${H - B}" stroke="#cbb89a"/>
+      <text class="gaxis" x="2" y="${T + 4}">100</text>
+      <text class="gaxis" x="14" y="${H - B + 3}">0</text>
+      ${gateLines(series, gateScales(dates))}
+      <text class="gaxis" x="${L}" y="${H - 4}">${esc(dates[0])}</text>
+      ${dates.length > 1 ? `<text class="gaxis" x="${W - 4}" y="${H - 4}"
+        text-anchor="end">${esc(dates[dates.length - 1])}</text>` : ""}
+    </svg>
+    <div class="glegend">${gateLegend(series, item.abandoned)}</div>
+  </div>`;
+}
+
 function renderTrend(tab, model) {
   const spark = document.getElementById("spark");
   const pts = (DATA.series || [])
@@ -770,9 +1276,13 @@ function render(tab, model) {
     const statusBadge = i.status !== "ok" ? `<span class="badge ${esc(i.status)}">${esc(i.status)}</span>` : "";
     const info = i.criterion ? `<button class="info" data-info="${esc(i.id)}" title="What counts as success / failure">&#9432;</button>` : "";
     const critRow = i.criterion ? `<tr class="critrow" data-crit="${esc(i.id)}"><td colspan="3"><div class="crit">${criterionHtml(i.criterion)}</div></td></tr>` : "";
+    // The rate above obeys the selected chip, as every row does; the chart below
+    // always draws every model, so comparing them costs no clicks.
+    const gateRow = i.byDate !== undefined
+      ? `<tr class="gaterow"><td colspan="3">${gateChart(i)}</td></tr>` : "";
     return `<tr class="${i.status !== "ok" ? "pending" : ""}">
       <td><code>${esc(i.id)}</code> ${info} ${statusBadge}<br>${esc(i.label)}${bar}</td>
-      <td>${esc(rate)}</td><td>${esc(n)}</td></tr>${critRow}`;
+      <td>${esc(rate)}</td><td>${esc(n)}</td></tr>${critRow}${gateRow}`;
   };
   document.getElementById("rows").innerHTML = Object.keys(groups).sort((a, b) => tierRank(a) - tierRank(b)).map(t =>
     `<tr class="tiergroup"><td colspan="3">${esc(t)}</td></tr>` + groups[t].map(rowHtml).join("")
@@ -839,7 +1349,7 @@ def main():
     rubric = json.load(open(os.path.join(here, "pulse-rubric.json"), encoding="utf-8"))
     now = datetime.now(timezone.utc)
     now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-    pulse_dir = os.environ.get("PULSE_DIR", os.path.expanduser("~/.skadi/pulse"))
+    pulse_dir = _pulse_dir()
     board_dir = os.environ.get("BOARD_DIR", os.path.expanduser("~/.skadi/board"))
     henneth_dir = os.environ.get("HENNETH_DIR", os.path.expanduser("~/.claude/previews/henneth"))
     files = session_files(_default_roots(), WINDOW_DAYS, now.timestamp())

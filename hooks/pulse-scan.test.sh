@@ -23,7 +23,8 @@ expected_rubric="ok"
 actual_rubric=$(python3 - "$RUBRIC" <<'PY'
 import json, sys
 rows = json.load(open(sys.argv[1], encoding="utf-8"))
-kinds = {"workflow", "grammar", "freeform-gate", "post-gate", "task-shot", "git-probe", "forge-probe"}
+kinds = {"workflow", "grammar", "freeform-gate", "post-gate", "task-shot", "plan-gate",
+         "git-probe", "forge-probe"}
 tiers = {"deterministic", "structural", "heuristic"}
 req = {"id", "label", "kind", "tier", "applies", "complied", "denom", "criterion"}
 for r in rows:
@@ -620,6 +621,575 @@ print("%d/%d" % (a, c))
 PY
 )
 check "task-shot scorer: a mid-sentence 'not' is not rework" "$expected_shot_notmid" "$actual_shot_notmid"
+
+# ── 30 · gate sites: a filled gauge counts, the injected reminder template never does ──
+# gate-reminder.sh rides on every user prompt carrying all three tiers on one
+# line ("Size ▰▱▱|▰▰▱|▰▰▰"); only an assistant turn bearing one filled gauge is a
+# real gate. 1948 lines in the live roots match a naive "Size ▰"; 252 are real.
+d=$(tmpdir)
+cat >"$d/gates.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-20T09:00:00Z","message":{"content":"REMINDER: output the gate block:\nSize ▰▱▱|▰▰▱|▰▰▰ <minimum|medium|heavy>"}}
+{"type":"user","timestamp":"2026-07-20T09:00:01Z","message":{"content":"speed up the installer"}}
+{"type":"assistant","timestamp":"2026-07-20T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▰▱ medium — several files\nAcceptance:\n- it runs faster"}]}}
+{"type":"user","timestamp":"2026-07-20T09:01:00Z","message":{"content":"go"}}
+{"type":"assistant","timestamp":"2026-07-20T09:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Done."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+JSON
+expected_sites="1|claude-opus-4-8|2026-07-20|go"
+actual_sites=$(python3 - "$SCAN" "$d/gates.jsonl" <<'PY'
+import importlib.util as u, sys
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+sites = m._gate_sites(m.read_turns(sys.argv[2]))
+print("%d|%s|%s|%s" % (len(sites), sites[0]["model"], sites[0]["date"], sites[0]["reply"]))
+PY
+)
+check "gate sites: filled gauge counts, reminder template does not" "$expected_sites" "$actual_sites"
+
+# ── 31 · the judge caches: first pass calls the model, second pass calls nothing ──
+# Closed transcripts never change, so a verdict keyed by session+turn is written
+# once and read forever. PULSE_JUDGE_CMD injects a stand-in; it tallies its own
+# invocations so the second pass can be proven silent.
+d=$(tmpdir)
+cat >"$d/fakejudge.py" <<'PY'
+# Stands in for `claude -p`: tallies its own invocations, then answers.
+# Python rather than a shell script — Windows cannot exec a .sh directly.
+import os, sys
+sys.stdin.read()
+with open(os.environ["FAKE_JUDGE_CALLS"], "a", encoding="utf-8") as fh:
+    fh.write("call\n")
+print('[{"key":"s1:2","verdict":"accepted"},{"key":"s1:9","verdict":"altered"}]')
+PY
+: >"$d/calls"
+# PULSE_JUDGE_CMD travels as an env var, so MSYS does not convert the path
+# inside it the way it converts a direct argument — hand the stand-in a native
+# path, or Windows Python reads /tmp/... as C:\tmp\...
+dwin="$d"
+command -v cygpath >/dev/null 2>&1 && dwin="$(cygpath -m "$d")"
+expected_judge="accepted|altered|1|accepted|altered|1"
+actual_judge=$(FAKE_JUDGE_CALLS="$dwin/calls" PULSE_JUDGE_CMD="python3 $dwin/fakejudge.py" \
+  python3 - "$SCAN" "$d" "$d/calls" <<'PY'
+import importlib.util as u, sys
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+pulse_dir, calls = sys.argv[2], sys.argv[3]
+pending = [{"key": "s1:2", "gauge": "Size ▰▰▱ medium", "reply": "go"},
+           {"key": "s1:9", "gauge": "Size ▰▱▱ minimum", "reply": "no, only install.sh"}]
+out = []
+for _ in range(2):
+    v = m.judged_verdicts(pending, pulse_dir)
+    out += [v["s1:2"], v["s1:9"], str(sum(1 for _ in open(calls)))]
+print("|".join(out))
+PY
+)
+check "judge caches: second pass makes no model call" "$expected_judge" "$actual_judge"
+
+# ── 32 · no model reachable → the verdicts come back empty, never keyword-guessed ──
+# A silent fallback to keywords would quietly change what the number means; the
+# row must go unavailable instead (see score_plan_gate).
+d=$(tmpdir)
+expected_nomodel="0"
+actual_nomodel=$(PULSE_JUDGE_CMD="$d/nothing-here.sh" python3 - "$SCAN" "$d" <<'PY'
+import importlib.util as u, sys
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+pending = [{"key": "s2:1", "gauge": "Size ▰▰▱ medium", "reply": "go"}]
+print(len(m.judged_verdicts(pending, sys.argv[2])))
+PY
+)
+check "no model reachable: no verdicts, no keyword fallback" "$expected_nomodel" "$actual_nomodel"
+
+# ── 33 · a gate answered by running a slash command has no reply, not a later one ──
+# Firing an unrelated command is one of the judge's own definitions of
+# abandoned. Scanning past it would staple a much later, unrelated prose turn
+# onto this gate as its verdict.
+d=$(tmpdir)
+cat >"$d/walked.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-21T09:00:00Z","message":{"content":"mend the path comparison"}}
+{"type":"assistant","timestamp":"2026-07-21T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▱▱ minimum — one comparison\nAcceptance:\n- the stub stays"}]}}
+{"type":"user","timestamp":"2026-07-21T09:05:00Z","message":{"content":"<command-name>/install</command-name>"}}
+{"type":"assistant","timestamp":"2026-07-21T09:05:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Swept."}]}}
+{"type":"user","timestamp":"2026-07-21T09:20:00Z","message":{"content":"now redesign the dashboard"}}
+JSON
+expected_walked="1|"
+actual_walked=$(python3 - "$SCAN" "$d/walked.jsonl" <<'PY'
+import importlib.util as u, sys
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+sites = m._gate_sites(m.read_turns(sys.argv[2]))
+print("%d|%s" % (len(sites), sites[0]["reply"]))
+PY
+)
+check "gate walked away from by a slash command has no reply" "$expected_walked" "$actual_walked"
+
+# ── 34 · the verdict cache survives a torn write: a corrupt file is not silently emptied ──
+# Paid-once is the whole point of caching; a half-written file that reads as {}
+# would re-judge every gate and quietly overwrite the verdicts that remained.
+d=$(tmpdir)
+printf '{"s1:2": "accepted", "s1:9": "alt' >"$d/verdicts.json"
+expected_torn="0|1"
+actual_torn=$(python3 - "$SCAN" "$d" <<'PY'
+import importlib.util as u, sys, os
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+pulse_dir = sys.argv[2]
+before = m._load_verdicts(os.path.join(pulse_dir, "verdicts.json"))
+# a torn cache reads as empty, but the damaged file must be kept, not clobbered
+kept = 1 if os.path.exists(os.path.join(pulse_dir, "verdicts.json.corrupt")) else 0
+print("%d|%d" % (len(before), kept))
+PY
+)
+check "torn verdict cache is set aside, not silently discarded" "$expected_torn" "$actual_torn"
+
+# ── 35 · plan-gate scorer: accepted counts, altered does not, abandoned is excluded ──
+# Verdicts are pre-seeded in the cache so no model is called. Keys are
+# "<session>:<turn index>"; the session is the transcript's basename.
+d=$(tmpdir)
+cat >"$d/acc.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-22T09:00:00Z","message":{"content":"speed up the installer"}}
+{"type":"assistant","timestamp":"2026-07-22T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▰▱ medium — several files\nAcceptance:\n- faster"}]}}
+{"type":"user","timestamp":"2026-07-22T09:01:00Z","message":{"content":"go"}}
+{"type":"assistant","timestamp":"2026-07-22T09:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Done."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-22T09:10:00Z","message":{"content":"now the docs"}}
+{"type":"assistant","timestamp":"2026-07-22T09:10:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Size ▰▱▱ minimum — one file\nAcceptance:\n- reads true"}]}}
+{"type":"user","timestamp":"2026-07-22T09:11:00Z","message":{"content":"no, only touch install.sh"}}
+{"type":"assistant","timestamp":"2026-07-22T09:11:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Narrowing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-22T09:20:00Z","message":{"content":"mend the path comparison"}}
+{"type":"assistant","timestamp":"2026-07-22T09:20:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▱▱ minimum — one comparison\nAcceptance:\n- stub stays"}]}}
+{"type":"user","timestamp":"2026-07-22T09:25:00Z","message":{"content":"<command-name>/install</command-name>"}}
+JSON
+mkdir -p "$d/pulse"
+cat >"$d/pulse/verdicts.json" <<'JSON'
+{"acc:1":"accepted","acc:5":"altered","acc:9":"abandoned"}
+JSON
+expected_pg="2/1|opus:1/1|sonnet:1/0"
+actual_pg=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$RUBRIC" "$d/acc.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+a, c, bm = m.score_plan_gate(m.read_turns(sys.argv[3]), rubric["plan.accepted"])
+short = lambda k: "opus" if "opus" in k else "sonnet"
+parts = ["%d/%d" % (a, c)] + ["%s:%d/%d" % (short(k), v["applied"], v["complied"])
+                              for k, v in sorted(bm.items())]
+print("|".join(parts))
+PY
+)
+check "plan-gate scorer: accepted/altered counted, abandoned excluded" "$expected_pg" "$actual_pg"
+
+# ── 36 · a gate answered by picking an offered option is judged, not auto-passed ──
+# Auto-accepting a picked option pinned a tenth of the denominator at 100% by
+# construction — the same fault that makes model.first-shot's 99% meaningless.
+# The selection text becomes the reply and the judge reads it, so the verdict can
+# go either way; tests 36 and 36b are the same fixture with opposite verdicts.
+d=$(tmpdir)
+cat >"$d/asked.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-23T09:00:00Z","message":{"content":"fold galadriel into minuial"}}
+{"type":"assistant","timestamp":"2026-07-23T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▱▱ minimum — one skill file\nAcceptance:\n- five steps"},{"type":"tool_use","id":"q1","name":"AskUserQuestion","input":{}}]}}
+{"type":"user","timestamp":"2026-07-23T09:00:30Z","message":{"content":[{"type":"tool_result","tool_use_id":"q1","content":"Your questions have been answered: \"seed or skip?\"=\"skip when absent\""}]}}
+{"type":"assistant","timestamp":"2026-07-23T09:00:40Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+JSON
+mkdir -p "$d/pulse"
+echo '{"asked:1":"accepted"}' >"$d/pulse/verdicts.json"
+expected_asked="1/1|Your questions have been answered: \"seed or skip?\"=\"skip when absent\""
+actual_asked=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$RUBRIC" "$d/asked.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_plan_gate(turns, rubric["plan.accepted"])
+print("%d/%d|%s" % (a, c, m._gate_sites(turns)[0]["reply"]))
+PY
+)
+check "plan-gate: a picked option becomes the reply the judge reads" "$expected_asked" "$actual_asked"
+
+# ── 36b · the same picked option, judged altered — the rate is no longer pinned ──
+echo '{"asked:1":"altered"}' >"$d/pulse/verdicts.json"
+expected_askedalt="1/0"
+actual_askedalt=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$RUBRIC" "$d/asked.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+a, c, _ = m.score_plan_gate(m.read_turns(sys.argv[3]), rubric["plan.accepted"])
+print("%d/%d" % (a, c))
+PY
+)
+check "plan-gate: a picked option can be judged altered, not pinned at accepted" "$expected_askedalt" "$actual_askedalt"
+
+# ── 37 · a rejected AskUserQuestion is not an answer; the prose reply decides ──
+d=$(tmpdir)
+cat >"$d/rejected.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-23T10:00:00Z","message":{"content":"redesign the rubric"}}
+{"type":"assistant","timestamp":"2026-07-23T10:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▰▱ medium — the rubric\nAcceptance:\n- rows score"},{"type":"tool_use","id":"q1","name":"AskUserQuestion","input":{}}]}}
+{"type":"user","timestamp":"2026-07-23T10:00:30Z","message":{"content":[{"type":"tool_result","tool_use_id":"q1","content":"The user doesn't want to proceed with this tool use. The tool use was rejected","is_error":true}]}}
+{"type":"user","timestamp":"2026-07-23T10:01:00Z","message":{"content":"just calculate the plan gauge instead"}}
+JSON
+mkdir -p "$d/pulse"
+echo '{"rejected:1":"altered"}' >"$d/pulse/verdicts.json"
+expected_rej="1/0"
+actual_rej=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$RUBRIC" "$d/rejected.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+a, c, _ = m.score_plan_gate(m.read_turns(sys.argv[3]), rubric["plan.accepted"])
+print("%d/%d" % (a, c))
+PY
+)
+check "plan-gate: a rejected question is no answer, the prose reply rules" "$expected_rej" "$actual_rej"
+
+# ── 38 · a gate the judge never answered is absent, not guessed ──
+d=$(tmpdir)
+cat >"$d/unjudged.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-24T09:00:00Z","message":{"content":"do the thing"}}
+{"type":"assistant","timestamp":"2026-07-24T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▰▱ medium — the thing\nAcceptance:\n- it is done"}]}}
+{"type":"user","timestamp":"2026-07-24T09:01:00Z","message":{"content":"go"}}
+{"type":"assistant","timestamp":"2026-07-24T09:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Done."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+JSON
+mkdir -p "$d/pulse"
+echo '{}' >"$d/pulse/verdicts.json"
+expected_unj="0/0"
+actual_unj=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$RUBRIC" "$d/unjudged.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+a, c, _ = m.score_plan_gate(m.read_turns(sys.argv[3]), rubric["plan.accepted"])
+print("%d/%d" % (a, c))
+PY
+)
+check "plan-gate: an unjudged gate is absent from the rate, not guessed" "$expected_unj" "$actual_unj"
+
+# ── 39 · the reminder template never inflates the denominator ──
+# 20 reminder-bearing user prompts around one real gate must score a
+# denominator of 1 — the live roots hold 1948 template lines to 252 real gates.
+d=$(tmpdir)
+python3 - "$d/noise.jsonl" <<'PY'
+import json, sys
+rows = []
+for k in range(20):
+    rows.append({"type": "user", "timestamp": "2026-07-25T09:%02d:00Z" % k,
+                 "message": {"content": "do step %d\nREMINDER: Size ▰▱▱|▰▰▱|▰▰▰ <minimum|medium|heavy>" % k}})
+rows.append({"type": "assistant", "timestamp": "2026-07-25T09:30:00Z",
+             "message": {"model": "claude-opus-4-8",
+                         "content": [{"type": "text", "text": "Size ▰▰▱ medium — the one real gate\nAcceptance:\n- scored once"}]}})
+rows.append({"type": "user", "timestamp": "2026-07-25T09:31:00Z", "message": {"content": "go"}})
+with open(sys.argv[1], "w", encoding="utf-8") as fh:
+    for r in rows:
+        fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+PY
+mkdir -p "$d/pulse"
+echo '{"noise:20":"accepted"}' >"$d/pulse/verdicts.json"
+expected_noise="1/1"
+actual_noise=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$RUBRIC" "$d/noise.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+a, c, _ = m.score_plan_gate(m.read_turns(sys.argv[3]), rubric["plan.accepted"])
+print("%d/%d" % (a, c))
+PY
+)
+check "plan-gate: 20 reminder prompts around one gate score a denominator of 1" "$expected_noise" "$actual_noise"
+
+# ── 39b · the question usually stands on the turn AFTER the gauge, not on it ──
+# The harness records prose and a tool call as separate assistant turns: in the
+# live roots every gauge turn carries no tools, and the AskUserQuestion follows
+# on the next turn. Requiring both on one turn missed every real case.
+d=$(tmpdir)
+cat >"$d/nextturn.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-26T08:00:00Z","message":{"content":"fold galadriel into minuial"}}
+{"type":"assistant","timestamp":"2026-07-26T08:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▱▱ minimum — one skill file\nAcceptance:\n- five steps"}]}}
+{"type":"assistant","timestamp":"2026-07-26T08:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"One fork inside it."},{"type":"tool_use","id":"q1","name":"AskUserQuestion","input":{}}]}}
+{"type":"user","timestamp":"2026-07-26T08:00:40Z","message":{"content":[{"type":"tool_result","tool_use_id":"q1","content":"Your questions have been answered: \"seed or skip?\"=\"skip when absent\""}]}}
+JSON
+mkdir -p "$d/pulse"
+echo '{"nextturn:1":"accepted"}' >"$d/pulse/verdicts.json"
+expected_next="1/1|yes"
+actual_next=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$RUBRIC" "$d/nextturn.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_plan_gate(turns, rubric["plan.accepted"])
+picked = "yes" if "have been answered" in m._gate_sites(turns)[0]["reply"] else "no"
+print("%d/%d|%s" % (a, c, picked))
+PY
+)
+check "plan-gate: a question on the turn after the gauge still belongs to it" "$expected_next" "$actual_next"
+
+# ── 40 · a question fired later in the run does not credit an earlier gate ──
+# The gate must have offered the options itself. Crediting a gate for some later
+# unrelated question would inflate acceptance precisely in the case this row
+# exists to catch: the assistant working on past its own gate without waiting.
+d=$(tmpdir)
+cat >"$d/laterq.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-26T09:00:00Z","message":{"content":"rework the scanner"}}
+{"type":"assistant","timestamp":"2026-07-26T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▰▱ medium — the scanner\nAcceptance:\n- rows score"}]}}
+{"type":"assistant","timestamp":"2026-07-26T09:00:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-26T09:00:40Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Which colour for the chart?"},{"type":"tool_use","id":"q1","name":"AskUserQuestion","input":{}}]}}
+{"type":"user","timestamp":"2026-07-26T09:00:50Z","message":{"content":[{"type":"tool_result","tool_use_id":"q1","content":"Your questions have been answered: \"colour?\"=\"green\""}]}}
+JSON
+mkdir -p "$d/pulse"
+echo '{}' >"$d/pulse/verdicts.json"
+expected_laterq="0/0"
+actual_laterq=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$RUBRIC" "$d/laterq.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+a, c, _ = m.score_plan_gate(m.read_turns(sys.argv[3]), rubric["plan.accepted"])
+print("%d/%d" % (a, c))
+PY
+)
+check "plan-gate: a later unrelated question does not credit the gate" "$expected_laterq" "$actual_laterq"
+
+# ── 41 · the verdict cache is parsed once per process, not once per session ──
+# score_plan_gate runs per session — 800 of them in production — and the cache
+# only grows; re-reading it each time would parse the same file 800 times.
+d=$(tmpdir)
+mkdir -p "$d/pulse"
+echo '{"a:1":"accepted"}' >"$d/pulse/verdicts.json"
+expected_memo="1"
+actual_memo=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$d/pulse/verdicts.json" <<'PY'
+import importlib.util as u, sys, builtins
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+target = sys.argv[2].replace("\\", "/")
+opens = []
+real_open = builtins.open
+def counting_open(path, *a, **k):
+    if str(path).replace("\\", "/") == target:
+        opens.append(path)
+    return real_open(path, *a, **k)
+builtins.open = counting_open
+for _ in range(5):
+    m._verdicts()
+builtins.open = real_open
+print(len(opens))
+PY
+)
+check "verdict cache is parsed once per process, not per session" "$expected_memo" "$actual_memo"
+
+# ── 42 · a question reached only after further narration does not credit the gate ──
+# No edit intervenes, so the mutation guard alone would let this through; the
+# assistant simply kept talking instead of waiting for the word. 18 of the 19
+# real cases sit one turn from their gauge, so one turn is the reach.
+d=$(tmpdir)
+cat >"$d/chatty.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-27T09:00:00Z","message":{"content":"rework the rubric"}}
+{"type":"assistant","timestamp":"2026-07-27T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▰▱ medium — the rubric\nAcceptance:\n- rows score"}]}}
+{"type":"assistant","timestamp":"2026-07-27T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Some more thinking aloud about the shape of it."}]}}
+{"type":"assistant","timestamp":"2026-07-27T09:00:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Which palette?"},{"type":"tool_use","id":"q1","name":"AskUserQuestion","input":{}}]}}
+{"type":"user","timestamp":"2026-07-27T09:00:30Z","message":{"content":[{"type":"tool_result","tool_use_id":"q1","content":"Your questions have been answered: \"palette?\"=\"parchment\""}]}}
+JSON
+mkdir -p "$d/pulse"
+echo '{}' >"$d/pulse/verdicts.json"
+expected_chatty="no"
+actual_chatty=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$d/chatty.jsonl" <<'PY'
+import importlib.util as u, sys
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+turns = m.read_turns(sys.argv[2])
+print("yes" if "have been answered" in m._gate_sites(turns)[0]["reply"] else "no")
+PY
+)
+check "plan-gate: a question after further narration does not credit the gate" "$expected_chatty" "$actual_chatty"
+
+# ── 43 · the backfill checkpoints per batch, so a kill partway keeps what was paid for ──
+d=$(tmpdir)
+mkdir -p "$d/pulse"
+cat >"$d/halfjudge.py" <<'PY'
+# Answers the first batch, then dies — standing in for a timeout or a kill.
+import os, sys
+sys.stdin.read()
+marker = os.environ["HALF_MARKER"]
+if os.path.exists(marker):
+    sys.exit(1)
+open(marker, "w").close()
+print('[{"key":"h:1","verdict":"accepted"}]')
+PY
+dwin="$d"
+command -v cygpath >/dev/null 2>&1 && dwin="$(cygpath -m "$d")"
+expected_ckpt="h:1=accepted"
+actual_ckpt=$(HALF_MARKER="$dwin/marker" PULSE_JUDGE_CMD="python3 $dwin/halfjudge.py" \
+  python3 - "$SCAN" "$d/pulse" <<'PY'
+import importlib.util as u, sys, json, os
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+m.JUDGE_BATCH = 1  # force two batches, the second of which dies
+pending = [{"key": "h:1", "gauge": "Size ▰▰▱ medium", "reply": "go"},
+           {"key": "h:2", "gauge": "Size ▰▱▱ minimum", "reply": "go"}]
+m.judged_verdicts(pending, sys.argv[2])
+on_disk = json.load(open(os.path.join(sys.argv[2], "verdicts.json"), encoding="utf-8"))
+print(",".join("%s=%s" % kv for kv in sorted(on_disk.items())))
+PY
+)
+check "backfill checkpoints per batch: a later failure keeps earlier verdicts" "$expected_ckpt" "$actual_ckpt"
+
+# ── 44 · the rate buckets by the date each gate happened, with a per-model split ──
+# The existing sparkline plots the date the pulse RAN and recomputes over every
+# session, so 24 runs draw a near-flat line. Bucketing by session date is what
+# makes a week of better plans visible as a rise.
+d=$(tmpdir)
+cat >"$d/dated.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-28T09:00:00Z","message":{"content":"first task"}}
+{"type":"assistant","timestamp":"2026-07-28T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▰▱ medium — one\nAcceptance:\n- a"}]}}
+{"type":"user","timestamp":"2026-07-28T09:01:00Z","message":{"content":"go"}}
+{"type":"assistant","timestamp":"2026-07-28T09:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Done."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-28T10:00:00Z","message":{"content":"second task"}}
+{"type":"assistant","timestamp":"2026-07-28T10:00:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Size ▰▱▱ minimum — two\nAcceptance:\n- b"}]}}
+{"type":"user","timestamp":"2026-07-28T10:01:00Z","message":{"content":"no, narrow it"}}
+{"type":"assistant","timestamp":"2026-07-28T10:01:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Narrowing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-29T09:00:00Z","message":{"content":"third task"}}
+{"type":"assistant","timestamp":"2026-07-29T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▰▰ heavy — three\nAcceptance:\n- c"}]}}
+{"type":"user","timestamp":"2026-07-29T09:01:00Z","message":{"content":"proceed"}}
+{"type":"assistant","timestamp":"2026-07-29T09:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Done."},{"type":"tool_use","id":"t3","name":"Edit","input":{}}]}}
+JSON
+mkdir -p "$d/pulse"
+cat >"$d/pulse/verdicts.json" <<'JSON'
+{"dated:1":"accepted","dated:5":"altered","dated:9":"accepted"}
+JSON
+expected_series="2026-07-28:1/2 opus=1/1 sonnet=0/1|2026-07-29:1/1 opus=1/1"
+actual_series=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$d/dated.jsonl" <<'PY'
+import importlib.util as u, sys
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+series = m._gate_series([m.read_turns(sys.argv[2])])
+short = lambda k: "opus" if "opus" in k else "sonnet"
+out = []
+for date, day in series.items():
+    models = " ".join("%s=%d/%d" % (short(k), v["complied"], v["applied"])
+                      for k, v in sorted(day["byModel"].items()))
+    out.append("%s:%d/%d %s" % (date, day["complied"], day["applied"], models))
+print("|".join(out))
+PY
+)
+check "date buckets: one per session date, each with its per-model split" "$expected_series" "$actual_series"
+
+# ── 45 · an abandoned gate lands in no date bucket ──
+# It is excluded from the rate, so it must not sit in the series either, or the
+# chart and the headline would disagree.
+d=$(tmpdir)
+cat >"$d/dropped.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-28T09:00:00Z","message":{"content":"a task"}}
+{"type":"assistant","timestamp":"2026-07-28T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▱▱ minimum — one\nAcceptance:\n- a"}]}}
+{"type":"user","timestamp":"2026-07-28T09:05:00Z","message":{"content":"<command-name>/install</command-name>"}}
+JSON
+mkdir -p "$d/pulse"
+echo '{"dropped:1":"abandoned"}' >"$d/pulse/verdicts.json"
+expected_dropped="0 buckets"
+actual_dropped=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$d/dropped.jsonl" <<'PY'
+import importlib.util as u, sys
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+print("%d buckets" % len(m._gate_series([m.read_turns(sys.argv[2])])))
+PY
+)
+check "date buckets: an abandoned gate lands in none" "$expected_dropped" "$actual_dropped"
+
+# ── 46 · a gate with no timestamp still scores, but sits in no date bucket ──
+# An empty date would sort ahead of every real one and surface as a stray
+# leading bucket on the axis. It cannot be placed in time, so it is left out of
+# the series — and counted in the headline all the same, since the gate happened.
+d=$(tmpdir)
+cat >"$d/undated.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-28T09:00:00Z","message":{"content":"a task"}}
+{"type":"assistant","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▱▱ minimum — one\nAcceptance:\n- a"}]}}
+{"type":"user","timestamp":"2026-07-28T09:01:00Z","message":{"content":"go"}}
+{"type":"assistant","timestamp":"2026-07-28T09:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Done."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+JSON
+mkdir -p "$d/pulse"
+echo '{"undated:1":"accepted"}' >"$d/pulse/verdicts.json"
+expected_undated="1/1|0 buckets"
+actual_undated=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$RUBRIC" "$d/undated.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_plan_gate(turns, rubric["plan.accepted"])
+print("%d/%d|%d buckets" % (a, c, len(m._gate_series([turns]))))
+PY
+)
+check "a dateless gate scores in the headline but lands in no bucket" "$expected_undated" "$actual_undated"
+
+# ── 47 · headline and series are counted by one shared walk, so they cannot drift ──
+# The chart agreeing with the headline must be structural, not three copies of
+# the same filter kept in step by hand.
+expected_one_walk="named=yes literals=0 walkers=2"
+actual_one_walk=$(python3 - "$SCAN" <<'PY'
+import re, sys
+src = open(sys.argv[1], encoding="utf-8").read()
+named = "yes" if "PLAN_VERDICTS = {" in src else "no"
+# no site may spell the accepted/altered pair out again
+literals = len(re.findall(r'"accepted",\s*"altered"', src))
+# the scoring sites must go through the shared generator
+walkers = len(re.findall(r'_judged_gates\(', src)) - 1  # minus its own def
+print("named=%s literals=%d walkers=%d" % (named, literals, walkers))
+PY
+)
+check "one shared walk decides what counts: no repeated verdict filter" "$expected_one_walk" "$actual_one_walk"
+
+# ── 48 · the abandoned count is the number the dashboard note reports ──
+# Exercised directly: tests 35 and 45 only prove abandonment is *excluded*, never
+# that the count feeding "N gates abandoned" is right.
+d=$(tmpdir)
+cat >"$d/aband.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-28T09:00:00Z","message":{"content":"one"}}
+{"type":"assistant","timestamp":"2026-07-28T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▱▱ minimum — one\nAcceptance:\n- a"}]}}
+{"type":"user","timestamp":"2026-07-28T09:05:00Z","message":{"content":"<command-name>/install</command-name>"}}
+{"type":"user","timestamp":"2026-07-28T10:00:00Z","message":{"content":"two"}}
+{"type":"assistant","timestamp":"2026-07-28T10:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▱▱ minimum — two\nAcceptance:\n- b"}]}}
+{"type":"user","timestamp":"2026-07-28T10:05:00Z","message":{"content":"<command-name>/board</command-name>"}}
+{"type":"user","timestamp":"2026-07-28T11:00:00Z","message":{"content":"three"}}
+{"type":"assistant","timestamp":"2026-07-28T11:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▱▱ minimum — three\nAcceptance:\n- c"}]}}
+{"type":"user","timestamp":"2026-07-28T11:01:00Z","message":{"content":"go"}}
+{"type":"assistant","timestamp":"2026-07-28T11:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Done."},{"type":"tool_use","id":"t","name":"Edit","input":{}}]}}
+JSON
+mkdir -p "$d/pulse"
+echo '{"aband:1":"abandoned","aband:4":"abandoned","aband:7":"accepted"}' >"$d/pulse/verdicts.json"
+expected_ab="abandoned=2 scored=1/1"
+actual_ab=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$RUBRIC" "$d/aband.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_plan_gate(turns, rubric["plan.accepted"])
+print("abandoned=%d scored=%d/%d" % (m._abandoned_gates([turns]), c, a))
+PY
+)
+check "abandoned count is reported exactly, beside the scored population" "$expected_ab" "$actual_ab"
+
+# ── 49 · the synthetic model sentinel never becomes a chart series ──
+# Every other tally in this file filters "<synthetic>"; a gate must too, or the
+# legend would name an author that does not exist.
+d=$(tmpdir)
+cat >"$d/synth.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-28T09:00:00Z","message":{"content":"one"}}
+{"type":"assistant","timestamp":"2026-07-28T09:00:05Z","message":{"model":"<synthetic>","content":[{"type":"text","text":"Size ▰▱▱ minimum — one\nAcceptance:\n- a"}]}}
+{"type":"user","timestamp":"2026-07-28T09:01:00Z","message":{"content":"go"}}
+{"type":"assistant","timestamp":"2026-07-28T09:01:05Z","message":{"model":"<synthetic>","content":[{"type":"text","text":"Done."},{"type":"tool_use","id":"t","name":"Edit","input":{}}]}}
+JSON
+mkdir -p "$d/pulse"
+echo '{"synth:1":"accepted"}' >"$d/pulse/verdicts.json"
+expected_synth="scored=1/1 models=0 seriesModels=0"
+actual_synth=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$RUBRIC" "$d/synth.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
+turns = m.read_turns(sys.argv[3])
+a, c, bm = m.score_plan_gate(turns, rubric["plan.accepted"])
+series = m._gate_series([turns])
+in_series = sum(len(day["byModel"]) for day in series.values())
+print("scored=%d/%d models=%d seriesModels=%d" % (c, a, len(bm), in_series))
+PY
+)
+check "the synthetic model sentinel is never tallied as an author" "$expected_synth" "$actual_synth"
 
 echo ""
 echo "── $pass passed, $fail failed ──"
