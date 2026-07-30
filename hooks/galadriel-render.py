@@ -177,6 +177,7 @@ TEMPLATE = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <title>Plan Mirror</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><text y=%2213%22 font-size=%2214%22>%F0%9F%AA%9E</text></svg>">
 <style>
   :root { --line:#3a3a3a; --muted:#8a8a8a; --bg:#1e1e1e; --panel:#262626; --ink:#e6e6e6; --accent:#7aa2f7;
           --side-w:240px; --dash-h:210px; --pick:#3a2422; }

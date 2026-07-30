@@ -1009,6 +1009,7 @@ def render_dashboard(items, models, pulse_dir, henneth_dir, now_iso):
 _PAGE = """<meta charset="utf-8">
 <link rel="stylesheet" href="skadi-theme.css">
 <title>Adherence Pulse</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><text y=%2213%22 font-size=%2214%22>%F0%9F%93%8A</text></svg>">
 <style>
   body{font-family:ui-sans-serif,system-ui,sans-serif;margin:1.2rem;}
   .kpi{font-size:2.4rem;font-weight:700;}

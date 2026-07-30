@@ -83,9 +83,11 @@ class ExistingBehaviourTest(unittest.TestCase):
             self.assertIn(expected, html)
 
     def test_the_page_is_self_contained(self):
-        """No external stylesheet or script — it must open straight from disk."""
+        """No externally-fetched stylesheet, script, or icon — it must open
+        straight from disk. A favicon as an inline data URI fetches nothing
+        off disk, so it's not the external dependency this test guards against."""
         html = page()
-        self.assertNotIn("<link", html)
+        self.assertNotIn('href="http', html)
         self.assertNotIn('src="http', html)
 
     def test_an_empty_folder_still_renders(self):
