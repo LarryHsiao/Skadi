@@ -42,7 +42,7 @@ JSON
 # duplicate shapes on the third recurrence).
 COMPLIANCE_ENTRY="$ROOT/compliance-review-entry.json"
 cat >"$COMPLIANCE_ENTRY" <<'JSON'
-{"complied": "Compliance Review:\\s*(PASS|FAIL)", "since": "2026-07-16"}
+{"complied": "Compliance Review[:：]\\s*(PASS|FAIL)", "since": "2026-07-16"}
 JSON
 
 FIRSTSHOT_ENTRY="$ROOT/first-shot-entry.json"
@@ -659,6 +659,27 @@ print("%d/%d" % (a, c))
 PY
 )
 check "post-gate scorer: a read-only run splits two task segments" "$expected_segment_split" "$actual_segment_split"
+
+# ── 25b · post-gate scorer: a full-width colon (a plausible slip when writing
+#          Chinese) still counts as the marker, not a silent miss ──
+d=$(tmpdir)
+cat >"$d/fullwidth-colon.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T13:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-18T13:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T13:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T13:00:12Z","message":{"content":[{"type":"text","text":"Reviewed and verified.\nCompliance Review：PASS"}]}}
+JSON
+expected_fullwidth="1/1"
+actual_fullwidth=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/fullwidth-colon.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_post_gate(turns, entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: a full-width colon after the marker still complies" "$expected_fullwidth" "$actual_fullwidth"
 
 # ── 27 · task-shot scorer: an additive follow-up ("also…") is not rework — first-shot holds ──
 d=$(tmpdir)
