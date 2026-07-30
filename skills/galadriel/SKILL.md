@@ -1,6 +1,6 @@
 ---
 name: galadriel
-description: Use when the user runs /galadriel [folder]. Renders a folder of plan concepts (markdown, default docs/plans/) into one local HTML page — a left selector grouped by lifecycle (shaping/active/done), the chosen concept's preview in the main area, and a progress dashboard along the bottom. Edits are directed in chat and the page re-rendered; the one change the page makes itself is deleting a concept, which moves it to the plans folder's .trash/ and needs the standing server. The Mirror shows what was, is, and may yet be — done, in-flight, pending.
+description: Use when the user runs /galadriel [folder]. Renders a folder of plan concepts (markdown, default docs/plans/) into one local HTML page — a left selector grouped by lifecycle (shaping/active/done), the chosen concept's preview in the main area, and a progress dashboard along the bottom. Edits are directed in chat; while the standing server is up it watches every registered project's plans folder in the background and re-renders on its own within a few seconds of any concept file changing, so no manual re-render is owed. The one change the page makes itself is deleting a concept, which moves it to the plans folder's .trash/ and needs the standing server. The Mirror shows what was, is, and may yet be — done, in-flight, pending.
 user_invocable: true
 ---
 
@@ -151,17 +151,21 @@ does not reload into a view that looks as though everything worked.
 
 Every edit but deleting happens in chat. When the user asks to change a concept — "swap steps 3 and
 4", "mark the decorator done", "cut the last step", "add an overview" — edit the
-concept's `.md` file directly, then re-run the renderer (step 2). The path does not
-change, so the open tab stays valid; served, it refreshes itself within a few
-seconds. Cutting a concept entirely is the one edit the page does itself — see
-*Deleting a concept* above. The sidebar collapses via the `◀` beside the brand,
-and that state persists; it needs nothing from you.
+concept's `.md` file directly. **No manual re-render is owed while the standing
+server is up** — it watches every registered project's plans folder in the
+background (`galadriel-server.py`'s `watch_forever`, polling every
+`WATCH_INTERVAL_S` seconds) and re-renders on its own the moment a concept file
+changes, whoever changed it. The path does not change, so the open tab stays
+valid; served, it refreshes itself within a few seconds of the re-render. Cutting
+a concept entirely is the one edit the page does itself — see *Deleting a
+concept* above. The sidebar collapses via the `◀` beside the brand, and that
+state persists; it needs nothing from you.
 
 This is how "manipulate before you start" works: shape the draft concept by chat
 until it reads true, then begin the work — ticking `- [ ]` to `- [~]` to `- [x]` as
-each step lands, re-rendering to keep the mirror current. When a step's commit
-lands, stamp its sha into the step's `<!-- sha: ... -->` marker so the page can
-show that step's diff behind its toggle.
+each step lands; the mirror catches up on its own. When a step's commit lands,
+stamp its sha into the step's `<!-- sha: ... -->` marker so the page can show
+that step's diff behind its toggle.
 
 ## Notes
 

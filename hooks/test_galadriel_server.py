@@ -7,9 +7,11 @@ concept must resolve inside the plans folder that project was rendered from.
 """
 
 import importlib.util
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 _spec = importlib.util.spec_from_file_location("galadriel_server",
@@ -218,6 +220,134 @@ class ProjectsTest(unittest.TestCase):
     def test_an_empty_root_renders_a_placeholder_rather_than_failing(self):
         expected = "No project mirrors yet"
         self.assertIn(expected, gs.index_html([]))
+
+
+class WatchTest(unittest.TestCase):
+    def test_a_touched_concept_changes_the_signature(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, plans = scaffold(tmp)
+            before = gs.plan_signature(plans)
+            os.utime(plans / "one.md", (1700000000, 1700000000))
+            after = gs.plan_signature(plans)
+            self.assertNotEqual(before, after)
+
+    def test_an_untouched_folder_keeps_the_same_signature(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, plans = scaffold(tmp)
+            first = gs.plan_signature(plans)
+            second = gs.plan_signature(plans)
+            self.assertEqual(first, second)
+
+    def test_a_missing_plans_folder_signature_is_none(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            scaffold(tmp)
+            self.assertIsNone(gs.plan_signature(Path(tmp) / "gone"))
+
+    def test_first_sight_of_a_project_is_a_baseline_not_a_change(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _ = scaffold(tmp)
+            last_seen, changed, _ = gs.changed_projects(root, {})
+            expected_changed = []
+            self.assertEqual(expected_changed, changed)
+            self.assertIn("skadi", last_seen)
+
+    def test_editing_a_concept_after_the_baseline_reports_its_project_changed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, plans = scaffold(tmp)
+            last_seen, _, _ = gs.changed_projects(root, {})
+            os.utime(plans / "one.md", (1700000000, 1700000000))
+            expected_changed = ["skadi"]
+            _, changed, _ = gs.changed_projects(root, last_seen)
+            self.assertEqual(expected_changed, changed)
+
+    def test_an_untouched_project_is_not_reported_changed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _ = scaffold(tmp)
+            last_seen, _, _ = gs.changed_projects(root, {})
+            expected_changed = []
+            _, changed, _ = gs.changed_projects(root, last_seen)
+            self.assertEqual(expected_changed, changed)
+
+    def test_a_project_without_a_source_marker_is_ignored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _ = scaffold(tmp)
+            (root / "skadi" / "source").unlink()
+            last_seen, changed, _ = gs.changed_projects(root, {})
+            expected_changed = []
+            self.assertEqual(expected_changed, changed)
+            self.assertNotIn("skadi", last_seen)
+
+    def test_a_changed_projects_new_signature_is_not_committed_until_rendered(self):
+        # changed_projects itself must not fold a changed project's new
+        # signature into the returned map — watch_tick is the only thing
+        # allowed to commit it, and only after rerender() succeeds.
+        with tempfile.TemporaryDirectory() as tmp:
+            root, plans = scaffold(tmp)
+            last_seen, _, _ = gs.changed_projects(root, {})
+            baseline = last_seen["skadi"]
+            os.utime(plans / "one.md", (1700000000, 1700000000))
+            updated, changed, changed_sigs = gs.changed_projects(root, last_seen)
+            expected_changed = ["skadi"]
+            self.assertEqual(expected_changed, changed)
+            self.assertEqual(baseline, updated["skadi"])
+            self.assertNotEqual(baseline, changed_sigs["skadi"])
+
+    def test_a_real_edit_makes_watch_ticks_own_rerender_step_refresh_the_page(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, plans = scaffold(tmp)
+            (root / "skadi" / "plan-dashboard.html").write_text(
+                "<html>stale</html>", encoding="utf-8")
+            last_seen, _, _ = gs.changed_projects(root, {})
+            (plans / "one.md").write_text("# one.md\n\n## Steps\n- [x] a\n", encoding="utf-8")
+            os.utime(plans / "one.md", (1700000000, 1700000000))
+            gs.watch_tick(root, last_seen)
+            rendered = (root / "skadi" / "plan-dashboard.html").read_text(encoding="utf-8")
+            self.assertNotIn("stale", rendered)
+
+    def test_a_failed_rerender_leaves_the_project_changed_for_a_retry(self):
+        # A render that returns False must not be marked caught up — the old
+        # signature stays, so the very next tick sees it as changed again
+        # rather than silently stranding the page stale forever.
+        with tempfile.TemporaryDirectory() as tmp:
+            root, plans = scaffold(tmp)
+            last_seen, _, _ = gs.changed_projects(root, {})
+            os.utime(plans / "one.md", (1700000000, 1700000000))
+            with mock.patch.object(gs, "rerender", return_value=False):
+                last_seen = gs.watch_tick(root, dict(last_seen))
+            expected_changed = ["skadi"]
+            _, changed, _ = gs.changed_projects(root, last_seen)
+            self.assertEqual(expected_changed, changed)
+
+    def test_one_projects_rerender_exception_does_not_strand_another_in_the_same_tick(self):
+        # A project whose rerender() call raises must cost only itself — every
+        # other project changed in this same tick still gets rendered and
+        # committed, and watch_tick's own loop must not be killed by it.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "galadriel"
+            plans = {}
+            for name in ("alpha", "beta"):
+                plans[name] = Path(tmp) / f"repo-{name}" / "docs" / "plans"
+                plans[name].mkdir(parents=True)
+                (root / name).mkdir(parents=True)
+                (root / name / "plan-dashboard.html").write_text("<html>", encoding="utf-8")
+                (root / name / "source").write_text(str(plans[name]), encoding="utf-8")
+                (plans[name] / "one.md").write_text(
+                    "# one.md\n\n## Steps\n- [ ] a\n", encoding="utf-8")
+            baseline, _, _ = gs.changed_projects(root, {})
+            os.utime(plans["alpha"] / "one.md", (1700000000, 1700000000))
+            os.utime(plans["beta"] / "one.md", (1700000000, 1700000000))
+            real_rerender = gs.rerender
+
+            def flaky(root_arg, name):
+                if name == "alpha":
+                    raise UnicodeDecodeError("utf-8", b"", 0, 1, "boom")
+                return real_rerender(root_arg, name)
+
+            with mock.patch.object(gs, "rerender", side_effect=flaky):
+                last_seen = gs.watch_tick(root, dict(baseline))
+            _, changed, _ = gs.changed_projects(root, last_seen)
+            expected_changed = ["alpha"]
+            self.assertEqual(expected_changed, changed)
 
 
 if __name__ == "__main__":

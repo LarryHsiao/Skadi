@@ -21,14 +21,17 @@ import html
 import json
 import subprocess
 import sys
+import time
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
 from urllib.parse import unquote
 
 PORT_FILE = ".galadriel-port"
 TRASH = ".trash"
 RENDERER = Path(__file__).resolve().parent / "galadriel-render.py"
+WATCH_INTERVAL_S = 3
 
 
 def projects(root):
@@ -127,6 +130,77 @@ def rerender(root, project):
     return True
 
 
+def plan_signature(source_dir):
+    """A cheap fingerprint of a plans folder's current state: every concept's
+    name and mtime. Comparing this instead of a single max-mtime also catches
+    an add and a remove landing in the same tick, which a lone number could
+    mask if they happened to net out. None when the folder itself is gone."""
+    src = Path(source_dir)
+    if not src.is_dir():
+        return None
+    return tuple(sorted((p.name, p.stat().st_mtime_ns) for p in src.glob("*.md")))
+
+
+def changed_projects(root, last_seen):
+    """Every project whose plans folder has moved since `last_seen`, paired
+    with the signature it moved to; plus the map with every OTHER project's
+    (unchanged, or newly seen) signature already folded in. A changed
+    project's new signature is deliberately NOT folded into that map here —
+    only watch_tick commits it, and only once that project's re-render has
+    actually succeeded, so a render that fails is retried next tick rather
+    than marked caught up while the page stays stale. A project seen for the
+    first time is folded in as a baseline, not reported as changed — its
+    dashboard on disk is presumed fresh as of the last render or server boot,
+    so reporting it now would re-render for no reason."""
+    changed = []
+    changed_sigs = {}
+    updated = dict(last_seen)
+    for project in projects(root):
+        src = project["source"]
+        if not src:
+            continue
+        sig = plan_signature(src)
+        if sig is None:
+            continue
+        name = project["name"]
+        if name in last_seen and last_seen[name] != sig:
+            changed.append(name)
+            changed_sigs[name] = sig
+        else:
+            updated[name] = sig
+    return updated, changed, changed_sigs
+
+
+def watch_tick(root, last_seen):
+    """One pass over every project: re-render each one whose plans folder
+    changed, committing its new signature only after its own re-render
+    succeeds. One project's failure — rerender() returning False, or raising
+    outright — is reported to stderr and costs only that project: it stays at
+    its old signature and is retried next tick, and every other project in
+    this same tick still gets rendered. watch_forever is just this call in a
+    sleep loop."""
+    last_seen, changed, changed_sigs = changed_projects(root, last_seen)
+    for name in changed:
+        try:
+            if rerender(root, name):
+                last_seen[name] = changed_sigs[name]
+        except Exception as err:
+            print(f"galadriel: watch tick failed to re-render {name}: {err}",
+                  file=sys.stderr, flush=True)
+    return last_seen
+
+
+def watch_forever(root, interval=WATCH_INTERVAL_S):
+    """Background loop: re-render a project's dashboard as soon as one of its
+    concept files changes on disk — a checkbox ticked by hand, by an editor,
+    by anything — so a separate render step is never owed. See watch_tick
+    for the per-project failure isolation and retry behavior."""
+    last_seen = {}
+    while True:
+        last_seen = watch_tick(root, last_seen)
+        time.sleep(interval)
+
+
 INDEX_CSS = """
 body{margin:0;padding:2.4rem;background:#12161c;color:#e8ecf2;
      font:15px/1.55 "Iowan Old Style",Palatino,Georgia,serif}
@@ -206,6 +280,7 @@ def main(argv):
     port = int(argv[2])
     (root / PORT_FILE).write_text(str(port), encoding="utf-8")
     server = ThreadingHTTPServer(("127.0.0.1", port), partial(Galadriel, root=root))
+    Thread(target=watch_forever, args=(root,), daemon=True).start()
     print(f"galadriel serving {root} on http://localhost:{port}/")
     sys.stdout.flush()
     server.serve_forever()

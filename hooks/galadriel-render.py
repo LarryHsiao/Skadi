@@ -271,7 +271,7 @@ TEMPLATE = r"""<!DOCTYPE html>
 <div class="frame">
   <aside class="side"><div class="brand"><span class="brand-txt">&#9681; PLAN MIRROR</span><button class="collapse" id="selToggle" title="Select concepts to delete">&#9744;</button><button class="collapse" id="sideToggle" title="Collapse / expand sidebar">&#9666;</button></div><div id="nav"></div>
     <div class="delbar" id="delbar"><button id="delsel" disabled>Delete selected</button><span class="delnote" id="delnote"></span></div>
-    <div class="note">edits via chat &middot; re-render to refresh<br><span id="folder">__FOLDER__</span></div>
+    <div class="note">edits via chat &middot; refreshes on its own<br><span id="folder">__FOLDER__</span></div>
   </aside>
   <div class="vsplit" id="vsplit"></div>
   <main class="main" id="main"></main>
