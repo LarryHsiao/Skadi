@@ -21,7 +21,10 @@ export LC_ALL=C.UTF-8
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 BOARD_DIR="${BOARD_DIR:-$HOME/.skadi/board}"
-THEME_SRC="$HOME/.claude/previews/henneth/skadi-theme.css"
+HENNETH_DIR="$HOME/.claude/previews/henneth"
+THEME_SRC="$HENNETH_DIR/skadi-theme.css"
+SKILLS_CHEATSHEET_DEST="$HENNETH_DIR/skills-cheatsheet.html"
+CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
 DEFAULT_DONE='["4. DEV QA", "5. UAT@DEMO", "7. Done"]'
 
 cmd="${1:-serve}"
@@ -68,6 +71,8 @@ case "$cmd" in
     "$DIR/board-growth.sh" || echo "board: growth refresh failed (skipped)" >&2
     "$DIR/board-henneth.sh" || echo "board: henneth link refresh failed (skipped)" >&2
     "$DIR/board-galadriel.sh" || echo "board: galadriel link refresh failed (skipped)" >&2
+    python3 "$DIR/skills-cheatsheet-render.py" "$CLAUDE_SKILLS_DIR" "$SKILLS_CHEATSHEET_DEST" \
+      || echo "board: skills cheatsheet render failed (skipped)" >&2
     ;;
 
   list)
@@ -104,6 +109,8 @@ PY
     [[ -f "$BOARD_DIR/ac-done-statuses.json" ]] || printf '%s\n' "$DEFAULT_DONE" > "$BOARD_DIR/ac-done-statuses.json"
     "$DIR/board-henneth.sh" >/dev/null || echo "board: henneth link refresh failed (skipped)" >&2
     "$DIR/board-galadriel.sh" >/dev/null || echo "board: galadriel link refresh failed (skipped)" >&2
+    python3 "$DIR/skills-cheatsheet-render.py" "$CLAUDE_SKILLS_DIR" "$SKILLS_CHEATSHEET_DEST" \
+      >/dev/null || echo "board: skills cheatsheet render failed (skipped)" >&2
 
     # Reuse a live server if the lockfile names one that still answers.
     if [[ -f "$BOARD_DIR/.board-port" ]]; then

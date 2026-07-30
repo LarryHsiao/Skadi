@@ -298,6 +298,9 @@
           <a class="hlink" id="galadriel" target="_blank" rel="noopener" hidden
             >Plans ↗</a
           >
+          <a class="hlink" id="skills" target="_blank" rel="noopener" hidden
+            >Skills ↗</a
+          >
         </div>
         <div class="strip" id="strip"></div>
       </div>
@@ -347,7 +350,7 @@
 
       // Show a service button only when its json names a URL that a live server
       // answered for — a down service leaves the button hidden rather than
-      // offering a link into nothing.
+      // offering a link into nothing. Returns the url found, or null.
       async function updateService(id, file) {
         const btn = document.getElementById(id);
         try {
@@ -355,17 +358,31 @@
           if (h && h.url) {
             btn.href = h.url;
             btn.hidden = false;
-            return;
+            return h.url;
           }
         } catch (e) {
           /* not written yet, or unreadable — leave it hidden */
         }
         btn.hidden = true;
+        return null;
+      }
+
+      // The skills cheatsheet has no channel of its own — it rides Henneth's
+      // watched folder, so its liveness is Henneth's liveness.
+      function updateSkills(hennethUrl) {
+        const btn = document.getElementById("skills");
+        if (hennethUrl) {
+          btn.href = hennethUrl + "skills-cheatsheet.html";
+          btn.hidden = false;
+        } else {
+          btn.hidden = true;
+        }
       }
 
       async function updateServices() {
-        await updateService("henneth", "henneth.json");
+        const hennethUrl = await updateService("henneth", "henneth.json");
         await updateService("galadriel", "galadriel.json");
+        updateSkills(hennethUrl);
       }
 
       function mark(ok) {
