@@ -78,6 +78,91 @@ for sysdir in /opt/homebrew/bin/glab /usr/local/bin/foo /usr/bin/env /bin/ls; do
   check "system bin path ($sysdir) used as an argument is allowed" "allow" "$(run_cmd "ls -la $sysdir")"
 done
 
+# ── a heredoc body (e.g. a git commit -m "$(cat <<'EOF' ... EOF)" message) is
+# not shell-tokenized at all by a real shell, but shlex doesn't know heredoc
+# syntax and happily splits its prose into words. An apostrophe inside that
+# prose (an English contraction) used to read as an unmatched open-quote,
+# silently swallowing everything up to the *next* apostrophe — including any
+# path-looking substring in between — into one bogus "argument" token ──
+HEREDOC_APOSTROPHE_CMD='git commit -m "$(cat <<'"'"'EOF'"'"'
+this binary'"'"'s path and it didn'"'"'t work, see /opt/homebrew/bin/git
+EOF
+)"'
+check "apostrophes inside a heredoc commit message no longer misfire" "allow" "$(run_cmd "$HEREDOC_APOSTROPHE_CMD")"
+
+# ── a genuinely outside path still denies when it sits outside any heredoc,
+# proving the heredoc stripper only excises heredoc bodies, not the real
+# command line around them ──
+HEREDOC_REAL_PATH_CMD='cat <<'"'"'EOF'"'"'
+just data, nothing special
+EOF
+cat /etc/hosts'
+check "an outside path after a heredoc is still denied" "deny" "$(run_cmd "$HEREDOC_REAL_PATH_CMD")"
+
+# ── the <<- form allows a tab-indented closing delimiter line — the body
+# must still be found and stripped (an apostrophe inside it must not
+# misfire), and the command after it must still be scanned normally ──
+HEREDOC_DASH_CMD='cat <<-'"'"'EOF'"'"'
+	an indented body that didn'"'"'t break the closing delimiter search
+	EOF
+cat /etc/hosts'
+check "an outside path after a <<- (dash-indented) heredoc is still denied" "deny" "$(run_cmd "$HEREDOC_DASH_CMD")"
+
+# ── a stray "<<word" that is NOT a real heredoc — just `<<` appearing inside
+# ordinary quoted prose, with no line matching "word" anywhere after — must
+# not be treated as a heredoc opener. A first cut of this fix matched `<<`
+# anywhere and, finding no closing line, dropped everything from that point
+# to the end of the string as an "unterminated heredoc" — silently hiding
+# the real /etc/passwd argument that follows. Heredoc detection must only
+# fire in a genuinely unquoted shell position ──
+STRAY_HEREDOC_CMD='git commit -m "note about <<indent tricks" && cat /etc/passwd'
+check "a stray << inside quoted prose does not hide a later outside path" "deny" "$(run_cmd "$STRAY_HEREDOC_CMD")"
+
+# ── arithmetic expansion's << is a bit-shift operator, never a heredoc —
+# $((1<<2)) must not be mistaken for a heredoc opener, which would again
+# trigger the unterminated-heredoc fallback and hide the real path after it ──
+check "arithmetic expansion's << is not mistaken for a heredoc" "deny" "$(run_cmd 'echo $((1<<2)) && cat /etc/passwd')"
+
+# ── <<< is the here-string operator, a different token that happens to share
+# its first two characters with the heredoc operator — it must not be
+# mistaken for one either ──
+check "<<< here-string is not mistaken for a heredoc" "deny" "$(run_cmd 'cat <<<hello && cat /etc/passwd')"
+
+# ── a real shell doesn't strip a heredoc body the instant it sees the
+# opener — it finishes parsing the REST of that line first (a pipe, a
+# second heredoc operator), and only reads the queued body once the line's
+# newline is reached. Stripping immediately at the opener swallowed
+# whatever else shared that line into the "body" — these two prove it
+# no longer does ──
+check "content after a heredoc opener on the same line is not swallowed" "deny" \
+  "$(run_cmd 'cat <<EOF | tee /some/other/path
+data
+EOF')"
+check "a second heredoc on the same line is still recognized as its own opener" "deny" \
+  "$(run_cmd 'diff <<A <<B
+first
+A
+second
+B
+cat /etc/passwd')"
+
+# ── a heredoc opened on the outer line but nested inside a same-line
+# $(...) must resolve in the ORDER A REAL SHELL RESOLVES IT — the inner
+# one first, since command substitution finishes parsing (including its
+# own queued heredocs) before the outer line's newline can be reached —
+# not in source (textual) order. A single flat pending queue tried to
+# close the outer opener with the inner one's terminator line instead,
+# corrupting both and leaking the rest of the string past what shlex
+# ever saw ──
+check "a heredoc nested in a same-line \$(...) resolves before the outer one" "deny" \
+  "$(run_cmd 'cat <<A $(cat <<B
+x
+B
+)
+y
+A
+cat /etc/passwd')"
+
 # Runs the hook from inside the repo (a known-allowed cwd) as a Write/Edit-style
 # call — tool_input carries file_path instead of command — and reports whether
 # the result denies. An optional third arg sets CLAUDE_DEV_DIRS for the call.

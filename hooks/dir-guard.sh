@@ -138,8 +138,202 @@ CMD=$(echo "$INPUT" | jq -r '.tool_input.command' 2>/dev/null)
 if [ -n "$CMD" ]; then
   TOKENS=$(python3 - "$CMD" 2>/dev/null <<'PYEOF'
 import re, sys, shlex
+
+# shlex.split() knows shell quoting ('...', "...") but nothing about heredoc
+# syntax (<<'EOF' ... EOF) — a heredoc body is literal text a real shell
+# never re-tokenizes, but shlex has no way to know that and happily splits
+# it into words like any other unquoted text. A single apostrophe inside
+# that prose (an English contraction in a commit message, say) then reads
+# as an unmatched open-quote, silently swallowing everything up to the
+# *next* apostrophe anywhere later in the string into one giant "word" —
+# which can smuggle an unrelated path-looking substring into a token, or
+# just misfire the check on prose that was never a command argument at
+# all. Heredoc bodies carry no command-argument paths to check (they're
+# data — a commit message, a script piped to an interpreter), so they're
+# excised before shlex ever sees them, rather than patched around after.
+#
+# A naive "find <<DELIM anywhere" pass over-fires: `<<` shows up inside
+# ordinary quoted prose too (a commit message that happens to mention
+# `<<` syntax), and when no line matching that "delimiter" follows, the
+# stripper's unterminated-heredoc fallback drops everything from that
+# point on — silently hiding a real path argument later in the same
+# command, which is worse than never stripping at all. So heredoc
+# detection only fires in a genuinely unquoted shell position: tracked via
+# a small quote/paren stack, since a real shell only treats `<<` as a
+# redirection there. `$(...)` gets special handling because command
+# substitution parses its contents fresh even when the whole `$(...)` sits
+# inside an outer double-quoted string — exactly the
+# `git commit -m "$(cat <<'EOF' ... EOF)"` shape this fix exists for.
+#
+# Two more unquoted-but-not-a-heredoc shapes share that same `<<` prefix
+# and need their own guards, or they reopen the exact bug this exists to
+# close: `$((1<<2))` arithmetic expansion, where `<<` is a bit-shift
+# operator (handled by consuming the whole balanced `$((...))` span
+# without ever running heredoc detection inside it — arithmetic has no
+# quoting of its own to track), and `<<<word` here-strings, which share
+# their first two characters with a real heredoc operator (handled by
+# refusing to treat `<<` as an opener when it's immediately preceded by
+# another `<`, i.e. when it's actually the middle of a longer run).
+HEREDOC_RE = re.compile(r"<<(-?)\s*(['\"]?)(\w+)\2")
+
+def _scan_arith(text, i, n):
+    """From a '$((' opener at i, the index just past its matching '))'.
+    Arithmetic expansion balances on parens alone, so its span is
+    consumed whole rather than character-scanned for quotes or heredocs."""
+    depth = 0
+    j = i
+    while j < n:
+        if text[j] == "(":
+            depth += 1
+        elif text[j] == ")":
+            depth -= 1
+            if depth == 0:
+                return j + 1
+        j += 1
+    return n  # unterminated — consume to end, same posture as an unterminated heredoc
+
+def strip_heredocs(text):
+    out = []
+    i = 0
+    n = len(text)
+    stack = []  # top of stack: "'" or '"' (inside a quote), "(" (inside
+                # $(...) or a bare subshell), or the stack is empty (bare
+                # top level) — heredocs are only real outside a quote.
+    # A real shell doesn't strip a heredoc's body the instant it sees the
+    # opener — it keeps parsing the REST of that line first (a redirect,
+    # a pipe, even a second `<<` operator can follow on the same line),
+    # and only once that line's newline is reached does it read the
+    # queued body/bodies, in the order their openers appeared. Stripping
+    # immediately at the opener — the first version of this function —
+    # swallowed whatever else shared that line (e.g. `<<EOF > /etc/passwd`
+    # lost the `> /etc/passwd` redirect target into the "body"), hiding a
+    # real path argument from the scanner. `pending_stack` mirrors that
+    # queue — one list per open $(...) nesting level (index 0 is the bare
+    # top level), because an inner $(...) must finish resolving its own
+    # queued heredocs on its own internal newlines before the outer line
+    # can resume: `cat <<A $(cat <<B ... B) ... A` opens A before B in
+    # source order, but B's body — being still inside the unclosed $(...)
+    # — is read first, on the newline that ends $(...)'s own first line.
+    # A single flat queue would try to close A with B's terminator line
+    # instead, corrupting both.
+    pending_stack = [[]]
+
+    def consume_pending(pos):
+        pending = pending_stack[-1]
+        for dash, delim in pending:
+            leading = r"[ \t]*" if dash else ""
+            end_pat = re.compile(r"(?m)^" + leading + re.escape(delim) + r"[ \t]*$")
+            end = end_pat.search(text, pos)
+            # Unterminated heredoc: drop the rest rather than re-emit an
+            # unclosed body shlex would just mis-tokenize the same way.
+            pos = end.end() if end else n
+            if end is None:
+                break
+        pending_stack[-1] = []
+        return pos
+
+    while i < n:
+        top = stack[-1] if stack else None
+        c = text[i]
+
+        if top == "'":
+            out.append(c)
+            i += 1
+            if c == "'":
+                stack.pop()
+            continue
+
+        if top == '"':
+            if c == '"':
+                stack.pop()
+                out.append(c)
+                i += 1
+            elif c == "\\" and i + 1 < n:
+                out.append(text[i:i + 2])
+                i += 2
+            elif text[i:i + 3] == "$((":
+                end = _scan_arith(text, i, n)
+                out.append(text[i:end])
+                i = end
+            elif text[i:i + 2] == "$(":
+                stack.append("(")
+                pending_stack.append([])
+                out.append("$(")
+                i += 2
+            else:
+                out.append(c)
+                i += 1
+            continue
+
+        # A newline ends the current shell line — consume any heredoc
+        # bodies queued during it, in order, before resuming. (A newline
+        # inside a quote never reaches here — the quote branches above
+        # handle their own characters, including embedded newlines,
+        # without touching `pending_stack`.) Only the current nesting
+        # level's queue is consumed — an outer level's still-pending
+        # heredocs wait for a newline at that level, once its $(...) closes.
+        if c == "\n":
+            out.append(c)
+            i += 1
+            if pending_stack[-1]:
+                i = consume_pending(i)
+            continue
+
+        # Unquoted position (bare top level, or inside an open $(...)):
+        # quotes and command substitution nest normally, and a bare `<<`
+        # here is a genuine heredoc redirection.
+        if c == "\\" and i + 1 < n:
+            out.append(text[i:i + 2])
+            i += 2
+            continue
+        if text[i:i + 3] == "$((":
+            end = _scan_arith(text, i, n)
+            out.append(text[i:end])
+            i = end
+            continue
+        if c in ("'", '"'):
+            stack.append(c)
+            out.append(c)
+            i += 1
+            continue
+        if text[i:i + 2] == "$(":
+            stack.append("(")
+            pending_stack.append([])
+            out.append("$(")
+            i += 2
+            continue
+        if c == "(":
+            stack.append("(")
+            pending_stack.append([])
+            out.append(c)
+            i += 1
+            continue
+        if c == ")" and top == "(":
+            stack.pop()
+            # Any heredocs still pending at this nesting level when its
+            # closing paren arrives (no newline inside it ever saw them
+            # off) are dropped along with the level itself — same posture
+            # as an unterminated heredoc, not leaked into the outer level.
+            pending_stack.pop()
+            out.append(c)
+            i += 1
+            continue
+        # Exactly two '<' — not the tail of a longer run like the '<<<'
+        # here-string operator, which shares this prefix but must never
+        # be treated as a heredoc opener.
+        if text[i:i + 2] == "<<" and (i == 0 or text[i - 1] != "<"):
+            m = HEREDOC_RE.match(text, i)
+            if m:
+                out.append(text[i:m.end()])
+                pending_stack[-1].append((m.group(1), m.group(3)))
+                i = m.end()
+                continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
 try:
-    raw_tokens = shlex.split(sys.argv[1])
+    raw_tokens = shlex.split(strip_heredocs(sys.argv[1]))
 except ValueError:
     raw_tokens = []  # unparseable (e.g. bare heredoc) — skip path checks
 
