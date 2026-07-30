@@ -1,6 +1,6 @@
 ---
 name: rumil
-description: Use when the user runs /rumil <spec> [--folder=<path>], or asks in plain words to "break this spec into tasks", "plan this out", "turn this PM/design spec into something we can build". Translates a product specification — the plan-shaped document a PM or UI designer writes, which reads like a plan but cannot be coded from — into an engineering plan under docs/plans/. Takes a text spec and its UI mockups together in one invocation, because a feature usually arrives as two documents: the text carries the rules and never draws the flow, the mockups draw the flow and never state the rules. A text spec may be an Outline wiki document read via seshat, and given only a ticket key it searches Outline and confirms the title before reading — the tracker ticket is where a human finds the links, never a spec Rúmil parses. A UI spec may be a figma.com/design URL, which is preferred over screenshots — the file is structured data, so frame names give the screen vocabulary, same-row x/y order gives the flow, slash-named components give design-system bindings, and get_variable_defs gives typography and colour as decided values rather than pixels to estimate. Wires the two to each other — every screen bound to the rule that governs it, every rule to the screen that exercises it — and raises the three findings that fall out (an orphan screen, an orphan rule, a text-versus-mock contradiction) as numbered questions, never resolving a contradiction quietly. That correspondence is written down nowhere else; today it exists only in the head of whichever engineer reads both. Binds every product noun to a real file:line, refuses to carry the spec's milestones across as steps, turns product acceptance nothing can fail ("feels instant") into a numbered question rather than an invented threshold, and walks a checklist of the states designers leave undrawn (empty, loading, error, offline, permission, overflow, interruption). Questions are written so their author can answer them without opening the codebase; a step awaiting one carries [blocked on Qn]. Names the Purpose and the Acceptance criteria, then sifts the work through a repeating loop: gauge every step against four objective signals (one seam, one check, one revert, no conjunction), split whatever fails, renumber, and gauge again from the top until nothing above minimum remains or four passes elapse. Steps gather under phase headings, carry global numbers, and declare [independent] / [depends on N]. A spec that changes screens also gets a UI flow rendered as docs/plans/flow-<slug>.html, which /galadriel inlines beside the plan. Writes plans only — never code, never commits, never a PR.
+description: Use when the user runs /rumil <spec> [--folder=<path>], or asks in plain words to "break this spec into tasks", "plan this out", "turn this PM/design spec into something we can build". Translates a product specification — the plan-shaped document a PM or UI designer writes, which reads like a plan but cannot be coded from — into an engineering plan under docs/plans/. Takes a text spec and its UI mockups together in one invocation, because a feature usually arrives as two documents: the text carries the rules and never draws the flow, the mockups draw the flow and never state the rules. A text spec may be an Outline wiki document read via seshat, and given only a ticket key it searches Outline and confirms the title before reading — the tracker ticket is where a human finds the links, never a spec Rúmil parses. A UI spec may be a figma.com/design URL, which is preferred over screenshots — the file is structured data, so frame names give the screen vocabulary, same-row x/y order gives the flow, slash-named components give design-system bindings, and get_variable_defs gives typography and colour as decided values rather than pixels to estimate. Wires the two to each other — every screen bound to the rule that governs it, every rule to the screen that exercises it — and raises the three findings that fall out (an orphan screen, an orphan rule, a text-versus-mock contradiction) as numbered questions, never resolving a contradiction quietly. That correspondence is written down nowhere else; today it exists only in the head of whichever engineer reads both. Binds every product noun to a real file:line, refuses to carry the spec's milestones across as steps, turns product acceptance nothing can fail ("feels instant") into a numbered question rather than an invented threshold, and walks a checklist of the states designers leave undrawn (empty, loading, error, offline, permission, overflow, interruption). Questions are written so their author can answer them without opening the codebase, and are put to the user in session via AskUserQuestion — answered or explicitly deferred — before the plan is written; a step awaiting a deferred one carries [blocked on Qn]. Names the Purpose and the Acceptance criteria, then sifts the work through a repeating loop: gauge every step against four objective signals (one seam, one check, one revert, no conjunction), split whatever fails, renumber, and gauge again from the top until nothing above minimum remains or four passes elapse. Steps gather under phase headings, carry global numbers, and declare [independent] / [depends on N]. A spec that changes screens also gets a UI flow rendered as docs/plans/flow-<slug>.html, which /galadriel inlines beside the plan. Writes plans only — never code, never commits, never a PR.
 user_invocable: true
 ---
 
@@ -15,7 +15,7 @@ Rúmil authors. `/galadriel` renders what he writes. The two compose: the concep
 | | Step | What it does |
 |---|---|---|
 | **Read** | [1](#1-read-the-spec) · [1b](#1b-wire-the-specs-to-each-other) · [2](#2-read-the-ground) | read both specs, **wire them to each other**, bind every product noun to a `file:line` |
-| **Distil** | [3](#3-distil-purpose-and-acceptance) · [3b](#3b-walk-the-undrawn-states) · [3c](#3c-write-the-questions-for-the-author) | Purpose and checkable Acceptance; walk the undrawn states; number the questions |
+| **Distil** | [3](#3-distil-purpose-and-acceptance) · [3b](#3b-walk-the-undrawn-states) · [3c](#3c-write-the-questions-for-the-author) · [3d](#3d-resolve-the-questions-in-session) | Purpose and checkable Acceptance; walk the undrawn states; number the questions, then resolve them with the user |
 | **Sift** | [4](#4-the-sift) | the loop — gauge, split, renumber, gauge again, until nothing exceeds minimum |
 | **Shape** | [5](#5-order-number-and-tag) · [6](#6-sketch-the-ui-flow) | phases, global numbers, dependency and blocked tags, the UI flow |
 | **Land** | [7](#7-write-the-concept) · [8](#8-mirror-and-report) | write the concept, mirror it, report the findings |
@@ -148,6 +148,23 @@ The test is plain: could the person who wrote the spec answer it without opening
 
 A step that cannot be worked until a question is settled ends with `[blocked on Q3]` alongside its dependency tag. The plan still lands whole — the gap is marked, not hidden, and not filled by guesswork.
 
+Every question drafted here is put to the user directly before the plan is shaped further — see 3d.
+
+### 3d. Resolve the questions, in session
+
+The questions drafted in 3c are not filed away for later by default — they are asked now, while the spec is fresh and a human is at the keyboard. Rúmil does not answer them itself; asking is what keeps the answer the user's, not a guess wearing the author's name.
+
+Ask via `AskUserQuestion`, up to four questions per call, batching through the full list until none remain. For each question, offer:
+
+- the candidate answers the contradiction or undrawn-state check already suggests (when there are one or two plausible readings — e.g. "auto-retry" vs "manual retry" from a text/mock contradiction), or a single "provide the answer" choice when no small set of candidates exists — the free-form "Other" response is always available regardless of what is listed;
+- **"Defer — leave this for the spec's author"**, always present, so a question genuinely outside the session's knowledge is never forced into a guess.
+
+Keep going — batch after batch — until every drafted question has either an answer or an explicit deferral. Do not proceed to the sift while any question sits unaddressed.
+
+An answered question is folded back into the draft immediately, then dropped from the running Q-list — its answer updates whatever it touches (an Acceptance line, a wiring bullet, an undrawn-state behaviour, a new step candidate for the sift) directly, rather than surviving as a citation. A deferred question keeps its number and flows through unchanged: it stays in *Open questions*, and any step it blocks still carries `[blocked on Qn]` in step 5.
+
+If Rúmil runs with no interactive user able to answer (a headless dispatch), skip this step and defer every question — the loop only applies where a human can actually be asked.
+
 ### 4. The sift
 
 This is the heart of the skill, and the reason it exists. A first draft of steps is always too coarse; the sift grinds it down until every step is genuinely easy.
@@ -236,7 +253,7 @@ Then report, short:
 - How many sift passes ran, and how many steps were split.
 - Any step marked `[WILL NOT CLEAVE]`, with its failing signal.
 - **The wiring's findings** — how many orphan screens, orphan rules, and contradictions the two specs produced when held side by side. A contradiction is named in full, with both sides quoted; it is the finding least likely to survive being summarised.
-- **The open questions, in full** — these are the reason the plan goes back to its author, so they belong in the report and not only in the file. Name how many steps stand `[blocked on Qn]`.
+- **The questions, resolved and open** — how many were answered in session at step 3d, and how many were explicitly deferred to the spec's author. The deferred ones go in the report in full — they are the reason the plan still goes back to its author. Name how many steps stand `[blocked on Qn]`.
 - Any product noun from the spec you could not bind to a code surface.
 - A hint to run `/galadriel` to see it in the Mirror.
 
@@ -255,6 +272,7 @@ silently rather than loudly.
 
 - **Re-run the sift from step 4** over the whole plan, not only the part discussed — a change in one phase can coarsen a neighbour.
 - **Preserve step status.** A `- [x]` or `- [~]` step has already been worked; do not split it, do not renumber it out of existence, do not drop its `<!-- sha: … -->` marker. Only untouched `- [ ]` steps are open to the sift.
+- **New questions go through 3d too.** A refinement that surfaces a fresh open question is put to the user the same way — answered or explicitly deferred — before the concept is rewritten.
 - **Say what moved** in the report — steps added, split, reordered, or cut.
 
 If splitting a done step is genuinely necessary, stop and say so; that is the user's call, not yours.
@@ -280,3 +298,4 @@ If splitting a done step is genuinely necessary, stop and say so; that is the us
 - **Product acceptance that nothing can fail becomes a question, never a criterion.** Do not invent the threshold the author left unstated.
 - **An undrawn state is unanswered, not absent.** Walk the checklist; raise what is missing rather than defaulting it.
 - **Open questions are written so their author can answer them** without opening the codebase, and are numbered so a step can cite one.
+- **A question is put to the user before the plan is written, not after.** Step 3d asks every drafted question in session and proceeds only once each is answered or explicitly deferred — the plan is never filed with a question nobody was asked.
