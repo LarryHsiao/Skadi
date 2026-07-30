@@ -33,6 +33,11 @@ SECONDS_PER_DAY = 86400
 GAUGE_RE = re.compile(r"Size (?:▰▱▱|▰▰▱|▰▰▰) +(?:minimum|medium|heavy)")
 REMINDER_RE = re.compile(r"Size ▰▱▱\|▰▰▱\|▰▰▰")
 
+# A Compliance Review closing PASS specifically — not PASS|FAIL like
+# rule.compliance-review's marker, since bug-gate cares whether the segment
+# actually closed clean, not merely whether the ritual was performed.
+COMPLIANCE_PASS_RE = re.compile(r"Compliance Review:\s*PASS")
+
 JUDGE_BATCH = 20
 JUDGE_TIMEOUT = 600
 
@@ -567,6 +572,95 @@ def score_task_shot(turns, entry):
     return applied, complied, by_model
 
 
+def _bug_gate_data(turns, since):
+    """One walk over a session's task segments (the same fold _task_segments
+    already gives score_task_shot/score_post_gate — called, not modified, so
+    those two scorers and their tests stay untouched), returning:
+      - completions: [{"key", "summary", "model", "index"}] — every segment
+        that counts as a completion this row can hold responsible for a later
+        bug report, in transcript order. A segment is a completion when an
+        accepted plan.accepted gate proposed it, or it closed with a
+        Compliance Review PASS.
+      - reports: [{"key", "candidates", "message"}] — every segment, paired
+        with the completions strictly before it (its candidate list) and its
+        own opening prompt, for the judge to classify. A segment with no
+        completions before it yet is not a report — there is nothing it
+        could be describing a defect in.
+      - num_segments: the total segment count, so callers can tell which
+        completions have a later segment at all to be judged by.
+
+    A gate proposes at most one segment — the first one that follows it —
+    walked with a single index-ordered pointer, so a later segment with no
+    fresh gate of its own does not inherit an earlier one just because none
+    intervened."""
+    segments = _task_segments(_prompt_runs(turns, since))
+    if not segments:
+        return [], [], 0
+    flattened = [_segment_turns(seg) for seg in segments]
+    idx_of = {id(t): k for k, t in enumerate(turns)}
+    gate_sites = [{"key": s["key"], "index": int(s["key"].rsplit(":", 1)[1])}
+                  for s in _gate_sites(turns)]
+    plan_verdicts = _verdicts()
+    completions = []
+    reports = []
+    gate_ptr = 0
+    for i, seg in enumerate(segments):
+        seg_turns = flattened[i]
+        seg_start_turn = seg[0][1][0]
+        seg_start_idx = idx_of[id(seg_start_turn)]
+        session = seg_start_turn.get("session", "")
+        key = "%s:%d" % (session, seg_start_idx)
+        if completions:
+            reports.append({"key": key,
+                             "candidates": [{"key": c["key"], "summary": c["summary"]}
+                                            for c in completions],
+                             "message": seg[0][0]})
+        chosen_gate = None
+        while gate_ptr < len(gate_sites) and gate_sites[gate_ptr]["index"] < seg_start_idx:
+            chosen_gate = gate_sites[gate_ptr]
+            gate_ptr += 1
+        gate_ok = (chosen_gate is not None
+                   and PLAN_VERDICTS.get(plan_verdicts.get(chosen_gate["key"])) is True)
+        if gate_ok or _segment_complies(seg_turns, COMPLIANCE_PASS_RE):
+            completions.append({"key": key, "summary": seg[0][0],
+                                 "model": _run_model(seg_turns), "index": i})
+    return completions, reports, len(segments)
+
+
+def score_bug_gate(turns, entry):
+    """applied = completions with a later segment in the same transcript to
+    observe; complied = those with no later segment's opening prompt judged,
+    against the running candidate list of completions before it in that
+    session, to report a defect naming this completion as its target. A
+    report whose named target matches no candidate counts toward neither
+    side — attribution must be certain, not assumed against the nearest
+    completion (see _bug_gate_data)."""
+    since = entry.get("since", "")
+    completions, reports, num_segments = _bug_gate_data(turns, since)
+    eligible = [c for c in completions if c["index"] < num_segments - 1]
+    if not eligible:
+        return 0, 0, {}
+    bug_verdicts = _bug_verdicts()
+    hit_targets = set()
+    for rep in reports:
+        verdict = bug_verdicts.get(rep["key"])
+        if not verdict or verdict.get("verdict") != "bug" or not verdict.get("against"):
+            continue
+        candidate_keys = {c["key"] for c in rep["candidates"]}
+        if verdict["against"] in candidate_keys:
+            hit_targets.add(verdict["against"])
+    applied = 0
+    complied = 0
+    by_model = {}
+    for c in eligible:
+        applied += 1
+        ok = c["key"] not in hit_targets
+        if ok:
+            complied += 1
+        _bump_model(by_model, c["model"], ok)
+    return applied, complied, by_model
+
+
 def _pulse_dir():
     """Where the run's history and the verdict cache live. PULSE_DIR is the test
     seam, as it is for the rest of the outputs."""
@@ -765,6 +859,64 @@ def _judge_batch(batch):
     return _parse_verdicts(_ask_judge("\n".join(parts)))
 
 
+BUG_JUDGE_PROMPT = """You are grading whether a later message in a coding assistant
+transcript reports a defect in previously-completed work, and if so, which
+earlier completion it targets.
+
+Each numbered report below gives a list of candidate completions from earlier
+in the same session (a short one-line summary and a candidate key each), and
+the opening message of a later piece of work in that session. Classify each
+report as exactly one of:
+
+  bug       - the message reports a defect, failure, or something not working
+              correctly in one of the listed candidates. Set "against" to that
+              candidate's key.
+  unrelated - the message is a new request, a follow-up feature, a question,
+              or anything else that is not reporting a defect in prior work.
+
+When the verdict is "bug" but no listed candidate is clearly the one being
+described, still answer "bug" and set "against" to null — do not guess a
+candidate just to fill the field; a wrong attribution is worse than an absent
+one.
+
+Reply with a JSON array and nothing else:
+[{"key": "<the key given>", "verdict": "bug|unrelated", "against": "<candidate key or null>"}]
+"""
+
+
+def _parse_bug_verdicts(raw):
+    """The JSON array a judge returned, as {key: {"verdict":..., "against":...}}.
+    Anything that is not a legal verdict is dropped, so a malformed answer
+    costs coverage rather than correctness. An "against" that is not a string
+    (missing, null, or the judge inventing a non-string value) becomes None —
+    attribution must be certain, not guessed."""
+    start, end = raw.find("["), raw.rfind("]")
+    if start == -1 or end <= start:
+        return {}
+    try:
+        rows = json.loads(raw[start:end + 1])
+    except ValueError:
+        return {}
+    out = {}
+    for row in rows:
+        if not isinstance(row, dict) or not row.get("key") or row.get("verdict") not in ("bug", "unrelated"):
+            continue
+        against = row.get("against")
+        out[row["key"]] = {"verdict": row["verdict"],
+                            "against": against if isinstance(against, str) else None}
+    return out
+
+
+def _bug_judge_batch(batch):
+    parts = [BUG_JUDGE_PROMPT]
+    for report in batch:
+        candidates = "\n".join("  %s: %s" % (c["key"], c["summary"][:200])
+                                for c in report["candidates"])
+        parts.append("--- key: %s\ncandidates:\n%s\n\nmessage:\n%s\n"
+                     % (report["key"], candidates, report["message"][:800]))
+    return _parse_bug_verdicts(_ask_judge("\n".join(parts)))
+
+
 def _load_verdicts(path):
     """The cached verdicts, or {} when there are none. A cache that will not
     parse is set aside as <path>.corrupt rather than silently read as empty:
@@ -803,38 +955,57 @@ def _save_verdicts(path, cache):
 _VERDICTS_MEMO = {}
 
 
-def _verdicts():
-    """The verdict cache, parsed once per process. score_plan_gate runs once per
-    session — 800 of them in production — and the cache only grows, so reading
-    it per call would parse the same file 800 times. Keyed by path so a test
-    pointing PULSE_DIR elsewhere gets its own; dropped on write, so a warmed
-    cache is re-read rather than served stale."""
-    path = os.path.join(_pulse_dir(), "verdicts.json")
+def _cached_verdicts(path):
+    """The judged-verdict cache at `path`, parsed once per process. Scorers run
+    once per session — 800 of them in production — and a cache only grows, so
+    reading it per call would parse the same file 800 times. Keyed by path so
+    plan-gate's verdicts.json and bug-gate's bug-verdicts.json get their own
+    slot (as does a test pointing PULSE_DIR elsewhere); dropped on write, so a
+    warmed cache is re-read rather than served stale."""
     if path not in _VERDICTS_MEMO:
         _VERDICTS_MEMO[path] = _load_verdicts(path)
     return _VERDICTS_MEMO[path]
 
 
-def judged_verdicts(pending, pulse_dir):
-    """{key: verdict} for the given gates, judged once and cached on disk.
-    A closed transcript never changes, so a verdict keyed by session and turn is
-    written once and read by every run after: the first pass pays for the
-    backfill, later passes call no model at all. Gates the judge could not
-    answer are simply absent from the result — there is no keyword fallback,
-    because a silent one would change what the number means without saying so."""
-    path = os.path.join(pulse_dir, "verdicts.json")
+def _verdicts():
+    return _cached_verdicts(os.path.join(_pulse_dir(), "verdicts.json"))
+
+
+def _bug_verdicts():
+    return _cached_verdicts(os.path.join(_pulse_dir(), "bug-verdicts.json"))
+
+
+def _judge_pending(pending, path, batch_fn):
+    """{key: value} for the given items, judged once and cached on disk at
+    path. A closed transcript never changes, so a verdict keyed by session and
+    turn is written once and read by every run after: the first pass pays for
+    the backfill, later passes call no model at all. Shared by plan-gate and
+    bug-gate — only the batch-judging function and the value shape it returns
+    differ. Items the judge could not answer are simply absent from the
+    result — there is no keyword fallback, because a silent one would change
+    what the number means without saying so."""
     cache = _load_verdicts(path)
-    fresh = [gate for gate in pending if gate["key"] not in cache]
+    fresh = [item for item in pending if item["key"] not in cache]
     for start in range(0, len(fresh), JUDGE_BATCH):
-        answered = _judge_batch(fresh[start:start + JUDGE_BATCH])
+        answered = batch_fn(fresh[start:start + JUDGE_BATCH])
         if answered:
             # Checkpointed per batch, not once at the end: a backfill is many
             # sequential calls, and a kill partway through must not throw away
             # every verdict already paid for.
             cache.update(answered)
             _save_verdicts(path, cache)
-    return {gate["key"]: cache[gate["key"]]
-            for gate in pending if gate["key"] in cache}
+    return {item["key"]: cache[item["key"]]
+            for item in pending if item["key"] in cache}
+
+
+def judged_verdicts(pending, pulse_dir):
+    """Plan-gate verdicts: {key: "accepted"|"altered"|"abandoned"}."""
+    return _judge_pending(pending, os.path.join(pulse_dir, "verdicts.json"), _judge_batch)
+
+
+def judged_bug_verdicts(pending, pulse_dir):
+    """Bug-gate verdicts: {key: {"verdict": "bug"|"unrelated", "against": key or None}}."""
+    return _judge_pending(pending, os.path.join(pulse_dir, "bug-verdicts.json"), _bug_judge_batch)
 
 
 def _warm_gate_verdicts(sessions):
@@ -844,6 +1015,15 @@ def _warm_gate_verdicts(sessions):
     pending = [gate for turns in sessions for gate in _pending_gates(turns)]
     if pending:
         judged_verdicts(pending, _pulse_dir())
+
+
+def _warm_bug_verdicts(sessions, since):
+    """Judge every unjudged bug-report candidate across all sessions in one
+    pass, mirroring _warm_gate_verdicts — the per-session scorer afterwards
+    finds a warm cache and calls no model."""
+    pending = [rep for turns in sessions for rep in _bug_gate_data(turns, since)[1]]
+    if pending:
+        judged_bug_verdicts(pending, _pulse_dir())
 
 
 def apply_rubric(files, rubric):
@@ -856,11 +1036,15 @@ def apply_rubric(files, rubric):
     chip roster, see _all_models."""
     scorers = {"workflow": score_workflow, "grammar": score_grammar,
                "freeform-gate": score_freeform_gate, "post-gate": score_post_gate,
-               "task-shot": score_task_shot, "plan-gate": score_plan_gate}
+               "task-shot": score_task_shot, "plan-gate": score_plan_gate,
+               "bug-gate": score_bug_gate}
     sessions = [read_turns(f) for f in files]
     session_is_sweep = [_is_sweep_session(turns) for turns in sessions]
     if any(entry["kind"] == "plan-gate" for entry in rubric):
         _warm_gate_verdicts(sessions)
+    bug_entry = next((e for e in rubric if e["kind"] == "bug-gate"), None)
+    if bug_entry is not None:
+        _warm_bug_verdicts(sessions, bug_entry.get("since", ""))
     items = []
     for entry in rubric:
         kind = entry["kind"]

@@ -1248,6 +1248,163 @@ PY
 )
 check "the synthetic model sentinel is never tallied as an author" "$expected_synth" "$actual_synth"
 
+# ── 50 · bug-gate: completion detection — an accepted gate and a Compliance
+#         Review PASS each mark their own segment; a gate already consumed by
+#         an earlier segment does not reattach to a later one with no fresh
+#         gate of its own ──
+d=$(tmpdir)
+cat >"$d/bug1.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-25T09:00:00Z","message":{"content":"add feature X"}}
+{"type":"assistant","timestamp":"2026-07-25T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▰▱ medium — feature X\nAcceptance:\n- X works"}]}}
+{"type":"user","timestamp":"2026-07-25T09:01:00Z","message":{"content":"go"}}
+{"type":"assistant","timestamp":"2026-07-25T09:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Done X."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-25T09:02:00Z","message":{"content":"thanks"}}
+{"type":"assistant","timestamp":"2026-07-25T09:02:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"You are welcome."}]}}
+{"type":"user","timestamp":"2026-07-25T09:10:00Z","message":{"content":"add feature Y"}}
+{"type":"assistant","timestamp":"2026-07-25T09:10:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Done Y."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-25T09:11:00Z","message":{"content":"cool"}}
+{"type":"assistant","timestamp":"2026-07-25T09:11:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Glad it helps."}]}}
+{"type":"user","timestamp":"2026-07-25T09:20:00Z","message":{"content":"add feature Z"}}
+{"type":"assistant","timestamp":"2026-07-25T09:20:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Done Z."},{"type":"tool_use","id":"t3","name":"Edit","input":{}},{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"user","timestamp":"2026-07-25T09:21:00Z","message":{"content":"looks good"}}
+{"type":"assistant","timestamp":"2026-07-25T09:21:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Compliance Review: PASS"}]}}
+JSON
+mkdir -p "$d/pulse"
+echo '{"bug1:1":"accepted"}' >"$d/pulse/verdicts.json"
+expected_bugseg="3|bug1:3,bug1:11|1/1"
+actual_bugseg=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$d/bug1.jsonl" <<'PY'
+import importlib.util as u, sys
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+turns = m.read_turns(sys.argv[2])
+completions, reports, num_segments = m._bug_gate_data(turns, "")
+a, c, _ = m.score_bug_gate(turns, {"since": ""})
+print("%d|%s|%d/%d" % (num_segments, ",".join(x["key"] for x in completions), a, c))
+PY
+)
+check "bug-gate: accepted gate and Compliance Review PASS each mark their own segment" "$expected_bugseg" "$actual_bugseg"
+
+# ── 51 · bug-gate: a later segment judged as a bug correctly attributed to the
+#         completion drops it from complied ──
+echo '{"bug1:7":{"verdict":"bug","against":"bug1:3"}}' >"$d/pulse/bug-verdicts.json"
+expected_bughit="1/0"
+actual_bughit=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$d/bug1.jsonl" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+a, c, _ = m.score_bug_gate(m.read_turns(sys.argv[2]), {"since": ""})
+print("%d/%d" % (a, c))
+PY
+)
+check "bug-gate: a correctly-attributed bug report drops the completion from complied" "$expected_bughit" "$actual_bughit"
+
+# ── 52 · bug-gate: a bug report whose target matches no candidate counts
+#         toward neither side — attribution must be certain, not assumed ──
+echo '{"bug1:7":{"verdict":"bug","against":"nonexistent:99"}}' >"$d/pulse/bug-verdicts.json"
+expected_bugunmatched="1/1"
+actual_bugunmatched=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$d/bug1.jsonl" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+a, c, _ = m.score_bug_gate(m.read_turns(sys.argv[2]), {"since": ""})
+print("%d/%d" % (a, c))
+PY
+)
+check "bug-gate: an unmatched-target report costs neither side" "$expected_bugunmatched" "$actual_bugunmatched"
+
+# ── 52b · bug-gate: a target that IS a real completion elsewhere in the
+#          session, but was not a candidate for THIS report (it did not exist
+#          yet when the report was made), must not hit that completion either —
+#          the narrower case a target-existence check alone would miss ──
+d2=$(tmpdir)
+cat >"$d2/bug2.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-25T09:00:00Z","message":{"content":"add feature X"}}
+{"type":"assistant","timestamp":"2026-07-25T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▰▱ medium — feature X\nAcceptance:\n- X works"}]}}
+{"type":"user","timestamp":"2026-07-25T09:01:00Z","message":{"content":"go"}}
+{"type":"assistant","timestamp":"2026-07-25T09:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Done X."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-25T09:02:00Z","message":{"content":"thanks"}}
+{"type":"assistant","timestamp":"2026-07-25T09:02:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"You are welcome."}]}}
+{"type":"user","timestamp":"2026-07-25T09:10:00Z","message":{"content":"add feature Y"}}
+{"type":"assistant","timestamp":"2026-07-25T09:10:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Done Y."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-25T09:11:00Z","message":{"content":"cool"}}
+{"type":"assistant","timestamp":"2026-07-25T09:11:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Glad it helps."}]}}
+{"type":"user","timestamp":"2026-07-25T09:20:00Z","message":{"content":"add feature Z"}}
+{"type":"assistant","timestamp":"2026-07-25T09:20:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Done Z."},{"type":"tool_use","id":"t3","name":"Edit","input":{}},{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"user","timestamp":"2026-07-25T09:21:00Z","message":{"content":"looks good"}}
+{"type":"assistant","timestamp":"2026-07-25T09:21:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Compliance Review: PASS"}]}}
+{"type":"user","timestamp":"2026-07-25T09:30:00Z","message":{"content":"add feature W"}}
+{"type":"assistant","timestamp":"2026-07-25T09:30:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Done W."},{"type":"tool_use","id":"t4","name":"Edit","input":{}}]}}
+JSON
+mkdir -p "$d2/pulse"
+echo '{"bug2:1":"accepted"}' >"$d2/pulse/verdicts.json"
+# The report at bug2:7 ("add feature Y") only ever saw completion bug2:3 ("go")
+# as a candidate — completion bug2:11 ("add feature Z") comes later and was
+# never offered to it. A judge naming bug2:11 as this report's target is not
+# a legal answer for that report; it must not cost bug2:11 its compliance.
+echo '{"bug2:7":{"verdict":"bug","against":"bug2:11"}}' >"$d2/pulse/bug-verdicts.json"
+expected_bugcross="2/2"
+actual_bugcross=$(PULSE_DIR="$d2/pulse" python3 - "$SCAN" "$d2/bug2.jsonl" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+a, c, _ = m.score_bug_gate(m.read_turns(sys.argv[2]), {"since": ""})
+print("%d/%d" % (a, c))
+PY
+)
+check "bug-gate: a target that is real but not this report's candidate does not hit it" "$expected_bugcross" "$actual_bugcross"
+
+# ── 53 · bug-gate: an unrelated verdict leaves the completion complied ──
+echo '{"bug1:7":{"verdict":"unrelated","against":null}}' >"$d/pulse/bug-verdicts.json"
+expected_bugunrelated="1/1"
+actual_bugunrelated=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$d/bug1.jsonl" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+a, c, _ = m.score_bug_gate(m.read_turns(sys.argv[2]), {"since": ""})
+print("%d/%d" % (a, c))
+PY
+)
+check "bug-gate: an unrelated later prompt does not cost the completion" "$expected_bugunrelated" "$actual_bugunrelated"
+
+# ── 54 · bug-gate wired into apply_rubric: plan.bug-reported flips from
+#         pending to a real rate against the live pulse-rubric.json ──
+d=$(tmpdir)
+cat >"$d/bug1.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-25T09:00:00Z","message":{"content":"add feature X"}}
+{"type":"assistant","timestamp":"2026-07-25T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▰▱ medium — feature X\nAcceptance:\n- X works"}]}}
+{"type":"user","timestamp":"2026-07-25T09:01:00Z","message":{"content":"go"}}
+{"type":"assistant","timestamp":"2026-07-25T09:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Done X."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-25T09:02:00Z","message":{"content":"thanks"}}
+{"type":"assistant","timestamp":"2026-07-25T09:02:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"You are welcome."}]}}
+{"type":"user","timestamp":"2026-07-25T09:10:00Z","message":{"content":"add feature Y"}}
+{"type":"assistant","timestamp":"2026-07-25T09:10:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Done Y."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-25T09:11:00Z","message":{"content":"cool"}}
+{"type":"assistant","timestamp":"2026-07-25T09:11:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Glad it helps."}]}}
+{"type":"user","timestamp":"2026-07-25T09:20:00Z","message":{"content":"add feature Z"}}
+{"type":"assistant","timestamp":"2026-07-25T09:20:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Done Z."},{"type":"tool_use","id":"t3","name":"Edit","input":{}},{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"user","timestamp":"2026-07-25T09:21:00Z","message":{"content":"looks good"}}
+{"type":"assistant","timestamp":"2026-07-25T09:21:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Compliance Review: PASS"}]}}
+JSON
+mkdir -p "$d/pulse"
+echo '{"bug1:1":"accepted"}' >"$d/pulse/verdicts.json"
+cat >"$d/fakebugjudge.py" <<'PY'
+# Stands in for `claude -p`: every candidate report is judged unrelated, so
+# this test proves the wiring (pending -> ok, a real rate) without asserting
+# on the judge's own semantics, which tests 51-53 already cover directly.
+import re, sys, json
+raw = sys.stdin.read()
+keys = re.findall(r"--- key: (\S+)", raw)
+print(json.dumps([{"key": k, "verdict": "unrelated", "against": None} for k in keys]))
+PY
+expected_wired="ok|1|1|100"
+actual_wired=$(PULSE_DIR="$d/pulse" PULSE_JUDGE_CMD="python3 $d/fakebugjudge.py" python3 - "$SCAN" "$RUBRIC" "$d/bug1.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+items, _ = m.apply_rubric([sys.argv[3]], rubric)
+item = next(i for i in items if i["id"] == "plan.bug-reported")
+print("%s|%s|%s|%s" % (item["status"], item["applied"], item["complied"], item["rate"]))
+PY
+)
+check "bug-gate wired into apply_rubric: plan.bug-reported flips pending -> ok" "$expected_wired" "$actual_wired"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
