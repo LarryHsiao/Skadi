@@ -8,5 +8,15 @@
     "complied": "",
     "denom": "gates answered",
     "criterion": "Applies to every run where a task-size gauge was rendered and answered — never to a run that owed no gauge, so an exempt slash-command run cannot count as a miss. ✓ the user let the plan proceed as proposed · ✗ the user altered the scope or approach, or declined. A gate walked away from is excluded from both sides and reported as an abandoned count — silence is no verdict on a plan. A gate no judge could answer is likewise absent rather than guessed. Every gate is judged, including those the user answered by picking an option the gate offered: the judge weighs which option was chosen, because passing those through as acceptance would pin a tenth of the denominator at 100% by construction. The call is made by a model and cached per gate, so it reads intent rather than keywords; it is still a judgment, hence the heuristic tier."
+  },
+  {
+    "id": "plan.bug-reported",
+    "label": "Bug reported against a prior completion within the same session",
+    "kind": "bug-gate",
+    "tier": "heuristic",
+    "applies": "",
+    "complied": "",
+    "denom": "completions checked",
+    "criterion": "Pending — the bug-gate scorer is not built yet. When live: applies to every task segment that closed with plan.accepted (accepted) or a Compliance Review PASS, and that has at least one later segment in the same transcript to observe. ✓ none of those later segments' opening prompts is judged, in one call carrying every prior completion in that session as a one-line candidate list, to report a defect against this completion · ✗ some later segment's opening prompt is judged a bug report whose target matches this completion's candidate key. A report whose judged target matches no candidate in the list counts toward neither side — attribution must be certain, not assumed against the nearest prior completion. Judged once per (session, turn) and cached like plan.accepted, so a closed transcript is never re-judged."
   }
 ]
