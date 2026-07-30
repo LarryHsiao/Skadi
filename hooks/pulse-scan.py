@@ -542,24 +542,66 @@ def _segment_complies(seg, complied_re):
                for t in seg[:marker_idx + 1])
 
 
+def _segment_skipped(seg, complied_re, skipped_re):
+    """Whether this segment's Compliance Review was explicitly, reasonedly
+    waived rather than silently missed: a SKIPPED marker follows the
+    segment's last mutating turn. No Agent evidence is required here — unlike
+    _segment_complies, a skip marker's presence *is* the decision being
+    recorded, not a claim that a review happened. A segment that already
+    complies outright is never counted as skipped, even if skip-marker text
+    also happens to appear somewhere in it — complying takes priority."""
+    if _segment_complies(seg, complied_re):
+        return False
+    mutating_indices = [k for k, t in enumerate(seg) if _mutates(t)]
+    if not mutating_indices:
+        return False
+    post = seg[mutating_indices[-1] + 1:]
+    return any(t["type"] == "assistant" and skipped_re.search(t["text"]) for t in post)
+
+
 def score_post_gate(turns, entry):
     """Like score_freeform_gate, but for gates (Compliance Review) that close
-    a task rather than open it. applied = task segments (see _task_segments);
+    a task rather than open it. applied = task segments (see _task_segments)
+    minus any explicitly skipped (see _segment_skipped, entry['skipped']);
     complied = segments whose close carries both the verdict marker and Agent
     delegation evidence (see _segment_complies). entry['since'] (optional,
-    ISO date) drops runs from before the rule existed (see _prompt_runs)."""
+    ISO date) drops runs from before the rule existed (see _prompt_runs).
+    entry['skipped'] is optional — omitting it disables skip-detection
+    entirely, identical to behavior before this existed."""
     complied_re = re.compile(entry["complied"])
+    skipped_re = re.compile(entry["skipped"]) if entry.get("skipped") else None
     applied = 0
     complied = 0
     by_model = {}
     for seg in _task_segments(_prompt_runs(turns, entry.get("since", ""))):
         seg_turns = _segment_turns(seg)
+        if skipped_re is not None and _segment_skipped(seg_turns, complied_re, skipped_re):
+            continue  # an explicit, reasoned skip is not silence — excluded from both sides
         applied += 1
         ok = _segment_complies(seg_turns, complied_re)
         if ok:
             complied += 1
         _bump_model(by_model, _run_model(seg_turns), ok)
     return applied, complied, by_model
+
+
+def _skipped_reviews(sessions, entry):
+    """Segments whose Compliance Review was explicitly skipped, counted so the
+    row can report them beside the rate rather than hide the exclusion —
+    mirrors _abandoned_gates for plan.accepted. Not folded into
+    score_post_gate's own count: that function excludes these from
+    applied/complied; this counts the population it deliberately leaves out.
+    0 when entry carries no 'skipped' pattern."""
+    if not entry.get("skipped"):
+        return 0
+    complied_re = re.compile(entry["complied"])
+    skipped_re = re.compile(entry["skipped"])
+    return sum(
+        1
+        for turns in sessions
+        for seg in _task_segments(_prompt_runs(turns, entry.get("since", "")))
+        if _segment_skipped(_segment_turns(seg), complied_re, skipped_re)
+    )
 
 
 def score_task_shot(turns, entry):
@@ -1097,6 +1139,8 @@ def apply_rubric(files, rubric):
             if kind == "plan-gate":
                 item["abandoned"] = _abandoned_gates(sessions)
                 item["byDate"] = _gate_series(sessions)
+            if kind == "post-gate" and entry.get("skipped"):
+                item["skipped"] = _skipped_reviews(sessions, entry)
             items.append(item)
         except re.error as err:
             print("pulse-scan: %s matcher error: %s" % (entry["id"], err), file=sys.stderr)

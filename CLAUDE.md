@@ -110,6 +110,8 @@ Surface findings in the end-of-task summary alongside what was completed. Treat 
 
 End the end-of-task summary with a literal line: `Compliance Review: PASS` or `Compliance Review: FAIL` — so the pulse can detect it reliably instead of guessing at prose.
 
+A third line, `Compliance Review: SKIPPED (reason: <one line>)`, replaces the review only when a second reviewer would have nothing to weigh — a single data-only addition, a comment or doc fix, a version bump touching no logic. This is a judgment call the model itself makes, not a shortcut for a change merely expected to pass; a plausible pass is exactly what the review exists to confirm. Reserve it narrowly, and always name why.
+
 When a plugin process skill (superpowers' verification and review skills, and their kin) speaks to a gate governed by this file's process sections — the Free-Form Gate, Implementation Loop, or this Compliance Review — those sections rule; a skill may add checks, never replace or loosen them.
 
 ## Cross-Workspace Edits

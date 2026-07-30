@@ -42,7 +42,7 @@ JSON
 # duplicate shapes on the third recurrence).
 COMPLIANCE_ENTRY="$ROOT/compliance-review-entry.json"
 cat >"$COMPLIANCE_ENTRY" <<'JSON'
-{"complied": "Compliance Review[:：]\\s*(PASS|FAIL)", "since": "2026-07-16"}
+{"complied": "Compliance Review[:：]\\s*(PASS|FAIL)", "skipped": "Compliance Review[:：]\\s*SKIPPED", "since": "2026-07-16"}
 JSON
 
 FIRSTSHOT_ENTRY="$ROOT/first-shot-entry.json"
@@ -680,6 +680,88 @@ print("%d/%d" % (a, c))
 PY
 )
 check "post-gate scorer: a full-width colon after the marker still complies" "$expected_fullwidth" "$actual_fullwidth"
+
+# ── 25c · post-gate scorer: an explicitly SKIPPED segment is excluded from
+#          both applied and complied — not penalized, not credited — and no
+#          Agent call is required to back it (the marker itself is the
+#          decision, unlike PASS/FAIL) ──
+d=$(tmpdir)
+cat >"$d/skipped.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T14:00:00Z","message":{"content":"add a label_zh field to the rubric entry"}}
+{"type":"assistant","timestamp":"2026-07-18T14:00:05Z","message":{"content":[{"type":"text","text":"Adding it."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T14:00:10Z","message":{"content":[{"type":"text","text":"Added.\nCompliance Review: SKIPPED (reason: single data-only JSON field, no logic touched)"}]}}
+JSON
+expected_skipped="0/0"
+actual_skipped=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/skipped.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_post_gate(turns, entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: an explicitly skipped segment costs neither side" "$expected_skipped" "$actual_skipped"
+
+# ── 25d · post-gate scorer: a segment with NO marker at all is still a silent
+#          miss — 'skipped' support must not accidentally forgive silence ──
+d=$(tmpdir)
+cat >"$d/silent.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T15:00:00Z","message":{"content":"tweak the widget"}}
+{"type":"assistant","timestamp":"2026-07-18T15:00:05Z","message":{"content":[{"type":"text","text":"Done, no verdict."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+JSON
+expected_silent="1/0"
+actual_silent=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/silent.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_post_gate(turns, entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: a marker-less segment is still a silent miss, not a skip" "$expected_silent" "$actual_silent"
+
+# ── 25e · post-gate scorer: a segment that complies outright is never counted
+#          as skipped even if skip-marker text also appears in it ──
+d=$(tmpdir)
+cat >"$d/complied-and-mentions-skip.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T16:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-18T16:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T16:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T16:00:10Z","message":{"content":[{"type":"text","text":"On reflection: Compliance Review: SKIPPED (reason: seemed minor) — no, let me actually check this properly."}]}}
+{"type":"assistant","timestamp":"2026-07-18T16:00:12Z","message":{"content":[{"type":"text","text":"Reviewed and verified.\nCompliance Review: PASS"}]}}
+JSON
+expected_notskipped="1/1"
+actual_notskipped=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/complied-and-mentions-skip.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_post_gate(turns, entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: complying takes priority over incidental skip-marker text" "$expected_notskipped" "$actual_notskipped"
+
+# ── 25f · _skipped_reviews counts what score_post_gate excludes, so the row
+#          can report the population it deliberately leaves out ──
+d=$(tmpdir)
+cat >"$d/skipped.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T14:00:00Z","message":{"content":"add a label_zh field to the rubric entry"}}
+{"type":"assistant","timestamp":"2026-07-18T14:00:05Z","message":{"content":[{"type":"text","text":"Adding it."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T14:00:10Z","message":{"content":[{"type":"text","text":"Added.\nCompliance Review: SKIPPED (reason: single data-only JSON field, no logic touched)"}]}}
+JSON
+expected_skipcount="1"
+actual_skipcount=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/skipped.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+turns = m.read_turns(sys.argv[3])
+print(m._skipped_reviews([turns], entry))
+PY
+)
+check "_skipped_reviews counts the excluded population" "$expected_skipcount" "$actual_skipcount"
 
 # ── 27 · task-shot scorer: an additive follow-up ("also…") is not rework — first-shot holds ──
 d=$(tmpdir)
