@@ -31,7 +31,8 @@ cat >"$FIXTURE_RUBRIC" <<'JSON'
    "denom": "messages", "criterion": "stub"},
   {"id": "rule.commit-footer", "label": "Commit bears the session footer", "kind": "git-probe",
    "tier": "deterministic", "applies": "", "complied": "Claude-Session:",
-   "denom": "commits", "criterion": "stub"}
+   "denom": "commits", "criterion": "stub", "label_zh": "提交帶有 session 註腳",
+   "criterion_zh": "stub-zh"}
 ]
 JSON
 
@@ -60,7 +61,7 @@ actual_rubric=$(python3 - "$RUBRIC" <<'PY'
 import json, sys
 rows = json.load(open(sys.argv[1], encoding="utf-8"))
 kinds = {"workflow", "grammar", "freeform-gate", "post-gate", "task-shot", "plan-gate",
-         "git-probe", "forge-probe"}
+         "git-probe", "forge-probe", "bug-gate"}
 tiers = {"deterministic", "structural", "heuristic"}
 req = {"id", "label", "kind", "tier", "applies", "complied", "denom", "criterion"}
 for r in rows:
@@ -194,6 +195,22 @@ has_info_toggle=$(grep -q 'class="critrow"' "$hen/adherence-pulse.html" && echo 
 has_info_btn=$(grep -q 'data-info=' "$hen/adherence-pulse.html" && echo yes || echo no)
 actual_crit="$has_crit_data/$has_info_toggle/$has_info_btn"
 check "dashboard carries per-item criterion and info toggle" "$expected_crit" "$actual_crit"
+
+# ── 7c · dashboard threads an item's label_zh/criterion_zh and renders the EN/中文 chip switch ──
+expected_i18n="提交帶有 session 註腳/stub-zh/yes/yes/yes"
+actual_i18n=$(python3 - "$hen/adherence-pulse.html" <<'PY'
+import re, json, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+data = json.loads(re.search(r"const DATA = (\{.*\});", html).group(1))
+item = next(i for i in data["items"] if i["id"] == "rule.commit-footer")
+print("%s/%s" % (item.get("labelZh"), item.get("criterionZh")))
+PY
+)
+has_lang_switch=$(grep -q 'id="langSwitch"' "$hen/adherence-pulse.html" && echo yes || echo no)
+has_en_chip=$(grep -q 'data-lang="en"' "$hen/adherence-pulse.html" && echo yes || echo no)
+has_zh_chip=$(grep -q 'data-lang="zh"' "$hen/adherence-pulse.html" && echo yes || echo no)
+actual_i18n="$actual_i18n/$has_lang_switch/$has_en_chip/$has_zh_chip"
+check "dashboard threads labelZh/criterionZh and renders the lang chips" "$expected_i18n" "$actual_i18n"
 
 # ── 8 · the snapshot headline carries a per-tier breakdown, not just one number ──
 d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir)
