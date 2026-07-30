@@ -74,6 +74,26 @@ in_allowed_dir() {
   return 1
 }
 
+# Returns 0 if path is under a well-known system/toolchain install directory
+# (Homebrew, /usr/local, the base OS bin dirs). Deliberately narrower than
+# in_allowed_dir and used only for the Bash argument-path check below — a
+# command referencing where a system binary lives (e.g. `ls /opt/homebrew/bin/
+# glab` to confirm it exists) is a read, not a sandbox escape. Never used for
+# the Write/Edit/NotebookEdit file_path check: writing into a toolchain shared
+# by every project on the machine stays blocked regardless of this list.
+in_system_bin_dir() {
+  local p="$1"
+  case "$p" in
+    /opt/homebrew|/opt/homebrew/*) return 0 ;;
+    /usr/local|/usr/local/*) return 0 ;;
+    /usr/bin|/usr/bin/*) return 0 ;;
+    /usr/sbin|/usr/sbin/*) return 0 ;;
+    /bin|/bin/*) return 0 ;;
+    /sbin|/sbin/*) return 0 ;;
+  esac
+  return 1
+}
+
 # Check if at disk root (/, /c, /d, etc.)
 if echo "$CWD" | grep -qE '^/$|^/[a-z]$'; then
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: running at disk root (%s) is not allowed"}}' "$CWD"
@@ -155,7 +175,7 @@ PYEOF
     # forward-slash form is what Git Bash users actually type on Windows).
     if [[ "$TOKEN" =~ ^/[a-zA-Z] ]] || [[ "$TOKEN" =~ ^[A-Za-z]:\\ ]] || [[ "$TOKEN" =~ ^[A-Za-z]:/ ]]; then
       NORM=$(normalize "$TOKEN")
-      if ! in_allowed_dir "$NORM"; then
+      if ! in_allowed_dir "$NORM" && ! in_system_bin_dir "$NORM"; then
         printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: command references path (%s) outside project and dev directories"}}' "$NORM"
         exit 0
       fi

@@ -65,9 +65,18 @@ check "forward-slash Windows path is denied like its backslash form" "deny" "$(r
 check "command's own absolute path is allowed" "allow" "$(run_cmd "/opt/homebrew/bin/git status")"
 check "command's own absolute path is allowed in every chain slot" "allow" "$(run_cmd "echo hi && /opt/homebrew/bin/git status")"
 
-# ── the same path used as an *argument*, not the command being run, is still
-# denied — the exemption covers the executable slot only ──
-check "outside path used as an argument is still denied" "deny" "$(run_cmd "cat /opt/homebrew/bin/git")"
+# ── an outside path used as an *argument*, not the command being run, is
+# still denied in general — the executable-slot exemption above covers only
+# the command position ──
+check "outside path used as an argument is still denied" "deny" "$(run_cmd "cat /etc/hosts")"
+
+# ── a well-known system/toolchain bin dir used as an *argument* is allowed —
+# referencing where a system binary lives (an existence check, `ls`, `file`)
+# is a read, not a sandbox escape, so it doesn't need the executable-slot
+# exemption above to pass ──
+for sysdir in /opt/homebrew/bin/glab /usr/local/bin/foo /usr/bin/env /bin/ls; do
+  check "system bin path ($sysdir) used as an argument is allowed" "allow" "$(run_cmd "ls -la $sysdir")"
+done
 
 # Runs the hook from inside the repo (a known-allowed cwd) as a Write/Edit-style
 # call — tool_input carries file_path instead of command — and reports whether
@@ -96,6 +105,12 @@ check "Write file_path under .claude-personal is allowed" "allow" "$(run_write "
 OUTSIDE_PATH="$HOME/some-other-project/file.txt"
 check "Write file_path outside project with no dev-dir whitelist is denied" "deny" "$(run_write "$OUTSIDE_PATH")"
 check "Write file_path inside CLAUDE_DEV_DIRS whitelist is allowed" "allow" "$(run_write "$OUTSIDE_PATH" "$HOME/some-other-project")"
+
+# ── in_system_bin_dir governs the Bash argument-path check only — Write/Edit
+# still uses in_allowed_dir alone, so a system/toolchain bin dir stays exactly
+# as write-protected as any other outside path. Widening what a command may
+# *reference* must never widen what a tool may *overwrite* ──
+check "Write file_path under a system bin dir is still denied" "deny" "$(run_write "/opt/homebrew/bin/glab")"
 
 echo ""
 echo "── $pass passed, $fail failed ──"
