@@ -92,6 +92,51 @@ empty_dest="$ROOT/out/empty.html"
 python3 "$RENDER" "$empty_skills" "$empty_dest" >/dev/null
 contains "zero-skill count rendered" '0 skills' "$empty_dest"
 
+# ── 6 · grouping — a mapped skill lands under its purpose heading ──
+mkdir -p "$skills/council"
+cat >"$skills/council/SKILL.md" <<'EOF'
+---
+name: council
+description: Convenes a planning council on a tracker ticket.
+user_invocable: true
+---
+
+# Council
+EOF
+python3 "$RENDER" "$skills" "$dest" >/dev/null
+contains "mapped skill's group heading rendered" 'Plan &amp; Council' "$dest"
+contains "unmapped skill falls into Other" 'Other' "$dest"
+pos_group_hd=$(grep -n 'Plan &amp; Council' "$dest" | head -1 | cut -d: -f1)
+pos_council_card=$(grep -n '/council<' "$dest" | head -1 | cut -d: -f1)
+check "council card sits after its group heading" "1" "$([[ "$pos_council_card" -gt "$pos_group_hd" ]] && echo 1 || echo 0)"
+
+# ── 7 · responsive grid — 3 columns wide, narrowing at smaller widths ──
+contains "grid uses a 3-column layout" 'repeat(3, minmax(0, 1fr))' "$dest"
+contains "grid narrows to 2 columns on a medium viewport" 'repeat(2, minmax(0, 1fr))' "$dest"
+
+# ── 8 · a long description is shortened on the card, full text kept for hover + search ──
+mkdir -p "$skills/long-desc"
+cat >"$skills/long-desc/SKILL.md" <<'EOF'
+---
+name: long-desc
+description: Use when the user runs this at length, because the real frontmatter descriptions in this repo tend to run well past a hundred characters and would otherwise wrap a card into a tall, uneven block.
+user_invocable: true
+---
+
+# Long desc
+EOF
+python3 "$RENDER" "$skills" "$dest" >/dev/null
+visible_ds=$(python3 -c "
+import re
+text = open('$dest').read()
+m = re.search(r'/long-desc</div><div class=\"ds\"[^>]*>([^<]*)</div>', text)
+print(m.group(1) if m else '')
+")
+check "long description's visible text is capped" "1" "$(echo "$visible_ds" | grep -c '…' || true)"
+check "the visible card text does not carry the full sentence" "0" "$(echo "$visible_ds" | grep -c 'uneven block\.' || true)"
+contains "full description kept as a hover tooltip" 'title="Use when the user runs this at length' "$dest"
+contains "full description still searchable in data-hay" 'uneven block' "$dest"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
