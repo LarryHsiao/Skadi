@@ -1393,6 +1393,7 @@ const STRINGS = {
     gateEmpty: "No plan gate has been judged yet — the rate and its trend fill in as gauges are answered.",
     gateAbandoned: (n) => `${n} gate${n === 1 ? "" : "s"} abandoned — excluded from the rate, since silence is no verdict on a plan.`,
     reviewExcluded: (silent, skipped) => `Excluded from this rate: ${silent} segment${silent === 1 ? "" : "s"} closed with no review${skipped ? `, ${skipped} explicitly skipped` : ""} — a review never run is no verdict on the work.`,
+    reviewWaived: (n) => `${n} segment${n === 1 ? "" : "s"} waived the review with a reasoned SKIPPED — excluded from this rate, neither credited nor penalized.`,
     day: (n) => `${n} day${n === 1 ? "" : "s"}`,
     gateAria: "Plan acceptance rate by session date, one line per model",
   },
@@ -1413,6 +1414,7 @@ const STRINGS = {
     gateEmpty: "尚未有任何計畫關卡被判定——比率與趨勢會隨著量表被回答而逐漸填入。",
     gateAbandoned: (n) => `${n} 個關卡遭放棄——不計入比率，沉默不代表對計畫的任何判決。`,
     reviewExcluded: (silent, skipped) => `不計入此比率：${silent} 個段落未經審查即收尾${skipped ? `，另有 ${skipped} 個明示略過` : ""}——未曾進行的審查，對成果不構成任何判決。`,
+    reviewWaived: (n) => `${n} 個段落以具名理由的 SKIPPED 免除審查——不計入此比率，既不記功亦不記過。`,
     day: (n) => `${n} 天`,
     gateAria: "依 session 日期呈現的計畫接受率，每個模型一條線",
   },
@@ -1627,6 +1629,7 @@ function render(tab, model) {
     // read without knowing how many segments never earned a verdict misleads.
     const excluded = i.unreviewed && (i.unreviewed.silent + i.unreviewed.skipped) > 0
       ? `<p class="gnote">${esc(S().reviewExcluded(i.unreviewed.silent, i.unreviewed.skipped))}</p>` : "";
+    const waived = i.skipped ? `<p class="gnote">${esc(S().reviewWaived(i.skipped))}</p>` : "";
     const critRow = i.criterion ? `<tr class="critrow" data-crit="${esc(i.id)}"><td colspan="3"><div class="crit">${criterionHtml(itemCriterion(i))}</div></td></tr>` : "";
     // The rate above obeys the selected chip, as every row does; the chart below
     // still draws every model's line — comparing them costs no clicks — but dims
@@ -1634,7 +1637,7 @@ function render(tab, model) {
     const gateRow = i.byDate !== undefined
       ? `<tr class="gaterow"><td colspan="3">${gateChart(i, model)}</td></tr>` : "";
     return `<tr class="${i.status !== "ok" ? "pending" : ""}">
-      <td><code>${esc(i.id)}</code> ${info} ${statusBadge}<br>${esc(itemLabel(i))}${bar}${excluded}</td>
+      <td><code>${esc(i.id)}</code> ${info} ${statusBadge}<br>${esc(itemLabel(i))}${bar}${excluded}${waived}</td>
       <td>${esc(rate)}</td><td>${esc(n)}</td></tr>${critRow}${gateRow}`;
   };
   document.getElementById("rows").innerHTML = Object.keys(groups).sort((a, b) => tierRank(a) - tierRank(b)).map(t =>

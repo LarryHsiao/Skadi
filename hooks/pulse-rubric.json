@@ -24,6 +24,20 @@
     "criterion_zh": "待建——bug-gate 的計分器還沒寫。上線後：適用於每一個以 plan.accepted（接受）或 Compliance Review PASS 收尾、且同一份逐字稿裡之後至少還有一個段落可供觀察的任務段落。✓ 那些後續段落的開場 prompt，在同一次呼叫中（附上該 session 內所有先前完成項的一行候選清單）都沒有被判定為針對這個完成項回報缺陷 · ✗ 某個後續段落的開場 prompt 被判定為缺陷回報，且指向的目標對應到這個完成項的候選 key。若判定出的目標對不上清單裡任何一個候選，這筆回報兩邊都不計入——歸屬必須是確定的，不能假設是指向最近一個先前完成項。跟 plan.accepted 一樣，以 (session, turn) 為 key 判斷一次並快取，已關閉的逐字稿不會被重新判斷。"
   },
   {
+    "id": "rule.compliance-review",
+    "label": "Compliance Review dispatches an agent and renders a verdict closing a mutating task segment",
+    "kind": "post-gate",
+    "tier": "heuristic",
+    "since": "2026-07-16",
+    "applies": "",
+    "complied": "Compliance Review[:：]\\s*(PASS|FAIL)",
+    "skipped": "Compliance Review[:：]\\s*SKIPPED",
+    "denom": "mutating task segments",
+    "criterion": "Applies once per mutating task segment (consecutive edits + read-only wind-down), for segments dated on or after 2026-07-16. ✓ a 'Compliance Review: PASS|FAIL' line follows the segment's last edit AND an Agent review was dispatched at or before it · ✗ the marker is missing, or it was typed with no review agent spawned. A segment closing with an explicit 'Compliance Review: SKIPPED (reason: …)' is excluded from both sides — a reasoned waiver is no silent omission — and counted beneath the row. This row asks whether the review happened at all; review.verdict asks how the ones that happened came out, so a rate here that sags while that one shines means reviews are being forgotten, not passed. Known trade-off: two tasks back to back with no read-only run between them fold into one segment and bill once, hence the heuristic tier.",
+    "label_zh": "以派出審查代理並寫下判決，為動過樹的任務段落收尾",
+    "criterion_zh": "每一個動過樹的任務段落（連續的修改加上其後的唯讀收尾）適用一次，日期於 2026-07-16 以後。✓「Compliance Review: PASS|FAIL」一行落在該段最後一次修改之後，且該行之前確有一次 Agent 審查被派出 · ✗ 標記缺席，或標記打了卻不曾派出審查代理。以明示的「Compliance Review: SKIPPED（附理由）」收尾的段落，兩邊都不計入——具名理由的免除不是靜默的遺漏——並在該列下方另記其數。這一列問的是審查究竟做了沒；review.verdict 問的是做過的那些結果如何。因此若這一列低落而那一列亮眼，意味著審查是被忘了，而非通過了。已知的取捨：兩件任務相接、中間沒有唯讀回合時會折成一段而只計一次，故歸在啟發式這一層。"
+  },
+  {
     "id": "review.verdict",
     "label": "Compliance Review closes clean, among the reviews actually run",
     "kind": "review-verdict",

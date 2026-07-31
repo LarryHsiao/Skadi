@@ -1679,6 +1679,40 @@ PY
 )
 check "review.verdict wired through apply_rubric, full-width colon and all" "$expected_live" "$actual_live"
 
+# ── 59 · the live rubric's reinstated rule.compliance-review scores end to end:
+#         one segment reviewed, one with an unbacked marker, one reasonedly
+#         skipped — 2 billed, 1 kept, the waiver counted apart ──
+d=$(tmpdir)
+cat >"$d/compliance-live.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-24T10:00:00Z","message":{"content":"fix the first widget"}}
+{"type":"assistant","timestamp":"2026-07-24T10:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-24T10:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-24T10:00:10Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"}]}}
+{"type":"user","timestamp":"2026-07-24T10:01:00Z","message":{"content":"good"}}
+{"type":"assistant","timestamp":"2026-07-24T10:01:05Z","message":{"content":[{"type":"text","text":"Aye."}]}}
+{"type":"user","timestamp":"2026-07-24T10:02:00Z","message":{"content":"now the second widget"}}
+{"type":"assistant","timestamp":"2026-07-24T10:02:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-24T10:02:10Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"}]}}
+{"type":"user","timestamp":"2026-07-24T10:03:00Z","message":{"content":"fine"}}
+{"type":"assistant","timestamp":"2026-07-24T10:03:05Z","message":{"content":[{"type":"text","text":"Aye."}]}}
+{"type":"user","timestamp":"2026-07-24T10:04:00Z","message":{"content":"bump the version"}}
+{"type":"assistant","timestamp":"2026-07-24T10:04:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t3","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-24T10:04:10Z","message":{"content":[{"type":"text","text":"Compliance Review: SKIPPED (reason: a version bump touching no logic)"}]}}
+JSON
+expected_compliance_live="ok|2|1|50|skipped:1"
+actual_compliance_live=$(python3 - "$SCAN" "$RUBRIC" "$d/compliance-live.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = [e for e in json.load(open(sys.argv[2], encoding="utf-8")) if e["id"] == "rule.compliance-review"]
+items, _ = m.apply_rubric([sys.argv[3]], rubric)
+item = items[0]
+print("%s|%s|%s|%s|skipped:%d" % (item["status"], item["applied"], item["complied"],
+      item["rate"], item["skipped"]))
+PY
+)
+check "rule.compliance-review scores end to end, its waiver counted apart" "$expected_compliance_live" "$actual_compliance_live"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
