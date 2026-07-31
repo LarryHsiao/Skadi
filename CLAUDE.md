@@ -84,6 +84,8 @@ Visual artifacts render as HTML into the shared Henneth folder (`~/.claude/previ
 
 Once the change is approved, work the steps in order — the breakdown's steps for medium and heavy work, the single step for minimum work. Each step is closed by a verification before the next begins (or before "done", for a one-step task). The verification is whatever proves the step's correctness: a unit test, a script run end-to-end, a page rendered, an install swept. Name the path before the step begins, so success and failure are recognizable when they come. When the verification cannot be automated — a wireframe to eye, a tone to feel — say so plainly and describe the manual check that stands in its place; the silent skip is the bug that compounds.
 
+When a step belongs to a `/galadriel`-tracked plan concept (a `docs/plans/*.md` file), tick it in place as it moves — `- [ ]` to `- [~]` before the step begins, `- [x]` (with its `<!-- sha: ... -->` marker) once verification closes it; the concept format lives in `galadriel/SKILL.md`. Work with no such concept file needs no tick.
+
 If a step turns out heavier than its gauge billed — reach widens, depth deepens, reversibility shrinks — stop, re-render the gauge, re-summarize, and wait for the user's word again. The breakdown's word covers the breakdown that was named; it does not cover a step that has grown beyond it.
 
 The loop closes only when the verification produces what the plan called for. Do not bend the verification to fit the slip — return to the code.
