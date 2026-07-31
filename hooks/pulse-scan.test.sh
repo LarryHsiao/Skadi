@@ -45,6 +45,11 @@ cat >"$COMPLIANCE_ENTRY" <<'JSON'
 {"complied": "Compliance Review[:：]\\s*(PASS|FAIL)", "skipped": "Compliance Review[:：]\\s*SKIPPED", "since": "2026-07-16"}
 JSON
 
+REVIEW_ENTRY="$ROOT/review-verdict-entry.json"
+cat >"$REVIEW_ENTRY" <<'JSON'
+{"reviewed": "Compliance Review[:：]\\s*(PASS|FAIL)", "complied": "Compliance Review[:：]\\s*PASS", "skipped": "Compliance Review[:：]\\s*SKIPPED", "since": "2026-07-16"}
+JSON
+
 FIRSTSHOT_ENTRY="$ROOT/first-shot-entry.json"
 cat >"$FIRSTSHOT_ENTRY" <<'JSON'
 {"rework": "(?i)\\b(wrong|revert|undo|redo|broken)\\b|^\\s*(no|nope|nah|nvm|not|still|didn'?t|doesn'?t|isn'?t)\\b|不對|不行|重來|改回|退回|(?<!不)錯", "threshold": 0}
@@ -61,13 +66,16 @@ actual_rubric=$(python3 - "$RUBRIC" <<'PY'
 import json, sys
 rows = json.load(open(sys.argv[1], encoding="utf-8"))
 kinds = {"workflow", "grammar", "freeform-gate", "post-gate", "task-shot", "plan-gate",
-         "git-probe", "forge-probe", "bug-gate"}
+         "git-probe", "forge-probe", "bug-gate", "review-verdict"}
 tiers = {"deterministic", "structural", "heuristic"}
 req = {"id", "label", "kind", "tier", "applies", "complied", "denom", "criterion"}
 for r in rows:
     assert req <= set(r), "missing keys in %s" % r.get("id")
     assert r["kind"] in kinds, "bad kind %s" % r["kind"]
     assert r["tier"] in tiers, "bad tier %s" % r["tier"]
+    # review-verdict reads two patterns: which segments carried a review, and
+    # which of those closed clean. Without 'reviewed' the scorer has no denominator.
+    assert r["kind"] != "review-verdict" or "reviewed" in r, "no reviewed pattern in %s" % r["id"]
 ids = [r["id"] for r in rows]
 assert len(ids) == len(set(ids)), "duplicate id"
 print("ok")
@@ -1550,6 +1558,126 @@ print("%s|%s|%s|%s" % (item["status"], item["applied"], item["complied"], item["
 PY
 )
 check "bug-gate wired into apply_rubric: plan.bug-reported flips pending -> ok" "$expected_wired" "$actual_wired"
+
+# ── 55 · review-verdict scorer: the rate is PASS over the reviews actually run ──
+# Three segments, read-only runs between them so the fold keeps them apart: one
+# closes PASS, one closes FAIL, one closes silent. Only the first two are asked
+# about — 2 reviews run, 1 of them clean.
+d=$(tmpdir)
+cat >"$d/verdict.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-20T10:00:00Z","message":{"content":"fix the first widget"}}
+{"type":"assistant","timestamp":"2026-07-20T10:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-20T10:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-20T10:00:10Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"}]}}
+{"type":"user","timestamp":"2026-07-20T10:01:00Z","message":{"content":"good"}}
+{"type":"assistant","timestamp":"2026-07-20T10:01:05Z","message":{"content":[{"type":"text","text":"Aye."}]}}
+{"type":"user","timestamp":"2026-07-20T10:02:00Z","message":{"content":"now the second widget"}}
+{"type":"assistant","timestamp":"2026-07-20T10:02:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-20T10:02:08Z","message":{"content":[{"type":"tool_use","id":"a2","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-20T10:02:10Z","message":{"content":[{"type":"text","text":"The reviewer found a missing test.\nCompliance Review: FAIL"}]}}
+{"type":"user","timestamp":"2026-07-20T10:03:00Z","message":{"content":"noted"}}
+{"type":"assistant","timestamp":"2026-07-20T10:03:05Z","message":{"content":[{"type":"text","text":"Aye."}]}}
+{"type":"user","timestamp":"2026-07-20T10:04:00Z","message":{"content":"and the third widget"}}
+{"type":"assistant","timestamp":"2026-07-20T10:04:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t3","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-20T10:04:10Z","message":{"content":[{"type":"text","text":"Done."}]}}
+JSON
+expected_verdict="2/1"
+actual_verdict=$(python3 - "$SCAN" "$REVIEW_ENTRY" "$d/verdict.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_review_verdict(turns, entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "review-verdict scorer: PASS over the reviews actually run" "$expected_verdict" "$actual_verdict"
+
+# ── 56 · the excluded population is counted and split by why ──
+# Same three-segment shape: one silent, one explicitly SKIPPED, one reviewed.
+# The reviewed segment is in neither excluded bucket.
+d=$(tmpdir)
+cat >"$d/unreviewed.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-21T10:00:00Z","message":{"content":"fix the first widget"}}
+{"type":"assistant","timestamp":"2026-07-21T10:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-21T10:00:10Z","message":{"content":[{"type":"text","text":"Done."}]}}
+{"type":"user","timestamp":"2026-07-21T10:01:00Z","message":{"content":"good"}}
+{"type":"assistant","timestamp":"2026-07-21T10:01:05Z","message":{"content":[{"type":"text","text":"Aye."}]}}
+{"type":"user","timestamp":"2026-07-21T10:02:00Z","message":{"content":"bump the version"}}
+{"type":"assistant","timestamp":"2026-07-21T10:02:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-21T10:02:10Z","message":{"content":[{"type":"text","text":"Compliance Review: SKIPPED (reason: a version bump touching no logic)"}]}}
+{"type":"user","timestamp":"2026-07-21T10:03:00Z","message":{"content":"fine"}}
+{"type":"assistant","timestamp":"2026-07-21T10:03:05Z","message":{"content":[{"type":"text","text":"Aye."}]}}
+{"type":"user","timestamp":"2026-07-21T10:04:00Z","message":{"content":"now the third widget"}}
+{"type":"assistant","timestamp":"2026-07-21T10:04:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t3","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-21T10:04:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-21T10:04:10Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"}]}}
+JSON
+expected_unreviewed="silent:1 skipped:1"
+actual_unreviewed=$(python3 - "$SCAN" "$REVIEW_ENTRY" "$d/unreviewed.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+counts = m._unreviewed_segments([m.read_turns(sys.argv[3])], entry)
+print("silent:%d skipped:%d" % (counts["silent"], counts["skipped"]))
+PY
+)
+check "review-verdict: excluded segments counted, silent split from skipped" "$expected_unreviewed" "$actual_unreviewed"
+
+# ── 57 · a verdict typed with no Agent behind it is not a review — it enters
+#         neither side of the ratio, and lands in the silent bucket ──
+d=$(tmpdir)
+cat >"$d/verdict-noagent.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-22T10:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-22T10:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-22T10:00:10Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"}]}}
+JSON
+expected_noagent="0/0 silent:1 skipped:0"
+actual_noagent=$(python3 - "$SCAN" "$REVIEW_ENTRY" "$d/verdict-noagent.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_review_verdict(turns, entry)
+counts = m._unreviewed_segments([turns], entry)
+print("%d/%d silent:%d skipped:%d" % (a, c, counts["silent"], counts["skipped"]))
+PY
+)
+check "review-verdict: an unbacked verdict is no review — excluded, counted silent" "$expected_noagent" "$actual_noagent"
+
+# ── 58 · the live rubric's review.verdict entry is wired end to end, and its
+#         patterns tolerate the full-width colon a Chinese verdict line may bear ──
+d=$(tmpdir)
+cat >"$d/verdict-live.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-23T10:00:00Z","message":{"content":"fix the first widget"}}
+{"type":"assistant","timestamp":"2026-07-23T10:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-23T10:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-23T10:00:10Z","message":{"content":[{"type":"text","text":"Compliance Review：PASS"}]}}
+{"type":"user","timestamp":"2026-07-23T10:01:00Z","message":{"content":"good"}}
+{"type":"assistant","timestamp":"2026-07-23T10:01:05Z","message":{"content":[{"type":"text","text":"Aye."}]}}
+{"type":"user","timestamp":"2026-07-23T10:02:00Z","message":{"content":"now the second widget"}}
+{"type":"assistant","timestamp":"2026-07-23T10:02:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-23T10:02:08Z","message":{"content":[{"type":"tool_use","id":"a2","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-23T10:02:10Z","message":{"content":[{"type":"text","text":"Compliance Review: FAIL"}]}}
+{"type":"user","timestamp":"2026-07-23T10:03:00Z","message":{"content":"noted"}}
+{"type":"assistant","timestamp":"2026-07-23T10:03:05Z","message":{"content":[{"type":"text","text":"Aye."}]}}
+{"type":"user","timestamp":"2026-07-23T10:04:00Z","message":{"content":"and the third widget"}}
+{"type":"assistant","timestamp":"2026-07-23T10:04:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t3","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-23T10:04:10Z","message":{"content":[{"type":"text","text":"Done."}]}}
+JSON
+expected_live="ok|2|1|50|silent:1 skipped:0"
+actual_live=$(python3 - "$SCAN" "$RUBRIC" "$d/verdict-live.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = [e for e in json.load(open(sys.argv[2], encoding="utf-8")) if e["id"] == "review.verdict"]
+items, _ = m.apply_rubric([sys.argv[3]], rubric)
+item = items[0]
+print("%s|%s|%s|%s|silent:%d skipped:%d" % (item["status"], item["applied"], item["complied"],
+      item["rate"], item["unreviewed"]["silent"], item["unreviewed"]["skipped"]))
+PY
+)
+check "review.verdict wired through apply_rubric, full-width colon and all" "$expected_live" "$actual_live"
 
 echo ""
 echo "── $pass passed, $fail failed ──"
