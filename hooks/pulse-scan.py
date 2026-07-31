@@ -604,6 +604,55 @@ def _skipped_reviews(sessions, entry):
     )
 
 
+def score_review_verdict(turns, entry):
+    """applied = task segments that actually carried a review — the closing
+    marker reads PASS or FAIL (entry['reviewed']) after the segment's last
+    mutating turn, with an Agent dispatch behind it, the same proof
+    score_post_gate demands; complied = those whose verdict reads PASS
+    (entry['complied']). This asks a different question from
+    rule.compliance-review: not whether the ritual was performed but, among
+    the reviews that were, how many closed clean. A segment that never closed
+    with a verdict — silently, or with a marker no Agent backs — is neither
+    credited nor penalized; _unreviewed_segments counts that excluded
+    population so the row can name it."""
+    reviewed_re = re.compile(entry["reviewed"])
+    passed_re = re.compile(entry["complied"])
+    applied = 0
+    complied = 0
+    by_model = {}
+    for seg in _task_segments(_prompt_runs(turns, entry.get("since", ""))):
+        seg_turns = _segment_turns(seg)
+        if not _segment_complies(seg_turns, reviewed_re):
+            continue
+        applied += 1
+        ok = _segment_complies(seg_turns, passed_re)
+        if ok:
+            complied += 1
+        _bump_model(by_model, _run_model(seg_turns), ok)
+    return applied, complied, by_model
+
+
+def _unreviewed_segments(sessions, entry):
+    """The population score_review_verdict leaves out, split by why: 'skipped'
+    bears an explicit, reasoned SKIPPED marker; 'silent' closed with no verdict
+    at all, or with one no Agent backs. Counted rather than folded into the
+    rate — mirrors _abandoned_gates for plan.accepted, since a review never run
+    is no verdict on the work."""
+    reviewed_re = re.compile(entry["reviewed"])
+    skipped_re = re.compile(entry["skipped"]) if entry.get("skipped") else None
+    counts = {"skipped": 0, "silent": 0}
+    for turns in sessions:
+        for seg in _task_segments(_prompt_runs(turns, entry.get("since", ""))):
+            seg_turns = _segment_turns(seg)
+            if _segment_complies(seg_turns, reviewed_re):
+                continue
+            if skipped_re is not None and _segment_skipped(seg_turns, reviewed_re, skipped_re):
+                counts["skipped"] += 1
+            else:
+                counts["silent"] += 1
+    return counts
+
+
 def score_task_shot(turns, entry):
     """applied = task segments; complied = segments whose rework count stays
     within entry['threshold']. A rework run is a mutating run after the
@@ -1093,6 +1142,7 @@ def apply_rubric(files, rubric):
     chip roster, see _all_models."""
     scorers = {"workflow": score_workflow, "grammar": score_grammar,
                "freeform-gate": score_freeform_gate, "post-gate": score_post_gate,
+               "review-verdict": score_review_verdict,
                "task-shot": score_task_shot, "plan-gate": score_plan_gate,
                "bug-gate": score_bug_gate}
     sessions = [read_turns(f) for f in files]
@@ -1141,6 +1191,8 @@ def apply_rubric(files, rubric):
                 item["byDate"] = _gate_series(sessions)
             if kind == "post-gate" and entry.get("skipped"):
                 item["skipped"] = _skipped_reviews(sessions, entry)
+            if kind == "review-verdict":
+                item["unreviewed"] = _unreviewed_segments(sessions, entry)
             items.append(item)
         except re.error as err:
             print("pulse-scan: %s matcher error: %s" % (entry["id"], err), file=sys.stderr)
@@ -1340,6 +1392,7 @@ const STRINGS = {
     tiers: { heuristic: "heuristic", structural: "structural", deterministic: "deterministic" },
     gateEmpty: "No plan gate has been judged yet — the rate and its trend fill in as gauges are answered.",
     gateAbandoned: (n) => `${n} gate${n === 1 ? "" : "s"} abandoned — excluded from the rate, since silence is no verdict on a plan.`,
+    reviewExcluded: (silent, skipped) => `Excluded from this rate: ${silent} segment${silent === 1 ? "" : "s"} closed with no review${skipped ? `, ${skipped} explicitly skipped` : ""} — a review never run is no verdict on the work.`,
     day: (n) => `${n} day${n === 1 ? "" : "s"}`,
     gateAria: "Plan acceptance rate by session date, one line per model",
   },
@@ -1359,6 +1412,7 @@ const STRINGS = {
     tiers: { heuristic: "啟發式", structural: "結構性", deterministic: "確定性" },
     gateEmpty: "尚未有任何計畫關卡被判定——比率與趨勢會隨著量表被回答而逐漸填入。",
     gateAbandoned: (n) => `${n} 個關卡遭放棄——不計入比率，沉默不代表對計畫的任何判決。`,
+    reviewExcluded: (silent, skipped) => `不計入此比率：${silent} 個段落未經審查即收尾${skipped ? `，另有 ${skipped} 個明示略過` : ""}——未曾進行的審查，對成果不構成任何判決。`,
     day: (n) => `${n} 天`,
     gateAria: "依 session 日期呈現的計畫接受率，每個模型一條線",
   },
@@ -1569,6 +1623,10 @@ function render(tab, model) {
     const bar = typeof i.rate === "number" ? `<div class="meter"><i style="width:${i.rate}%"></i></div>` : "";
     const statusBadge = i.status !== "ok" ? `<span class="badge ${esc(i.status)}">${esc(statusLabel(i.status))}</span>` : "";
     const info = i.criterion ? `<button class="info" data-info="${esc(i.id)}" title="${esc(S().infoTitle)}">&#9432;</button>` : "";
+    // The exclusion stands beside the rate rather than behind the ⓘ: a rate
+    // read without knowing how many segments never earned a verdict misleads.
+    const excluded = i.unreviewed && (i.unreviewed.silent + i.unreviewed.skipped) > 0
+      ? `<p class="gnote">${esc(S().reviewExcluded(i.unreviewed.silent, i.unreviewed.skipped))}</p>` : "";
     const critRow = i.criterion ? `<tr class="critrow" data-crit="${esc(i.id)}"><td colspan="3"><div class="crit">${criterionHtml(itemCriterion(i))}</div></td></tr>` : "";
     // The rate above obeys the selected chip, as every row does; the chart below
     // still draws every model's line — comparing them costs no clicks — but dims
@@ -1576,7 +1634,7 @@ function render(tab, model) {
     const gateRow = i.byDate !== undefined
       ? `<tr class="gaterow"><td colspan="3">${gateChart(i, model)}</td></tr>` : "";
     return `<tr class="${i.status !== "ok" ? "pending" : ""}">
-      <td><code>${esc(i.id)}</code> ${info} ${statusBadge}<br>${esc(itemLabel(i))}${bar}</td>
+      <td><code>${esc(i.id)}</code> ${info} ${statusBadge}<br>${esc(itemLabel(i))}${bar}${excluded}</td>
       <td>${esc(rate)}</td><td>${esc(n)}</td></tr>${critRow}${gateRow}`;
   };
   document.getElementById("rows").innerHTML = Object.keys(groups).sort((a, b) => tierRank(a) - tierRank(b)).map(t =>

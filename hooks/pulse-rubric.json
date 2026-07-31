@@ -22,5 +22,20 @@
     "criterion": "Pending — the bug-gate scorer is not built yet. When live: applies to every task segment that closed with plan.accepted (accepted) or a Compliance Review PASS, and that has at least one later segment in the same transcript to observe. ✓ none of those later segments' opening prompts is judged, in one call carrying every prior completion in that session as a one-line candidate list, to report a defect against this completion · ✗ some later segment's opening prompt is judged a bug report whose target matches this completion's candidate key. A report whose judged target matches no candidate in the list counts toward neither side — attribution must be certain, not assumed against the nearest prior completion. Judged once per (session, turn) and cached like plan.accepted, so a closed transcript is never re-judged.",
     "label_zh": "同一 session 內，完成後被回報的錯誤",
     "criterion_zh": "待建——bug-gate 的計分器還沒寫。上線後：適用於每一個以 plan.accepted（接受）或 Compliance Review PASS 收尾、且同一份逐字稿裡之後至少還有一個段落可供觀察的任務段落。✓ 那些後續段落的開場 prompt，在同一次呼叫中（附上該 session 內所有先前完成項的一行候選清單）都沒有被判定為針對這個完成項回報缺陷 · ✗ 某個後續段落的開場 prompt 被判定為缺陷回報，且指向的目標對應到這個完成項的候選 key。若判定出的目標對不上清單裡任何一個候選，這筆回報兩邊都不計入——歸屬必須是確定的，不能假設是指向最近一個先前完成項。跟 plan.accepted 一樣，以 (session, turn) 為 key 判斷一次並快取，已關閉的逐字稿不會被重新判斷。"
+  },
+  {
+    "id": "review.verdict",
+    "label": "Compliance Review closes clean, among the reviews actually run",
+    "kind": "review-verdict",
+    "tier": "heuristic",
+    "since": "2026-07-16",
+    "applies": "",
+    "reviewed": "Compliance Review[:：]\\s*(PASS|FAIL)",
+    "complied": "Compliance Review[:：]\\s*PASS",
+    "skipped": "Compliance Review[:：]\\s*SKIPPED",
+    "denom": "reviews run",
+    "criterion": "Applies only to task segments (consecutive edits + read-only wind-down) that actually carried a review: a 'Compliance Review: PASS|FAIL' line follows the segment's last edit AND an Agent review was dispatched at or before it, for segments dated on or after 2026-07-16. ✓ that verdict reads PASS · ✗ it reads FAIL. A segment that closed with no verdict, or with one typed and no review agent spawned, counts toward neither side — a review never run is no verdict on the work — and is reported beneath the row as an excluded count, split into silent and explicitly skipped. This asks how sound the work was, not whether the ritual was performed; the segment fold is a heuristic, hence the tier.",
+    "label_zh": "已進行的審查中，以 PASS 收尾的比例",
+    "criterion_zh": "僅適用於真的進行過審查的任務段落（連續的修改加上其後的唯讀收尾）：「Compliance Review: PASS|FAIL」一行落在該段最後一次修改之後，且該行之前確有一次 Agent 審查被派出，日期於 2026-07-16 以後。✓ 該判決讀作 PASS · ✗ 讀作 FAIL。未以任何判決收尾的段落，或只打了標記卻未派出審查代理的段落，兩邊都不計入——未曾進行的審查，對成果不構成任何判決——而是在該列下方另記一筆排除數，分為靜默未審與明示略過。這一列問的是成果健不健全，而非儀式有沒有做；折段的判斷屬於啟發式，故歸在該層。"
   }
 ]

@@ -50,6 +50,18 @@ own once rendered.
   segment: CLAUDE.md's order is review, then fix the findings (more mutating
   turns), then verify, then the verdict, so the Agent call routinely
   precedes the segment's last edit.
+- **`review.verdict` reads the outcome, not the ritual.** Where
+  `rule.compliance-review` asks whether the review was performed at all, this
+  row asks how the reviews that *were* performed came out: the rate is PASS
+  over PASS + FAIL. Its denominator counts only segments carrying real review
+  evidence — the verdict line after the last edit, with an `Agent` dispatch
+  behind it, the same proof `_segment_complies` demands. A segment that closed
+  silently, or with a verdict no agent backs, is neither credited nor
+  penalized: a review never run is no verdict on the work. That excluded
+  population is reported beneath the row rather than hidden, split into silent
+  and explicitly `SKIPPED`. The heuristic tier is owed to the segment fold, not
+  the marker — the fold merges two back-to-back tasks with no read-only run
+  between them.
 - **First-shot rate measures the model, not a rule.** `model.first-shot` asks a
   different question from every other row: not "did the model keep the config's
   rule" but "how good is the model" — what fraction of task segments landed
