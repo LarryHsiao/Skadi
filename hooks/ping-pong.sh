@@ -9,6 +9,6 @@ lower="$(printf '%s' "$trimmed" | tr '[:upper:]' '[:lower:]')"
 
 [ "$lower" = "ping" ] || exit 0
 
-ctx="The user's message consists solely of \"ping\". Reply with exactly the single word \"pong\" and nothing else."
+ctx="The user's message consists solely of \"ping\". Reply with the single word \"pong\" and nothing else — unless this turn's context also carries handoff messages from the auto-pickup hook. In that case write \"pong\" first, then relay those messages: the poll consumed them from the mailbox this turn, so they will not surface again."
 jq -n --arg ctx "$ctx" \
   '{hookSpecificOutput: {hookEventName: "UserPromptSubmit", additionalContext: $ctx}}'
