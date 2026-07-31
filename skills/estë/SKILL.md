@@ -40,7 +40,10 @@ own once rendered.
   owes the review once per task, "before the done report", not after every
   turn that touched a file. Known trade-off: two tasks back-to-back with no
   read-only run between them merge and bill once. A `since` date on the
-  rubric entry drops runs from before the rule existed.
+  rubric entry drops runs from before the rule existed. A segment closing with
+  an explicit `Compliance Review: SKIPPED (reason: …)` is excluded from both
+  sides — a reasoned waiver is no silent omission — and its count stands beneath
+  the row, so the exclusion is named rather than hidden.
 - **Compliance Review requires delegation evidence, not just the closing line.**
   A segment only complies when an `Agent` tool call appears at or before the
   turn bearing `Compliance Review: PASS|FAIL` (which itself must follow the

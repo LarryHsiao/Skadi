@@ -1,15 +1,23 @@
 #!/bin/bash
 # Offline tests for the free-form gate reminder hook. The contract: the hook
 # emits valid UserPromptSubmit JSON whose reminder carries the exact tokens the
-# pulse scorer (pulse-rubric.json) measures — "Size ▰" and "Acceptance".
+# pulse scorer measures — "Size ▰" and "Acceptance".
 # Run: bash gate-reminder.test.sh
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HOOK="$HERE/gate-reminder.sh"
-RUBRIC="$HERE/pulse-rubric.json"
 pass=0
 fail=0
+
+# The patterns the pulse's sizing and acceptance rows match, held here rather
+# than read from pulse-rubric.json — those two entries were trimmed out of the
+# live rubric (3f7ebf9), and reading a key that no longer exists turned this
+# suite red rather than telling us anything about the hook. Same decoupling
+# pulse-scan.test.sh took for its own scorer fixtures. Should the rows return,
+# these two strings are what must match theirs.
+SIZING_RE='Size ▰'
+ACCEPTANCE_RE='Acceptance'
 
 check() { # desc expected actual
   if [[ "$2" == "$3" ]]; then echo "  ok  · $1"; pass=$((pass + 1))
@@ -32,12 +40,11 @@ check "hook emits valid UserPromptSubmit JSON with context" "$expected_shape" "$
 expected_tokens="sizing:yes acceptance:yes"
 hook_out="$(mktemp)"
 bash "$HOOK" > "$hook_out"
-actual_tokens=$(python3 - "$RUBRIC" "$hook_out" <<'PY'
-import json, re, sys
-ctx = json.load(open(sys.argv[2], encoding="utf-8"))["hookSpecificOutput"]["additionalContext"]
-rubric = {r["id"]: r for r in json.load(open(sys.argv[1], encoding="utf-8"))}
-sizing = bool(re.search(rubric["rule.task-sizing"]["complied"], ctx))
-acceptance = bool(re.search(rubric["rule.acceptance"]["complied"], ctx))
+actual_tokens=$(SIZING_RE="$SIZING_RE" ACCEPTANCE_RE="$ACCEPTANCE_RE" python3 - "$hook_out" <<'PY'
+import json, os, re, sys
+ctx = json.load(open(sys.argv[1], encoding="utf-8"))["hookSpecificOutput"]["additionalContext"]
+sizing = bool(re.search(os.environ["SIZING_RE"], ctx))
+acceptance = bool(re.search(os.environ["ACCEPTANCE_RE"], ctx))
 print("sizing:%s acceptance:%s" % ("yes" if sizing else "no", "yes" if acceptance else "no"))
 PY
 )
