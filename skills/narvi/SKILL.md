@@ -1,6 +1,6 @@
 ---
 name: narvi
-description: Use when the user runs /narvi <pr-or-mr-url> [--dry-run]. Picks up every unresolved comment on a GitHub PR or GitLab MR — both inline review-thread comments anchored to a diff line and overview comments at the PR's top level (Mithrandir's verdicts, free-form review-body notes) — asks once before touching the branch, dispatches the smith subagent comment-by-comment (one commit per comment, each referencing the comment URL in its footer), then pushes the branch so the forge updates. De-duplicates across re-runs by grepping the branch's commit log for the trail marker. Host-agnostic; routes to GitHub or GitLab from the URL. Does not resolve review threads — the human eyeballs the work and resolves.
+description: Use when the user runs /narvi <pr-or-mr-url> [--dry-run]. Picks up every unresolved comment on a GitHub PR or GitLab MR — both inline review-thread comments anchored to a diff line and overview comments at the PR's top level (Mithrandir's verdicts, free-form review-body notes) — asks once before touching the branch, dispatches the smith subagent comment-by-comment (one commit per comment, each referencing the comment URL in its footer), verifies the branch once every comment is addressed (the project's detected test and lint commands), then pushes the branch so the forge updates. De-duplicates across re-runs by grepping the branch's commit log for the trail marker. Host-agnostic; routes to GitHub or GitLab from the URL. Does not resolve review threads — the human eyeballs the work and resolves.
 purpose: Picks up unresolved comments on a PR or MR and answers each with a commit.
 user_invocable: true
 ---
@@ -156,7 +156,7 @@ e. **Acquire the isolated workspace.** Invoke the read hook (`<read-hook> <url>`
 
    The human's source-repo checkout is **not** disturbed by any of this — the worktree (or temp clone) is its own isolated tree, and the human may keep editing, building, or running tests in the source repo while Narvi works. There is no pre-flight clean-tree gate on the source repo for the same reason: the source repo's working state is irrelevant to Narvi's commits.
 
-   Hold the workspace path and the resolved `base` for steps 2 through 8.
+   Hold the workspace path and the resolved `base` for steps 2 through 9.
 
 ### 2. Fetch every comment
 
@@ -277,7 +277,32 @@ d. After each dispatch, run `git -C <workspace> status --porcelain` and pass the
 
   Drift that the filter dropped does not count as scope-miss. It stays inside the workspace across dispatches (the smith's next call sees it but the smith does not touch xcconfig or lockfiles, so it is invisible to the work). On the success path the workspace is torn down by the release step at the end, drift and all.
 
-### 7. Push
+### 7. Mandatory verification
+
+The smith's own test run (`narvi.md`, *What you may do*) is self-graded and conditional — it fires only "if the project has an obvious test command and your change touches tested code." Before any push, the skill body runs its own gate on the branch as it now stands, once, independent of what the smith did or didn't run.
+
+If no entry returned `[FORGED]`, skip this step — there is nothing new to verify — and fall through to step 8, which skips the push in that case too.
+
+Otherwise, resolve the project's commands from the workspace — the same detection `/argonath` uses:
+
+```bash
+cd <workspace> && ~/.claude/hooks/argonath-detect.sh
+```
+
+Returns `{stack, lint, format, build, test, test_scope, source}`. For each of `test` and `lint` that is non-empty, run it:
+
+```bash
+cd <workspace> && ~/.claude/hooks/argonath-run.sh Tests <test-command...>
+cd <workspace> && ~/.claude/hooks/argonath-run.sh Lint <lint-command...>
+```
+
+- **Both `ok: true` (or empty/skipped)** — proceed to step 8.
+- **Either `ok: false`** — the run halts, the same as a step 6d scope-miss: do not push, do not release the workspace. Surface the failing command, its summary, and the log path in the report (step 10). The commits already made stand in the workspace, untouched, for the human to inspect.
+- **Both commands empty** (`stack: unknown`, or the stack carries neither) — nothing to run; proceed to step 8, and note in the report that verification was skipped for lack of a command. This is not a pass — it is the same "no command" honesty `/argonath` renders as `⚪ skipped`.
+
+This step verifies the branch **once, after every comment is addressed** — not per-comment. One project-wide run stands in for however many (or few) per-comment runs the smith made on its own, and catches an amendment that broke something the smith's own test pass never touched.
+
+### 8. Push
 
 If any entry returned `[FORGED]`, push the branch from the workspace:
 
@@ -291,9 +316,9 @@ If `git push` fails (e.g. the remote moved during the run), surface the error in
 
 If no entry returned `[FORGED]` (all aborted or all malformed), skip the push. Nothing landed on the branch.
 
-### 8. Post per-thread replies
+### 9. Post per-thread replies
 
-For each entry that returned `[FORGED]` — and **only if step 7's push succeeded** — post a short ack on the thread so the reviewer sees that their note was answered.
+For each entry that returned `[FORGED]` — and **only if step 8's push succeeded** — post a short ack on the thread so the reviewer sees that their note was answered.
 
 a. Compose the commit URL from the PR/MR base and the smith's sha:
 
@@ -331,9 +356,9 @@ c. Pipe the body to the reply hook for the forge:
 
 d. The hook prints `replied: forge=<f> ...` on success or `{"error":"..."}` on failure. Record the reply URL (or the error) per entry. **Do not roll back commits on a reply failure** — the commit stands, the `See: <url>` footer is the canonical record either way; the reply is convenience.
 
-If step 7's push was skipped (no FORGED entries) or failed, skip this whole step — the commits referenced by the replies are not on the remote, so the links would 404.
+If step 8's push was skipped (no FORGED entries) or failed, skip this whole step — the commits referenced by the replies are not on the remote, so the links would 404.
 
-### 9. Report and release
+### 10. Report and release
 
 Render one block:
 
@@ -354,7 +379,7 @@ Each comment-cell is a markdown link to the comment URL. Each forged-row's `<sha
 
 After rendering, decide the workspace fate:
 
-- **Release on the success path.** If the push succeeded and no scope-miss tripped the post-dispatch porcelain gate, release the workspace:
+- **Release on the success path.** If verification passed (or was skipped for lack of a command), the push succeeded, and no scope-miss tripped the post-dispatch porcelain gate, release the workspace:
 
   ```bash
   ~/.claude/hooks/skadi-worktree.sh release <workspace>
@@ -362,7 +387,7 @@ After rendering, decide the workspace fate:
 
   The helper handles both worktree and temp-clone modes silently. The `Workspace:` row reads `released`.
 
-- **Keep on abort or failure.** If step 6d found scope-miss or step 7's push failed, leave the workspace intact under `$TMPDIR` and name the reason. The human can inspect, recover any salvageable work, and release by hand with the same helper verb when done. The `Workspace:` row reads `kept at <path> (<reason>)`. (A pre-flight `pull --ff-only` rejection is a separate, earlier failure — pre-flight step 1e already releases that workspace itself, since it holds no smith work yet; the run never reaches step 9 in that case.)
+- **Keep on abort or failure.** If step 6d found scope-miss, step 7's verification failed, or step 8's push failed, leave the workspace intact under `$TMPDIR` and name the reason. The human can inspect, recover any salvageable work, and release by hand with the same helper verb when done. The `Workspace:` row reads `kept at <path> (<reason>)`. (A pre-flight `pull --ff-only` rejection is a separate, earlier failure — pre-flight step 1e already releases that workspace itself, since it holds no smith work yet; the run never reaches step 10 in that case.)
 
 ## After Narvi
 
@@ -383,6 +408,7 @@ Narvi does not auto-invoke either. The verbs stay separate so the human chooses 
 - Narvi never resolves a review thread, never reacts. The single per-thread ack after a successful push is the only forge-write beyond the push itself. Reply-hook failures are recorded but do not roll back commits — the trail-marker footer remains the canonical record.
 - An abort on one comment does not stop the run. Other comments still get their turn; the report names which succeeded and which did not.
 - If the smith leaves real work uncommitted (after the environment-drift filter), the run halts without resetting or cleaning the workspace. The commits already on the branch stay; nothing is pushed; the workspace is **kept**, not released, exactly as the smith left it, so the human can inspect the stray edits directly.
-- The workspace is **released on the success path** (push succeeded, no scope-miss) and **kept on any abort or failure**. The release verb is idempotent; the human may re-run it at any time to clean up a kept workspace.
+- The workspace is **released on the success path** (verification passed or was skipped, push succeeded, no scope-miss) and **kept on any abort or failure**. The release verb is idempotent; the human may re-run it at any time to clean up a kept workspace.
+- Before any push, the branch is verified once via the same detection hooks `/argonath` uses (`argonath-detect.sh` + `argonath-run.sh`, tests and lint). A failing command halts the run exactly like a scope-miss: no push, workspace kept, the failure named in the report. No detected command is not a failure — it is named `skipped`, the same honesty `/argonath` renders for an absent command.
 - Do not surface forge tokens in logs, responses, or saved files.
 - Aborts are first-class outcomes, not failures. Name the flaw plainly; do not retry.
