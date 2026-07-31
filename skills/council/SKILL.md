@@ -1,6 +1,7 @@
 ---
 name: council
 description: Use when the user runs /council [ticket-id]. Convenes a planning council on an issue tracker ticket. Erestor (subagent) drafts a plan, posts it as a ticket comment, and waits for the human's verdict. Each subsequent invocation refines the plan from the human's reply. Read-only agency — never writes code, opens PRs, or acts on the repo.
+purpose: Convenes a planning council on a tracker ticket and refines the plan through the human's replies.
 user_invocable: true
 ---
 

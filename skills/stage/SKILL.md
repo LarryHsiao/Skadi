@@ -1,6 +1,7 @@
 ---
 name: stage
 description: Stage local files to git. Shows unstaged/untracked files and lets user pick which to stage.
+purpose: Shows unstaged and untracked files and lets you pick which to stage.
 user_invocable: true
 args: "[file...]"
 ---

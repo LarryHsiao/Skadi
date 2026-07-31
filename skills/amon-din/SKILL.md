@@ -1,6 +1,7 @@
 ---
 name: amon-din
 description: Use when the user runs /amon-din [<count>], /amon-din all [<count>], /amon-din add <id>[:<label>]..., or /amon-din remove <id>... — render the most recent CI runs (default 3, override with <count>) for the current branch (or all branches with `all`), or mutate the per-project `ci_routing.md` auto-memory (`add`/`remove`, TeamCity only). Dispatches to GitLab CI (via glab) or TeamCity (via REST). Never triggers, retries, or cancels CI itself. First run on an unbound repo prompts once.
+purpose: Renders recent CI runs for the current branch (or all branches) from GitLab CI or TeamCity.
 user_invocable: true
 ---
 

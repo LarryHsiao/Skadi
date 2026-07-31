@@ -1,6 +1,7 @@
 ---
 name: gwaihir
 description: Use when the user runs /gwaihir [channel] [hours]. Gathers Outlook mail and Microsoft Teams messages into one read-only "what needs me?" brief — the communications analog of /palantír. Surfaces the few items worth a look (mail) and the threads that want a reply (Teams); never acts. Renders whichever source answers and footer-notes a silent one (Teams stays dormant until tenant consent). Actions stay with /triage and /vor.
+purpose: Gathers Outlook mail and Teams messages into one read-only brief of what needs attention.
 user_invocable: true
 ---
 

@@ -1,6 +1,7 @@
 ---
 name: daily
 description: Use when the user runs /daily [...args]. Shows Jira tasks assigned to a user, grouped by status and sorted by priority. Args: optional project keys and optional @person. Example: /daily, /daily PROJ, /daily PROJ1 PROJ2, /daily @david, /daily PROJ @david.
+purpose: Shows a person's Jira tasks grouped by status and sorted by priority.
 ---
 
 # Daily Tasks Report

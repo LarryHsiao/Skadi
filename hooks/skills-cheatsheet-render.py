@@ -91,7 +91,10 @@ def group_of(name):
 
 
 def parse_skill(path):
-    """(name, description) from a SKILL.md's leading frontmatter block, or None.
+    """(name, description, purpose) from a SKILL.md's leading frontmatter, or None.
+
+    `purpose` is None when the frontmatter carries no `purpose:` line — older
+    or third-party skills fall back to a truncated `description` for display.
 
     Only the block between the first pair of `---` lines counts — several
     SKILL.md files (e.g. amon-din) show example `name:`/`description:` pairs
@@ -101,15 +104,17 @@ def parse_skill(path):
     match = FRONTMATTER_RE.match(text)
     if not match:
         return None
-    name = description = None
+    name = description = purpose = None
     for line in match.group(1).splitlines():
         if line.startswith("name:"):
             name = line[len("name:"):].strip()
         elif line.startswith("description:"):
             description = line[len("description:"):].strip()
+        elif line.startswith("purpose:"):
+            purpose = line[len("purpose:"):].strip()
     if not name or not description:
         return None
-    return name, description
+    return name, description, purpose
 
 
 def collect(skills_dir):
@@ -136,24 +141,26 @@ def short_desc(desc, limit=CARD_DESC_LIMIT):
     return cut + "…"
 
 
-def card_html(name, desc):
+def card_html(name, description, purpose):
+    display = purpose if purpose else description
+    hay = " ".join(filter(None, [name, description, purpose])).lower()
     return (
         '<div class="card" data-hay="%s">'
         '<div class="nm">/%s</div><div class="ds" title="%s">%s</div></div>'
-        % (esc(name.lower() + " " + desc.lower()), esc(name), esc(desc), esc(short_desc(desc)))
+        % (esc(hay), esc(name), esc(description), esc(short_desc(display)))
     )
 
 
 def groups_html(skills):
     buckets = {}
-    for name, desc in skills:
-        buckets.setdefault(group_of(name), []).append((name, desc))
+    for name, description, purpose in skills:
+        buckets.setdefault(group_of(name), []).append((name, description, purpose))
     sections = []
     for group in GROUP_ORDER:
         members = buckets.get(group)
         if not members:
             continue
-        cards = "\n".join(card_html(name, desc) for name, desc in members)
+        cards = "\n".join(card_html(name, description, purpose) for name, description, purpose in members)
         sections.append(
             '<div class="group" data-group="%s">'
             '<h2 class="grp-hd">%s <span class="grp-count">%d</span></h2>'

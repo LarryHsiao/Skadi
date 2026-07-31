@@ -1,6 +1,7 @@
 ---
 name: aule
 description: Use when the user runs /aule <tracker> <project> [--filter <id-or-jql>] [--max N] [--ready] [--auto] [--dry-run] [--confirm]. Sweeps a project for tickets bearing an approved counsel awaiting the forge ([COUNSEL] + [FORTH], no [GWAITH]), takes the first N qualifiers (default 3), and dispatches /celebrimbor per ticket. Also closes already-forged tickets whose PR/MR has since merged — moving them to the project's merged= state and threading a [METTA] note. Each invocation forges N; re-running picks up the next N, with the tracker itself as the bookmark via the no-[GWAITH] gate. Hard cap by default — bulk-forge has a real blast radius. --auto forges the manifest without the outer confirmation.
+purpose: Sweeps a project for approved-but-unforged tickets and dispatches the forge on each.
 user_invocable: true
 ---
 

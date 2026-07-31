@@ -1,6 +1,7 @@
 ---
 name: henneth
 description: Use when the user runs /henneth. Boots (or reuses) one standing background web server, shared across all sessions, that serves a live gallery of rendered artifacts — wireframes, mockups, images, diagrams dropped into ~/.claude/previews/henneth/. The page lists every artifact newest-first and follows the latest in its main pane unless pinned. Drop a file and the open screen updates on its own; a row's delete button removes an artifact from the folder. Henneth Annûn — the Window of the Sunset, a window one looks through.
+purpose: Serves a standing gallery window for rendered previews and artifacts.
 user_invocable: true
 ---
 

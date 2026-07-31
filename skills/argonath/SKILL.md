@@ -1,6 +1,7 @@
 ---
 name: argonath
 description: Use when the user runs /argonath [project] [--quick]. Default mode weighs the about-to-be-pushed diff; the `project` verb weighs the standing project tree instead. Runs the project's lint/format/build/test toolchain, scans for secrets, then invokes /nazgul and /mithrandir as advisory rows. Aggregates everything into one Pass / Hold verdict. Report only — never runs `git push`.
+purpose: Weighs a diff or the project tree against lint, build, test, secrets, and advisory checks before a push.
 user_invocable: true
 ---
 

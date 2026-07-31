@@ -1,6 +1,7 @@
 ---
 name: amon-sul
 description: Use when the user runs /amon-sul <sweep> <tracker> <project> [flags…], where <sweep> is glorfindel (council-stage), aule (forge-stage), anduin (both stages in sequence — the council→forge pipeline under one watch), moria (mend-stage — sweep your repos for unaddressed PR/MR comments and answer them with code; takes no tracker/project), or rhovanion (the council→forge pipeline across every project in pipeline_projects.md, each gated by a cheap per-project movement probe; takes no tracker/project). An adaptive in-session watcher — it runs one sweep, reads the result, then self-schedules its next ride via ScheduleWakeup, tightening to 5 minutes when work moves and stretching out to 1 hour as the road stays quiet. Honors an optional working-hours window (`--active HH-HH`, or a per-project `working_hours.md` default) so off-hours wakes skip the ride entirely — no sweep forged while the keeper sleeps. Session-bound: the vigil dies when the session closes. Say "stop the vigil" (or stop /amon-sul) to end it.
+purpose: Runs an adaptive watch loop over a tracker or pipeline sweep, tightening or loosening its own cadence with the work.
 user_invocable: true
 ---
 

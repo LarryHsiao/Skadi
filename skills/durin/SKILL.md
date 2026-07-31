@@ -1,6 +1,7 @@
 ---
 name: durin
 description: Use when the user runs /durin [--repo <path>] [--scope mine|all] [--dry-run] [--auto] [--confirm]. Sweeps every open PR/MR in a repo's forge that bears unaddressed comments, dispatches /narvi per URL with --no-confirm, and aggregates one report. --auto skips the outer confirm gate and forges the manifest unattended. The forge is auto-detected from the repo's origin remote (github | gitlab). One repo per invocation — cd into the project tree first, or name it with --repo <path>.
+purpose: Sweeps a repo's open PRs and MRs for unaddressed comments and answers them with code.
 user_invocable: true
 ---
 

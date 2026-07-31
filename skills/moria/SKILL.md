@@ -1,6 +1,7 @@
 ---
 name: moria
 description: Use when the user runs /moria [--scope mine|all] [--dry-run] [--auto] [--confirm]. Sweeps every repo in your global mend list (mend_repos.md) for open PRs/MRs bearing unaddressed comments — loops /durin --repo over each root in turn, then prints one combined report ending in a plain STIRRED/QUIET verdict. Mend follows comments across all your repos, on no project's schedule. The forge of each repo is auto-detected from its origin (github | gitlab). Per-repo behavior matches /durin exactly; one global list, set once.
+purpose: Sweeps every repo in the global mend list for unaddressed PR/MR comments.
 user_invocable: true
 ---
 

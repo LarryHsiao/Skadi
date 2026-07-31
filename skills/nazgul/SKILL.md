@@ -1,6 +1,7 @@
 ---
 name: nazgul
 description: Use when the user runs /nazgul [target], /nazgul project, or /nazgul reviewed. The first two dispatch the Nine — one agent per check file — to inspect either a diff (default — uncommitted changes) or the standing project tree, aggregating pass/fail/n/a verdicts into a single table. The `reviewed` verb stamps the rubric-review state file consumed by /preflight; no agents dispatched. Checks live as markdown files under `checks/`, scoped via frontmatter — `scope` may be `diff` (default), `project`, or a list `[diff, project]`. Project-local overrides take precedence. Audit only — never fixes, commits, or files issues on its own.
+purpose: Dispatches a panel of checks against a diff or project tree and aggregates the verdicts.
 user_invocable: true
 ---
 

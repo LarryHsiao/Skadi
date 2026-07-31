@@ -1,6 +1,7 @@
 ---
 name: lindir
 description: Use when the user runs /lindir <url> or /lindir approve <url>. Reads a pull request or merge request and renders a five-section review brief — header, description, metadata, summary of changes, file list. With the `approve` verb, asks once and submits an approving review on the forge. Host-agnostic; routes to GitHub or GitLab from the URL.
+purpose: Renders a review brief for a PR or MR, and can submit an approving review.
 user_invocable: true
 ---
 

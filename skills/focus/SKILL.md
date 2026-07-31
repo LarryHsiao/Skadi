@@ -1,6 +1,7 @@
 ---
 name: focus
 description: Manage a Pomodoro focus timer. Use /focus start, /focus break, /focus long, /focus stop, or /focus for current status.
+purpose: Runs a Pomodoro focus timer.
 ---
 
 # Focus Timer

@@ -1,6 +1,7 @@
 ---
 name: scribe
 description: Use when the user runs /scribe <file> <heading-slug> --project=<KEY> [--target=youtrack|disk|outline] [--collection=<name>] [--parent=<UUID>]. Exports a single section (top-level Epic heading) of a Minerva markdown file to YouTrack (issue), Outline (wiki document via Seshat MCP), or disk. Carries title, scope, Figma screenshot, sub-task checklist, and Open Questions. Update mode: re-runs read inline `<!-- yt: ... -->` / `<!-- outline: ... -->` markers and PATCH in place rather than duplicating.
+purpose: Exports a Minerva markdown section to YouTrack, Outline, or disk.
 ---
 
 # Scribe Skill

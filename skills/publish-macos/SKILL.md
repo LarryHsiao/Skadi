@@ -1,6 +1,7 @@
 ---
 name: publish-macos
 description: Bump version, commit, push, build a native macOS Xcode project, export a signed artifact, then publish to either GitHub Releases or the Mac App Store (remembered per project). Use /publish-macos [scheme] [--no-bump] [--github|--app-store|--target=<github|app-store>]. Auto-detects scheme if omitted.
+purpose: Bumps version, builds a signed macOS app, and publishes it to GitHub or the App Store.
 user_invocable: true
 args: "[scheme] [--no-bump] [--github|--app-store|--target=<github|app-store>]"
 ---

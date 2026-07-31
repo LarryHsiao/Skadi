@@ -1,6 +1,7 @@
 ---
 name: board
 description: Use when the user runs /board, /board add <KEY> [--active], /board remove <KEY>, /board refresh, or /board list. A standing situation board served in the browser — one live page that gathers the tickets in progress (Jira status + AC rate from subtask completion) and the metis growth pulse, each a tile that follows a JSON channel file on disk. `/board` alone boots or reuses the server and prints the URL; `add` writes or refreshes a ticket channel; `remove` drops one; `refresh` re-fetches every ticket (the active hero preserved) and the growth numbers; `list` prints the channels. Data lives under ~/.skadi/board/; the writers, the manifest, and the page are hooks. Read-only against Jira and BigQuery — it never writes to the trackers.
+purpose: Serves a live situation board of in-progress tickets and app growth in the browser.
 user_invocable: true
 ---
 

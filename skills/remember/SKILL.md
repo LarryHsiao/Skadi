@@ -1,6 +1,7 @@
 ---
 name: remember
 description: Use when the user wants to save knowledge to the Minerva knowledge base — from any repo, not just Minerva itself. Determines category, suggests sub-categories, and writes the note into the Minerva repo.
+purpose: Saves knowledge to the Minerva knowledge base.
 user_invocable: true
 args: "[topic or content to remember]"
 ---

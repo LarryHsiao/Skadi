@@ -1,6 +1,7 @@
 ---
 name: cleanup-dev
 description: Free disk space by clearing dev caches and build artifacts. Reports sizes per bucket, asks per-bucket confirmation, then deletes only what the user approves. For fvm SDKs and per-project artifacts, user picks interactively. Use /cleanup-dev [--no-analyze].
+purpose: Frees disk space by clearing dev caches and build artifacts, with per-bucket confirmation.
 user_invocable: true
 ---
 

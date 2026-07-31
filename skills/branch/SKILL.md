@@ -1,6 +1,7 @@
 ---
 name: branch
 description: Use when the user runs /branch [target] [strategy] to switch to a target branch, safely handling uncommitted work first.
+purpose: Switches to a target branch, safely stashing or committing uncommitted work first.
 ---
 
 # Switch Branch

@@ -1,6 +1,7 @@
 ---
 name: growth
 description: Use when the user runs /growth. Renders a metis growth dashboard into the Henneth window — DAU/WAU/MAU with week- and month-over-month deltas, a 12-week active/new-users trend chart, and a 30-day daily sparkline — from the GA4 → BigQuery export. Read-only; queries sit within BigQuery's free 1TB/month tier.
+purpose: Renders a metis growth dashboard of active users and trends from the GA4/BigQuery export.
 user_invocable: true
 ---
 

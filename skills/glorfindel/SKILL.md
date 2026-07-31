@@ -1,6 +1,7 @@
 ---
 name: glorfindel
 description: Use when the user runs /glorfindel <tracker> <project> [--filter <id-or-jql>] [--dry-run] [--confirm] [--auto]. Sweeps every open ticket in the named project, runs the council machinery on each, and aggregates one report. Loop-safe per ticket; opt-in to confirmation prompts before posting.
+purpose: Sweeps every open ticket in a project through the council machinery and aggregates one report.
 user_invocable: true
 ---
 

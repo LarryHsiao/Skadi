@@ -1,6 +1,7 @@
 ---
 name: handoff
 description: Use when the user runs /handoff send <channel> [message], /handoff read <channel> [--older-than <Nd>], /handoff list, /handoff subscribe <channel>, or /handoff clear <channel> [--older-than <Nd>] [--all]. An async file mailbox between Claude Code sessions — one session leaves a message (or a whole context baton) on a named channel, another reads it on demand or subscribes for live auto-pickup. No server. Messages live under ~/.skadi/handoff/. `clear` with no flag prunes messages older than 3 days by default; `--all` wipes the channel outright.
+purpose: An async file mailbox for handing context or messages between Claude Code sessions.
 user_invocable: true
 ---
 

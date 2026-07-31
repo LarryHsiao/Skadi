@@ -137,6 +137,30 @@ check "the visible card text does not carry the full sentence" "0" "$(echo "$vis
 contains "full description kept as a hover tooltip" 'title="Use when the user runs this at length' "$dest"
 contains "full description still searchable in data-hay" 'uneven block' "$dest"
 
+# ── 9 · a purpose: field is preferred on the card; description stays the tooltip + search text ──
+mkdir -p "$skills/has-purpose"
+cat >"$skills/has-purpose/SKILL.md" <<'EOF'
+---
+name: has-purpose
+description: Use when the user runs /has-purpose <ticket-id> [--flag] — argument-heavy trigger text for Claude's own routing, not for a human reader.
+purpose: Does the one clean thing a human would want to read.
+user_invocable: true
+---
+
+# Has purpose
+EOF
+python3 "$RENDER" "$skills" "$dest" >/dev/null
+visible_purpose_ds=$(python3 -c "
+import re
+text = open('$dest').read()
+m = re.search(r'/has-purpose</div><div class=\"ds\"[^>]*>([^<]*)</div>', text)
+print(m.group(1) if m else '')
+")
+check "purpose text shown on the card, not the raw description" "Does the one clean thing a human would want to read." "$visible_purpose_ds"
+contains "full description still kept as the hover tooltip" 'title="Use when the user runs /has-purpose' "$dest"
+contains "full description still searchable in data-hay" 'argument-heavy trigger text' "$dest"
+contains "purpose text also searchable in data-hay" 'the one clean thing' "$dest"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

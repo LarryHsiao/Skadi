@@ -1,6 +1,7 @@
 ---
 name: eod
 description: Use when the user runs /eod or says they're calling it a day. Scans configured project repos for uncommitted/unpushed work so nothing gets left behind. Asks once for the project list, remembers it.
+purpose: Scans configured repos for uncommitted or unpushed work before calling it a day.
 user_invocable: true
 ---
 

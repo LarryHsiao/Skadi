@@ -1,6 +1,7 @@
 ---
 name: preflight
 description: Run periodic maintenance checks. Use /preflight to see the checklist — rows highlighted if overdue (e.g. /cleanup-dev > 30 days). Overdue items are synced into the built-in todo list.
+purpose: Shows periodic maintenance checks, flagging any overdue.
 user_invocable: true
 ---
 

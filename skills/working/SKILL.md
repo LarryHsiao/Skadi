@@ -1,6 +1,7 @@
 ---
 name: working
 description: Use when the user runs /working [JIRA-number] [type] to begin a Jira ticket. Resolves the ticket (prompts a list when none given), checks out an existing feature branch or cuts a new one from the chosen base, transitions the ticket to In Progress in Jira, syncs the local todo list, then pushes the branch and opens a draft PR/MR self-assigned to the author — a GitHub PR via `gh` or a GitLab MR via `glab`, whichever the origin remote points to — when the forge CLI is authenticated.
+purpose: Begins a Jira ticket — branches, transitions status, and opens a draft PR/MR.
 ---
 
 # Start Working on a Jira Task

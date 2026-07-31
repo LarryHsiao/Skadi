@@ -1,6 +1,7 @@
 ---
 name: rhovanion
 description: Use when the user runs /rhovanion [--dry-run] [--confirm]. Sweeps every tracker project in your global pipeline list (pipeline_projects.md), but gates each behind a cheap per-project movement probe — it dispatches the full /anduin council→forge pipeline for a project only when that project's tickets have moved since its last ride (tracked by a per-project cursor in pipeline_cursors.md). Quiet projects cost one tracker query apiece, not a whole pipeline. Prints one combined report ending in a plain STIRRED/QUIET verdict. The forge stage inherits /anduin's default — UNATTENDED unless --dry-run or --confirm. Sequential across projects, so no two pipelines contend. Run alone for a single pass, or wrap in /amon-sul rhovanion … for an adaptive, single-timer watch of the whole watershed.
+purpose: Sweeps every project in the global pipeline list, gated by a movement probe.
 user_invocable: true
 ---
 

@@ -1,6 +1,7 @@
 ---
 name: galadriel
 description: Use when the user runs /galadriel [folder]. Renders a folder of plan concepts (markdown, default docs/plans/) into one local HTML page — a left selector grouped by lifecycle (shaping/active/done), the chosen concept's preview in the main area, and a progress dashboard along the bottom. Edits are directed in chat; while the standing server is up it watches every registered project's plans folder in the background and re-renders on its own within a few seconds of any concept file changing, so no manual re-render is owed. The one change the page makes itself is deleting a concept, which moves it to the plans folder's .trash/ and needs the standing server. The Mirror shows what was, is, and may yet be — done, in-flight, pending.
+purpose: Renders a local dashboard mirroring a folder of plan concepts and their step progress.
 user_invocable: true
 ---
 

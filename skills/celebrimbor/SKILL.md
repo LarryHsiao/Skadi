@@ -1,6 +1,7 @@
 ---
 name: celebrimbor
 description: Use when the user runs /celebrimbor <tracker> <project> [--filter <id-or-jql>] [--ticket <id>] [--base <branch>] [--ready] [--dry-run] [--confirm]. Forges an approved counsel into code: branches off the project's base, dispatches the smith subagent to implement Erestor's Steps, opens a draft PR/MR via the forge hook, and posts [GWAITH] on the ticket. Single-shot — one ticket per invocation.
+purpose: Forges an approved counsel into a branch, implementation, and draft PR/MR for one ticket.
 user_invocable: true
 ---
 

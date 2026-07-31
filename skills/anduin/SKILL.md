@@ -1,6 +1,7 @@
 ---
 name: anduin
 description: Use when the user runs /anduin <tracker> <project> [--filter <id-or-query>] [--max N] [--ready] [--dry-run] [--confirm]. The council→forge pipeline as one composite sweep — it rides /glorfindel (plan stage) then /aule (skeleton+forge stage) in sequence over a project, then prints one combined report ending in a plain STIRRED/QUIET verdict. The forge stage runs UNATTENDED BY DEFAULT (--auto --max 3); pass --dry-run or --confirm to gate it. Sequential by construction, so the two stages never contend. Run it alone for a single pass, or wrap it in /amon-sul anduin … for an adaptive, single-timer watch of the whole pipeline.
+purpose: Runs the council-then-forge pipeline as one composite sweep over a tracker project.
 user_invocable: true
 ---
 

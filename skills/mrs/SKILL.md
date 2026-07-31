@@ -1,6 +1,7 @@
 ---
 name: mrs
 description: Use when the user runs /mrs [...args]. Shows open GitLab merge requests requiring attention — MRs where you are a reviewer, and MRs you authored. Args: `review`, `mine`, or `GROUP/PROJECT` to scope. Example: /mrs, /mrs review, /mrs mine, /mrs group/project.
+purpose: Shows open GitLab merge requests needing your review or authored by you.
 user_invocable: true
 ---
 

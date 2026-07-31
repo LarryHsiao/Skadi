@@ -1,6 +1,7 @@
 ---
 name: triage
 description: Use when the user runs /triage [hours] [account]. Pulls unread Outlook inbox mail from the last N hours (default 24) through the read-only Microsoft 365 claude.ai connector, separates the few items worth attention from routine noise, and renders a tight two-tier summary. Mark-read and move-to-folder run on the Graph write hooks (the connector cannot mutate mail). Multi-account aware via the `outlook_accounts.md` memory map.
+purpose: Summarizes unread Outlook inbox mail from the last N hours into a two-tier brief.
 user_invocable: true
 ---
 

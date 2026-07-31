@@ -1,6 +1,7 @@
 ---
 name: prs
 description: Use when the user runs /prs [...args]. Shows open GitHub PRs requiring attention — PRs where review is requested from you, and PRs you authored. Args: `review`, `mine`, or `OWNER/REPO` to scope. Example: /prs, /prs review, /prs mine, /prs LarryHsiao/skadi.
+purpose: Shows open GitHub PRs needing your review or authored by you.
 user_invocable: true
 ---
 

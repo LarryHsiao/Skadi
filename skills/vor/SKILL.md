@@ -1,6 +1,7 @@
 ---
 name: vor
 description: Use when the user runs /vor. Reads new Microsoft Teams messages from the conversations they belong to (read-only, via Graph delta), organizes the traffic — clustering threads, surfacing @-mentions and direct questions, collapsing noise — and suggests draft replies in-session. It never posts to Teams. Dormant until the work tenant grants Chat.Read/ChannelMessage.Read.All and a vor-graph-token secret exists.
+purpose: Surfaces Teams threads needing a reply and suggests drafts.
 ---
 
 # Vör — Teams Watchman

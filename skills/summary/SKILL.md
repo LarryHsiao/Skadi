@@ -1,6 +1,7 @@
 ---
 name: summary
 description: Summarize staged changes. Defaults to brief natural language; use `--list` for structured per-file output.
+purpose: Summarizes staged changes.
 user_invocable: true
 args: "[--list]"
 ---

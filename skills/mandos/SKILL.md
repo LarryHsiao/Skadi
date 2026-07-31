@@ -1,6 +1,7 @@
 ---
 name: mandos
 description: Use when the user runs /mandos, /mandos TICKET-ID, /mandos <pr-or-mr-url>, /mandos post TICKET-ID, or /mandos comment <url>. With no argument, weighs the current branch against its ticket's goal, deriving the ticket from the branch name or recent commits; with a ticket ID, fetches the goal and resolves the branch from the ticket's [GWAITH] forge comment or naming conventions; with a URL, weighs an open PR/MR against its ticket. Reads by default — plain forms render to chat. Two opt-in write verbs: `post` threads a [DOOM] verdict onto the ticket (confirm-once); `comment` posts it on the PR/MR (confirm-once). The verdict pronounces faithfulness — Covered / Missing / Scope-crept — against the ticket's [COUNSEL]/[PLAN] comment, the ticket's own description, and the parent ticket's acceptance criteria, as returned by the council fetch hooks. Where Mithrandir weighs whether the code is good, Mandos weighs whether it is the right code. The `--deep` flag runs a per-criterion fan-out. The `--plain` and `--lore` flags override the tone default and are mutually exclusive. Advisory — never auto-gates a merge.
+purpose: Weighs a branch, ticket, or PR/MR against its ticket's goal and renders a faithfulness verdict.
 user_invocable: true
 ---
 

@@ -1,6 +1,7 @@
 ---
 name: minuial
 description: Use when the user runs /minuial. The morning-start ritual — boots (or reuses) the standing Henneth window, serves the situation board, raises the Galadriel plan mirror when the project already has a plans folder, refreshes the board (tickets + metis growth), then computes the /estë adherence pulse, printing all URLs. Read-only against your repos; the one call that lights every dashboard before the day's work begins.
+purpose: The morning-start ritual that lights every dashboard — Henneth, board, plan mirror, adherence pulse.
 user_invocable: true
 ---
 

@@ -1,6 +1,7 @@
 ---
 name: palantir
 description: Use when the user runs /palantir [...args]. Looks across both forges from one stone — open GitHub PRs and GitLab MRs needing your attention, in one combined view, with new-activity flags. Args: `github` (`gh`) or `gitlab` (`gl`) to scope to one forge; `review`, `mine`, or `activity` to filter category. Examples: /palantir, /palantir github, /palantir gitlab review, /palantir activity.
+purpose: Shows open GitHub and GitLab PRs and MRs needing attention across both forges.
 user_invocable: true
 ---
 

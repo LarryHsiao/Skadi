@@ -1,6 +1,7 @@
 ---
 name: commit
 description: Use when the user asks to commit changes to git. Generates a commit message from the diff and asks for approval before committing. Pass `--push` to also push to the default remote after the commit lands.
+purpose: Generates a commit message from the diff and commits, optionally pushing, after approval.
 ---
 
 # Git Commit with Generated Message

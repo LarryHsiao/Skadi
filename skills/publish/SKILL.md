@@ -1,6 +1,7 @@
 ---
 name: publish
 description: Build Flutter release archives for selected platforms and collect into build/publish/. macOS builds are signed (Developer ID) and notarized via Apple's notary service. Use /publish [platform...] to build. Default platforms: android ios.
+purpose: Builds Flutter release archives for selected platforms.
 user_invocable: true
 args: "[platform...]"
 ---
