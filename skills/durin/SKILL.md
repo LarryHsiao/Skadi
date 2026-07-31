@@ -128,7 +128,7 @@ For each URL in the manifest, in order, invoke the Narvi skill:
 /narvi <url> --no-confirm
 ```
 
-Use the Skill tool with `skill: narvi`, `args: "<url> --no-confirm"`. Each invocation re-enters Narvi's full workflow (worktree acquire, smith dispatch, push, reply, workspace release) for that one URL. The `--no-confirm` flag bypasses Narvi's inner gate — Durin has already taken the user's word for the whole sweep.
+Use the Skill tool with `skill: narvi`, `args: "<url> --no-confirm"`. Each invocation re-enters Narvi's full workflow (worktree acquire, smith dispatch, verify, push, reply, workspace release) for that one URL. The `--no-confirm` flag bypasses Narvi's inner gate — Durin has already taken the user's word for the whole sweep.
 
 Capture each Narvi run's outcome for the report. A Narvi-side abort (smith scope-miss, push failure, malformed return) does not stop the sweep — Durin records the row and proceeds to the next URL.
 
@@ -155,6 +155,7 @@ Outcome vocabulary:
 | `forged N/N` | Every unaddressed comment landed as a commit, push succeeded, replies posted. |
 | `forged M/N` | Some comments forged, some aborted; push succeeded for the ones that did. M < N. |
 | `aborted` | No comments forged — smith aborted every entry. No push. |
+| `verify-failed` | Smith forged commits but Narvi's mandatory pre-push verification (tests/lint) failed. No push attempted. Commits live in the workspace. |
 | `push-failed` | Smith forged commits but the push (or earlier git step) failed. Commits live in the workspace. |
 | `error` | The list-hook or comments-hook failed for this URL. The PR/MR was never dispatched. |
 | `dry-run` | Reached only when `--dry-run` was set — not present in this report; the dry-run path stops at step 4. |
