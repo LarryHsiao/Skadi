@@ -1,7 +1,7 @@
 ---
 name: fidelity
 description: Use when the user runs /fidelity. Computes the plan-fidelity rate — what fraction of /mandos verdicts came back Faithful, and the Missing-vs-Scope-crept Blocker split that explains the rest — from the recorded /mandos history, renders a Henneth dashboard, and prints its URL. Read-only over the recorded history; never writes to a tracker or repo. The rate only fills in as /mandos runs — it is not backfilled from past sessions.
-purpose: Computes the plan-fidelity rate from recorded /mandos verdicts.
+purpose: Computes the plan-fidelity rate from recorded plan-faithfulness verdicts.
 user_invocable: true
 ---
 
