@@ -104,6 +104,8 @@ Before the "done" report is rendered, spawn a lighter read-only agent (the defau
 
 **Code quality** asks: does the change read true against the project's standing rules — the linked style guides (`docs/style/*.md`), the tool guides (`docs/tools/*.md`), and the conventions of the codebase at hand? Name what does not conform, and what looks missing of the project's craft — a test absent, a fallback decorator unwritten, a public API undocumented.
 
+When a change adds or edits a user-facing string (an l10n key, a static label) that has a sibling on the same screen or in the same widget family, read the sibling's actual current value — not just its key name or semantic intent — and flag any divergence in shape (line count, phrasing pattern, naming convention) as a finding, not just a functional mismatch.
+
 For tasks whose gauge reads **heavy** — broad reach, deep thought, or hard to reverse — also fire a per-step audit after each step's verification clears, before the next step begins. The reasoning is matched to the tier: drift compounds fastest on heavy work, and catching it inside the loop pays back the spawn cost. Medium and minimum tasks take the one end-of-task review only.
 
 The review reads, it does not write. When the harness offers a dedicated code-review subagent, reach for that; otherwise spawn `general-purpose` with explicit read-only instructions.
