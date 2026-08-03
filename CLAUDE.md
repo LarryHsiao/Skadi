@@ -106,6 +106,8 @@ Before the "done" report is rendered, spawn a lighter read-only agent (the defau
 
 When a change adds or edits a user-facing string (an l10n key, a static label) that has a sibling on the same screen or in the same widget family, read the sibling's actual current value — not just its key name or semantic intent — and flag any divergence in shape (line count, phrasing pattern, naming convention) as a finding, not just a functional mismatch.
 
+When a step builds or edits a UI component's render, also weigh the render itself: invoke `/manwë` directly (the spawned lightweight reviewer above has no render tools) against a spec if one exists — a Henneth wireframe from this session's *Previews* step, a Figma reference, a screenshot — or, absent a spec, against a sibling component's actual layout values, the same discipline as the string check just above but for padding, spacing, sizing, and typography. Fold its verdict into this same report; a `DELTAS` or `DIVERGENT` finding is a debt like any other, fixed before "done" or named as a knowing exception.
+
 For tasks whose gauge reads **heavy** — broad reach, deep thought, or hard to reverse — also fire a per-step audit after each step's verification clears, before the next step begins. The reasoning is matched to the tier: drift compounds fastest on heavy work, and catching it inside the loop pays back the spawn cost. Medium and minimum tasks take the one end-of-task review only.
 
 The review reads, it does not write. When the harness offers a dedicated code-review subagent, reach for that; otherwise spawn `general-purpose` with explicit read-only instructions.
