@@ -1,6 +1,6 @@
 ---
 name: minuial
-description: Use when the user runs /minuial. The morning-start ritual — boots (or reuses) the standing Henneth window, serves the situation board, raises the Galadriel plan mirror when the project already has a plans folder, refreshes the board (tickets + metis growth), then computes the /estë adherence pulse, printing all URLs. Read-only against your repos; the one call that lights every dashboard before the day's work begins.
+description: Use when the user runs /minuial. The morning-start ritual — boots (or reuses) the standing Henneth window, serves the situation board, raises the Galadriel plan mirror when the project already has a plans folder, refreshes the board (tickets + metis growth), then computes the /este adherence pulse, printing all URLs. Read-only against your repos; the one call that lights every dashboard before the day's work begins.
 purpose: The morning-start ritual that lights every dashboard — Henneth, board, plan mirror, adherence pulse.
 user_invocable: true
 ---
@@ -52,14 +52,14 @@ BigQuery pull, so Minuial does not make one.
 
 ### 5. Estë
 
-Invoke `/estë` through the Skill tool. Computes the adherence pulse, appends the
+Invoke `/este` through the Skill tool. Computes the adherence pulse, appends the
 run to history, and renders its own dashboard into the Henneth window already
 booted in step 1.
 
 ### 6. Report
 
 Print the URLs — Henneth's window, the Board's, and the Mirror's when step 3 ran
-— and let `/board refresh`'s and `/estë`'s own output stand for what each pulled
+— and let `/board refresh`'s and `/este`'s own output stand for what each pulled
 or computed. When step 3 was skipped, say so in one line rather than omitting it
 silently. Nothing further to report; nothing was forged or posted.
 

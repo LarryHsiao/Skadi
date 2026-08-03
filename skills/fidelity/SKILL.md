@@ -7,7 +7,7 @@ user_invocable: true
 
 # Fidelity — The Plan-Fidelity Rate
 
-Where `/estë` asks whether the config's rules and skills were *followed*, `/fidelity` asks whether the *plans they governed* turned into matching code. Every `/mandos` verdict — Covered / Missing / Scope-crept — is recorded as it renders; this skill reduces that record into one standing rate, split by which way the drift ran.
+Where `/este` asks whether the config's rules and skills were *followed*, `/fidelity` asks whether the *plans they governed* turned into matching code. Every `/mandos` verdict — Covered / Missing / Scope-crept — is recorded as it renders; this skill reduces that record into one standing rate, split by which way the drift ran.
 
 ## Run
 
@@ -20,7 +20,7 @@ Then ensure the Henneth window is up (boot it with `/henneth` if not) and surfac
 ## Notes
 
 - **Read-only.** The scan reads the recorded history; it never writes to a tracker or repo.
-- **Sourced from `/mandos`, not transcripts.** Unlike `/estë`'s marker scan, this rate has no signal until `/mandos` has actually been run a few times — an unused history reads `total: 0` and the dashboard says so plainly, rather than guessing.
+- **Sourced from `/mandos`, not transcripts.** Unlike `/este`'s marker scan, this rate has no signal until `/mandos` has actually been run a few times — an unused history reads `total: 0` and the dashboard says so plainly, rather than guessing.
 - **Blocker split localizes the leak.** `missingBlockers` (execution came up short of the plan) and `scopeBlockers` (execution went beyond the plan) are counted separately — only Blocker-severity items gate a `/mandos` tier, so they are what actually explains why the rate isn't higher.
 - **Standing cadence.** The skill arms nothing. For a recurring read, wrap it: `/loop 6h /fidelity`, or a cron.
 - **Tests ride beside the hook** — `fidelity-scan.test.sh` runs offline via injected fixture history (`MANDOS_HISTORY_DIR`).

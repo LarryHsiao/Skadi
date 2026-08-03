@@ -1,6 +1,6 @@
 ---
-name: estë
-description: Use when the user runs /estë. Computes the adherence pulse — a marker-based, per-item scorecard (with confidence tiers) of how faithfully the skadi config's rules and skills are followed across all config roots — appends the run to history, renders a Henneth dashboard, and prints its URL. Read-only over transcripts; never writes to a tracker or repo. Runs on demand; wrap in /loop or cron for a standing cadence.
+name: este
+description: Use when the user runs /este. Computes the adherence pulse — a marker-based, per-item scorecard (with confidence tiers) of how faithfully the skadi config's rules and skills are followed across all config roots — appends the run to history, renders a Henneth dashboard, and prints its URL. Read-only over transcripts; never writes to a tracker or repo. Runs on demand; wrap in /loop or cron for a standing cadence.
 purpose: Computes an adherence pulse scoring how faithfully the skadi config's rules and skills are kept.
 user_invocable: true
 ---
@@ -89,6 +89,6 @@ own once rendered.
   figure per tier; a single cross-tier average is shown too, but always labelled as
   such and never standing alone.
 - **Standing cadence.** The skill arms nothing. For a recurring pulse, wrap it:
-  `/loop 6h /estë`, or a cron.
+  `/loop 6h /este`, or a cron.
 - **Tests ride beside the hook** — `pulse-scan.test.sh` runs offline via injected
   fixture roots (`PULSE_ROOTS`).
