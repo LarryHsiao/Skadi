@@ -140,6 +140,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **skills-cheatsheet-render** — Render a quick-browse HTML cheatsheet of every skadi skill's name and purpose, refreshed on each `/board refresh`
 - **haldir** — Launch one native background Claude Code session per repo, each named for its repo and isolated in its own worktree, running without a TTY
 - **gate-reminder** — Re-inject the Free-Form Gate specification with every user prompt, so the gate holds even on lighter models
+- **compliance-review-reminder** — The closing gate to `gate-reminder`'s opening one: re-inject the Compliance Review trigger with every prompt, naming the agent dispatch the pulse rubric requires behind the verdict line, and nudging the two conditional checks most often skipped — the sibling-string value comparison and the `/manwe` render weigh
 - **ping-pong** — Answer a bare "ping" with "pong"
 - **henneth-group** — Group the gallery artifacts for `/henneth`
 - **skadi-worktree**, **worktree-guard** — Create or enter an isolated git worktree and block strays outside it

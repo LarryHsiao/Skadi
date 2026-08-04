@@ -120,6 +120,8 @@ A third line, `Compliance Review: SKIPPED (reason: <one line>)`, replaces the re
 
 When a plugin process skill (superpowers' verification and review skills, and their kin) speaks to a gate governed by this file's process sections — the Free-Form Gate, Implementation Loop, or this Compliance Review — those sections rule; a skill may add checks, never replace or loosen them.
 
+The `compliance-review-reminder.sh` hook re-injects this review's trigger with every prompt, as `gate-reminder.sh` does for the Free-Form Gate; this section is its specification. It fires every turn rather than only on closing ones, because a hook can detect *about to mutate* from a tool call but not *about to claim done* from prose — the always-inject pattern is the one that has held. It also restates that the review needs an **agent dispatch**, not merely the verdict line: the pulse credits a segment only when an `Agent` call stands behind the marker, so a nudge toward typing the line unearned would corrupt the measure it was meant to protect.
+
 ## Cross-Workspace Edits
 
 `dir-guard.sh` blocks a Bash command or a Write/Edit/NotebookEdit file path whose target resolves outside this session's project directory and outside `CLAUDE_DEV_DIRS` — a session rooted in one repo cannot reach into another. When a task needs to touch a path dir-guard refuses, do not fight the guard — no `CLAUDE_DEV_DIRS` sprawl, no routing around it through a subshell.

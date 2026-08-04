@@ -255,6 +255,10 @@
           },
           {
             "type": "command",
+            "command": "~/.claude/hooks/compliance-review-reminder.sh"
+          },
+          {
+            "type": "command",
             "command": "~/.claude/hooks/handoff-poll.sh"
           },
           {
