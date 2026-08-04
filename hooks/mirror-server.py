@@ -122,7 +122,9 @@ PAGE = r"""<!DOCTYPE html>
   .selecting .gchk { display:inline-block; }
   .selecting .item .del { display:none !important; }
   .stage { flex:1; overflow:auto; display:flex; align-items:center; justify-content:center; padding:18px; }
-  .stage img { max-width:100%; max-height:100%; object-fit:contain; }
+  .stage.zoomed { align-items:flex-start; justify-content:flex-start; }
+  .stage img { max-width:100%; max-height:100%; object-fit:contain; cursor:zoom-in; }
+  .stage.zoomed img { max-width:none; max-height:none; cursor:zoom-out; }
   .stage iframe { width:100%; height:100%; border:0; background:#fff; border-radius:6px; }
 </style>
 </head>
@@ -325,10 +327,13 @@ function paintStage(key, a){
   if(key === lastStageKey) return;
   lastStageKey = key;
   const stage = document.getElementById("stage");
+  stage.classList.remove("zoomed");
   stage.innerHTML = !a ? ""
     : a.type === "image"
     ? `<img src="${esc(a.url)}" alt="${esc(a.label)}">`
     : `<iframe src="${esc(a.url)}" sandbox="allow-scripts"></iframe>`;
+  if(a && a.type === "image")
+    stage.querySelector("img").onclick = () => stage.classList.toggle("zoomed");
 }
 
 function select(name){

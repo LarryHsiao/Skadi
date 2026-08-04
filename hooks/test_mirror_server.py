@@ -231,5 +231,16 @@ class PageLayoutTest(unittest.TestCase):
         self.assertNotIn(starved_rule, mirror.PAGE)
 
 
+class ImageZoomTest(unittest.TestCase):
+    def test_image_click_toggles_native_size(self):
+        expected_markers = [
+            ".stage img { max-width:100%; max-height:100%; object-fit:contain; cursor:zoom-in; }",
+            ".stage.zoomed img { max-width:none; max-height:none; cursor:zoom-out; }",
+            'classList.toggle("zoomed")',
+        ]
+        for marker in expected_markers:
+            self.assertIn(marker, mirror.PAGE)
+
+
 if __name__ == "__main__":
     unittest.main()
