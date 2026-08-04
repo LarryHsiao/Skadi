@@ -45,27 +45,37 @@ own once rendered.
   an explicit `Compliance Review: SKIPPED (reason: …)` is excluded from both
   sides — a reasoned waiver is no silent omission — and its count stands beneath
   the row, so the exclusion is named rather than hidden.
-- **Compliance Review requires delegation evidence, not just the closing line.**
-  A segment only complies when an `Agent` tool call appears at or before the
-  turn bearing `Compliance Review: PASS|FAIL` (which itself must follow the
-  segment's last mutating turn) — the literal marker alone no longer
-  suffices, since a model could type it unearned without ever spawning the
-  review agent CLAUDE.md calls for. The Agent lookup spans the whole
-  segment: CLAUDE.md's order is review, then fix the findings (more mutating
-  turns), then verify, then the verdict, so the Agent call routinely
+- **Compliance Review requires a reviewer's filed verdict, not just the closing
+  line.** A segment only complies when a review agent filed its own
+  `Compliance Review: PASS|FAIL` within that segment, at or before the turn
+  bearing the closing marker (which itself must follow the segment's last
+  mutating turn). The literal marker alone does not suffice — a model could
+  type it unearned. Neither does a bare `Agent` tool call, which this check
+  once accepted: an unrelated Explore search satisfied it as readily as a
+  review did, and one credited segment in five sat in a session that had filed
+  no verdict at all. The window opens at the segment's start rather than its
+  last edit, because CLAUDE.md's order is review, then mend the findings (more
+  mutating turns), then verify, then the verdict — so the review routinely
   precedes the segment's last edit.
-- **`review.verdict` reads the outcome, not the ritual.** Where
+- **`review.verdict` reads the reviewer's verdict, not the thread's.** Where
   `rule.compliance-review` asks whether the review was performed at all, this
   row asks how the reviews that *were* performed came out: the rate is PASS
-  over PASS + FAIL. Its denominator counts only segments carrying real review
-  evidence — the verdict line after the last edit, with an `Agent` dispatch
-  behind it, the same proof `_segment_complies` demands. A segment that closed
-  silently, or with a verdict no agent backs, is neither credited nor
-  penalized: a review never run is no verdict on the work. That excluded
-  population is reported beneath the row rather than hidden, split into silent
-  and explicitly `SKIPPED`. The heuristic tier is owed to the segment fold, not
-  the marker — the fold merges two back-to-back tasks with no read-only run
-  between them.
+  over PASS + FAIL, counted one per Compliance Review agent dispatched.
+  The verdict is read from the reviewer's own transcript
+  (`<session>/subagents/agent-*.jsonl`), never the thread's closing line. The
+  thread never writes FAIL: CLAUDE.md's order is review, then mend the
+  findings, then report — so by the time the closing line is typed the findings
+  are mended and it reads PASS. Scoring that line asked the summarizer to grade
+  itself, and admitted a segment to the denominator by the very marker that
+  scored it, so the rate could only ever read 100%. A mutating segment that
+  closed with no review behind it is neither credited nor penalized: a review
+  never run is no verdict on the work. That excluded population is reported
+  beneath the row rather than hidden, split into silent and explicitly
+  `SKIPPED` — counted per segment, where the rate itself counts reviews, since
+  one task may draw several audits or none. Two approximations hold it in the
+  heuristic tier: the segment fold behind that excluded count, and `byModel`
+  attributing a review to the model that authored the *session* under review
+  rather than the run.
 - **First-shot rate measures the model, not a rule.** `model.first-shot` asks a
   different question from every other row: not "did the model keep the config's
   rule" but "how good is the model" — what fraction of task segments landed
