@@ -12,6 +12,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 | `settings.json` | Model, permissions, plugins, and hook definitions |
 | `statusline.sh` | Custom status line script |
 | `hooks/` | Shell scripts that run before/after tool calls |
+| `hooks/lint.sh` | Shellcheck gate over the scripts a branch changed — `./hooks/lint.sh` (add paths to widen it) |
 | `skills/` | Custom slash-command skills |
 | `docs/` | Style guides, tool guides, and workflow notes referenced from `CLAUDE.md` via `@docs/...` |
 | `previews/henneth/skadi-theme.css` | Shared parchment stylesheet copied beside the Henneth preview artifacts |
