@@ -34,7 +34,15 @@ if [ -z "$REPO_ROOT" ]; then
   jq -nc '{ok:true,count:0,hits:[],note:"not a git repo"}'
   exit 0
 fi
-cd "$REPO_ROOT"
+# A root that cannot be entered leaves nothing scanned. Reporting ok:true here
+# would be the worst answer this hook can give: the caller reads it as "no
+# secrets in the diff" when what happened is that no diff was ever read. An
+# unverified tree and a verified clean one are different findings, and only one
+# of them is safe to push on.
+if ! cd "$REPO_ROOT"; then
+  jq -nc '{ok:false,count:0,hits:[],note:"repo root could not be entered — nothing scanned"}'
+  exit 1
+fi
 
 re='AKIA[0-9A-Z]{16}'
 re+='|gh[pousr]_[A-Za-z0-9]{36,}'
