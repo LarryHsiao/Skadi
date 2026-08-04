@@ -92,32 +92,6 @@ if [ -n "$nazgul_checks_dir" ]; then
   fi
 fi
 
-# --- haldir ---
-haldir_repos_file="$HOME/.skadi/repo-watch/repos.md"
-haldir_repos=()
-while IFS= read -r line; do
-  haldir_repos+=("$line")
-done < <(grep -oE '^- (/.*)$' "$haldir_repos_file" 2>/dev/null | sed 's/^- //')
-
-if [ "${#haldir_repos[@]}" -eq 0 ]; then
-  haldir_repos=("$HOME/skadi")
-fi
-
-haldir_agents_json="$(claude agents --json 2>/dev/null || echo '[]')"
-haldir_missing=()
-for haldir_repo in "${haldir_repos[@]}"; do
-  haldir_name=$(basename "$haldir_repo")
-  haldir_running=$(printf '%s\n' "$haldir_agents_json" | jq -r --arg n "$haldir_name" '[.[] | select(.kind == "background" and .name == $n)] | length')
-  [ "$haldir_running" -eq 0 ] && haldir_missing+=("$haldir_name")
-done
-
-if [ "${#haldir_missing[@]}" -gt 0 ]; then
-  haldir_missing_str=$(IFS=,; echo "${haldir_missing[*]}")
-  echo "haldir|${#haldir_missing[@]}/${#haldir_repos[@]} down|missing session(s): ${haldir_missing_str}|warn"
-else
-  echo "haldir|${#haldir_repos[@]}/${#haldir_repos[@]} running|all watched repos have an active session|"
-fi
-
 # --- palantir ---
 palantir_prs_check="$HOME/.claude/hooks/prs-check.sh"
 palantir_prs_act="$HOME/.claude/hooks/prs-activity.sh"

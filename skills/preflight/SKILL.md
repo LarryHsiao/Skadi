@@ -60,6 +60,5 @@ When a run finishes, the next `/preflight` invocation will auto-complete the cor
 | `triage` | not yet run today (calendar day) | `/triage` |
 | `nazgul-checks` | 30 days since last review of the rubric files | walk `skills/nazgul/checks/*.md`, then `/nazgul reviewed` |
 | `palantir` | any of your PRs/MRs carries new comments since you last looked | `/palantir activity` |
-| `haldir` | any repo in the watch list (`~/.skadi/repo-watch/repos.md`) lacks a live background session | re-run `~/.claude/hooks/haldir.sh` |
 
 Add new checks by extending `~/.claude/hooks/preflight-check.sh` and the table above.

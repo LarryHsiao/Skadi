@@ -13,8 +13,8 @@
 # handoff.sh drops any message whose `from` matches the reader's own, so two
 # sessions wearing one name would each take the other's word for its own echo
 # and pick up nothing. Distinct ids keep the channel two-way. A session that
-# wants a human-readable name (haldir's background agents do) overrides it
-# afterward with its own `subscribe --from <label>`.
+# wants a human-readable name overrides it afterward with its own
+# `subscribe --from <label>`.
 #
 # Subscribing is a one-shot write; live pickup is the sibling handoff-poll.sh
 # UserPromptSubmit hook, which fires each turn.
