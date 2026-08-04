@@ -363,6 +363,18 @@ except ValueError:
     print("ERROR:command could not be parsed safely")
     sys.exit(0)
 
+def unglued(tok):
+    """Drop shell control operators glued to a token's tail.
+
+    shlex understands words and quoting, not control operators, so a `;`,
+    `|`, `&`, `)` or redirection written with no space before it rides along
+    as part of the preceding word (`2>/dev/null;` arrives as one token).
+    Every token is cleaned through here before the path check, so a path is
+    judged on what it names and not on whether a space happened to follow it.
+    """
+    return re.sub(r'[;&|()<>]+$', '', tok)
+
+
 expect_cmd = True
 expect_redirect_target = False
 for raw in raw_tokens:
@@ -390,22 +402,16 @@ for raw in raw_tokens:
     # counterparts as argument paths, not command words.
     redirect = re.match(r'^\d*(?:<<<|<<|>>|<|>)(.+)$', raw)
     if redirect:
-        print('ARG:' + redirect.group(1))
+        print('ARG:' + unglued(redirect.group(1)))
         expect_redirect_target = False
         continue
 
     if expect_redirect_target:
-        print('ARG:' + raw)
+        print('ARG:' + unglued(raw))
         expect_redirect_target = False
         continue
 
-    # shlex only understands words and quoting, not shell control
-    # operators — a trailing ";", "&&", "||", "|", ")", ">" glued to a
-    # path with no space (e.g. "for x in a; do") rides along as part of
-    # the token instead of being split off. Strip it so the path check
-    # compares the real path, not the path plus punctuation.
-    token = re.sub(r'[;&|()<>]+$', '', raw)
-    print(('CMD:' if expect_cmd else 'ARG:') + token)
+    print(('CMD:' if expect_cmd else 'ARG:') + unglued(raw))
     expect_cmd = False
 PYEOF
   }

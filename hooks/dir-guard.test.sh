@@ -42,6 +42,21 @@ for sink in /dev/null /dev/stdout /dev/stderr /dev/tty; do
   check "command referencing $sink is allowed" "allow" "$(run_cmd "cat foo 2>$sink")"
 done
 
+# ── a redirect target glued to the next shell operator is still just a path ──
+# shlex hands back "/dev/null;" as one word when no space precedes the
+# separator. Only the general argument branch stripped that punctuation, so
+# whether a command was allowed turned on whether a space happened to be
+# typed — the same redirect read as allowed with one and denied without.
+check "redirect target followed by ; is allowed" "allow" "$(run_cmd 'ls *.md 2>/dev/null; echo hi')"
+check "redirect target followed by | is allowed" "allow" "$(run_cmd 'ls *.md 2>/dev/null| head')"
+check "separated redirect target followed by ; is allowed" "allow" "$(run_cmd 'ls *.md 2> /dev/null; echo hi')"
+
+# ── stripping that punctuation must reveal paths, never excuse them ──
+# The strip runs before the path check, so a denied target must stay denied
+# with the operator glued on; otherwise the fix above would be a bypass.
+check "glued-operator redirect to an outside path is still denied" "deny" "$(run_cmd 'cat foo >/etc/passwd; echo hi')"
+check "separated redirect to an outside path is still denied" "deny" "$(run_cmd 'cat foo > /etc/passwd| tee x')"
+
 # ── a genuinely disallowed absolute path is still denied — no regression ──
 check "command referencing a real outside path is still denied" "deny" "$(run_cmd "cat /etc/passwd")"
 
