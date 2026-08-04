@@ -52,25 +52,42 @@ for _d in "${_RAW_DEV_DIRS[@]}"; do
   DEV_DIRS+=("$(normalize "$_d")")
 done
 
-# Returns 0 if path is under project dir, .claude dir, /tmp, or any dev dir
+# Directories admitted whole — the root itself, or anything beneath it. Every
+# entry obeys the same two-pattern rule, so they share one loop below rather
+# than each spelling its own `X|X/*` case arm; the CLAUDE_DEV_DIRS entries join
+# the list for the same reason, having always been matched by exactly that loop.
+# Adding a root is a line here, with no second pattern to get right.
+ALLOWED_ROOTS=(
+  "$PROJECT_DIR"
+  "$HOME_DIR/.claude"
+  "$HOME_DIR/.claude-personal"
+  "$HOME_DIR/.claude-work"
+  # skadi's runtime data root — the handoff mailbox, the moria mend list, the
+  # board channels, the repo-watch file. Shared across every profile and never
+  # touched by /install, so it belongs beside the config roots rather than
+  # inside one: skills read and amend those files by absolute path.
+  "$HOME_DIR/.skadi"
+  /tmp
+  /private/tmp
+  "$TMPDIR_DIR"
+  "$TMPDIR_RAW"
+  "${DEV_DIRS[@]}"
+)
+
+# Returns 0 if path is under project dir, .claude dir, .skadi, /tmp, or any dev dir
 in_allowed_dir() {
   local p="$1"
-  case "$p" in
-    "$PROJECT_DIR"|"$PROJECT_DIR"/*) return 0 ;;
-    "$HOME_DIR"/.claude|"$HOME_DIR"/.claude/*) return 0 ;;
-    "$HOME_DIR"/.claude-personal|"$HOME_DIR"/.claude-personal/*) return 0 ;;
-    "$HOME_DIR"/.claude-work|"$HOME_DIR"/.claude-work/*) return 0 ;;
-    /tmp|/tmp/*) return 0 ;;
-    /private/tmp|/private/tmp/*) return 0 ;;
-    "$TMPDIR_DIR"|"$TMPDIR_DIR"/*) return 0 ;;
-    "$TMPDIR_RAW"|"$TMPDIR_RAW"/*) return 0 ;;
-    /dev/null|/dev/stdout|/dev/stderr|/dev/tty) return 0 ;;
-  esac
-  for _d in "${DEV_DIRS[@]}"; do
+  local _root
+  for _root in "${ALLOWED_ROOTS[@]}"; do
     case "$p" in
-      "$_d"|"$_d"/*) return 0 ;;
+      "$_root"|"$_root"/*) return 0 ;;
     esac
   done
+  # The dev sinks are files, not roots: matched exactly and never as a prefix,
+  # so a path merely beginning with one of their names is not admitted.
+  case "$p" in
+    /dev/null|/dev/stdout|/dev/stderr|/dev/tty) return 0 ;;
+  esac
   return 1
 }
 

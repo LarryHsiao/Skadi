@@ -55,6 +55,15 @@ check "command referencing a path under raw \$TMPDIR is allowed" "allow" "$(run_
 TMPDIR_RESOLVED=$(cd "${TMPDIR:-/tmp}" && pwd -P)
 check "command referencing a path under resolved \$TMPDIR is allowed" "allow" "$(run_cmd "cat $TMPDIR_RESOLVED/scratch-file")"
 
+# ── ~/.skadi is skadi's own runtime data root (the handoff mailbox, the mend
+# list, the board channels, the repo-watch file) — skills read and amend those
+# by absolute path, so it is admitted alongside the config roots. The prefix
+# match is anchored: a sibling that merely starts with the same characters is
+# not the same directory and stays denied ──
+check "command referencing a path under ~/.skadi is allowed" "allow" "$(run_cmd "cat $HOME/.skadi/handoff/skadi/msg.md")"
+check "command referencing ~/.skadi itself is allowed" "allow" "$(run_cmd "ls $HOME/.skadi")"
+check "a sibling of ~/.skadi sharing its prefix is still denied" "deny" "$(run_cmd "cat $HOME/.skadi-other/secrets")"
+
 # ── an allowed path glued to a trailing shell operator (no space) is still allowed —
 # shlex.split doesn't treat these as separators, so a naive check would see
 # ".claude-work;" and miss the exact/glob match against ".claude-work" ──
@@ -209,6 +218,7 @@ print('deny' if d.get('permissionDecision') == 'deny' else 'allow')
 check "Write file_path inside project is allowed" "allow" "$(run_write "$REPO/hooks/dir-guard.sh")"
 check "Write file_path outside project is denied" "deny" "$(run_write "/etc/passwd")"
 check "Write file_path under .claude-personal is allowed" "allow" "$(run_write "$HOME/.claude-personal/hooks/foo.sh")"
+check "Write file_path under .skadi is allowed" "allow" "$(run_write "$HOME/.skadi/moria/mend_repos.md")"
 
 # ── the CLAUDE_DEV_DIRS whitelist governs file_path exactly as it governs
 # Bash command args — same in_allowed_dir check, same allowance ──
