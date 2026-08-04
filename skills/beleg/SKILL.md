@@ -1,6 +1,6 @@
 ---
 name: beleg
-description: Use when the user runs /beleg, /beleg <firebase-project> <bundle-id> [platform], or asks in plain words to "what's crashing", "rank our crashes", "which crash should I fix first". Reads an app's Crashlytics issues, ranks them by impact rather than volume — distinct users, trend, version concentration, and whether the blaming frame is code you can actually reach — then reads the source at that frame and suggests a fix for the top few. Prefers the Crashlytics BigQuery export; falls back to scraping the Firebase console through Chrome when no export exists, ranking on thinner evidence and saying so. Read-only: it never writes to Firebase, the tracker, or your branches.
+description: Use when the user runs /beleg, /beleg <firebase-project> <bundle-id> [platform], or asks in plain words to "what's crashing", "rank our crashes", "which crash should I fix first". Reads an app's Crashlytics issues, ranks them by impact rather than volume — distinct users, trend, version concentration, and whether the blaming frame is code you can actually reach — then reads the source at that frame and suggests a fix for the top few. Prefers the Crashlytics BigQuery export; when a project carries none, falls back to scraping the Firebase console through Chrome — which also shows the blaming frame, so the code-read still applies. Whichever signals a source could not supply are named on the brief rather than quietly assumed. Read-only: it never writes to Firebase, the tracker, or your branches.
 ---
 
 # Beleg — the crash, tracked home
