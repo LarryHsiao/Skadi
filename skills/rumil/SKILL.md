@@ -80,6 +80,8 @@ Skip this only when a single document genuinely arrived alone.
 
 **Build the correspondence.** List every screen the UI spec shows. List every rule the text spec states. Then bind them both ways — each screen to the rule that governs it, each rule to the screen where it is exercised.
 
+**The screen list is settled before the rules are read, never during.** For a Figma source it is the inventory of `sources.md` step 1 — every direct-child frame, enumerated from the design file alone; for images it is every file handed over. Build it whole first, then hold the rules against it. Letting the text spec choose which screens to list collapses the wiring into a tautology: every screen listed would be one the prose already named, so no screen could ever be orphaned, and the finding below would report zero on a file full of them. That is not a hypothetical — it is how a nine-screen section came back as three, with the missing six never appearing in the plan or its questions.
+
 Three findings fall out, and **each is a numbered question, never a silent reconciliation**:
 
 | Finding | What it looks like | What Rúmil does |
@@ -295,6 +297,7 @@ If splitting a done step is genuinely necessary, stop and say so; that is the us
 - **A text spec and a UI spec are read together, and wired to each other.** The correspondence exists nowhere else; recording it is the work.
 - **A contradiction between text and mock is never resolved quietly.** Both sides are quoted, and the question goes back. Picking a winner makes it your decision wearing the author's name.
 - **An orphan screen and an orphan rule are findings, not noise.** Each earns a numbered question.
+- **The screen inventory is enumerated from the UI spec, never from the text spec's mentions.** A screen list the prose narrowed cannot yield an orphan screen — the finding is only as complete as the enumeration beneath it.
 - **The spec's milestones are never carried across as steps.** They may become phases; the steps are yours to derive.
 - **Product acceptance that nothing can fail becomes a question, never a criterion.** Do not invent the threshold the author left unstated.
 - **An undrawn state is unanswered, not absent.** Walk the checklist; raise what is missing rather than defaulting it.
