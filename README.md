@@ -17,6 +17,10 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 | `docs/` | Style guides, tool guides, and workflow notes referenced from `CLAUDE.md` via `@docs/...` |
 | `previews/henneth/skadi-theme.css` | Shared parchment stylesheet copied beside the Henneth preview artifacts |
 | `install.sh` | Copy installer (idempotent, safe to re-run) |
+| `handbook/` | A browsable HTML handbook — the cover plus the plan→forge→review and work-loop pages |
+| `handbook.sh` | Serve the handbook locally and open it — `./handbook.sh [port]` (default 8770) |
+| `tests/` | Python tests for the Jira hooks and the skeleton-rung deriver; the rest ride beside their hooks as `*.test.sh` / `test_*.py` |
+| `CLAUDE.stub.md` | The one-line marker left in `~/.claude/` pointing at whichever profile root holds the live config |
 
 ### Features
 
@@ -71,6 +75,10 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/feanor` — Align a web page (or a booted Flutter app) to a visual reference by an automatic render→compare→mend loop: shoot the target to a PNG, name the deltas against the spec, and edit the source to close them. Exits early when aligned or when progress stalls; a hard `--max` (default 3) is the backstop. Renders into the Henneth window so convergence is watchable
 - `/beleg` — Rank an app's Crashlytics issues by impact rather than volume — distinct users (flattened, so one user's retry loop cannot out-shout a fleet-wide fault), trend, version concentration, and whether the blaming frame is code you can actually reach — then read the source at that frame and suggest a fix. Weights live in `hooks/beleg-rubric.json`, each with a criterion line, so the ranking can be argued with without editing code. Prefers the Crashlytics → BigQuery export; when a project carries none the hook exits 2 and the skill falls back to scraping the Firebase console through Chrome, routing those issues through the same scorer via `--from-json` so one value formula stands rather than two that drift. A thinner source is named as such: the brief declares which signals were unavailable rather than implying a completeness it lacks. Bound per repo *and per flavor* in `crash_routing.md`, since one app commonly ships several Firebase projects. Read-only — the `ticket` and `fix` verbs are deliberately unbuilt until the read path has ranked real crashes
 - `/growth` — Render a growth dashboard into the Henneth window — DAU/WAU/MAU with week- and month-over-month deltas, a 12-week trend chart, and a 30-day sparkline — from the GA4 → BigQuery export. Read-only, and within BigQuery's free monthly tier
+- `/board` — A standing situation board served in the browser: the tickets in progress (tracker status plus an AC rate derived from subtask completion) and the metis growth pulse, each a tile following a JSON channel file under `~/.skadi/board/`. The page polls the folder, so a channel added or changed shows on its own. Verbs: bare `/board` serves, `add <KEY> [--active]` seats a ticket (exactly one hero stands), `remove` drops one, `refresh` re-fetches every ticket and the growth numbers, `list` prints the channels. Read-only against Jira, YouTrack, and BigQuery
+- `/este` — The adherence pulse: a marker-based, per-item scorecard of how faithfully this config's own rules and skills are kept, read across every config root's transcripts. Each row carries a confidence tier and a plain-language criterion (✓ what passes · ✗ what misses) unfolded by an ⓘ button, and the headline reports a figure per tier rather than one average pretending to be certain. Appends each run to history and renders a Henneth dashboard. Read-only over transcripts
+- `/fidelity` — The plan-fidelity rate: what fraction of `/mandos` verdicts came back Faithful, and the Missing-versus-Scope-crept split that explains the rest, read from the recorded verdict history and rendered into Henneth. Fills in only as `/mandos` runs — it is not backfilled from past sessions
+- `/manwe` — Weigh a rendered UI against its spec — a Henneth wireframe, a Figma reference, a screenshot — or, absent a spec, against a sibling component's actual layout values. Reports `DELTAS` or `DIVERGENT` findings on padding, spacing, sizing, and typography; folded into the Compliance Review when a step edits a component's render
 - `/minuial` — The morning-start ritual: boot (or reuse) Henneth, serve the situation board, then refresh it (tickets + metis growth), printing both URLs. Read-only, composes `/henneth` and `/board`
 - `/handoff` — An async file mailbox between Claude Code sessions: one session leaves a message (or a whole context baton) on a named channel, another reads it on demand or subscribes for live auto-pickup. Sessions standing in the same repo join its channel automatically at start, so no subscribing is needed to reach a sibling session. No server — messages live under `~/.skadi/handoff/`
 - `/cleanup-dev` — Free disk space by clearing dev caches and build artifacts
@@ -92,7 +100,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **preflight-check** — Emit the preflight checklist state consumed by `/preflight`
 - **jira-daily**, **prs-check**, **mrs-check**, **eod-git-check** — Data collectors for the matching skills
 - **prs-activity**, **mrs-activity** — Surface PRs/MRs with new comments via GitHub notifications and GitLab todos for `/palantir`
-- **cleanup-dev-*** — Analyze, report, execute, and mark-run helpers for `/cleanup-dev`
+- **cleanup-dev-*** — Analyze, report, execute, mark-run, and project-scan helpers for `/cleanup-dev` (the last finds per-project build artifacts under `$HOME`, read-only)
 - **council-youtrack-fetch**, **council-youtrack-comment**, **council-jira-fetch**, **council-jira-comment** — Tracker I/O for `/council` (YouTrack and Jira)
 - **council-plan-html** — Render a `[COUNSEL]` plan to a local HTML preview
 - **glorfindel-youtrack-list**, **glorfindel-jira-list** — List open tickets matching a filter for `/glorfindel`
@@ -124,7 +132,15 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **appgrowth** — Query the GA4 → BigQuery export for `/growth`
 - **beleg-crashes**, **beleg-rubric.json** — Collect Crashlytics issues from the BigQuery export, rank them by value, and render the brief into Henneth for `/beleg`; `--from-json` ranks issues the skill scraped from the console instead, so both collectors share one scorer. Exits 2 when a project carries no export — absence, distinct from a failed query
 - **scribe** — Export a Minerva section to YouTrack, Outline, or disk for `/scribe`
-- **galadriel-render**, **mirror-server** — Render the `/galadriel` plan mirror to HTML and serve it live
+- **galadriel-render**, **galadriel-server**, **mirror-server** — Render the `/galadriel` plan mirror to HTML and serve it live; the server also watches every registered project's plans folder and re-renders on its own when a concept file changes
+- **board-ticket**, **board-growth**, **board-henneth**, **board-galadriel**, **board-sweep** — The situation board's channel writers: a tracker issue with its AC rate (Jira REST or YouTrack), the metis growth line, the standing Henneth and Galadriel links, and an `/amon-sul` sweep verdict
+- **board-manifest**, **board-active**, **board-server**, **board** — The manifest the page polls, the single-homed flip that keeps exactly one hero ticket, the static server, and the one entry point `/board` routes every verb through
+- **pulse-scan**, **pulse-rubric.json** — The adherence-pulse engine and its rubric: walks every config root's transcripts read-only, scores each item with a confidence tier and a plain-language criterion, and renders `/este`'s dashboard
+- **mandos-record**, **fidelity-scan** — Append a `/mandos` verdict to the plan-fidelity history, and read that history back into `/fidelity`'s rate and its Missing-versus-Scope-crept split
+- **skills-cheatsheet-render** — Render a quick-browse HTML cheatsheet of every skadi skill's name and purpose, refreshed on each `/board refresh`
+- **haldir** — Launch one native background Claude Code session per repo, each named for its repo and isolated in its own worktree, running without a TTY
+- **gate-reminder** — Re-inject the Free-Form Gate specification with every user prompt, so the gate holds even on lighter models
+- **ping-pong** — Answer a bare "ping" with "pong"
 - **henneth-group** — Group the gallery artifacts for `/henneth`
 - **skadi-worktree**, **worktree-guard** — Create or enter an isolated git worktree and block strays outside it
 - **protected-repo-guard** — Block writes and commits against protected repositories
