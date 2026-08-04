@@ -69,12 +69,14 @@ doors opening.
 - [x] Test the ranking with fixtures in both shapes — full (BigQuery) and degraded (console)
 - [x] Add the BigQuery collector: query, 60-day horizon, per-issue user counts
 - [x] Give the collector a distinct "no export" exit, separate from "no crashes"
-- [ ] Render the ranked brief into Henneth, naming source and missing signals
-- [ ] Resolve `blame_frame` to a real `file:line` and read the function there
-- [ ] Write `skills/beleg/SKILL.md` — binding, verb routing, browser-fallback instructions
-- [ ] Bind per repo via `crash_routing.md`: project · bundle · platform · account · flavor
-- [ ] Prompt once on an unbound repo, as `/amon-din` does for CI
-- [ ] Add the README rows for the skill and its hooks
+- [x] Render the ranked brief into Henneth, naming source and missing signals
+- [x] Resolve `blame_frame` to a real `file:line` and read the function there
+      (skill prose, not hook code — the model does the reading; unproven until a
+      run against a tree matching the crashing build)
+- [x] Write `skills/beleg/SKILL.md` — binding, verb routing, browser-fallback instructions
+- [x] Bind per repo via `crash_routing.md`: project · bundle · platform · account · flavor
+- [x] Prompt once on an unbound repo, as `/amon-din` does for CI
+- [x] Add the README rows for the skill and its hooks
 
 ## Deferred, deliberately
 

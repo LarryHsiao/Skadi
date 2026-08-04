@@ -218,5 +218,36 @@ class NewestVersionTest(unittest.TestCase):
         self.assertEqual(expected, result)
 
 
+class RenderTest(unittest.TestCase):
+    def test_renders_with_no_issues_without_crashing(self):
+        page = beleg.render_page(
+            {"source": "bigquery", "window_days": 60, "missing_signals": [], "issues": []})
+        expected = True
+        result = "Crashes by value" in page
+        self.assertEqual(expected, result)
+
+    def test_missing_signals_are_declared_on_the_page(self):
+        page = beleg.render_page(
+            {"source": "console", "window_days": 60,
+             "missing_signals": ["actionability"], "issues": []})
+        expected = True
+        result = "Ranked without: actionability" in page
+        self.assertEqual(expected, result)
+
+    def test_a_crash_title_bearing_markup_is_escaped(self):
+        page = beleg.render_page(
+            {"source": "bigquery", "window_days": 60, "missing_signals": [],
+             "issues": [{"value": 1.0, "title": "<script>x</script>", "trend": "new",
+                         "users": 1, "blame_frame": None}]})
+        expected = True
+        result = "&lt;script&gt;" in page and "<script>x" not in page
+        self.assertEqual(expected, result)
+
+    def test_an_issue_with_no_frame_shows_a_dash(self):
+        expected = "—"
+        result = beleg.frame_label({"blame_frame": None})
+        self.assertEqual(expected, result)
+
+
 if __name__ == "__main__":
     unittest.main()

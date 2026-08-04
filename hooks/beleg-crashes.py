@@ -247,6 +247,57 @@ def collect(project, bundle, platform, account):
     return [issue_from_row(r, latest) for r in rows]
 
 
+HENNETH = Path.home() / ".claude" / "previews" / "henneth"
+TOP_N = 12
+
+
+def render_page(brief):
+    """The ranked brief as one self-contained page for the Henneth window.
+
+    The caveat line is not decoration: a ranking computed without the blaming
+    frame rests on fewer signals than one computed with it, and the page says
+    which were missing rather than letting the reader assume completeness.
+    """
+    absent = brief["missing_signals"]
+    caveat = (f"<p class=gap>Ranked without: {', '.join(absent)} — "
+              f"this source could not supply them.</p>") if absent else ""
+    rows = "\n".join(
+        f"<tr><td class=v>{i['value']:.0f}</td><td>{esc(i['title'])}</td>"
+        f"<td>{i['trend']}</td><td class=v>{i['users']}</td>"
+        f"<td class=f>{frame_label(i)}</td></tr>"
+        for i in brief["issues"][:TOP_N])
+    return f"""<meta charset="utf-8">
+<title>Beleg — crashes by value</title>
+<link rel="stylesheet" href="skadi-theme.css">
+<style>
+ body{{font:14px/1.5 -apple-system,system-ui,sans-serif;padding:2rem;max-width:60rem}}
+ table{{border-collapse:collapse;width:100%}} th,td{{padding:.4rem .6rem;text-align:left}}
+ thead th{{border-bottom:2px solid currentColor}} tr+tr td{{border-top:1px solid #8883}}
+ .v{{text-align:right;font-variant-numeric:tabular-nums}}
+ .f{{font-family:ui-monospace,monospace;font-size:.85em;opacity:.8}}
+ .gap{{opacity:.75;font-style:italic}}
+</style>
+<h1>Crashes by value</h1>
+<p>Source: <b>{esc(brief['source'])}</b> · window {brief['window_days']} days ·
+   {len(brief['issues'])} issue(s)</p>
+{caveat}
+<table><thead><tr><th class=v>value</th><th>issue</th><th>trend</th>
+<th class=v>users</th><th>blaming frame</th></tr></thead>
+<tbody>{rows}</tbody></table>
+"""
+
+
+def esc(text):
+    """Minimal HTML escaping — crash titles carry angle brackets and ampersands."""
+    return (str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
+def frame_label(issue):
+    """`file:line` for the brief, or an em dash when the source saw no frame."""
+    frame = issue.get("blame_frame")
+    return f"{esc(frame['file'])}:{frame['line']}" if frame else "—"
+
+
 def main(argv):
     """Collect (or read) issues, rank them, and print the brief as JSON.
 
@@ -268,9 +319,19 @@ def main(argv):
             ap.error("--project and --bundle are required without --from-json")
         issues, source = collect(args.project, args.bundle, args.platform,
                                  args.account), "bigquery"
-    print(json.dumps({"source": source, "window_days": WINDOW_DAYS,
-                      "missing_signals": missing_signals(issues),
-                      "issues": rank(issues)}, indent=2))
+    brief = {"source": source, "window_days": WINDOW_DAYS,
+             "missing_signals": missing_signals(issues), "issues": rank(issues)}
+    HENNETH.mkdir(parents=True, exist_ok=True)
+    out = HENNETH / "beleg-crashes.html"
+    out.write_text(render_page(brief), encoding="utf-8")
+    (HENNETH / "beleg-crashes.json").write_text(json.dumps(
+        {"title": "Beleg — crashes by value",
+         "note": f"{source} · {len(brief['issues'])} issue(s)",
+         "group": "beleg"}), encoding="utf-8")
+    print(f"rendered {out}")
+    print(f"  {len(brief['issues'])} issue(s) from {source}"
+          + (f" · missing: {', '.join(brief['missing_signals'])}"
+             if brief["missing_signals"] else ""))
     return 0
 
 
