@@ -13,6 +13,20 @@ ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT
 tmpdir() { mktemp -d "$ROOT/d.XXXXXX"; }
 
+# A reviewer's own filed verdict, written beside a session fixture where the
+# harness puts one: <session>/subagents/agent-*.jsonl. _segment_complies takes
+# no bare Agent tool_use as proof that a review happened — an unrelated search
+# satisfies that just as well — so every fixture meant to comply needs one of
+# these, filed inside the segment and at or before its closing marker.
+reviewer_seq=0
+reviewer() { # session-jsonl-path filed-at [PASS|FAIL]
+  local stem="${1%.jsonl}"
+  reviewer_seq=$((reviewer_seq + 1))
+  mkdir -p "$stem/subagents"
+  printf '{"type":"assistant","timestamp":"%s","message":{"content":[{"type":"text","text":"Compliance Review: %s"}]}}\n' \
+    "$2" "${3:-PASS}" >"$stem/subagents/agent-$reviewer_seq.jsonl"
+}
+
 # A small fixture rubric for tests that run the engine end-to-end (PULSE_RUBRIC
 # below) — decoupled from the live pulse-rubric.json so trimming production's
 # rubric down to plan.accepted doesn't take this suite's coverage of
@@ -480,6 +494,7 @@ cat >"$d/postgate.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-16T10:01:05Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS\nEditing now."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
 {"type":"assistant","timestamp":"2026-07-16T10:01:10Z","message":{"content":[{"type":"text","text":"Done, no verdict this time."}]}}
 JSON
+reviewer "$d/postgate.jsonl" "2026-07-16T10:00:08Z"
 expected_postgate="2/1"
 actual_postgate=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/postgate.jsonl" <<'PY'
 import importlib.util as u, sys, json
@@ -492,7 +507,7 @@ PY
 )
 check "post-gate scorer checks marker after the last mutation, not before" "$expected_postgate" "$actual_postgate"
 
-# ── 21 · post-gate scorer: the marker alone doesn't comply — an Agent spawn must back it ──
+# ── 21 · post-gate scorer: the marker alone doesn't comply — a review must back it ──
 d=$(tmpdir)
 cat >"$d/postgate-noagent.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-17T10:00:00Z","message":{"content":"fix the widget"}}
@@ -509,9 +524,9 @@ a, c, _ = m.score_post_gate(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
-check "post-gate scorer: marker with no Agent spawn does not comply" "$expected_postgate_noagent" "$actual_postgate_noagent"
+check "post-gate scorer: marker with no review behind it does not comply" "$expected_postgate_noagent" "$actual_postgate_noagent"
 
-# ── 22 · post-gate scorer: review → fix → verdict still complies (Agent precedes the LAST mutation) ──
+# ── 22 · post-gate scorer: review → fix → verdict still complies (the review precedes the LAST mutation) ──
 d=$(tmpdir)
 cat >"$d/postgate-reviewfix.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-18T10:00:00Z","message":{"content":"fix the widget"}}
@@ -520,6 +535,7 @@ cat >"$d/postgate-reviewfix.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-18T10:00:12Z","message":{"content":[{"type":"text","text":"Found one nit; fixing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
 {"type":"assistant","timestamp":"2026-07-18T10:00:15Z","message":{"content":[{"type":"text","text":"Fixed and reverified.\nCompliance Review: PASS"}]}}
 JSON
+reviewer "$d/postgate-reviewfix.jsonl" "2026-07-18T10:00:08Z"
 expected_postgate_reviewfix="1/1"
 actual_postgate_reviewfix=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/postgate-reviewfix.jsonl" <<'PY'
 import importlib.util as u, sys, json
@@ -531,6 +547,67 @@ print("%d/%d" % (a, c))
 PY
 )
 check "post-gate scorer: an Agent call before a later fix-edit still complies" "$expected_postgate_reviewfix" "$actual_postgate_reviewfix"
+
+# ── 22b · an Agent call that filed no verdict is no review ──
+# The old check took any Agent tool_use as proof, and an unrelated Explore
+# search satisfied it — one credited segment in five had no filed verdict
+# anywhere in its session. The subagent here reports on a search, not a review.
+d=$(tmpdir)
+cat >"$d/postgate-otheragent.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T17:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-18T17:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T17:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T17:00:12Z","message":{"content":[{"type":"text","text":"Reviewed and verified.\nCompliance Review: PASS"}]}}
+JSON
+mkdir -p "$d/postgate-otheragent/subagents"
+cat >"$d/postgate-otheragent/subagents/agent-search.jsonl" <<'JSON'
+{"type":"assistant","timestamp":"2026-07-18T17:00:10Z","message":{"content":[{"type":"text","text":"Found three call sites under lib/."}]}}
+JSON
+expected_otheragent="1/0"
+actual_otheragent=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/postgate-otheragent.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: an Agent that filed no verdict is no review" "$expected_otheragent" "$actual_otheragent"
+
+# ── 22c · a review filed after the closing marker cannot back it ──
+# The verdict must rest on a review already in hand; one that reports later
+# belongs to the next task, not this one.
+d=$(tmpdir)
+cat >"$d/postgate-late.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T18:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-18T18:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-18T18:00:12Z","message":{"content":[{"type":"text","text":"Reviewed and verified.\nCompliance Review: PASS"}]}}
+JSON
+reviewer "$d/postgate-late.jsonl" "2026-07-18T18:00:20Z"
+expected_late="1/0"
+actual_late=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/postgate-late.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: a review filed after the marker does not back it" "$expected_late" "$actual_late"
+
+# ── 22d · the bug gate's own verdict patterns tolerate the full-width colon ──
+# bug-gate is the one call site that cannot inherit the rubric's i18n-aware
+# patterns, so its two module constants must be kept in step with them by hand.
+expected_fullwidth_const="pass:yes verdict:yes"
+actual_fullwidth_const=$(python3 - "$SCAN" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+line = "Compliance Review：PASS"
+print("pass:%s verdict:%s" % ("yes" if m.COMPLIANCE_PASS_RE.search(line) else "no",
+                              "yes" if m.COMPLIANCE_VERDICT_RE.search(line) else "no"))
+PY
+)
+check "bug-gate constants match a full-width colon, as the rubric's do" "$expected_fullwidth_const" "$actual_fullwidth_const"
 
 # ── 23 · a <task-notification> harness turn is not a prompt — it opens no run ──
 d=$(tmpdir)
@@ -561,6 +638,7 @@ cat >"$d/skillonly.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-25T09:00:05Z","message":{"content":[{"type":"text","text":"Forging."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
 {"type":"assistant","timestamp":"2026-07-25T09:00:10Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"},{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
 JSON
+reviewer "$d/skillonly.jsonl" "2026-07-25T09:00:08Z"
 expected_skillonly="1/1"
 actual_skillonly=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/skillonly.jsonl" <<'PY'
 import importlib.util as u, sys, json
@@ -594,9 +672,9 @@ PY
 check "a read-only skill invocation opens a run but starts no segment" "$expected_skillreadonly" "$actual_skillreadonly"
 
 # ── 24 · post-gate scorer: a run opened before the item's `since` date is not billed ──
-# The pre-cutoff run would fully comply (Agent + marker) — proving it's excluded
-# by date, not by failing the gate; the post-cutoff run lacks an Agent call, so
-# the expected split is 1 applied / 0 complied.
+# The pre-cutoff run carries both an Agent call and a marker, yet is dropped by
+# _prompt_runs before any evidence is weighed — excluded by date, not by failing
+# the gate. The post-cutoff run has no review at all, so the split is 1/0.
 d=$(tmpdir)
 cat >"$d/since.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-10T09:00:00Z","message":{"content":"fix the widget"}}
@@ -632,6 +710,7 @@ cat >"$d/segment-steer.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-18T11:01:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
 {"type":"assistant","timestamp":"2026-07-18T11:01:12Z","message":{"content":[{"type":"text","text":"Reviewed and verified.\nCompliance Review: PASS"}]}}
 JSON
+reviewer "$d/segment-steer.jsonl" "2026-07-18T11:01:08Z"
 expected_segment_steer="1/1"
 actual_segment_steer=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/segment-steer.jsonl" <<'PY'
 import importlib.util as u, sys, json
@@ -656,6 +735,7 @@ cat >"$d/segment-split.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-18T12:02:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
 {"type":"assistant","timestamp":"2026-07-18T12:02:10Z","message":{"content":[{"type":"text","text":"Done, no verdict."}]}}
 JSON
+reviewer "$d/segment-split.jsonl" "2026-07-18T12:00:08Z"
 expected_segment_split="2/1"
 actual_segment_split=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/segment-split.jsonl" <<'PY'
 import importlib.util as u, sys, json
@@ -677,6 +757,7 @@ cat >"$d/fullwidth-colon.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-18T13:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
 {"type":"assistant","timestamp":"2026-07-18T13:00:12Z","message":{"content":[{"type":"text","text":"Reviewed and verified.\nCompliance Review：PASS"}]}}
 JSON
+reviewer "$d/fullwidth-colon.jsonl" "2026-07-18T13:00:08Z"
 expected_fullwidth="1/1"
 actual_fullwidth=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/fullwidth-colon.jsonl" <<'PY'
 import importlib.util as u, sys, json
@@ -691,7 +772,7 @@ check "post-gate scorer: a full-width colon after the marker still complies" "$e
 
 # ── 25c · post-gate scorer: an explicitly SKIPPED segment is excluded from
 #          both applied and complied — not penalized, not credited — and no
-#          Agent call is required to back it (the marker itself is the
+#          review is required to back it (the marker itself is the
 #          decision, unlike PASS/FAIL) ──
 d=$(tmpdir)
 cat >"$d/skipped.jsonl" <<'JSON'
@@ -740,6 +821,7 @@ cat >"$d/complied-and-mentions-skip.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-18T16:00:10Z","message":{"content":[{"type":"text","text":"On reflection: Compliance Review: SKIPPED (reason: seemed minor) — no, let me actually check this properly."}]}}
 {"type":"assistant","timestamp":"2026-07-18T16:00:12Z","message":{"content":[{"type":"text","text":"Reviewed and verified.\nCompliance Review: PASS"}]}}
 JSON
+reviewer "$d/complied-and-mentions-skip.jsonl" "2026-07-18T16:00:08Z"
 expected_notskipped="1/1"
 actual_notskipped=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/complied-and-mentions-skip.jsonl" <<'PY'
 import importlib.util as u, sys, json
@@ -1423,6 +1505,7 @@ cat >"$d/bug1.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-25T09:21:00Z","message":{"content":"looks good"}}
 {"type":"assistant","timestamp":"2026-07-25T09:21:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Compliance Review: PASS"}]}}
 JSON
+reviewer "$d/bug1.jsonl" "2026-07-25T09:20:30Z"
 mkdir -p "$d/pulse"
 echo '{"bug1:1":"accepted"}' >"$d/pulse/verdicts.json"
 expected_bugseg="3|bug1:3,bug1:11|1/1"
@@ -1487,6 +1570,7 @@ cat >"$d2/bug2.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-25T09:30:00Z","message":{"content":"add feature W"}}
 {"type":"assistant","timestamp":"2026-07-25T09:30:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Done W."},{"type":"tool_use","id":"t4","name":"Edit","input":{}}]}}
 JSON
+reviewer "$d2/bug2.jsonl" "2026-07-25T09:20:30Z"
 mkdir -p "$d2/pulse"
 echo '{"bug2:1":"accepted"}' >"$d2/pulse/verdicts.json"
 # The report at bug2:7 ("add feature Y") only ever saw completion bug2:3 ("go")
@@ -1559,39 +1643,67 @@ PY
 )
 check "bug-gate wired into apply_rubric: plan.bug-reported flips pending -> ok" "$expected_wired" "$actual_wired"
 
-# ── 55 · review-verdict scorer: the rate is PASS over the reviews actually run ──
-# Three segments, read-only runs between them so the fold keeps them apart: one
-# closes PASS, one closes FAIL, one closes silent. Only the first two are asked
-# about — 2 reviews run, 1 of them clean.
+# ── 55 · review-verdict scorer: the rate is PASS over the reviews actually run,
+#         read from each reviewer's own transcript ──
+# The thread closes PASS, as it always does — findings are mended before the
+# done report is written. Behind it stand four subagents: one reported FAIL,
+# one PASS, one was no reviewer at all, and one predates the rule's birth. So
+# 2 reviews run, 1 of them clean — and the thread's own PASS decides nothing.
+# The FAIL reviewer quotes the rule before it settles; the last match rules.
 d=$(tmpdir)
+mkdir -p "$d/verdict/subagents"
 cat >"$d/verdict.jsonl" <<'JSON'
-{"type":"user","timestamp":"2026-07-20T10:00:00Z","message":{"content":"fix the first widget"}}
-{"type":"assistant","timestamp":"2026-07-20T10:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
-{"type":"assistant","timestamp":"2026-07-20T10:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
-{"type":"assistant","timestamp":"2026-07-20T10:00:10Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"}]}}
-{"type":"user","timestamp":"2026-07-20T10:01:00Z","message":{"content":"good"}}
-{"type":"assistant","timestamp":"2026-07-20T10:01:05Z","message":{"content":[{"type":"text","text":"Aye."}]}}
-{"type":"user","timestamp":"2026-07-20T10:02:00Z","message":{"content":"now the second widget"}}
-{"type":"assistant","timestamp":"2026-07-20T10:02:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
-{"type":"assistant","timestamp":"2026-07-20T10:02:08Z","message":{"content":[{"type":"tool_use","id":"a2","name":"Agent","input":{}}]}}
-{"type":"assistant","timestamp":"2026-07-20T10:02:10Z","message":{"content":[{"type":"text","text":"The reviewer found a missing test.\nCompliance Review: FAIL"}]}}
-{"type":"user","timestamp":"2026-07-20T10:03:00Z","message":{"content":"noted"}}
-{"type":"assistant","timestamp":"2026-07-20T10:03:05Z","message":{"content":[{"type":"text","text":"Aye."}]}}
-{"type":"user","timestamp":"2026-07-20T10:04:00Z","message":{"content":"and the third widget"}}
-{"type":"assistant","timestamp":"2026-07-20T10:04:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t3","name":"Edit","input":{}}]}}
-{"type":"assistant","timestamp":"2026-07-20T10:04:10Z","message":{"content":[{"type":"text","text":"Done."}]}}
+{"type":"user","timestamp":"2026-07-20T10:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-20T10:00:05Z","message":{"model":"claude-opus-5","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-20T10:00:08Z","message":{"model":"claude-opus-5","content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-20T10:00:20Z","message":{"model":"claude-opus-5","content":[{"type":"text","text":"Finding mended.\nCompliance Review: PASS"}]}}
 JSON
-expected_verdict="2/1"
+cat >"$d/verdict/subagents/agent-a1.jsonl" <<'JSON'
+{"type":"assistant","timestamp":"2026-07-20T10:00:10Z","message":{"model":"claude-haiku-4-5-20251001","content":[{"type":"text","text":"The rule asks me to close with Compliance Review: PASS or FAIL.\nA test is missing on the new branch.\nCompliance Review: FAIL"}]}}
+JSON
+cat >"$d/verdict/subagents/agent-a2.jsonl" <<'JSON'
+{"type":"assistant","timestamp":"2026-07-20T10:00:15Z","message":{"model":"claude-haiku-4-5-20251001","content":[{"type":"text","text":"Nothing amiss.\nCompliance Review: PASS"}]}}
+JSON
+cat >"$d/verdict/subagents/agent-a3.jsonl" <<'JSON'
+{"type":"assistant","timestamp":"2026-07-20T10:00:16Z","message":{"model":"claude-haiku-4-5-20251001","content":[{"type":"text","text":"Found three call sites under lib/."}]}}
+JSON
+cat >"$d/verdict/subagents/agent-a4.jsonl" <<'JSON'
+{"type":"assistant","timestamp":"2026-07-01T09:00:00Z","message":{"model":"claude-haiku-4-5-20251001","content":[{"type":"text","text":"Compliance Review: FAIL"}]}}
+JSON
+expected_verdict="2/1 author:claude-opus-5"
 actual_verdict=$(python3 - "$SCAN" "$REVIEW_ENTRY" "$d/verdict.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 entry = json.load(open(sys.argv[2], encoding="utf-8"))
 turns = m.read_turns(sys.argv[3])
-a, c, _ = m.score_review_verdict(turns, entry)
-print("%d/%d" % (a, c))
+a, c, by_model = m.score_review_verdict(turns, entry)
+print("%d/%d author:%s" % (a, c, ",".join(sorted(by_model))))
 PY
 )
 check "review-verdict scorer: PASS over the reviews actually run" "$expected_verdict" "$actual_verdict"
+
+# ── 55b · the thread's own closing line cannot score the row ──
+# The old scorer read this line, and since the thread only ever writes PASS —
+# the findings are fixed before the done report — the rate was 100% by
+# construction. With no reviewer transcript beside it, the session now scores
+# nothing at all.
+d=$(tmpdir)
+cat >"$d/self-graded.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-20T10:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-20T10:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-20T10:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-20T10:00:10Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"}]}}
+JSON
+expected_selfgraded="0/0"
+actual_selfgraded=$(python3 - "$SCAN" "$REVIEW_ENTRY" "$d/self-graded.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+a, c, _ = m.score_review_verdict(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "review-verdict: the thread grading itself scores nothing" "$expected_selfgraded" "$actual_selfgraded"
 
 # ── 56 · the excluded population is counted and split by why ──
 # Same three-segment shape: one silent, one explicitly SKIPPED, one reviewed.
@@ -1613,6 +1725,7 @@ cat >"$d/unreviewed.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-21T10:04:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
 {"type":"assistant","timestamp":"2026-07-21T10:04:10Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"}]}}
 JSON
+reviewer "$d/unreviewed.jsonl" "2026-07-21T10:04:09Z"
 expected_unreviewed="silent:1 skipped:1"
 actual_unreviewed=$(python3 - "$SCAN" "$REVIEW_ENTRY" "$d/unreviewed.jsonl" <<'PY'
 import importlib.util as u, sys, json
@@ -1624,7 +1737,7 @@ PY
 )
 check "review-verdict: excluded segments counted, silent split from skipped" "$expected_unreviewed" "$actual_unreviewed"
 
-# ── 57 · a verdict typed with no Agent behind it is not a review — it enters
+# ── 57 · a verdict typed with no reviewer behind it is not a review — it enters
 #         neither side of the ratio, and lands in the silent bucket ──
 d=$(tmpdir)
 cat >"$d/verdict-noagent.jsonl" <<'JSON'
@@ -1647,23 +1760,22 @@ check "review-verdict: an unbacked verdict is no review — excluded, counted si
 
 # ── 58 · the live rubric's review.verdict entry is wired end to end, and its
 #         patterns tolerate the full-width colon a Chinese verdict line may bear ──
+# Two reviewers behind one segment — a heavy task's per-step audits — one clean,
+# one not. The segment itself closes silent, so it lands in the excluded count
+# while its two reviews still score.
 d=$(tmpdir)
+mkdir -p "$d/verdict-live/subagents"
 cat >"$d/verdict-live.jsonl" <<'JSON'
-{"type":"user","timestamp":"2026-07-23T10:00:00Z","message":{"content":"fix the first widget"}}
+{"type":"user","timestamp":"2026-07-23T10:00:00Z","message":{"content":"fix the widget"}}
 {"type":"assistant","timestamp":"2026-07-23T10:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
 {"type":"assistant","timestamp":"2026-07-23T10:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-23T10:00:20Z","message":{"content":[{"type":"text","text":"Done."}]}}
+JSON
+cat >"$d/verdict-live/subagents/agent-b1.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-23T10:00:10Z","message":{"content":[{"type":"text","text":"Compliance Review：PASS"}]}}
-{"type":"user","timestamp":"2026-07-23T10:01:00Z","message":{"content":"good"}}
-{"type":"assistant","timestamp":"2026-07-23T10:01:05Z","message":{"content":[{"type":"text","text":"Aye."}]}}
-{"type":"user","timestamp":"2026-07-23T10:02:00Z","message":{"content":"now the second widget"}}
-{"type":"assistant","timestamp":"2026-07-23T10:02:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
-{"type":"assistant","timestamp":"2026-07-23T10:02:08Z","message":{"content":[{"type":"tool_use","id":"a2","name":"Agent","input":{}}]}}
-{"type":"assistant","timestamp":"2026-07-23T10:02:10Z","message":{"content":[{"type":"text","text":"Compliance Review: FAIL"}]}}
-{"type":"user","timestamp":"2026-07-23T10:03:00Z","message":{"content":"noted"}}
-{"type":"assistant","timestamp":"2026-07-23T10:03:05Z","message":{"content":[{"type":"text","text":"Aye."}]}}
-{"type":"user","timestamp":"2026-07-23T10:04:00Z","message":{"content":"and the third widget"}}
-{"type":"assistant","timestamp":"2026-07-23T10:04:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t3","name":"Edit","input":{}}]}}
-{"type":"assistant","timestamp":"2026-07-23T10:04:10Z","message":{"content":[{"type":"text","text":"Done."}]}}
+JSON
+cat >"$d/verdict-live/subagents/agent-b2.jsonl" <<'JSON'
+{"type":"assistant","timestamp":"2026-07-23T10:00:15Z","message":{"content":[{"type":"text","text":"Compliance Review: FAIL"}]}}
 JSON
 expected_live="ok|2|1|50|silent:1 skipped:0"
 actual_live=$(python3 - "$SCAN" "$RUBRIC" "$d/verdict-live.jsonl" <<'PY'
@@ -1699,6 +1811,7 @@ cat >"$d/compliance-live.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-24T10:04:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t3","name":"Edit","input":{}}]}}
 {"type":"assistant","timestamp":"2026-07-24T10:04:10Z","message":{"content":[{"type":"text","text":"Compliance Review: SKIPPED (reason: a version bump touching no logic)"}]}}
 JSON
+reviewer "$d/compliance-live.jsonl" "2026-07-24T10:00:08Z"
 expected_compliance_live="ok|2|1|50|skipped:1"
 actual_compliance_live=$(python3 - "$SCAN" "$RUBRIC" "$d/compliance-live.jsonl" <<'PY'
 import importlib.util as u, sys, json
