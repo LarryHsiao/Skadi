@@ -218,6 +218,27 @@ class NewestVersionTest(unittest.TestCase):
         self.assertEqual(expected, result)
 
 
+class WindowTest(unittest.TestCase):
+    """60 days is the BigQuery export's horizon — it means nothing to a scrape."""
+
+    def test_a_payload_declaring_its_window_keeps_it(self):
+        expected = 7
+        result = beleg.window_of({"window_days": 7})
+        self.assertEqual(expected, result)
+
+    def test_a_payload_with_no_window_reports_none_rather_than_guessing(self):
+        expected = None
+        result = beleg.window_of({})
+        self.assertEqual(expected, result)
+
+    def test_an_unknown_window_is_declared_on_the_page(self):
+        page = beleg.render_page({"source": "console", "window_days": None,
+                                  "missing_signals": [], "issues": []})
+        expected = True
+        result = "window not stated" in page
+        self.assertEqual(expected, result)
+
+
 class RenderTest(unittest.TestCase):
     def test_renders_with_no_issues_without_crashing(self):
         page = beleg.render_page(

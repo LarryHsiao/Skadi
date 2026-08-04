@@ -258,6 +258,8 @@ def render_page(brief):
     frame rests on fewer signals than one computed with it, and the page says
     which were missing rather than letting the reader assume completeness.
     """
+    window = brief.get("window_days")
+    span = f"window {window} days" if window else "window not stated"
     absent = brief["missing_signals"]
     caveat = (f"<p class=gap>Ranked without: {', '.join(absent)} — "
               f"this source could not supply them.</p>") if absent else ""
@@ -278,13 +280,24 @@ def render_page(brief):
  .gap{{opacity:.75;font-style:italic}}
 </style>
 <h1>Crashes by value</h1>
-<p>Source: <b>{esc(brief['source'])}</b> · window {brief['window_days']} days ·
+<p>Source: <b>{esc(brief['source'])}</b> · {span} ·
    {len(brief['issues'])} issue(s)</p>
 {caveat}
 <table><thead><tr><th class=v>value</th><th>issue</th><th>trend</th>
 <th class=v>users</th><th>blaming frame</th></tr></thead>
 <tbody>{rows}</tbody></table>
 """
+
+
+def window_of(payload):
+    """The window a payload covers, in days — None when it does not say.
+
+    WINDOW_DAYS belongs to the BigQuery export (its partition expiry) and means
+    nothing to a console scrape, which covers whatever range the page was set
+    to. Stamping 60 on a 7-day scrape reports a breadth of evidence that was
+    never gathered, so an unstated window is declared unstated.
+    """
+    return payload.get("window_days")
 
 
 def esc(text):
@@ -314,12 +327,14 @@ def main(argv):
     if args.from_json:
         payload = json.loads(Path(args.from_json).read_text(encoding="utf-8"))
         issues, source = payload.get("issues", []), payload.get("source", "console")
+        window = window_of(payload)
     else:
         if not (args.project and args.bundle):
             ap.error("--project and --bundle are required without --from-json")
         issues, source = collect(args.project, args.bundle, args.platform,
                                  args.account), "bigquery"
-    brief = {"source": source, "window_days": WINDOW_DAYS,
+        window = WINDOW_DAYS
+    brief = {"source": source, "window_days": window,
              "missing_signals": missing_signals(issues), "issues": rank(issues)}
     HENNETH.mkdir(parents=True, exist_ok=True)
     out = HENNETH / "beleg-crashes.html"

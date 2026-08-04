@@ -61,25 +61,59 @@ Only on exit 2. A hook cannot do this: the Chrome tools are MCP and belong to th
 model, not to a subprocess. So the scrape is yours to drive.
 
 1. Load the browser tools in **one** `ToolSearch` call, then `tabs_context_mcp`.
-2. Navigate to `console.firebase.google.com/project/<project>/crashlytics`.
-3. If it shows a sign-in page or an empty project chooser, **stop and tell the
-   user which account Chrome is signed in as.** The wrong identity renders an
-   empty console that looks exactly like an app with no crashes.
-4. Read the issue list with `get_page_text` or `read_page`. Take the issue title,
-   subtitle, event count, and users-affected column.
-5. Write them to a temp file in the scratchpad as
-   `{"source": "console", "issues": [...]}` using the issue shape documented at
-   the top of `beleg-crashes.py`, then rank them through the same scorer:
+2. **Confirm the account before navigating anywhere.** Do not guess the `/u/N`
+   index — a work identity and a personal one see disjoint halves of Firebase,
+   and the wrong one renders a "project does not exist" page indistinguishable
+   from a project with no crashes. Open the account menu, or check an already-open
+   tab's URL, and read the index from that. Guessing `/u/1` on a machine whose
+   work account sat at `/u/0` cost a full round of confusion.
+3. Navigate to the **deep issues URL**, not the project root — the latter does not
+   resolve to a list:
+
+   ```
+   console.firebase.google.com/u/<N>/project/<project>/crashlytics/app/<platform>:<bundle>/issues?state=open&time=90d&types=crash&tag=all
+   ```
+
+   Set `time` deliberately. The console defaults to `7d`, far narrower than the
+   export's 60. Set the sort deliberately too — the console's default is
+   `sort=eventCount`, which is precisely the ranking this skill exists to reject;
+   what it orders by does not matter, since the scorer re-ranks, but never report
+   the console's order as if it were a finding.
+4. Read the issue list with `get_page_text`. Per issue take: the title (the
+   exception line), the subtitle (the symbol), the **blaming `file:line`**, the
+   version range, and the events and users counts.
+
+   **The console does show a blaming frame** — `package:…/foo.dart:198` sits
+   right under the symbol. Carry it into `blame_frame` and set `in_package`
+   accordingly; a scraped run is *not* frame-blind, and step 4 below applies to
+   it in full. On the first real run, reading the source at a scraped frame is
+   what overturned a diagnosis the stack trace alone had got wrong.
+5. Three parsing rules the console's shape imposes:
+   - **Versions come as a range** (`2.2.0 – 2.3.0`), not a list. Record the
+     endpoints.
+   - **A new issue is badged** (`新問題` / "New issue"). Pass that as an explicit
+     `trend: "new"` — the badge is Crashlytics' own verdict and beats anything
+     derived from dates, especially inside a narrow window where every issue
+     looks new.
+   - **The stated "latest release" can be lower than a version in the list.**
+     When they disagree, say so rather than picking one silently; it usually
+     means something is shipping ahead of what the console considers current.
+6. Write the payload to the scratchpad and rank it through the same scorer:
+
+```json
+{"source": "console (<project> · <platform>)", "window_days": 90, "issues": [ … ]}
+```
 
 ```bash
 ~/.claude/hooks/beleg-crashes.py --from-json <file>
 ```
 
+**Declare the window you actually scraped.** `window_days` is yours to set here;
+omit it and the brief says "window not stated" rather than borrowing the
+export's 60-day horizon, which would claim a breadth of evidence never gathered.
+
 **Never hand-rank.** Routing the console's issues through `--from-json` is what
 keeps one value formula in the repo instead of two that drift.
-
-The console cannot give you a blaming frame, so `missing_signals` will name
-`actionability` — and step 5 is skipped for those issues. Say this in the brief.
 
 ## 4. Read the code at the blaming frame
 
