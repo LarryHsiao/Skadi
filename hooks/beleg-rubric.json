@@ -1,0 +1,28 @@
+{
+  "_note": "Weights for /beleg's crash value score. Tunable here so the ranking can be argued with without editing code — the pattern hooks/pulse-rubric.json sets.",
+  "users_exponent": 0.7,
+  "users_exponent_criterion": "Blast radius, flattened. ✓ a fault touching many distinct users outranks one touching few · ✗ raw event count, which lets a single user's retry loop out-shout a fleet-wide fault.",
+
+  "trend": {
+    "new": 2.0,
+    "regressed": 1.6,
+    "steady": 1.0,
+    "fading": 0.6
+  },
+  "trend_criterion": "Fresh damage outranks an old ache. ✓ first seen inside the new_within_days window reads 'new'; last seen before the fading_after_days cutoff reads 'fading' · ✗ a crash absent from recent builds ranked as though it were still landing.",
+  "new_within_days": 7,
+  "fading_after_days": 14,
+
+  "version_concentration": {
+    "latest_only": 1.5,
+    "spread": 1.0
+  },
+  "version_concentration_criterion": "A crash confined to the newest build is a shipped regression. ✓ every recorded version equals the latest known version · ✗ a crash spread evenly across releases treated as new breakage.",
+
+  "actionability": {
+    "in_package": 1.0,
+    "third_party": 0.3,
+    "unknown": 1.0
+  },
+  "actionability_criterion": "A crash you cannot reach is not worth the top slot. ✓ the blaming frame lands in first-party code · ✗ a loud fault deep in a vendor SDK ranked above a quieter one you could fix today. 'unknown' is neutral, never a penalty — the console source cannot see the frame, and absent evidence must not read as a verdict."
+}
