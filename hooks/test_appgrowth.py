@@ -2,9 +2,11 @@
 """Tests for the appgrowth dashboard's pure helpers."""
 
 import importlib.util
+import subprocess
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 _spec = importlib.util.spec_from_file_location("appgrowth", HERE / "appgrowth.py")
@@ -88,6 +90,60 @@ class RenderResilienceTest(unittest.TestCase):
         page = app.render_page(headline, [], [], date(2026, 6, 10))
         expected = True
         result = "METIS · GROWTH" in page
+        self.assertEqual(expected, result)
+
+
+class BqRowsTest(unittest.TestCase):
+    """A refused query and an empty one must not read alike."""
+
+    def run_with(self, returncode, stdout="", stderr=""):
+        completed = subprocess.CompletedProcess(
+            args=[], returncode=returncode, stdout=stdout, stderr=stderr)
+        with mock.patch.object(app.subprocess, "run", return_value=completed):
+            return app.bq_rows("SELECT 1", "someone@example.com")
+
+    def test_valid_json_returns_its_rows(self):
+        expected = [{"users": "42"}]
+        result = self.run_with(0, stdout='[{"users": "42"}]')
+        self.assertEqual(expected, result)
+
+    def test_empty_output_returns_no_rows(self):
+        expected = []
+        result = self.run_with(0, stdout="")
+        self.assertEqual(expected, result)
+
+    def test_refused_query_raises_with_the_bq_message(self):
+        denied = "Access Denied: Project metis-362623: User does not have bigquery.jobs.create"
+        with self.assertRaises(app.QueryFailure) as caught:
+            self.run_with(1, stderr=denied)
+        expected = True
+        result = denied in str(caught.exception)
+        self.assertEqual(expected, result)
+
+    def test_unparseable_output_raises_rather_than_reading_empty(self):
+        with self.assertRaises(app.QueryFailure) as caught:
+            self.run_with(0, stdout="Reauthentication failed.")
+        expected = True
+        result = "unparseable" in str(caught.exception)
+        self.assertEqual(expected, result)
+
+
+class MissingToolTest(unittest.TestCase):
+    """An absent CLI must read as a plain message, never a traceback."""
+
+    def test_absent_bq_raises_naming_the_tool(self):
+        with mock.patch.object(app.subprocess, "run", side_effect=FileNotFoundError):
+            with self.assertRaises(app.QueryFailure) as caught:
+                app.bq_rows("SELECT 1", "someone@example.com")
+        expected = True
+        result = "bq" in str(caught.exception)
+        self.assertEqual(expected, result)
+
+    def test_absent_firebase_yields_no_account(self):
+        with mock.patch.dict(app.os.environ, {}, clear=True):
+            with mock.patch.object(app.subprocess, "run", side_effect=FileNotFoundError):
+                expected = ""
+                result = app.account()
         self.assertEqual(expected, result)
 
 

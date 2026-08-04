@@ -42,7 +42,11 @@ def account():
     acct = os.environ.get("GROWTH_ACCOUNT")
     if acct:
         return acct
-    out = subprocess.run([exe("firebase"), "login:list"], capture_output=True, text=True).stdout
+    try:
+        out = subprocess.run(
+            [exe("firebase"), "login:list"], capture_output=True, text=True).stdout
+    except FileNotFoundError:
+        return ""   # no firebase CLI — main() reports the missing account plainly
     for line in out.splitlines():
         for word in line.replace(",", " ").split():
             if "@" in word:
@@ -50,16 +54,32 @@ def account():
     return ""
 
 
+class QueryFailure(RuntimeError):
+    """A bq invocation that never ran the query — distinct from one returning no rows.
+
+    Without this distinction an expired token, a missing IAM grant, and a
+    genuinely empty dataset all read as "no analytics rows", and the real
+    cause never reaches the user.
+    """
+
+
 def bq_rows(sql, acct):
     """Run a BigQuery query as the apps' account; rows as a list of dicts."""
     env = {**os.environ, "CLOUDSDK_CORE_ACCOUNT": acct} if acct else dict(os.environ)
     cmd = [exe("bq"), "query", f"--project_id={PROJECT}", "--use_legacy_sql=false",
            "--format=json", f"--maximum_bytes_billed={MAX_BYTES}", "--quiet", sql]
-    out = subprocess.run(cmd, capture_output=True, text=True, env=env).stdout
     try:
-        return json.loads(out or "[]")
+        completed = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    except FileNotFoundError:
+        raise QueryFailure("the `bq` CLI is not on PATH — install the Google Cloud SDK")
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout).strip() \
+            or f"bq exited {completed.returncode}"
+        raise QueryFailure(detail)
+    try:
+        return json.loads(completed.stdout or "[]")
     except ValueError:
-        return []
+        raise QueryFailure(f"unparseable bq output: {completed.stdout.strip()[:200]!r}")
 
 
 def ymd(d):
@@ -213,11 +233,14 @@ def main():
     if not acct:
         sys.exit("appgrowth: no account — set GROWTH_ACCOUNT or run `firebase login`.")
     anchor = date.today() - timedelta(days=GA_LAG_DAYS)
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        f_h = pool.submit(headline, acct, anchor)
-        f_w = pool.submit(weekly, acct, anchor)
-        f_d = pool.submit(daily, acct, anchor)
-        h, wk, dl = f_h.result(), f_w.result(), f_d.result()
+    try:
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            f_h = pool.submit(headline, acct, anchor)
+            f_w = pool.submit(weekly, acct, anchor)
+            f_d = pool.submit(daily, acct, anchor)
+            h, wk, dl = f_h.result(), f_w.result(), f_d.result()
+    except QueryFailure as failure:
+        sys.exit(f"appgrowth: BigQuery query failed for {PROJECT} as {acct} — {failure}")
     if not wk and not dl:
         sys.exit(f"appgrowth: no analytics rows for {PROJECT} — check access / dataset.")
     HENNETH.mkdir(parents=True, exist_ok=True)
