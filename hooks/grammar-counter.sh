@@ -9,7 +9,7 @@ TODAY=$(date +%Y-%m-%d)
 if [ -f "$GRAMMAR_LOG" ]; then
     last_date=$(head -1 "$GRAMMAR_LOG" | tr -d '\r\n ')
     if [ "$last_date" != "$TODAY" ]; then
-        > "$GRAMMAR_LOG"
+        : > "$GRAMMAR_LOG"
     fi
 fi
 

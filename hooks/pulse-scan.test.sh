@@ -156,7 +156,7 @@ cat >"$d/r1/projects/proj-a/s.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-09T10:01:00Z","message":{"content":"good, thanks"}}
 {"type":"assistant","timestamp":"2026-07-09T10:01:05Z","message":{"content":[{"type":"text","text":"You are welcome."}]}}
 JSON
-out=$(PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" PULSE_RUBRIC="$FIXTURE_RUBRIC" python3 "$SCAN" 2>/dev/null)
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$(tmpdir)" PULSE_RUBRIC="$FIXTURE_RUBRIC" python3 "$SCAN" >/dev/null 2>&1
 # glorfindel: 1/1 → 100 ; grammar: 1 clean prompt ("good, thanks") → 1/1 → 100 ; commit-footer: pending
 expected_orch="100/100/pending"
 actual_orch=$(python3 - "$board/pulse.json" <<'PY'

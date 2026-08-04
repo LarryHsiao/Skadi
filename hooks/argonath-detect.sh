@@ -20,7 +20,15 @@ if [ -z "$REPO_ROOT" ]; then
   jq -nc '{stack:"unknown",lint:"",format:"",build:"",test:"",test_scope:"full",source:"default"}'
   exit 0
 fi
-cd "$REPO_ROOT"
+# A root git named but that cannot be entered is a broken repo, not a missing
+# one: carrying on would detect the stack against whatever tree the caller
+# stood in and report it as this repo's. Keep the JSON contract so the caller
+# can still parse a reply, but exit non-zero — the branch above returns the
+# same shape with status 0, and the two must not read alike.
+if ! cd "$REPO_ROOT"; then
+  jq -nc '{stack:"unknown",lint:"",format:"",build:"",test:"",test_scope:"full",source:"default"}'
+  exit 1
+fi
 
 stack="unknown"
 lint=""

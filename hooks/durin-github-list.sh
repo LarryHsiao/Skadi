@@ -71,6 +71,8 @@ fi
 raw_log=$(mktemp)
 trap 'rm -f "$raw_log"' EXIT
 
+# shellcheck disable=SC2054  # the commas belong to gh's --json field list,
+# which is one argument; spaces here would make each field its own word.
 args=( pr list --repo "$repo_slug" --state open --limit 100 --json url,number,title,body,headRefName,baseRefName )
 if [[ "$SCOPE" == "mine" ]]; then
   args+=( --author "@me" )

@@ -127,6 +127,11 @@ PYEOF
     # Expand a literal leading ~ (not ~user/... forms, which stay
     # unhandled and skipped) the same narrow way dir-guard.sh's own
     # DEV_DIRS parsing does.
+    # The quoted tildes below are case *patterns* matched against a token that
+    # literally begins with "~"; expanding them would break the match. The
+    # directive sits here rather than on the branch itself — shellcheck accepts
+    # one only in front of a complete command, never inside a case body.
+    # shellcheck disable=SC2088
     case "$TOKEN" in
       "~"|"~/"*) TOKEN="${TOKEN/#\~/$HOME}" ;;
       "~"*) continue ;;

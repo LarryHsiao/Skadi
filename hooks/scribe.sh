@@ -272,7 +272,6 @@ SECTION_BODY="$(printf '%s' "$SECTION_BODY" | awk 'NF{p=1} p' | awk '{lines[NR]=
 
 SOURCE_LINE="$(grep -m1 -E '^_Source:' "$FILE" || true)"
 FIGMA_NODE_ID=""
-FIGMA_FILE_KEY=""
 FIGMA_URL=""
 
 if [[ -n "$SOURCE_LINE" ]]; then
@@ -280,7 +279,6 @@ if [[ -n "$SOURCE_LINE" ]]; then
   FIGMA_URL="$(printf '%s' "$SOURCE_LINE" | grep -oE 'https://[A-Za-z0-9./_?&%=#:-]*figma\.com[A-Za-z0-9./_?&%=#:-]*' | head -1 || true)"
 
   if [[ -n "$FIGMA_URL" ]]; then
-    FIGMA_FILE_KEY="$(printf '%s' "$FIGMA_URL" | sed -nE 's|.*figma\.com/(design\|file\|make)/([A-Za-z0-9]+).*|\2|p' | head -1)"
     # node-id in URL is dash-separated (e.g. `38000-47648`); convert to colon.
     nid_dash="$(printf '%s' "$FIGMA_URL" | grep -oE 'node-id=[0-9]+-[0-9]+' | head -1 | sed 's|node-id=||')"
     if [[ -n "$nid_dash" ]]; then
