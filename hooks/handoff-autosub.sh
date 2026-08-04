@@ -3,9 +3,10 @@
 # channel named for the repo it stands in, so sessions sharing a repo can pass
 # messages without anyone running /handoff subscribe by hand.
 #
-# The channel is the basename of the git toplevel, so every session in the repo
-# — including one started in a subdirectory — meets on the same channel. A
-# session standing outside any repo has no repo to name and stays silent.
+# The channel is the basename of the repo root, so every session in the repo —
+# including one started in a subdirectory or in a worktree cut from it — meets
+# on the same channel. A session standing outside any repo has no repo to name
+# and stays silent.
 #
 # Identity is deliberately left to handoff.sh's default (a short slice of the
 # session id) rather than being set to the repo name. The self-filter in
@@ -33,7 +34,18 @@ sid="$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null || true)"
 # self-filter would silence them all. Better to subscribe nobody than everybody.
 [ -n "$sid" ] || exit 0
 
-root="$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null || true)"
+where="${CLAUDE_PROJECT_DIR:-$PWD}"
+# In a worktree `--show-toplevel` answers with the worktree's own root, which
+# would strand each worktree session on a channel of its own. The common git
+# dir points at the origin checkout's .git from every worktree alike, so its
+# parent is the repo they were all cut from. Anything else — a bare repo, a
+# submodule's .git/modules/… , a git too old for --path-format (pre-2.31) —
+# leaves the guard unmatched and falls back to the toplevel as before.
+common="$(cd "$where" 2>/dev/null && git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+case "$common" in
+  */.git) root="$(dirname "$common")" ;;
+  *)      root="$(cd "$where" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null || true)" ;;
+esac
 [ -n "$root" ] || exit 0
 
 here="$(cd "$(dirname "$0")" && pwd)"

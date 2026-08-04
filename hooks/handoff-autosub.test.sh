@@ -100,6 +100,17 @@ check "the hint names the sanitized channel" "$expected_hint" \
   "$(printf '%s' "$odd_ctx" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null \
      | grep -o '/handoff send [^ ]* <message>' || true)"
 
+# 9. A git worktree cut from the repo joins the repo's channel, not one named
+#    for the worktree directory. `--show-toplevel` answers with the worktree's
+#    own root, so a session opened there would otherwise stand alone.
+SID5="5555666677778888"
+git -C "$REPO" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init >/dev/null 2>&1
+tree="$TMP/worktrees/feature_x"
+git -C "$REPO" worktree add -q -b feature_x "$tree" >/dev/null 2>&1
+printf '{"session_id":"%s"}' "$SID5" | CLAUDE_PROJECT_DIR="$tree" "$HOOK" >/dev/null 2>&1
+check "a worktree joins the origin repo's channel" "$expected_channel" \
+  "$(grep '^channel:' "$HANDOFF_ROOT/.subs/$SID5" 2>/dev/null || true)"
+
 if [ "$fail" -eq 0 ]; then
   echo "--- all green ---"
 else
