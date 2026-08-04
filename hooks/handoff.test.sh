@@ -34,6 +34,17 @@ mk_old_message() {
   } >"$dir/${fname}-${from}.md"
 }
 
+# Count the message files in a channel directory. An unmatched glob stays
+# literal here (no nullglob), so the -e test filters the pattern itself; a
+# missing directory therefore counts 0.
+message_count() {
+  local dir="$1" n=0 f
+  for f in "$dir"/*.md; do
+    [ -e "$f" ] && n=$((n + 1))
+  done
+  printf '%s\n' "$n"
+}
+
 check() {
   # check <name> <expected> <actual>
   local name="$1" expected="$2" actual="$3"
@@ -162,7 +173,7 @@ check "poll shows the message once" "take me" \
   "$("$HOOK" poll --session "$SUB_A" | grep 'take me' || true)"
 expected_consumed="0"
 check "the picked-up message is gone from the channel" "$expected_consumed" \
-  "$(ls "$HANDOFF_ROOT/queue"/*.md 2>/dev/null | grep -c . || true)"
+  "$(message_count "$HANDOFF_ROOT/queue")"
 
 # 16. One consumer per message: with the first reader having taken it, a second
 #     subscriber on the same channel receives nothing. This is the queue
@@ -180,7 +191,7 @@ printf 'my own words' | "$HOOK" send echoes --from speaker >/dev/null
 check "own echo is not shown" "" "$("$HOOK" poll --session "$SUB_C")"
 expected_kept="1"
 check "own echo survives the poll" "$expected_kept" \
-  "$(ls "$HANDOFF_ROOT/echoes"/*.md 2>/dev/null | grep -c . || true)"
+  "$(message_count "$HANDOFF_ROOT/echoes")"
 "$HOOK" clear echoes --all >/dev/null
 
 # 18. A channel emptied by pickup leaves no ghost 0-message entry in list —
