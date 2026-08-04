@@ -12,7 +12,8 @@
 #   handoff.sh clear <channel> [--older-than <Nd>] [--all]  # prune/remove messages
 #   handoff.sh subscribe <channel> [--from <label>] [--session <id>]  # watch it
 #   handoff.sh poll [--session <id>]             # print new, non-self messages on
-#                                                # subscribed channels; advance cursors
+#                                                # subscribed channels, deleting each
+#                                                # one it prints; advance cursors
 #
 # `clear` deletes without prompting — the confirm gate is the caller's (skill's)
 # job, matching how /commit and /reset guard destructive acts. With no flag it
@@ -25,6 +26,11 @@
 # $HANDOFF_ROOT/.subs/<session-id>; per-channel read cursors in
 # $HANDOFF_ROOT/.cursors/<session-id>/<channel>. `poll` powers live auto-pickup —
 # the UserPromptSubmit hook handoff-poll.sh wraps it.
+#
+# Pickup consumes: `poll` deletes each message it prints, so a channel is a
+# queue with one consumer per message, not a broadcast. A session that is asleep
+# or subscribes later never sees what another already took. `read` is the
+# non-destructive view — it prints without consuming.
 #
 # Runs under macOS bash 3.2 — no ${var,,}, no declare -A, no mapfile.
 
@@ -315,7 +321,8 @@ cmd_subscribe() {
   echo "subscribed to '$channel' as '$ident' (session $sid)"
 }
 
-# Print new, non-self messages on one channel, then advance its read cursor.
+# Print new, non-self messages on one channel, consuming what was printed, then
+# advance its read cursor.
 poll_channel() {
   local ident="$1" channel="$2" curdir="$3"
   local dir="$HANDOFF_ROOT/$channel"
@@ -338,9 +345,17 @@ poll_channel() {
     echo "────────── $channel ──────────"
     cat "$f"
     echo
+    # Pickup consumes: one reader per message. Only what this session actually
+    # printed is removed — a message skipped just above as my own echo stays,
+    # since the session it was written for has not had it yet.
+    rm -f "$f"
   done
 
   [ -n "$newest" ] && printf '%s' "$newest" >"$cfile"
+  # A channel emptied by pickup would otherwise linger as a ghost 0-message row
+  # in `list`. Best-effort, as in cmd_clear: a dir still holding messages (an
+  # unread echo, a note that arrived mid-loop) simply stays.
+  rmdir "$dir" 2>/dev/null || true
   return 0
 }
 

@@ -153,6 +153,41 @@ check "read --older-than notice when nothing matches" \
   "$("$HOOK" read prune-readnotice --older-than 30d)"
 "$HOOK" clear prune-readnotice --all >/dev/null
 
+# 15. Pickup consumes: a message poll prints is removed from the channel, so a
+#     second poll by the same session finds nothing left to show.
+SUB_A="aaaa1111bbbb2222"
+"$HOOK" subscribe queue --session "$SUB_A" --from reader_a >/dev/null
+printf 'take me' | "$HOOK" send queue --from writer >/dev/null
+check "poll shows the message once" "take me" \
+  "$("$HOOK" poll --session "$SUB_A" | grep 'take me' || true)"
+expected_consumed="0"
+check "the picked-up message is gone from the channel" "$expected_consumed" \
+  "$(ls "$HANDOFF_ROOT/queue"/*.md 2>/dev/null | grep -c . || true)"
+
+# 16. One consumer per message: with the first reader having taken it, a second
+#     subscriber on the same channel receives nothing. This is the queue
+#     semantics the design chose — asserted here so it cannot regress silently.
+SUB_B="cccc3333dddd4444"
+"$HOOK" subscribe queue --session "$SUB_B" --from reader_b >/dev/null
+check "a second subscriber gets nothing after the first took it" "" \
+  "$("$HOOK" poll --session "$SUB_B")"
+
+# 17. A message skipped as the poller's own echo is NOT consumed — it was never
+#     picked up, and the session it was written for is still owed it.
+SUB_C="eeee5555ffff6666"
+"$HOOK" subscribe echoes --session "$SUB_C" --from speaker >/dev/null
+printf 'my own words' | "$HOOK" send echoes --from speaker >/dev/null
+check "own echo is not shown" "" "$("$HOOK" poll --session "$SUB_C")"
+expected_kept="1"
+check "own echo survives the poll" "$expected_kept" \
+  "$(ls "$HANDOFF_ROOT/echoes"/*.md 2>/dev/null | grep -c . || true)"
+"$HOOK" clear echoes --all >/dev/null
+
+# 18. A channel emptied by pickup leaves no ghost 0-message entry in list —
+#     the same guarantee clear's prune already makes (test 10).
+check "channel emptied by pickup dropped from list" "" \
+  "$("$HOOK" list | grep '^queue' || true)"
+
 # Note: baton mode (/handoff send <channel> with no message) is the SKILL's
 # job — it composes the body and pipes it to `send`, which this suite already
 # covers. The composition itself is model-authored and cannot be shell-tested.

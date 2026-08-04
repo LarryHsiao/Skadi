@@ -123,6 +123,14 @@ further. A message is picked up when it sits on a subscribed channel **and** its
 `from` differs from this session's own identity (a session never hears its own
 echo). The read cursor advances per channel, so each message is shown once.
 
+**Pickup consumes.** A message is deleted the moment a session picks it up, so a
+channel is a queue with one consumer per message, not a broadcast: whichever
+subscriber wakes first takes it, and the others never see it. A session that is
+busy, asleep, or subscribed after the message landed gets nothing. Where several
+sessions share a channel — every worktree of a repo joins its repo's channel —
+address the intended reader in the message body; the channel will not do it for
+you. `read` is the non-destructive view: it prints without consuming.
+
 **The two sides must wear different names.** A channel is the meeting place, not
 the address — both sessions `subscribe` to the *same channel*, but each must pass
 a *different* `--from`. The self-filter keys on `from`: if both called themselves
