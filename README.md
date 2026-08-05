@@ -18,7 +18,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 | `previews/henneth/skadi-theme.css` | Shared parchment stylesheet copied beside the Henneth preview artifacts |
 | `install.sh` | Copy installer (idempotent, safe to re-run) |
 | `handbook/` | A browsable HTML handbook — the cover plus the plan→forge→review and work-loop pages |
-| `handbook.sh` | Serve the handbook locally and open it — `./handbook.sh [port]` (default 8770) |
+| `handbook.sh` | Open the handbook, served by the situation board — `./handbook.sh` |
 | `tests/` | Python tests for the Jira hooks and the skeleton-rung deriver; the rest ride beside their hooks as `*.test.sh` / `test_*.py` |
 | `CLAUDE.stub.md` | The one-line marker left in `~/.claude/` pointing at whichever profile root holds the live config |
 

@@ -157,8 +157,12 @@ interactively, or don't pass the flag.
   within a poll (~8 s). It does **not** poll Jira or BigQuery — fresh numbers are a
   pull: run `add`/`refresh`. A scheduled `refresh` (via `/loop` or cron) closes
   that gap when wanted. The Stability tile is a further exception — see above.
-- **One server, reused.** `serve` reuses the port in `~/.skadi/board/.board-port`
-  when it still answers, rather than multiplying servers.
+- **One server, one fixed port.** `serve` binds port 10000 (override with
+  `BOARD_PORT`) and reuses it whenever it still answers, rather than
+  multiplying servers — the URL never drifts across restarts. The handbook
+  rides the same server: `board-server.py` routes `/handbook/` and
+  `/previews/` straight to the skadi repo root, so `./handbook.sh` and the
+  board's own "Handbook ↗" link both resolve through this one port.
 - **Read-only.** The board reads Jira, BigQuery, and the Crashlytics/GA4 exports;
   it never writes to a tracker.
 - **Tests ride beside the hooks** — `board-ticket.test.sh`, `board-growth.test.sh`,

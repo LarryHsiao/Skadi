@@ -20,6 +20,14 @@ board-stability.py rather than importing it, the same arm's-length the flip
 route keeps from board-active.py — one process per request, no shared state to
 corrupt across threads.
 
+    GET /handbook/...
+    GET /previews/...
+
+serve straight from the skadi repo root rather than the board dir, so the
+handbook (and the theme it links via a relative `../previews/...` path) rides
+the same server and port as the board itself — no second `handbook.sh`
+process on its own port.
+
 Test seam: BOARD_STABILITY_BIN overrides which script the stability routes
 shell out to, so board-server.test.sh can point at a stub and exercise the
 real HTTP routing offline, the same seam board-growth.sh's BOARD_GROWTH_OUT
@@ -40,6 +48,17 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
+SKADI_ROOT = os.environ.get("BOARD_SKADI_ROOT") or os.path.dirname(HOOKS_DIR)
+# Each prefix is confined to its own leaf directory, never the shared repo
+# root — translate_path resolves a stripped remainder against that leaf, so
+# a "/previews/../.claude/secrets" request can walk around inside previews/
+# at worst, never escape it (posixpath.normpath drops leading ".." on an
+# absolute path, and the base translate_path only ever joins bare path
+# segments onto self.directory — there is no ".." for it to walk back out on).
+REPO_ROUTES = {
+    "/handbook": os.path.join(SKADI_ROOT, "handbook"),
+    "/previews": os.path.join(SKADI_ROOT, "previews"),
+}
 KEY_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*-[0-9]+$")
 ACTIVE_PATH_RE = re.compile(r"^/active/(.+)$")
 BOARD_STABILITY = os.environ.get("BOARD_STABILITY_BIN") or os.path.join(HOOKS_DIR, "board-stability.py")
@@ -55,6 +74,21 @@ class BoardHandler(SimpleHTTPRequestHandler):
             self._stability_fetch(parse_qs(parsed.query))
             return
         super().do_GET()
+
+    def translate_path(self, path):
+        raw_path = urlsplit(path).path
+        for prefix, root in REPO_ROUTES.items():
+            if raw_path == prefix or raw_path.startswith(prefix + "/"):
+                return self._translate_under(root, raw_path[len(prefix):] or "/")
+        return super().translate_path(path)
+
+    def _translate_under(self, root, remainder):
+        board_directory = self.directory
+        self.directory = root
+        try:
+            return super().translate_path(remainder)
+        finally:
+            self.directory = board_directory
 
     def do_POST(self):
         match = ACTIVE_PATH_RE.match(self.path)

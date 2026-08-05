@@ -28,6 +28,7 @@ export LC_ALL=C.UTF-8
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 BOARD_DIR="${BOARD_DIR:-$HOME/.skadi/board}"
+BOARD_PORT="${BOARD_PORT:-10000}"
 HENNETH_DIR="$HOME/.claude/previews/henneth"
 THEME_SRC="$HENNETH_DIR/skadi-theme.css"
 SKILLS_CHEATSHEET_DEST="$HENNETH_DIR/skills-cheatsheet.html"
@@ -171,25 +172,23 @@ PY
     python3 "$DIR/skills-cheatsheet-render.py" "$CLAUDE_SKILLS_DIR" "$SKILLS_CHEATSHEET_DEST" \
       >/dev/null || echo "board: skills cheatsheet render failed (skipped)" >&2
 
-    # Reuse a live server if the lockfile names one that still answers.
-    if [[ -f "$BOARD_DIR/.board-port" ]]; then
-      port="$(cat "$BOARD_DIR/.board-port")"
-      if curl -sf -o /dev/null "http://127.0.0.1:$port/index.html"; then
-        echo "http://localhost:$port/"
-        exit 0
-      fi
+    # The port is fixed (BOARD_PORT, default 10000) so the URL never drifts
+    # across restarts. Reuse a live server already bound there.
+    port="$BOARD_PORT"
+    if curl -sf -o /dev/null "http://127.0.0.1:$port/index.html"; then
+      echo "http://localhost:$port/"
+      exit 0
     fi
 
-    # Boot a fresh server and wait for it to answer before handing over the URL,
-    # so a boot that fails is reported, not papered over with a dead link.
-    port="$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')"
-    echo "$port" > "$BOARD_DIR/.board-port"
+    # Boot a fresh server and wait for it to answer before handing over the URL.
+    # If the port is held by something other than a dead board server, the bind
+    # fails, the process exits at once, and the retry loop below reports it
+    # loudly rather than silently falling back to a different port.
     nohup python3 "$DIR/board-server.py" "$port" "$BOARD_DIR" >"$BOARD_DIR/.board-log" 2>&1 &
     disown
     if curl -sf -o /dev/null --retry 15 --retry-delay 1 --retry-connrefused "http://127.0.0.1:$port/index.html"; then
       echo "http://localhost:$port/"
     else
-      rm -f "$BOARD_DIR/.board-port"
       echo "board: server did not answer on $port — see $BOARD_DIR/.board-log" >&2
       exit 1
     fi
