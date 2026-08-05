@@ -120,8 +120,6 @@ End the end-of-task summary with a literal line: `Compliance Review: PASS` or `C
 
 A third line, `Compliance Review: SKIPPED (reason: <one line>)`, replaces the review only when a second reviewer would have nothing to weigh — a single data-only addition, a comment or doc fix, a version bump touching no logic. This is a judgment call the model itself makes, not a shortcut for a change merely expected to pass; a plausible pass is exactly what the review exists to confirm. Reserve it narrowly, and always name why.
 
-When a plugin process skill (superpowers' verification and review skills, and their kin) speaks to a gate governed by this file's process sections — the Free-Form Gate, Implementation Loop, or this Compliance Review — those sections rule; a skill may add checks, never replace or loosen them.
-
 The `compliance-review-reminder.sh` hook re-injects this review's trigger with every prompt, as `gate-reminder.sh` does for the Free-Form Gate; this section is its specification. It fires every turn rather than only on closing ones, because a hook can detect *about to mutate* from a tool call but not *about to claim done* from prose — the always-inject pattern is the one that has held. It also restates that the review needs an **agent dispatch**, not merely the verdict line: the pulse credits a segment only when an `Agent` call stands behind the marker, so a nudge toward typing the line unearned would corrupt the measure it was meant to protect.
 
 ## Cross-Workspace Edits
