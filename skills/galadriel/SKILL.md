@@ -97,14 +97,18 @@ port that answers a quick GET to `http://localhost:<port>/index.json`, the serve
 is already up — print the URL and launch nothing. A lockfile alone proves nothing:
 a killed server leaves its port file behind.
 
-**Otherwise boot it in the background**, detached so it outlives the turn:
+**Otherwise boot it in the background**, detached so it outlives the turn. The
+port is fixed at **10002** (override with `GALADRIEL_PORT`) so the URL never
+drifts across restarts:
 
 ```bash
-python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()"
-~/.claude/hooks/galadriel-server.py ~/.claude/galadriel <port>
+~/.claude/hooks/galadriel-server.py ~/.claude/galadriel "${GALADRIEL_PORT:-10002}"
 ```
 
-It records its own port in `.galadriel-port` on boot.
+It records its own port in `.galadriel-port` on boot. If the port is already
+held by something other than a dead Galadriel server, the bind fails and the
+process exits at once — report that plainly rather than silently retrying on a
+different port.
 
 **Then surface two URLs** — `http://localhost:<port>/` for the index of every
 project, and `http://localhost:<port>/<project>/plan-dashboard.html` for the one

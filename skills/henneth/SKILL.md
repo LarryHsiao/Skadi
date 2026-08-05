@@ -36,15 +36,16 @@ booted by an earlier session — so print the URL and launch nothing.
 
 ### 3. Otherwise boot the server in the background
 
-Pick a free port:
+The port is fixed at **10001** (override with `HENNETH_PORT`) so the URL never
+drifts across restarts. Launch the server detached so it outlives the turn (run
+in the background):
 
-    python -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()"
+    ~/.claude/hooks/mirror-server.py "$DIR" "${HENNETH_PORT:-10001}"
 
-Launch the server detached so it outlives the turn (run in the background):
-
-    ~/.claude/hooks/mirror-server.py "$DIR" <port>
-
-The server records its own port in `$DIR/.henneth-port` on boot.
+The server records its own port in `$DIR/.henneth-port` on boot. If the port is
+already held by something other than a dead Henneth server, the bind fails and
+the process exits at once — report that plainly rather than silently retrying
+on a different port.
 
 ### 4. Surface the URL
 
