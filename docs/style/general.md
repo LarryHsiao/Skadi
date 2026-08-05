@@ -44,3 +44,8 @@ Code is read more often than written. These rules guard the next reader against 
 ## Indexing
 
 - **Guard every index access against an empty container.** Before `xs[0]`, `xs.first`, `xs.last`, or `xs[i]`, check the length or use a safe accessor (`xs.firstOrNull`, `xs.elementAtOrNull(i)`, pattern destructuring with a fallback). The empty list is the common pitfall — `xs[0]` on `[]` raises, not returns null. The same care applies to map lookups, regex match groups, and argument arrays.
+
+## Lists
+
+- **Hanging-indent wrapped list lines.** A dash or numbered list item that wraps in a narrow terminal reads as a fresh bullet unless the continuation line is indented under the marker (2 spaces for `-`, matching the marker's width for a numbered list). Apply this to every list rendered narrow — plan output, gate blocks, findings, prose — not just code.
+- **Split a compound bullet into nested facets.** When a single bullet is really two or more clauses stitched together with "and" or commas, break it into a one-line parent plus short nested items instead of one long wrapped line. Reserve this for bullets that are genuinely compound; a plain one-line bullet gains nothing from being forced into a nested shape.
