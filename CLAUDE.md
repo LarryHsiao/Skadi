@@ -225,6 +225,7 @@ Read when the tool is in play (not auto-loaded):
 - Tolgee: `docs/tools/tolgee.md`
 - GitLab: `docs/tools/gitlab.md`
 - Secrets: `docs/tools/secrets.md`
+- jq: `docs/tools/jq.md`
 
 ## Workflow
 
