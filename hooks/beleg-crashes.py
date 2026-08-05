@@ -24,10 +24,11 @@ the same thing.
 
 import json
 import re
-import shutil
 import subprocess
 from datetime import date, datetime
 from pathlib import Path
+
+from bq_common import QueryFailure, exe
 
 HERE = Path(__file__).resolve().parent
 RUBRIC = json.loads((HERE / "beleg-rubric.json").read_text(encoding="utf-8"))
@@ -37,10 +38,6 @@ WINDOW_DAYS = 60            # the export's own partition expiry — nothing olde
 MAX_BYTES = "5000000000"    # 5 GB scan cap; the tables seen so far are far under it
 NO_EXPORT_EXIT = 2          # distinct from 1, so a caller can tell absence from failure
 FIRST_PARTY_OWNER = "DEVELOPER"   # the export's word for a frame in your own code
-
-
-class QueryFailure(RuntimeError):
-    """A bq invocation that never ran the query — distinct from one returning no rows."""
 
 
 class NoExport(RuntimeError):
@@ -170,11 +167,6 @@ def missing_signals(issues):
     if all(not i.get("versions") or not i.get("latest_version") for i in issues):
         absent.append("version concentration")
     return absent
-
-
-def exe(name):
-    """Resolve a CLI name to its full path — finds .cmd shims on Windows via PATHEXT."""
-    return shutil.which(name) or name
 
 
 def bq(args, account):

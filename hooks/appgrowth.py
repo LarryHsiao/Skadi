@@ -14,13 +14,14 @@ GROWTH_PROJECT, GROWTH_DATASET, and GROWTH_ACCOUNT environment variables.
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from string import Template
+
+from bq_common import QueryFailure, exe
 
 PROJECT = os.environ.get("GROWTH_PROJECT", "metis-362623")
 DATASET = os.environ.get("GROWTH_DATASET", "analytics_359632826")
@@ -31,11 +32,6 @@ MAX_BYTES = "1000000000"   # 1 GB scan cap (string for the bq flag) — metis is
 HENNETH = Path.home() / ".claude" / "previews" / "henneth"
 OUT_HTML = HENNETH / "metis-growth.html"
 OUT_JSON = HENNETH / "metis-growth.json"
-
-
-def exe(name):
-    """Resolve a CLI name to its full path — finds .cmd shims on Windows via PATHEXT."""
-    return shutil.which(name) or name
 
 
 def account():
@@ -52,15 +48,6 @@ def account():
             if "@" in word:
                 return word.strip()
     return ""
-
-
-class QueryFailure(RuntimeError):
-    """A bq invocation that never ran the query — distinct from one returning no rows.
-
-    Without this distinction an expired token, a missing IAM grant, and a
-    genuinely empty dataset all read as "no analytics rows", and the real
-    cause never reaches the user.
-    """
 
 
 def bq_rows(sql, acct):

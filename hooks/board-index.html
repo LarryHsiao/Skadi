@@ -107,9 +107,36 @@
         background: var(--green);
         transition: width 0.4s ease;
       }
+      .meter > i.warn {
+        background: var(--red);
+      }
       .muted {
         color: var(--accent);
         font-size: 0.72rem;
+      }
+      .kpi.warn {
+        color: var(--red);
+      }
+      .row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.4rem;
+      }
+      select.app-pick {
+        font: inherit;
+        font-size: 0.66rem;
+        background: var(--panel);
+        color: inherit;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0.02rem 0.25rem;
+        max-width: 100%;
+      }
+      .spin {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.66rem;
+        color: var(--accent);
       }
       .bento {
         display: grid;
@@ -314,9 +341,18 @@
 
     <script>
       const POLL_MS = 8000;
+      const STABILITY_WARN_BELOW = 98; // crash-free % under this reads as degraded
       let channels = []; // last-known channel payloads
       let lastSig = null; // last rendered signature; null = nothing rendered yet
       // (an empty board signs as "", so the sentinel must not be "").
+
+      // Stability tile state — fetched on demand (app pick), not on the poll
+      // loop; a live BigQuery join is not something to fire every 8s.
+      let stabilityApps = null; // null = not yet loaded; [] = loaded, none bound
+      let stabilitySelected = null;
+      let stabilityResult = null;
+      let stabilityLoading = false;
+      let stabilityError = null;
 
       const esc = (s) =>
         String(s ?? "").replace(
@@ -424,13 +460,100 @@
         return `${arrow}${Math.abs(p)}% wow`;
       }
 
+      // The Stability tile's markup for whatever state it's currently in —
+      // not yet loaded, no app bound, mid-fetch, errored, or holding a number.
+      function stabilityTileHtml() {
+        if (stabilityApps === null) {
+          return `<div class="tile ghost"><div class="lbl">Stability</div>
+      <div class="kpi">—</div><div class="muted">loading…</div></div>`;
+        }
+        if (!stabilityApps.length) {
+          return `<div class="tile ghost"><div class="lbl">Stability</div>
+      <div class="kpi">—</div>
+      <div class="muted">no app bound · run /beleg once to bind one</div></div>`;
+        }
+        const options = stabilityApps
+          .map(
+            (a) =>
+              `<option value="${esc(a.label)}"${a.label === stabilitySelected ? " selected" : ""}>${esc(a.label)}</option>`,
+          )
+          .join("");
+        let body;
+        if (stabilityLoading) {
+          body = `<div class="kpi">—</div><div class="meter"><i style="width:0%"></i></div>
+      <div class="spin">querying BigQuery…</div>`;
+        } else if (stabilityError) {
+          body = `<div class="kpi">—</div><div class="meter"><i style="width:0%"></i></div>
+      <div class="muted">fetch failed: ${esc(stabilityError)}</div>`;
+        } else if (stabilityResult) {
+          const pct = stabilityResult.crash_free_pct;
+          const warn = pct != null && pct < STABILITY_WARN_BELOW;
+          const app = stabilityApps.find((a) => a.label === stabilitySelected);
+          const detail = stabilityResult.note
+            ? esc(stabilityResult.note)
+            : `${stabilityResult.window_days}d window${app && app.platform ? " · " + esc(app.platform) : ""}`;
+          body = `<div class="kpi${warn ? " warn" : ""}">${pct == null ? "—" : pct + "%"}<small> crash-free users</small></div>
+      <div class="meter"><i${warn ? ' class="warn"' : ""} style="width:${pct || 0}%"></i></div>
+      <div class="muted">${detail}</div>`;
+        } else {
+          body = `<div class="kpi">—</div><div class="meter"><i style="width:0%"></i></div>
+      <div class="muted">pick an app</div>`;
+        }
+        return `<div class="tile">
+      <div class="row"><div class="lbl">Stability</div>
+        <select class="app-pick" id="stabilityPick">${options}</select></div>
+      ${body}</div>`;
+      }
+
+      // Roster once on load — a new binding (running /beleg in some other
+      // repo) needs a page refresh to show up, not a poll; the roster comes
+      // from a filesystem glob, not the channel manifest.
+      async function loadStabilityApps() {
+        try {
+          stabilityApps = await (
+            await fetch("/stability/apps?_=" + Date.now())
+          ).json();
+        } catch (e) {
+          stabilityApps = [];
+        }
+        if (stabilityApps.length && !stabilitySelected) {
+          fetchStability(stabilityApps[0].label);
+        } else {
+          render();
+        }
+      }
+
+      async function fetchStability(label) {
+        stabilitySelected = label;
+        stabilityLoading = true;
+        stabilityError = null;
+        stabilityResult = null;
+        render();
+        let result = null;
+        let error = null;
+        try {
+          const res = await fetch(
+            "/stability/fetch?label=" +
+              encodeURIComponent(label) +
+              "&_=" +
+              Date.now(),
+          );
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.error || "fetch failed");
+          result = body;
+        } catch (e) {
+          error = String((e && e.message) || e);
+        }
+        // The user may have switched apps while this request was in flight —
+        // a slower A must not overwrite a faster B's already-rendered result.
+        if (stabilitySelected !== label) return;
+        stabilityResult = result;
+        stabilityError = error;
+        stabilityLoading = false;
+        render();
+      }
+
       function renderStrip(tickets, growth, sweeps, pulse) {
-        const withPct = tickets.filter((t) => t.ac && t.ac.pct != null);
-        const avg = withPct.length
-          ? Math.round(
-              withPct.reduce((s, t) => s + t.ac.pct, 0) / withPct.length,
-            )
-          : null;
         const blocked = tickets.filter((t) => t.blocked);
         const stir = sweeps.filter((s) => s.verdict === "stirred").length;
         const mend = sweeps.filter((s) => s.verdict === "mend").length;
@@ -441,9 +564,6 @@
     <div class="tile"><div class="lbl">Working set</div>
       <div class="kpi">${tickets.length}<small> in progress</small></div>
       <div class="muted"${blocked.length ? ' style="color:var(--red)"' : ""}>${blocked.length} blocked${blocked.length ? " · " + esc(blocked[0].id) : ""}</div></div>
-    <div class="tile"><div class="lbl">AC · avg</div>
-      <div class="kpi">${avg == null ? "—" : avg + "%"}</div>
-      <div class="meter"><i style="width:${avg || 0}%"></i></div></div>
     ${
       growth
         ? `<div class="tile"><div class="lbl">Metis growth</div>
@@ -455,6 +575,7 @@
         : `<div class="tile ghost"><div class="lbl">Metis growth</div><div class="kpi">—</div>
       <div class="muted">channel not wired</div></div>`
     }
+    ${stabilityTileHtml()}
     ${
       sweeps.length
         ? `<div class="tile"><div class="lbl">Sweeps</div>
@@ -575,6 +696,12 @@
         if (card) promote(card.getAttribute("data-key"));
       });
 
+      // The strip is rebuilt wholesale each render, so the dropdown's own
+      // listener would be lost each time — delegate on the strip instead.
+      document.getElementById("strip").addEventListener("change", (e) => {
+        if (e.target.id === "stabilityPick") fetchStability(e.target.value);
+      });
+
       // Paint the new hero at once, then persist it. The next poll reconciles
       // from disk — so a failed POST simply reverts within a poll, no rollback.
       async function promote(key) {
@@ -592,6 +719,7 @@
 
       poll();
       setInterval(poll, POLL_MS);
+      loadStabilityApps();
     </script>
   </body>
 </html>

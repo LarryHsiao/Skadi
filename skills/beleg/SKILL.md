@@ -18,14 +18,22 @@ Firebase projects, and one binding per repo would be wrong:
 
 ```
 - /Users/x/work/vitallink-ca | na    | vitallink-ca | com.jubohealth.vitallink_ca | ANDROID | someone@work.com
-- /Users/x/work/vitallink-ca | jp    | jubolink     | com.jubohealth.jubogo       | ANDROID | someone@work.com
+- /Users/x/work/vitallink-ca | jp    | jubolink     | com.jubohealth.jubogo       | ANDROID | someone@work.com | jubolink | analytics_123456789
 ```
 
-Fields: repo root · flavor · firebase project · bundle id · platform · account.
+Fields: repo root · flavor · firebase project · bundle id · platform · account,
+plus two **optional** trailing fields — GA4 project · GA4 dataset (the second row
+above carries them, the first doesn't). Beleg itself never reads them; they exist
+so `/board`'s Stability tile can pair this app's Crashlytics export with a GA4
+export and compute a crash-free users %. A row without them still binds the app
+for beleg's own ranking — the tile just shows "GA4 not configured" instead of a
+percentage until they're added.
 
 **Arguments override the memory** — `/beleg <project> <bundle> [platform]` runs
 against exactly that, binding nothing. **An unbound repo prompts once**, as
-`/amon-din` does for CI, then writes the row.
+`/amon-din` does for CI, then writes the row — asking for the GA4 project and
+dataset too, both optional (skip either with an empty answer if unknown or
+unwanted).
 
 The account matters as much as the project: a work identity and a personal one see
 different Firebase projects entirely, and querying as the wrong one returns a

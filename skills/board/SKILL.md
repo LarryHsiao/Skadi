@@ -1,6 +1,6 @@
 ---
 name: board
-description: Use when the user runs /board, /board add <KEY> [--active], /board remove <KEY>, /board refresh, or /board list. A standing situation board served in the browser — one live page that gathers the tickets in progress (Jira status + AC rate from subtask completion) and the metis growth pulse, each a tile that follows a JSON channel file on disk. `/board` alone boots or reuses the server and prints the URL; `add` writes or refreshes a ticket channel; `remove` drops one; `refresh` re-fetches every ticket (the active hero preserved) and the growth numbers; `list` prints the channels. Data lives under ~/.skadi/board/; the writers, the manifest, and the page are hooks. Read-only against Jira and BigQuery — it never writes to the trackers.
+description: Use when the user runs /board, /board add <KEY> [--active], /board remove <KEY>, /board refresh, or /board list. A standing situation board served in the browser — one live page that gathers the tickets in progress (Jira status + AC rate from subtask completion), the metis growth pulse, and a Stability tile (crash-free users % by app, chosen from a live dropdown), each a tile that follows a JSON channel file on disk or, for Stability, a live fetch on demand. `/board` alone boots or reuses the server and prints the URL; `add` writes or refreshes a ticket channel; `remove` drops one; `refresh` re-fetches every ticket (the active hero preserved) and the growth numbers; `list` prints the channels. Data lives under ~/.skadi/board/; the writers, the manifest, and the page are hooks. Read-only against Jira, BigQuery, and the Crashlytics/GA4 exports — it never writes to the trackers.
 purpose: Serves a live situation board of in-progress tickets and app growth in the browser.
 user_invocable: true
 ---
@@ -76,14 +76,47 @@ the growth line.
 (WAU/MAU), copies the rendered dashboard in as the tile's Enter door, and writes
 `growth.json`. Only metis has a GA4 → BigQuery export today.
 
+## The Stability tile
+
+Sits in the top strip, after Metis growth. Unlike every other tile it carries no
+channel file — its dropdown and number are fetched live from the browser via two
+routes `board-server.py` adds:
+
+    GET /stability/apps            — the app roster, for the dropdown
+    GET /stability/fetch?label=…   — one app's crash-free users %, on selection
+
+Both shell out to `~/.claude/hooks/board-stability.py`, which builds the roster by
+gluing two sources: every `crash_routing.md` any repo has ever bound via `/beleg`
+(globbed across `~/.claude`, `~/.claude-personal`, `~/.claude-work`), layered with
+hand-added or hand-corrected entries from `~/.skadi/board/stability-apps.json` —
+the same "small local JSON you maintain by hand" pattern as
+`ac-done-statuses.json`. **No `/board` verb manages it** — bind an app the normal
+way, by running `/beleg` in its repo.
+
+The percentage itself is a join: crashed users from the Crashlytics BigQuery
+export, active users from GA4's. A `crash_routing.md` row now carries two optional
+trailing fields — GA4 project · GA4 dataset — after the six `/beleg` already
+writes (repo · flavor · Firebase project · bundle · platform · account); an app
+bound without them shows in the dropdown but reads "GA4 not configured for this
+app" instead of a percentage, rather than guessing at a denominator it doesn't
+have.
+
+**Fetched on pick, not on the poll loop.** The roster loads once per page load;
+selecting an app fires one live query. Neither auto-refreshes — a live BigQuery
+join is not something to run every 8 seconds, and a newly-bound app needs a page
+refresh to appear.
+
 ## Notes
 
 - **Auto-pickup, not auto-fetch.** The page auto-shows any channel *file* change
   within a poll (~8 s). It does **not** poll Jira or BigQuery — fresh numbers are a
   pull: run `add`/`refresh`. A scheduled `refresh` (via `/loop` or cron) closes
-  that gap when wanted.
+  that gap when wanted. The Stability tile is a further exception — see above.
 - **One server, reused.** `serve` reuses the port in `~/.skadi/board/.board-port`
   when it still answers, rather than multiplying servers.
-- **Read-only.** The board reads Jira and BigQuery; it never writes to a tracker.
+- **Read-only.** The board reads Jira, BigQuery, and the Crashlytics/GA4 exports;
+  it never writes to a tracker.
 - **Tests ride beside the hooks** — `board-ticket.test.sh`, `board-growth.test.sh`,
-  `board-manifest.test.sh` run offline via injected fixtures.
+  `board-manifest.test.sh`, `board-server.test.sh` run offline via injected
+  fixtures; `test_board_stability.py` covers board-stability.py's own logic the
+  same way `test_beleg_crashes.py` covers beleg's.
