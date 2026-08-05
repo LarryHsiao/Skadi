@@ -150,6 +150,7 @@
     "defaultMode": "default"
   },
   "model": "opusplan",
+  "theme": "light",
   "env": {
     "CLAUDE_DEV_DIRS": "~/.pub-cache"
   },
@@ -298,7 +299,6 @@
     "command": "~/.claude/statusline.sh"
   },
   "enabledPlugins": {
-    "superpowers@claude-plugins-official": true,
     "figma@claude-plugins-official": true
   },
   "voiceEnabled": true
