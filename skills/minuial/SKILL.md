@@ -44,11 +44,19 @@ after the refresh leaves that link hidden until the next one.
 
 ### 4. Board — refresh
 
-Invoke `/board refresh` through the Skill tool. Re-fetches every seated ticket and
-the metis growth numbers. `board.sh refresh` already runs the growth hook
-(`board-growth.sh` → `appgrowth.py`, the same query `/growth` runs standalone) as
-part of its own sweep — a separate `/growth` call would only repeat the same
-BigQuery pull, so Minuial does not make one.
+Invoke `/board refresh --stability-scrape` through the Skill tool. Re-fetches
+every seated ticket and the metis growth numbers. `board.sh refresh` already runs
+the growth hook (`board-growth.sh` → `appgrowth.py`, the same query `/growth`
+runs standalone) as part of its own sweep — a separate `/growth` call would only
+repeat the same BigQuery pull, so Minuial does not make one.
+
+The `--stability-scrape` flag also sweeps the Stability tile's bound apps and
+names any BigQuery can't answer. Minuial does not chase those into `/beleg`'s
+console-scrape flow itself — that is a separate, Chrome-driven action with its
+own time cost, not the quick "light every dashboard" character of this ritual.
+A named app just carries the note it already would; report it in step 6 and let
+the human decide whether `~/.claude/hooks/board.sh stability-write` is worth
+running this morning (`skills/board/SKILL.md`, *The console-scrape fallback*).
 
 ### 5. Estë
 

@@ -1,10 +1,17 @@
 #!/bin/bash
 # board.sh — the situation board's one entry. Subcommands:
-#   serve                  boot or reuse the board server, lay the page, print the URL
-#   add <KEY> [--active]   add or refresh a ticket channel (Jira or YouTrack)
-#   remove <KEY>           drop a ticket channel, regenerate the manifest
-#   refresh                re-fetch every ticket on the board (active preserved) + growth
-#   list                   list the channels with status / AC
+#   serve                          boot or reuse the board server, lay the page, print the URL
+#   add <KEY> [--active]           add or refresh a ticket channel (Jira or YouTrack)
+#   remove <KEY>                   drop a ticket channel, regenerate the manifest
+#   refresh [--stability-scrape]   re-fetch every ticket (active preserved) + growth; the
+#                                   flag additionally sweeps every bound app's live crash-free
+#                                   number and, for any BigQuery can't answer, prints what the
+#                                   model needs to run /beleg's console-scrape flow itself —
+#                                   a hook cannot drive Chrome, so this never scrapes on its own
+#   stability-write <label> --from-json <file>
+#                                   normalize a model-scraped console reading for <label> into
+#                                   stability-<slug>.json, the Stability tile's fallback channel
+#   list                           list the channels with status / AC
 #
 # Passthroughs to the channel writers: `growth` refreshes the metis growth tile,
 # `sweep <name> <verdict> [detail] [scope]` records an amon-sul sweep verdict —
@@ -58,6 +65,11 @@ case "$cmd" in
     ;;
 
   refresh)
+    stability_scrape=""
+    for a in "$@"; do
+      [[ "$a" == "--stability-scrape" ]] && stability_scrape=1
+    done
+
     shopt -s nullglob
     for chan in "$BOARD_DIR"/ticket-*.json; do
       id="$(jq -r '.id' "$chan")"
@@ -73,6 +85,53 @@ case "$cmd" in
     "$DIR/board-galadriel.sh" || echo "board: galadriel link refresh failed (skipped)" >&2
     python3 "$DIR/skills-cheatsheet-render.py" "$CLAUDE_SKILLS_DIR" "$SKILLS_CHEATSHEET_DEST" \
       || echo "board: skills cheatsheet render failed (skipped)" >&2
+
+    # The scrape itself never runs here — a hook cannot drive Chrome. This
+    # only names which apps need it, for the model to act on next. The report
+    # text lives in board-stability.py's own format_sweep_report() — pure and
+    # unit-tested there, so this case stays a one-line passthrough.
+    if [[ -n "$stability_scrape" ]]; then
+      python3 "$DIR/board-stability.py" sweep-report \
+        || echo "board: stability sweep failed (skipped)" >&2
+    fi
+    ;;
+
+  stability-write)
+    label="${1:-}"
+    [[ $# -gt 0 ]] && shift
+    json_arg=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --from-json)
+          if [[ $# -lt 2 ]]; then
+            echo "usage: board.sh stability-write <label> --from-json <file>" >&2
+            exit 1
+          fi
+          json_arg="$2"
+          shift 2
+          ;;
+        *) echo "board: unknown stability-write arg: $1" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$label" || -z "$json_arg" ]]; then
+      echo "usage: board.sh stability-write <label> --from-json <file>" >&2
+      exit 1
+    fi
+    [[ -f "$json_arg" ]] || { echo "board: no such file $json_arg" >&2; exit 1; }
+
+    mkdir -p "$BOARD_DIR"
+    channel_out="$(python3 "$DIR/board-stability.py" write "$label" --from-json "$json_arg")" || exit 1
+    slug="$(printf '%s' "$channel_out" | jq -r '.slug')"
+    python3 - "$BOARD_DIR" "$channel_out" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$slug" <<'PY'
+import json, os, sys
+board, channel_json, now, slug = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+data = json.loads(channel_json)
+data["updated"] = now
+with open(os.path.join(board, "stability-%s.json" % slug), "w", encoding="utf-8") as fh:
+    json.dump(data, fh, ensure_ascii=False, indent=2)
+PY
+    python3 "$DIR/board-manifest.py" "$BOARD_DIR"
+    echo "wrote $BOARD_DIR/stability-$slug.json"
     ;;
 
   list)
@@ -137,7 +196,7 @@ PY
     ;;
 
   *)
-    echo "usage: board.sh {serve | add <KEY> [--active] | remove <KEY> | refresh | list}" >&2
+    echo "usage: board.sh {serve | add <KEY> [--active] | remove <KEY> | refresh [--stability-scrape] | stability-write <label> --from-json <file> | list}" >&2
     exit 1
     ;;
 esac

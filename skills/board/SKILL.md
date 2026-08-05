@@ -1,6 +1,6 @@
 ---
 name: board
-description: Use when the user runs /board, /board add <KEY> [--active], /board remove <KEY>, /board refresh, or /board list. A standing situation board served in the browser — one live page that gathers the tickets in progress (Jira status + AC rate from subtask completion), the metis growth pulse, and a Stability tile (crash-free users % by app, chosen from a live dropdown), each a tile that follows a JSON channel file on disk or, for Stability, a live fetch on demand. `/board` alone boots or reuses the server and prints the URL; `add` writes or refreshes a ticket channel; `remove` drops one; `refresh` re-fetches every ticket (the active hero preserved) and the growth numbers; `list` prints the channels. Data lives under ~/.skadi/board/; the writers, the manifest, and the page are hooks. Read-only against Jira, BigQuery, and the Crashlytics/GA4 exports — it never writes to the trackers.
+description: Use when the user runs /board, /board add <KEY> [--active], /board remove <KEY>, /board refresh [--stability-scrape], /board stability-write <label> --from-json <file>, or /board list. A standing situation board served in the browser — one live page that gathers the tickets in progress (Jira status + AC rate from subtask completion), the metis growth pulse, and a Stability tile (crash-free users % by app, chosen from a live dropdown), each a tile that follows a JSON channel file on disk or, for Stability, a live fetch on demand. `/board` alone boots or reuses the server and prints the URL; `add` writes or refreshes a ticket channel; `remove` drops one; `refresh` re-fetches every ticket (the active hero preserved) and the growth numbers, and with `--stability-scrape` also sweeps every bound app's crash-free number, naming which ones need a Firebase-console scrape (the model then runs `/beleg`'s console flow and calls `stability-write` to persist what it found); `list` prints the channels. Data lives under ~/.skadi/board/; the writers, the manifest, and the page are hooks. Read-only against Jira, BigQuery, and the Crashlytics/GA4 exports — it never writes to the trackers.
 purpose: Serves a live situation board of in-progress tickets and app growth in the browser.
 user_invocable: true
 ---
@@ -54,13 +54,22 @@ channel's recorded `source` — no memory lookup needed.
 Drops the ticket channel and regenerates the manifest. The tile vanishes on the
 next poll.
 
-### `/board refresh`
+### `/board refresh [--stability-scrape]`
 
     ~/.claude/hooks/board.sh refresh
+    ~/.claude/hooks/board.sh refresh --stability-scrape
 
 Re-fetches every ticket already on the board (preserving which one is active) and
 the metis growth numbers. Growth is best-effort — a BigQuery hiccup skips it with
 a note rather than failing the sweep.
+
+Plain `refresh` never touches Stability — the live dropdown already covers any
+app BigQuery can answer, in real time, with nothing to gain from pre-caching it.
+`--stability-scrape` is the explicit ask to go further: it sweeps every bound
+app's crash-free number and prints which ones BigQuery couldn't answer (no GA4
+pairing, or the query itself failed). That printed list is yours to act on next
+— see *The Stability tile* below for what to do with it. The hook stops at
+naming the gap; it cannot drive Chrome itself.
 
 ### `/board list`
 
@@ -106,6 +115,42 @@ selecting an app fires one live query. Neither auto-refreshes — a live BigQuer
 join is not something to run every 8 seconds, and a newly-bound app needs a page
 refresh to appear.
 
+### The console-scrape fallback
+
+When BigQuery can't answer for an app — no GA4 pairing, or the query itself
+failed — `refresh --stability-scrape` names it rather than leaving the tile to
+show "GA4 not configured" forever. For each app it lists:
+
+1. Read the printed `project` / `bundle` / `platform` / `account` and follow
+   `/beleg`'s own console-scrape flow (`skills/beleg/SKILL.md` §3) — the same
+   navigation, the same account-index care — but read the dashboard's
+   **"Crash-free users %" headline** directly, rather than the issue list
+   `/beleg` ranks. No BigQuery export is needed for this number; the console
+   computes it internally.
+2. Write what was found — a percentage, or `null` with a `note` if the console
+   itself showed nothing usable — to a scratch JSON file:
+   `{"crash_free_pct": 93.1, "note": null}`.
+3. Persist it:
+
+       ~/.claude/hooks/board.sh stability-write "vitallink-ca · jp · ANDROID" --from-json /tmp/scrape.json
+
+   This writes `stability-<slug>.json` (the label, lowercased and dashed) as an
+   ordinary pulled channel — same auto-pickup as every other tile, no live
+   endpoint involved.
+
+The live dropdown reads this channel as its fallback whenever a BigQuery fetch
+comes back with no percentage: it shows the pulled number in its place, no
+label marking it as scraped or stating its age — a decided simplification
+(`docs/plans/board-stability-console-fallback.md`), not an oversight. If both
+BigQuery and the fallback channel have nothing, the tile still shows the
+BigQuery note plainly.
+
+**This step needs a live, Chrome-connected model turn.** `--stability-scrape`
+only ever *names* the gap — a hook cannot drive Chrome, so an unattended
+`refresh --stability-scrape` (cron, `/loop`, a background sweep) will print the
+needs-scrape list into a log no one reads and go no further. Run it
+interactively, or don't pass the flag.
+
 ## Notes
 
 - **Auto-pickup, not auto-fetch.** The page auto-shows any channel *file* change
@@ -117,6 +162,8 @@ refresh to appear.
 - **Read-only.** The board reads Jira, BigQuery, and the Crashlytics/GA4 exports;
   it never writes to a tracker.
 - **Tests ride beside the hooks** — `board-ticket.test.sh`, `board-growth.test.sh`,
-  `board-manifest.test.sh`, `board-server.test.sh` run offline via injected
-  fixtures; `test_board_stability.py` covers board-stability.py's own logic the
-  same way `test_beleg_crashes.py` covers beleg's.
+  `board-manifest.test.sh`, `board-server.test.sh`, `board-stability-write.test.sh`
+  run offline via injected fixtures; `test_board_stability.py` covers
+  board-stability.py's own logic the same way `test_beleg_crashes.py` covers
+  beleg's. The console scrape itself stays unverifiable offline, same caveat
+  `docs/plans/beleg-crash-analysis.md` already carries for beleg's own fallback.

@@ -2,6 +2,8 @@
 """Tests for the board's Stability tile — app discovery and crash-free % math."""
 
 import importlib.util
+import json
+import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
@@ -102,6 +104,145 @@ class CrashFreePctTest(unittest.TestCase):
         expected = 0.0
         result = board_stability.crash_free_pct(500, 100)
         self.assertEqual(expected, result)
+
+
+class LabelSlugTest(unittest.TestCase):
+    def test_a_label_becomes_a_lowercase_dash_joined_slug(self):
+        expected = "vitallink-ca-jp-android"
+        result = board_stability.label_slug("vitallink-ca · jp · ANDROID")
+        self.assertEqual(expected, result)
+
+    def test_no_leading_or_trailing_dashes(self):
+        expected = "a-b"
+        result = board_stability.label_slug("· a · b ·")
+        self.assertEqual(expected, result)
+
+
+class BucketByAvailabilityTest(unittest.TestCase):
+    def app(self, label):
+        return {"label": label, "project": "p", "bundle": "b", "platform": "ANDROID", "account": "a@work.com"}
+
+    def test_a_result_with_a_percentage_buckets_ok(self):
+        pairs = [(self.app("ok-app"), {"crash_free_pct": 99.0})]
+        expected = {"ok": ["ok-app"], "needs_scrape": []}
+        result = board_stability.bucket_by_availability(pairs)
+        result = {k: [a["label"] for a in v] for k, v in result.items()}
+        self.assertEqual(expected, result)
+
+    def test_a_null_percentage_buckets_needs_scrape_regardless_of_why(self):
+        pairs = [
+            (self.app("no-ga4"), {"crash_free_pct": None, "note": "GA4 not configured"}),
+            (self.app("query-failed"), {"crash_free_pct": None, "note": "bq exited 1"}),
+        ]
+        expected = {"ok": [], "needs_scrape": ["no-ga4", "query-failed"]}
+        result = board_stability.bucket_by_availability(pairs)
+        result = {k: [a["label"] for a in v] for k, v in result.items()}
+        self.assertEqual(expected, result)
+
+    def test_no_apps_buckets_both_empty(self):
+        expected = {"ok": [], "needs_scrape": []}
+        result = board_stability.bucket_by_availability([])
+        self.assertEqual(expected, result)
+
+
+class SweepTest(unittest.TestCase):
+    """sweep() itself calls list_apps()/fetch() — both stubbed here so the
+    bucketing behavior is provable without a real bq CLI or crash_routing.md."""
+
+    def app(self, label):
+        return {"label": label, "project": "p", "bundle": "b", "platform": "ANDROID", "account": "a@work.com"}
+
+    def test_a_query_failure_for_one_app_does_not_abort_the_sweep(self):
+        original_list_apps, original_fetch = board_stability.list_apps, board_stability.fetch
+        board_stability.list_apps = lambda: [self.app("ok-app"), self.app("bad-app")]
+
+        def fake_fetch(app):
+            if app["label"] == "bad-app":
+                raise board_stability.QueryFailure("bq exited 1")
+            return {"crash_free_pct": 99.0}
+
+        board_stability.fetch = fake_fetch
+        try:
+            result = board_stability.sweep()
+        finally:
+            board_stability.list_apps, board_stability.fetch = original_list_apps, original_fetch
+        expected = {"ok": ["ok-app"], "needs_scrape": ["bad-app"]}
+        result = {k: [a["label"] for a in v] for k, v in result.items()}
+        self.assertEqual(expected, result)
+
+    def test_no_bound_apps_sweeps_to_both_buckets_empty(self):
+        original_list_apps = board_stability.list_apps
+        board_stability.list_apps = lambda: []
+        try:
+            result = board_stability.sweep()
+        finally:
+            board_stability.list_apps = original_list_apps
+        expected = {"ok": [], "needs_scrape": []}
+        self.assertEqual(expected, result)
+
+
+class FormatSweepReportTest(unittest.TestCase):
+    def test_nothing_needing_a_scrape_reads_as_all_clear(self):
+        expected = "board: stability — every bound app already has a live number, nothing to scrape"
+        result = board_stability.format_sweep_report({"ok": ["a"], "needs_scrape": []})
+        self.assertEqual(expected, result)
+
+    def test_apps_needing_a_scrape_are_named_with_their_routing(self):
+        bucketed = {"ok": [], "needs_scrape": [
+            {"label": "vitallink-ca · na · ANDROID", "project": "vitallink-ca",
+             "bundle": "com.jubohealth.vitallink_ca", "platform": "ANDROID", "account": "a@work.com"},
+        ]}
+        report = board_stability.format_sweep_report(bucketed)
+        expected = True
+        result = ("vitallink-ca · na · ANDROID" in report
+                   and "project=vitallink-ca" in report
+                   and "bundle=com.jubohealth.vitallink_ca" in report
+                   and "board.sh stability-write" in report)
+        self.assertEqual(expected, result)
+
+    def test_the_count_in_the_headline_matches_the_roster(self):
+        bucketed = {"ok": [], "needs_scrape": [{"label": "a"}, {"label": "b"}]}
+        expected = True
+        result = "2 app(s) need a console scrape" in board_stability.format_sweep_report(bucketed)
+        self.assertEqual(expected, result)
+
+
+class WriteTest(unittest.TestCase):
+    def test_a_scraped_reading_becomes_a_stability_channel(self):
+        app = {"label": "vitallink-ca · jp · ANDROID", "project": "p", "bundle": "b",
+               "platform": "ANDROID", "account": "a@work.com"}
+        expected = {"channel": "stability", "label": "vitallink-ca · jp · ANDROID",
+                    "crash_free_pct": 97.5, "window_days": None, "source": "console",
+                    "note": None, "slug": "vitallink-ca-jp-android"}
+        result = board_stability.write(app, {"crash_free_pct": 97.5, "note": None})
+        self.assertEqual(expected, result)
+
+    def test_a_scrape_that_found_nothing_carries_its_note_through(self):
+        app = {"label": "vitallink-ca · na · ANDROID"}
+        expected = "console dashboard showed no crash-free figure"
+        result = board_stability.write(app, {"crash_free_pct": None,
+                                              "note": "console dashboard showed no crash-free figure"})["note"]
+        self.assertEqual(expected, result)
+
+
+class WriteCliTest(unittest.TestCase):
+    """The `write` CLI subcommand's own error path — board.sh checks the file
+    exists before calling in, but malformed *content* only surfaces here."""
+
+    def test_malformed_from_json_content_exits_loud_not_silent(self):
+        original_stability_apps = board_stability.STABILITY_APPS
+        tmp = Path(tempfile.mkdtemp())
+        apps_file = tmp / "stability-apps.json"
+        apps_file.write_text(json.dumps([
+            {"label": "x", "project": "p", "bundle": "b", "platform": "ANDROID", "account": "a"}]))
+        bad_json = tmp / "bad.json"
+        bad_json.write_text("not json")
+        board_stability.STABILITY_APPS = apps_file
+        try:
+            with self.assertRaises(SystemExit):
+                board_stability.main(["write", "x", "--from-json", str(bad_json)])
+        finally:
+            board_stability.STABILITY_APPS = original_stability_apps
 
 
 class SqlBuilderTest(unittest.TestCase):

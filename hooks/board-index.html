@@ -437,7 +437,10 @@
         const growth = channels.find((c) => c.channel === "growth");
         const sweeps = channels.filter((c) => c.channel === "sweep");
         const pulse = channels.find((c) => c.channel === "pulse");
-        renderStrip(tickets, growth, sweeps, pulse);
+        const stabilityChannels = channels.filter(
+          (c) => c.channel === "stability",
+        );
+        renderStrip(tickets, growth, sweeps, pulse, stabilityChannels);
         renderBody(tickets);
         renderSweeps(sweeps);
       }
@@ -462,7 +465,10 @@
 
       // The Stability tile's markup for whatever state it's currently in —
       // not yet loaded, no app bound, mid-fetch, errored, or holding a number.
-      function stabilityTileHtml() {
+      // `stabilityChannels` is the pulled fallback — stability-<slug>.json
+      // channels a model-driven `/board refresh --stability-scrape` wrote,
+      // consulted only when the live fetch couldn't produce a number.
+      function stabilityTileHtml(stabilityChannels) {
         if (stabilityApps === null) {
           return `<div class="tile ghost"><div class="lbl">Stability</div>
       <div class="kpi">—</div><div class="muted">loading…</div></div>`;
@@ -486,12 +492,29 @@
           body = `<div class="kpi">—</div><div class="meter"><i style="width:0%"></i></div>
       <div class="muted">fetch failed: ${esc(stabilityError)}</div>`;
         } else if (stabilityResult) {
-          const pct = stabilityResult.crash_free_pct;
+          const live = stabilityResult.crash_free_pct;
+          // No source/age label by design — the tile shows whichever number
+          // it has, live BigQuery or a last-scraped console reading alike.
+          const fallback =
+            live == null
+              ? stabilityChannels.find(
+                  (c) =>
+                    c.label === stabilitySelected && c.crash_free_pct != null,
+                )
+              : null;
+          const pct =
+            live != null ? live : fallback ? fallback.crash_free_pct : null;
           const warn = pct != null && pct < STABILITY_WARN_BELOW;
           const app = stabilityApps.find((a) => a.label === stabilitySelected);
-          const detail = stabilityResult.note
-            ? esc(stabilityResult.note)
-            : `${stabilityResult.window_days}d window${app && app.platform ? " · " + esc(app.platform) : ""}`;
+          const platform = app && app.platform ? esc(app.platform) : "";
+          let detail;
+          if (pct == null) {
+            detail = esc(stabilityResult.note);
+          } else if (fallback) {
+            detail = platform || "—";
+          } else {
+            detail = `${stabilityResult.window_days}d window${platform ? " · " + platform : ""}`;
+          }
           body = `<div class="kpi${warn ? " warn" : ""}">${pct == null ? "—" : pct + "%"}<small> crash-free users</small></div>
       <div class="meter"><i${warn ? ' class="warn"' : ""} style="width:${pct || 0}%"></i></div>
       <div class="muted">${detail}</div>`;
@@ -553,7 +576,7 @@
         render();
       }
 
-      function renderStrip(tickets, growth, sweeps, pulse) {
+      function renderStrip(tickets, growth, sweeps, pulse, stabilityChannels) {
         const blocked = tickets.filter((t) => t.blocked);
         const stir = sweeps.filter((s) => s.verdict === "stirred").length;
         const mend = sweeps.filter((s) => s.verdict === "mend").length;
@@ -575,7 +598,7 @@
         : `<div class="tile ghost"><div class="lbl">Metis growth</div><div class="kpi">—</div>
       <div class="muted">channel not wired</div></div>`
     }
-    ${stabilityTileHtml()}
+    ${stabilityTileHtml(stabilityChannels)}
     ${
       sweeps.length
         ? `<div class="tile"><div class="lbl">Sweeps</div>
