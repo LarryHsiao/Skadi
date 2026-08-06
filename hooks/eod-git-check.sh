@@ -17,7 +17,7 @@ fi
 for raw in "$@"; do
   dir="${raw/#\~/$HOME}"
 
-  if [[ ! -d "$dir/.git" ]]; then
+  if ! git -C "$dir" rev-parse --git-dir >/dev/null 2>&1; then
     echo "$raw|no-git|0|0|0|-|-"
     continue
   fi
