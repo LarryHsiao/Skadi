@@ -128,6 +128,7 @@
       "Bash(~/.claude/hooks/argonath-detect.sh:*)",
       "Bash(~/.claude/hooks/argonath-run.sh:*)",
       "Bash(~/.claude/hooks/argonath-secrets.sh:*)",
+      "Bash(~/.claude/hooks/argonath-merge-check.sh:*)",
       "Bash(~/.claude/hooks/amon-din-gitlab.sh:*)",
       "Bash(~/.claude/hooks/amon-din-teamcity.sh:*)",
       "Bash(~/.claude/hooks/skadi-worktree.sh:*)",
