@@ -766,6 +766,23 @@ def score_task_shot(turns, entry):
     return applied, complied, by_model
 
 
+def _request_before(turns, index):
+    """The prompt that opened the run a gate was rendered into — the request
+    that gate proposed — or None when the gate stands before any prompt.
+
+    A segment opens at a *mutating* run, and under the Free-Form Gate the
+    mutating run is the one the user's assent begins: the gauge itself draws no
+    edit. So a gate-proposed segment's own opening prompt is "proceed", and the
+    words describing the work stand one run earlier. Across the live roots 92 of
+    171 completions summarized themselves as bare assent — "proceed" 71 times —
+    which no judge can attribute a later bug report to."""
+    for j in range(index - 1, -1, -1):
+        turn = turns[j]
+        if turn["type"] == "user" and _is_run_boundary(turn["text"]):
+            return turn["text"]
+    return None
+
+
 def _bug_gate_data(turns, since):
     """One walk over a session's task segments (the same fold _task_segments
     already gives score_task_shot/score_post_gate — called, not modified, so
@@ -774,7 +791,10 @@ def _bug_gate_data(turns, since):
         that counts as a completion this row can hold responsible for a later
         bug report, in transcript order. A segment is a completion when an
         accepted plan.accepted gate proposed it, or it closed with a
-        Compliance Review PASS.
+        Compliance Review PASS. "summary" is what the judge is shown to
+        identify this completion by: the request the gate proposed where a gate
+        proposed it (see _request_before), else the segment's own opening
+        prompt, which for the gateless path already is the request.
       - reports: [{"key", "candidates", "message"}] — every segment, paired
         with the completions strictly before it (its candidate list) and its
         own opening prompt, for the judge to classify. A segment with no
@@ -817,7 +837,8 @@ def _bug_gate_data(turns, since):
         gate_ok = (chosen_gate is not None
                    and PLAN_VERDICTS.get(plan_verdicts.get(chosen_gate["key"])) is True)
         if gate_ok or _segment_complies(seg_turns, COMPLIANCE_PASS_RE, review_times):
-            completions.append({"key": key, "summary": seg[0][0],
+            proposed = _request_before(turns, chosen_gate["index"]) if gate_ok else None
+            completions.append({"key": key, "summary": proposed or seg[0][0],
                                  "model": _run_model(seg_turns), "index": i})
     return completions, reports, len(segments)
 
@@ -839,7 +860,7 @@ def score_bug_gate(turns, entry):
     hit_targets = set()
     for rep in reports:
         verdict = bug_verdicts.get(rep["key"])
-        if not verdict or verdict.get("verdict") != "bug" or not verdict.get("against"):
+        if not verdict or verdict.get("verdict") != BUG_VERDICT or not verdict.get("against"):
             continue
         candidate_keys = {c["key"] for c in rep["candidates"]}
         if verdict["against"] in candidate_keys:
@@ -872,6 +893,12 @@ def _pending_gates(turns):
 
 PLAN_VERDICTS = {"accepted": True, "altered": False}
 ABANDONED_VERDICT = "abandoned"
+
+# The two verdicts a bug-gate report may carry. BUG_VERDICT is read at three
+# sites — the parser's legal set, the scorer, and the unattributed count — so it
+# is bound once rather than retyped.
+BUG_VERDICT = "bug"
+UNRELATED_VERDICT = "unrelated"
 
 
 def _judged_gates(turns):
@@ -939,6 +966,30 @@ def _gate_series(sessions):
                    "rate": _rate(day["applied"], day["complied"]),
                    "byModel": _rated_by_model(day["byModel"])}
             for date, day in sorted(series.items())}
+
+
+def _unattributed_bugs(sessions, entry):
+    """Reports the judge called a real bug but could pin to no candidate in
+    their own list, counted so the row can report them beside the rate rather
+    than hide them — mirrors _abandoned_gates for plan.accepted.
+
+    The exclusion is not symmetric with that one, and the count matters more
+    for it. A report bears no row of its own; only completions do. So an
+    unpinned report does not fall out of the reckoning — the completion it
+    actually described stays in `applied` and, unnamed, is scored complied.
+    The rate therefore reads high by up to this many, and this count is the
+    only thing that says so."""
+    since = entry.get("since", "")
+    verdicts = _bug_verdicts()
+    unattributed = 0
+    for turns in sessions:
+        for report in _bug_gate_data(turns, since)[1]:
+            verdict = verdicts.get(report["key"])
+            if not verdict or verdict.get("verdict") != BUG_VERDICT:
+                continue
+            if verdict.get("against") not in {c["key"] for c in report["candidates"]}:
+                unattributed += 1
+    return unattributed
 
 
 def _abandoned_gates(sessions):
@@ -1094,7 +1145,7 @@ def _parse_bug_verdicts(raw):
         return {}
     out = {}
     for row in rows:
-        if not isinstance(row, dict) or not row.get("key") or row.get("verdict") not in ("bug", "unrelated"):
+        if not isinstance(row, dict) or not row.get("key") or row.get("verdict") not in (BUG_VERDICT, UNRELATED_VERDICT):
             continue
         against = row.get("against")
         out[row["key"]] = {"verdict": row["verdict"],
@@ -1278,6 +1329,8 @@ def apply_rubric(files, rubric):
             if kind == "plan-gate":
                 item["abandoned"] = _abandoned_gates(sessions)
                 item["byDate"] = _gate_series(sessions)
+            if kind == "bug-gate":
+                item["unattributed"] = _unattributed_bugs(sessions, entry)
             if kind == "post-gate" and entry.get("skipped"):
                 item["skipped"] = _skipped_reviews(sessions, entry)
             if kind == "review-verdict":
@@ -1483,6 +1536,7 @@ const STRINGS = {
     gateAbandoned: (n) => `${n} gate${n === 1 ? "" : "s"} abandoned — excluded from the rate, since silence is no verdict on a plan.`,
     reviewExcluded: (silent, skipped) => `Excluded from this rate: ${silent} segment${silent === 1 ? "" : "s"} closed with no review${skipped ? `, ${skipped} explicitly skipped` : ""} — a review never run is no verdict on the work.`,
     reviewWaived: (n) => `${n} segment${n === 1 ? "" : "s"} waived the review with a reasoned SKIPPED — excluded from this rate, neither credited nor penalized.`,
+    bugUnattributed: (n) => `${n} bug report${n === 1 ? "" : "s"} named no completion — each still counts its target clean, so this rate reads high by up to that many.`,
     day: (n) => `${n} day${n === 1 ? "" : "s"}`,
     gateAria: "Plan acceptance rate by session date, one line per model",
   },
@@ -1504,6 +1558,7 @@ const STRINGS = {
     gateAbandoned: (n) => `${n} 個關卡遭放棄——不計入比率，沉默不代表對計畫的任何判決。`,
     reviewExcluded: (silent, skipped) => `不計入此比率：${silent} 個段落未經審查即收尾${skipped ? `，另有 ${skipped} 個明示略過` : ""}——未曾進行的審查，對成果不構成任何判決。`,
     reviewWaived: (n) => `${n} 個段落以具名理由的 SKIPPED 免除審查——不計入此比率，既不記功亦不記過。`,
+    bugUnattributed: (n) => `${n} 筆缺陷回報指不出對應的完成項——它們的目標仍被算作乾淨，因此此比率最多高估這麼多。`,
     day: (n) => `${n} 天`,
     gateAria: "依 session 日期呈現的計畫接受率，每個模型一條線",
   },
@@ -1719,6 +1774,7 @@ function render(tab, model) {
     const excluded = i.unreviewed && (i.unreviewed.silent + i.unreviewed.skipped) > 0
       ? `<p class="gnote">${esc(S().reviewExcluded(i.unreviewed.silent, i.unreviewed.skipped))}</p>` : "";
     const waived = i.skipped ? `<p class="gnote">${esc(S().reviewWaived(i.skipped))}</p>` : "";
+    const unpinned = i.unattributed ? `<p class="gnote">${esc(S().bugUnattributed(i.unattributed))}</p>` : "";
     const critRow = i.criterion ? `<tr class="critrow" data-crit="${esc(i.id)}"><td colspan="3"><div class="crit">${criterionHtml(itemCriterion(i))}</div></td></tr>` : "";
     // The rate above obeys the selected chip, as every row does; the chart below
     // still draws every model's line — comparing them costs no clicks — but dims
@@ -1726,7 +1782,7 @@ function render(tab, model) {
     const gateRow = i.byDate !== undefined
       ? `<tr class="gaterow"><td colspan="3">${gateChart(i, model)}</td></tr>` : "";
     return `<tr class="${i.status !== "ok" ? "pending" : ""}">
-      <td><code>${esc(i.id)}</code> ${info} ${statusBadge}<br>${esc(itemLabel(i))}${bar}${excluded}${waived}</td>
+      <td><code>${esc(i.id)}</code> ${info} ${statusBadge}<br>${esc(itemLabel(i))}${bar}${excluded}${waived}${unpinned}</td>
       <td>${esc(rate)}</td><td>${esc(n)}</td></tr>${critRow}${gateRow}`;
   };
   document.getElementById("rows").innerHTML = Object.keys(groups).sort((a, b) => tierRank(a) - tierRank(b)).map(t =>

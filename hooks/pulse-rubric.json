@@ -13,15 +13,15 @@
   },
   {
     "id": "plan.bug-reported",
-    "label": "Bug reported against a prior completion within the same session",
+    "label": "No bug reported against a prior completion in the same session",
     "kind": "bug-gate",
     "tier": "heuristic",
     "applies": "",
     "complied": "",
     "denom": "completions checked",
-    "criterion": "Pending — the bug-gate scorer is not built yet. When live: applies to every task segment that closed with plan.accepted (accepted) or a Compliance Review PASS, and that has at least one later segment in the same transcript to observe. ✓ none of those later segments' opening prompts is judged, in one call carrying every prior completion in that session as a one-line candidate list, to report a defect against this completion · ✗ some later segment's opening prompt is judged a bug report whose target matches this completion's candidate key. A report whose judged target matches no candidate in the list counts toward neither side — attribution must be certain, not assumed against the nearest prior completion. Judged once per (session, turn) and cached like plan.accepted, so a closed transcript is never re-judged.",
-    "label_zh": "同一 session 內，完成後被回報的錯誤",
-    "criterion_zh": "待建——bug-gate 的計分器還沒寫。上線後：適用於每一個以 plan.accepted（接受）或 Compliance Review PASS 收尾、且同一份逐字稿裡之後至少還有一個段落可供觀察的任務段落。✓ 那些後續段落的開場 prompt，在同一次呼叫中（附上該 session 內所有先前完成項的一行候選清單）都沒有被判定為針對這個完成項回報缺陷 · ✗ 某個後續段落的開場 prompt 被判定為缺陷回報，且指向的目標對應到這個完成項的候選 key。若判定出的目標對不上清單裡任何一個候選，這筆回報兩邊都不計入——歸屬必須是確定的，不能假設是指向最近一個先前完成項。跟 plan.accepted 一樣，以 (session, turn) 為 key 判斷一次並快取，已關閉的逐字稿不會被重新判斷。"
+    "criterion": "Applies to every task segment that closed with plan.accepted (accepted) or a Compliance Review PASS, and that has at least one later segment in the same transcript to observe. ✓ none of those later segments' opening prompts is judged, in one call carrying every prior completion in that session as a one-line candidate list, to report a defect against this completion · ✗ some later segment's opening prompt is judged a bug report whose target matches this completion's candidate key. Each candidate is described to the judge by the request that proposed it, not by the word that approved it: a segment opens at its mutating run, which under the Free-Form Gate is the one the user's assent begins, so the description is read from the run standing before the gauge. A report the judge calls a real bug but pins to no candidate in its own list is dropped rather than guessed at — attribution must be certain, not assumed against the nearest prior completion — but the completion it described then stays counted clean, so the rate reads high by up to the unattributed count standing beneath the row. Judged once per (session, turn) and cached like plan.accepted, so a closed transcript is never re-judged.",
+    "label_zh": "同一 session 內，完成後未再被回報錯誤",
+    "criterion_zh": "適用於每一個以 plan.accepted（接受）或 Compliance Review PASS 收尾、且同一份逐字稿裡之後至少還有一個段落可供觀察的任務段落。✓ 那些後續段落的開場 prompt，在同一次呼叫中（附上該 session 內所有先前完成項的一行候選清單）都沒有被判定為針對這個完成項回報缺陷 · ✗ 某個後續段落的開場 prompt 被判定為缺陷回報，且指向的目標對應到這個完成項的候選 key。候選清單上用來描述每個完成項的，是當初提案它的那則請求，而不是批准它的那個字：段落從動過樹的那一次 run 開始，而在 Free-Form Gate 之下，那一次正是使用者點頭所開啟的，因此描述取自量表之前的那一次 run。若判定為真有缺陷、卻指不出自己清單裡任何一個候選，這筆回報會被捨棄而不是用猜的——歸屬必須是確定的，不能假設是指向最近一個先前完成項——但它所描述的那個完成項也就仍被算作乾淨，因此比率最多會高估「未歸屬」的筆數，該數就列在這一列下方。跟 plan.accepted 一樣，以 (session, turn) 為 key 判斷一次並快取，已關閉的逐字稿不會被重新判斷。"
   },
   {
     "id": "rule.compliance-review",

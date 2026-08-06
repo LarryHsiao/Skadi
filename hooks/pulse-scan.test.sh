@@ -1521,6 +1521,47 @@ PY
 )
 check "bug-gate: accepted gate and Compliance Review PASS each mark their own segment" "$expected_bugseg" "$actual_bugseg"
 
+# ── 50b · bug-gate: a gate-proposed completion is summarized by the request the
+#          gate proposed, not by the word that approved it. A segment opens at a
+#          mutating run, and under the Free-Form Gate that run is the one the
+#          user's assent begins — so the naive summary reads "go", which no judge
+#          can attribute a later bug report to. The Compliance-PASS completion
+#          beside it has no gate and keeps its own opening prompt. ──
+expected_bugsummary="add feature X|add feature Z"
+actual_bugsummary=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$d/bug1.jsonl" <<'PY'
+import importlib.util as u, sys
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+completions, _, _ = m._bug_gate_data(m.read_turns(sys.argv[2]), "")
+print("|".join(c["summary"] for c in completions))
+PY
+)
+check "bug-gate: a gate-proposed completion is summarized by the request, not the assent" "$expected_bugsummary" "$actual_bugsummary"
+
+# ── 50c · bug-gate: when the gate stands before any prompt — a transcript that
+#          opens mid-flight, as a resumed or compacted session does — the
+#          reach-back finds nothing and the summary falls back to the segment's
+#          own opening prompt. The assent is a poor description, but it is the
+#          only one there is; inventing none would drop a real completion. ──
+cat >"$d/bug2.jsonl" <<'JSON'
+{"type":"assistant","timestamp":"2026-07-25T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▱▱ minimum — resume the work\nAcceptance:\n- it resumes"}]}}
+{"type":"user","timestamp":"2026-07-25T09:01:00Z","message":{"content":"go"}}
+{"type":"assistant","timestamp":"2026-07-25T09:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Done."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-07-25T09:02:00Z","message":{"content":"thanks"}}
+{"type":"assistant","timestamp":"2026-07-25T09:02:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"You are welcome."}]}}
+JSON
+echo '{"bug1:1":"accepted","bug2:0":"accepted"}' >"$d/pulse/verdicts.json"
+expected_bugnoreach="bug2:2|go"
+actual_bugnoreach=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$d/bug2.jsonl" <<'PY'
+import importlib.util as u, sys
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+completions, _, _ = m._bug_gate_data(m.read_turns(sys.argv[2]), "")
+print("|".join("%s|%s" % (c["key"], c["summary"]) for c in completions))
+PY
+)
+check "bug-gate: a gate with no prompt before it falls back to the segment's own" "$expected_bugnoreach" "$actual_bugnoreach"
+
 # ── 51 · bug-gate: a later segment judged as a bug correctly attributed to the
 #         completion drops it from complied ──
 echo '{"bug1:7":{"verdict":"bug","against":"bug1:3"}}' >"$d/pulse/bug-verdicts.json"
@@ -1642,6 +1683,27 @@ print("%s|%s|%s|%s" % (item["status"], item["applied"], item["complied"], item["
 PY
 )
 check "bug-gate wired into apply_rubric: plan.bug-reported flips pending -> ok" "$expected_wired" "$actual_wired"
+
+# ── 54b · bug-gate: reports judged a real bug but pinned to no candidate are
+#          counted beside the rate, as plan.accepted counts its abandoned gates.
+#          A report bears no row of its own, so an unpinned one leaves the
+#          completion it described silently credited clean — the rate reads high
+#          by up to that many, and the count is what says so. Both flavours ride
+#          here: an absent target and one naming no candidate in that list. ──
+echo '{"bug1:7":{"verdict":"bug","against":null},"bug1:11":{"verdict":"bug","against":"nonexistent:99"}}' >"$d/pulse/bug-verdicts.json"
+expected_bugunattr="ok|1|1|100|2"
+actual_bugunattr=$(PULSE_DIR="$d/pulse" PULSE_JUDGE_CMD="python3 $d/fakebugjudge.py" python3 - "$SCAN" "$RUBRIC" "$d/bug1.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+items, _ = m.apply_rubric([sys.argv[3]], rubric)
+item = next(i for i in items if i["id"] == "plan.bug-reported")
+print("%s|%s|%s|%s|%s" % (item["status"], item["applied"], item["complied"],
+                          item["rate"], item["unattributed"]))
+PY
+)
+check "bug-gate: unpinned bug reports are counted beside the rate they inflate" "$expected_bugunattr" "$actual_bugunattr"
 
 # ── 55 · review-verdict scorer: the rate is PASS over the reviews actually run,
 #         read from each reviewer's own transcript ──

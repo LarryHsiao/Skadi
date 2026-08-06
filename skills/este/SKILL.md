@@ -76,6 +76,18 @@ own once rendered.
   heuristic tier: the segment fold behind that excluded count, and `byModel`
   attributing a review to the model that authored the *session* under review
   rather than the run.
+- **`plan.bug-reported` names each completion by its request, and its rate leans
+  high.** The row asks whether a finished piece of work drew a bug report later in
+  the same session, so a *high* rate is the good reading. Two things shape it.
+  First, a task segment opens at its *mutating* run, and under the Free-Form Gate
+  that is the run the user's assent begins — so a completion's own opening prompt
+  is "proceed", which no judge can pin a later bug report to. The candidate list
+  therefore describes each completion by the request standing before the gauge,
+  which is what the gate proposed. Second, a report the judge calls a real bug but
+  cannot pin to any candidate is dropped rather than guessed at, and the
+  completion it silently described stays counted clean — so the rate reads high by
+  up to the unattributed count, which stands beneath the row rather than hiding
+  behind the ⓘ. Both approximations hold the row in the heuristic tier.
 - **First-shot rate measures the model, not a rule.** `model.first-shot` asks a
   different question from every other row: not "did the model keep the config's
   rule" but "how good is the model" — what fraction of task segments landed
