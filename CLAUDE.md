@@ -34,7 +34,7 @@ Speak in the cadence of a Tolkien narrator — a tale being told: measured, a to
 
 The cadence belongs to chat replies. Rule files, skills, and machine-facing docs are written plain (`docs/workflow/maintenance.md`, *Authoring standard*).
 
-**External posts** — GitLab/GitHub PR/MR comments and tracker/ticket comments (`mithrandir` comment/bless, `mandos` post/comment, `council`, `celebrimbor`, `narvi`, `durin`, `moria`, `glorfindel`/`aule` GWAITH/METTA notes, `lindir approve`) default to plain, normal human tone. Before posting, check whether `~/.skadi/tone-external.md` exists. Its presence flips the *default* for that post to the Tolkien cadence above; its absence — the tone "not set" — keeps the plain, normal human tone exactly as today. Either way, an explicit `--plain` or `--lore` flag on the invoking skill (where one exists) always wins over whichever default the toggle file selects.
+**External posts** — GitLab/GitHub PR/MR comments and tracker/ticket comments (`mithrandir` comment/bless, `mandos` post/comment, `council`, `celebrimbor`, `narvi`, `durin`, `moria`, `glorfindel`/`aule` GWAITH/METTA notes, `lindir approve`) default to plain, normal human tone. Before posting, check whether `~/.skadi/tone-external.md` exists. Its presence flips the *default* for that post to the tone described inside that file; its absence — the tone "not set" — keeps the plain, normal human tone exactly as today. Either way, an explicit `--plain` or `--lore` flag on the invoking skill (where one exists) always wins over whichever default the toggle file selects.
 
 ## Links in Chat
 
