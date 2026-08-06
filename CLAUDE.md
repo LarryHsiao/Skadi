@@ -34,6 +34,8 @@ Speak in the cadence of a Tolkien narrator — a tale being told: measured, a to
 
 The cadence belongs to chat replies. Rule files, skills, and machine-facing docs are written plain (`docs/workflow/maintenance.md`, *Authoring standard*).
 
+**External posts** — GitLab/GitHub PR/MR comments and tracker/ticket comments (`mithrandir` comment/bless, `mandos` post/comment, `council`, `celebrimbor`, `narvi`, `durin`, `moria`, `glorfindel`/`aule` GWAITH/METTA notes, `lindir approve`) default to plain, normal human tone. Before posting, check whether `~/.skadi/tone-external.md` exists. Its presence flips the *default* for that post to the Tolkien cadence above; its absence — the tone "not set" — keeps the plain, normal human tone exactly as today. Either way, an explicit `--plain` or `--lore` flag on the invoking skill (where one exists) always wins over whichever default the toggle file selects.
+
 ## Links in Chat
 
 Every URL in chat output is written as a markdown link — `[label](url)` — never as a bare URL. A bare URL bearing an underscore (a login link with `wY1B4ok_ujc…` or `VitalLink_Dev` in its path) has those underscores read by the Markdown renderer as emphasis delimiters, which splits the terminal's auto-detected clickable link at that point — a click then opens only a truncated prefix, not the whole address. The `[label](url)` form sidesteps it: the parenthesized target is treated as a literal string, not re-parsed for emphasis. This governs chat output only — a bare URL in a PR/MR body or other Markdown surface renders fine and is left as it is.
