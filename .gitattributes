@@ -1,0 +1,16 @@
+# On Windows `core.autocrlf=true` rewrites line endings at checkout, so a
+# script that is LF in the object store lands on disk as CRLF. That is harmless
+# until the file is executed somewhere else: `#!/usr/bin/env bash\r` names no
+# interpreter, and shellcheck rates the stray carriage returns an error (SC1017)
+# rather than a style note.
+#
+# install.sh copies hooks/ verbatim into every configured Claude config root, so
+# a root standing on macOS or Linux inherits whatever this working tree holds.
+# Executable text is therefore pinned to LF on every platform. Prose and data —
+# markdown, JSON, CSS, HTML — are left to the platform, where the line ending
+# costs nothing and rewriting them would be churn for its own sake.
+*.sh text eol=lf
+*.py text eol=lf
+
+# Kept clear of any line-ending conversion.
+*.png binary
