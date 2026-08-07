@@ -289,7 +289,7 @@ Otherwise, resolve the project's commands from the workspace — the same detect
 cd <workspace> && ~/.claude/hooks/argonath-detect.sh
 ```
 
-Returns `{stack, lint, format, build, test, test_scope, source}`. For each of `test` and `lint` that is non-empty, run it:
+Returns `{stack, lint, format, build, test, install, test_scope, source}`. For each of `test` and `lint` that is non-empty, run it — `install` is not Narvi's to run, it belongs to Argonath's merged-tree probe and its dependency-less checkout:
 
 ```bash
 cd <workspace> && ~/.claude/hooks/argonath-run.sh Tests <test-command...>

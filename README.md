@@ -53,7 +53,7 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - `/focus` — Pomodoro focus timer
 - `/preflight` — Run periodic maintenance checks and sync overdue items into the todo list
 - `/nazgul` — Dispatch the Nine: one agent per check file, aggregating pass/fail verdicts into a single table. Default scope is the diff (uncommitted, branch, or sha range); `/nazgul project` rides over the standing project tree instead. Each check declares its scope via frontmatter
-- `/argonath` — Weigh the about-to-be-pushed diff (or the whole tree with the `project` verb): run the project's lint/format/build/test toolchain, scan for secrets, then fold `/nazgul` and `/mithrandir` in as advisory rows — all into one Pass / Hold verdict. Report only; never runs `git push`
+- `/argonath` — Weigh the about-to-be-pushed diff (or the whole tree with the `project` verb): run the project's lint/format/build/test toolchain, scan for secrets, dry-run the merge against the target branch and probe it for the semantic drift a textual merge cannot see — escalating to a real test run on the merged tree when that probe fires — then fold `/nazgul` and `/mithrandir` in as advisory rows — all into one Pass / Hold verdict. Report only; never runs `git push`
 - `/council` — Convene a planning council on a tracker ticket: Erestor drafts, Elrond decides, all by comment
 - `/glorfindel` — Sweep every open ticket in a project and run the council on each, aggregating one report
 - `/celebrimbor` — Forge an approved counsel into a PR/MR: branch off base, dispatch the smith, open the PR/MR, post `[GWAITH]` on the ticket
@@ -123,6 +123,8 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **youtrack-attach** — Attaches or replaces a PNG on a YouTrack issue
 - **jira-comment-edit**, **jira-attach** — Edit a Jira comment in place and attach/replace a PNG — the Jira twins of the YouTrack pair above (ADF conversion shared in `jira_adf.py`), for `/council`'s skeleton-stage path
 - **argonath-detect**, **argonath-run**, **argonath-secrets** — Detect the project toolchain, run the lint/format/build/test gate, and scan for secrets for `/argonath`
+- **argonath-merge-check**, **argonath-drift** — Probe the resolved target branch for `/argonath` — the first for textual conflicts via `git merge-tree`, the second for the semantic drift a textual merge cannot see (dependency, test-config, and migration collisions)
+- **argonath-merged-test** — Escalation for `/argonath` when drift fires: materialise the merge in a throwaway `git worktree`, re-detect the toolchain there, install, and run the tests — the caller's working tree never touched
 - **rhovanion-jira-probe**, **rhovanion-youtrack-probe** — The cheap per-project movement probe that decides whether `/rhovanion` rides a project
 - **feanor-shot**, **feanor-flutter-shot** — Shoot the target to a PNG — a served page via headless Chrome/Edge, or a booted Flutter app — for `/feanor`
 - **outlook-token**, **outlook-fetch**, **outlook-classify**, **outlook-folders**, **outlook-folder-create**, **outlook-mark-read**, **outlook-move** — Microsoft Graph I/O (token, fetch, classify, list/create folders, mark read, move) for `/triage` and `/gwaihir`

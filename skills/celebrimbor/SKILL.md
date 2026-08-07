@@ -281,7 +281,7 @@ a. **Static-analysis & format gate (language-aware).** Resolve and run the proje
 ( cd <workspace> && ~/.claude/hooks/argonath-detect.sh )
 ```
 
-It returns JSON `{stack, lint, format, build, test, test_scope, source}`. For each non-empty command among `lint`, `format`, `build`, `test`, run it through the same hook Argonath uses, from the workspace:
+It returns JSON `{stack, lint, format, build, test, install, test_scope, source}`. For each non-empty command among `lint`, `format`, `build`, `test`, run it through the same hook Argonath uses, from the workspace. `install` is not among them — it belongs to Argonath's merged-tree probe, which tests a fresh checkout carrying no dependencies; this workspace already has its own:
 
 ```bash
 ( cd <workspace> && ~/.claude/hooks/argonath-run.sh <label> <command...> )
