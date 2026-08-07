@@ -1,6 +1,6 @@
 ---
 name: mithrandir
-description: Use when the user runs /mithrandir, /mithrandir branch, /mithrandir <url>, /mithrandir comment <url>, or /mithrandir bless <url> (alias /mithrandir recheck <url>). With no argument or the `branch` verb, weighs the current local branch against its base; with a URL, weighs a pull request or merge request. Renders a multi-axis verdict — five always-on (stability, performance, coding style, maintainability, correctness) plus seven conditional (test coverage, security, documentation, backward compatibility, observability, dependency hygiene, accessibility & i18n) that fire only when the diff touches their domain — followed by an optional `Worth keeping` section (concrete bright spots) and an optional `To pass` action list grouped by severity (Blocker / Nice to have / Nit), closing with a tier (sound | wavering | off) and a short reasoning paragraph. A blockquote header at the top distils the bottom line — Merge / Hold / Refuse. The default and `branch` paths render to chat; the `comment` verb posts a URL-path verdict to the forge after a confirm-once gate. The `bless` verb (alias `recheck`) re-weighs an amended PR/MR, finds its prior `comment`-verb post, and threads a follow-up reply — All resolve / Partial okay if the work has earned it; counsel withheld (chat-only) if not. Branch-path bears no `comment` or `bless` — local diffs have no PR to write on. Tone defaults differ by audience — read leans Tolkien (private counsel); comment and bless lean plain (public note). The `--plain` and `--lore` flags override either default. The `--deep` flag weighs each changed file on its own via a per-file subagent fan-out — watchowl-style depth that catches subtle per-file flaws a holistic pass dilutes; it composes with branch and read paths and with either tone. Host-agnostic; routes to GitHub or GitLab from the URL.
+description: Use when the user runs /mithrandir, /mithrandir branch, /mithrandir <url>, /mithrandir comment <url>, or /mithrandir bless <url> (alias /mithrandir recheck <url>). With no argument or the `branch` verb, weighs the current local branch against its base; with a URL, weighs a pull request or merge request. Renders a multi-axis verdict — five always-on (stability, performance, coding style, maintainability, correctness) plus seven conditional (test coverage, security, documentation, backward compatibility, observability, dependency hygiene, accessibility & i18n) that fire only when the diff touches their domain — followed by an optional `Worth keeping` section (concrete bright spots) and an optional `To pass` action list grouped by severity (Blocker / Nice to have / Nit), closing with a tier (sound | wavering | off) and a short reasoning paragraph. A blockquote header at the top distils the bottom line — Merge / Hold / Refuse. The default and `branch` paths render to chat; the `comment` verb posts a URL-path verdict to the forge after a confirm-once gate. The `bless` verb (alias `recheck`) re-weighs an amended PR/MR, finds its prior `comment`-verb post, and threads a follow-up reply — All resolve / Partial okay if the work has earned it; counsel withheld (chat-only) if not. Branch-path bears no `comment` or `bless` — local diffs have no PR to write on. Tone defaults differ by audience — read leans Tolkien (private counsel); comment and bless lean plain (public note). The `--plain` and `--lore` flags override either default. The `--deep` flag weighs each changed file on its own via a per-file subagent fan-out — watchowl-style depth that catches subtle per-file flaws a holistic pass dilutes; it composes with branch and read paths and with either tone. The `--verify` flag adds an adversarial second pass before any non-sound axis tier or `To pass` row is admitted to the render — a three-lens panel per candidate finding, two lenses asking whether the flaw exists (both must refute to drop it) and one whether it is graded right (refuting lowers it a step, never drops it); it composes with all four paths, with either tone, and with `--deep`. Host-agnostic; routes to GitHub or GitLab from the URL.
 purpose: Renders a multi-axis code-quality verdict for a branch or PR/MR.
 user_invocable: true
 ---
@@ -27,6 +27,9 @@ Where Lindir reads what is written, Mithrandir weighs it. The Grey Pilgrim has w
 /mithrandir <url> --plain          # read, plain tone
 /mithrandir branch --deep          # branch, per-file fan-out (watchowl-style depth)
 /mithrandir <url> --deep           # read, per-file fan-out
+/mithrandir branch --verify        # branch, three-lens refutation panel
+/mithrandir <url> --verify         # read, three-lens refutation panel
+/mithrandir <url> --deep --verify  # read, per-file fan-out + refutation
 /mithrandir comment <url>          # post, plain tone (default)
 /mithrandir comment <url> --lore   # post, lore tone (opt-in)
 /mithrandir bless <url>            # re-weigh + thread reply, plain tone (default)
@@ -46,6 +49,8 @@ Dispatch on the **first positional argument**:
 The flags `--plain` and `--lore` may appear anywhere after the verb/URL; they are mutually exclusive. If both are passed, stop with: *"`--plain` and `--lore` cannot stand together; choose one tongue."*
 
 The `--deep` flag may also appear anywhere after the verb/URL. It composes with either tone flag (or neither) — it changes the *depth* of the weighing, not the voice — and rides the branch-path and read-path alike (and so the `comment` / `bless` verbs that build on read). See *Deep mode* below.
+
+The `--verify` flag may also appear anywhere after the verb/URL, alongside `--deep` and either tone flag. It changes whether a finding survives a second, adversarial check before it is rendered — not which surface is touched, nor how deep the first read went — and rides the branch-path and read-path alike (and so the `comment` / `bless` verbs that build on read). See *Verify mode* below.
 
 ## Tone modes
 
@@ -86,6 +91,55 @@ The brief keeps its shape — blockquote header, axis lines, overall tier, closi
 - The `## To pass` section is the heart of a deep run: it carries **every** file's findings, severity-grouped, not merely the few a holistic pass would surface. Each row still leads with its `path:line`.
 
 A deep run costs more — one agent per file — so reach for it when a diff is broad and subtle correctness matters, not for a two-file tweak the holistic pass already reads line by line.
+
+## Verify mode (`--verify`) — per-finding refutation
+
+The default weighing renders a flaw the moment it is found, with nothing standing between the finding and the page. A plausible-but-wrong finding therefore arrives wearing the same clothes as a real defect, and the reader has no way to tell them apart. `--verify` puts a second, adversarial pass in that gap: before any non-`sound` axis tier or any `## To pass` row is admitted to the render, a panel of three reviewers tries to refute it — two asking whether the flaw exists, one whether it is graded right. Only when *both* existence lenses refute does the finding fall.
+
+`--verify` is a flag, not a verb: it changes whether findings survive scrutiny, never which surface is touched. It rides the branch-path and read-path (and so the `comment` / `bless` verbs that build on read), and composes with `--deep` — deep mode already yields per-file findings as discrete objects, and verify mode refutes them where they stand rather than re-reading the diff — and with `--plain`, `--lore`, or neither.
+
+### Mechanism — three lenses per candidate finding
+
+After the axes are weighed (holistic step 4, or Deep mode's aggregation step 3):
+
+1. **Collect candidate findings.** Every rendered axis whose tier is `wavering` or `off` — its evidence clause is the claim — plus every row queued for `## To pass`. Each candidate carries the axis it is tagged to, its severity or tier, its evidence text, and its `file:line` where one is named. When a `## To pass` row and an axis tier stem from the same close-pass observation — the same flaw named twice, once as evidence and once as an action — treat them as **one** candidate bearing both faces, so a single panel verdict governs both rather than two panels disagreeing about one flaw.
+
+2. **Fan out three reviewers per candidate, one per lens.** Dispatch `general-purpose` subagents in parallel. **Every Agent call in this fan-out MUST carry `model: opus` — passed explicitly on each call**, the same discipline Deep mode holds: omit it and the panel quietly loses the judgement it was convened for. Cap the concurrent count to a sane handful and queue the rest, as in Deep mode. Hand each reviewer the relevant diff hunk (the named file's hunk where a path is given, the full diff otherwise), the axis definition, and the candidate's exact wording. Each returns `REFUTED` or `STANDS` with a one-line reason, and reads only — it never edits, comments, or posts.
+
+   The three lenses are distinct, and that is the point. Three copies of one reviewer share one blind spot: where they are wrong, they are wrong together and the vote is unanimous, so counting them buys nothing a single call did not already give. A finding must instead survive three *different* ways of being right:
+
+   Two of the lenses ask whether the flaw **exists**:
+
+   - **Mechanism** — does the code actually do what the finding says it does? Trace the path and argue that the described failure cannot occur.
+   - **Context** — is there something outside the hunk that makes this correct as written? A caller that guarantees the invariant, a project convention that differs from the reviewer's taste, a sibling doing the same thing for the same reason.
+
+   The third asks whether it is **graded** right:
+
+   - **Severity** — granting that the flaw is real, does it hold *at the grade it was given*? A true defect named a Blocker when it is a Nit misleads as surely as a false one.
+
+3. **Count the votes — but not all in one tally.** The two questions are different, and a vote on one is no evidence about the other.
+
+   - **Existence.** A candidate is dropped only when **both** the mechanism and the context lens return `REFUTED`. One of the two dissenting is not enough: the finding stands, and it stands *marked as contested*.
+   - **Grade.** The severity lens never drops anything. Its `REFUTED` lowers the finding one step — `Blocker` → `Nice to have` → `Nit` for a `## To pass` row, `off` → `wavering` for an axis tier — and the finding stands at the lower grade.
+
+   Refusing to pool these is the whole reason the lenses are named. A severity reviewer saying *"real, but this is a Nit"* is agreeing the flaw exists; counting that as half of a drop would let one true objection and one taste objection erase a defect between them.
+
+4. **Reconcile.** The two tallies are independent, and one candidate may be touched by both — the existence verdict decides whether it survives, the grade verdict decides at what weight.
+
+   - **Dropped** (both existence lenses refuted) — loses its `## To pass` row entirely, and its axis reverts toward `sound`: recompute the tier from whatever other evidence the close pass still holds for that axis; if none remains, the axis renders `sound` and its evidence clause is rewritten to the clean read. A dropped candidate is dropped whatever the severity lens said; there is nothing left to grade.
+   - **Downgraded** (severity refuted, and it survived) — keeps both faces and moves each down one step. At the floor it stays put: a `Nit` remains a `Nit`, a `wavering` axis remains `wavering`. The severity lens argues a finding is *overgraded*, and the only step below the floor is "it does not exist" — which is the existence lenses' question, and they were not asked this one.
+   - **Contested** (exactly one existence lens refuted) — stands, at whatever grade the severity tally left it, and is marked as contested in the render.
+
+   A candidate can be contested *and* downgraded at once. Apply each verdict on its own terms; neither substitutes for the other.
+
+### Render delta
+
+The brief keeps its shape. Two differences:
+
+- A one-line tail sits under the blockquote header naming the pass: *"Verify mode — N findings weighed by panel, M refuted, K downgraded, J standing contested."* It is appended after Deep mode's tail line when both flags are active. Because the tallies are independent, the last two counts may name the same finding twice; they are properties, not buckets. Both earn their place — a downgraded finding and a contested one are each a different thing from an unopposed one, and the reader deserves to know which counsel the panel itself could not agree on before acting on it.
+- A `## To pass` row that survived on a split existence vote carries a trailing `(contested)` after its text — one existence lens argued it away and the other did not. The mark says nothing about the row's grade: a contested row that the severity lens also refuted renders at the lower grade *and* keeps the mark.
+
+A verify run costs three opus calls per candidate finding — on a wavering branch bearing eight, twenty-four agents on top of the weighing itself. Reach for it where a wrong finding would cost something real: a verdict about to be posted publicly, a branch whose correctness is subtle, a mend loop that will act on the `To pass` list unattended. Not for a routine read.
 
 ## URL dispatch
 
@@ -198,6 +252,8 @@ If the diff call fails, render the verdict on metadata alone (description and fi
 Twelve axes are defined. **Five are always rendered** (Stability, Performance, Coding style, Maintainability, Correctness); the other seven are **conditional** — they render only when the diff touches their domain, and are silently omitted from the brief otherwise (no `n/a` row).
 
 **If `--deep` is active**, do not weigh the whole diff in one pass — fan out one focused reviewer (`general-purpose`, **`model: opus`** — passed explicitly on every Agent call) per changed file per *Deep mode* above, then aggregate the per-file findings into the axis verdicts and the `## To pass` section. The axis definitions, conditional-fire rules, and render shape are otherwise unchanged.
+
+**If `--verify` is active**, once the axes are weighed — by the holistic pass described in this same step, or by the deep-mode aggregate — run the refutation panel of *Verify mode* above before proceeding to step 5: three `general-purpose`, **`model: opus`** subagents per candidate finding, one per lens — both existence lenses must refute to drop it, while the severity lens only lowers its grade. Render on the reconciled finding set, never the pre-panel one.
 
 #### First, read close — the per-symbol pass
 
@@ -518,6 +574,8 @@ One short block:
 - `--plain` and `--lore` are mutually exclusive; passing both stops the run.
 - `--deep` composes with any weighing path (branch / read / comment / bless) and with either tone flag; it is not a write path of its own. When it leaves no hand-written file to weigh, fall back to the holistic pass and say so.
 - Deep-mode subagents are read-only — they find and report; they do not edit, commit, or post. The skill body owns aggregation and any forge write, exactly as in the holistic pass.
+- `--verify` composes with any weighing path (branch / read / comment / bless), with either tone flag, and with `--deep`; it is not a write path of its own. It runs after axis weighing and before rendering, on whichever finding set the weighing produced — holistic or deep.
+- Verify-mode panels are read-only and three-strong, one reviewer per lens (mechanism / context / severity), each carrying `model: opus` explicitly. They argue only; they do not edit, commit, or post. A finding falls only when **both** existence lenses refute it; the severity lens lowers a grade and never drops anything. Never a lone refuter, and never a panel of identical reviewers — correlated errors make their votes worth no more than one. The skill body owns reconciliation and any forge write, exactly as in the holistic and deep passes.
 - Do not surface forge tokens in logs, responses, or saved files.
 - Host-agnostic — the URL chooses the forge; the host portion is not pinned.
 - Do not edit `~/.claude/`, `~/.bashrc`, or anything outside the repo root.
