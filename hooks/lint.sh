@@ -70,6 +70,33 @@ changed_scripts() {
 # rather than in the exit status: a status wraps at 256, so a whole-repo run
 # — which this script invites — would report 256 failing files as 0 and print
 # "clean" over a wholly red tree. A variable has no such ceiling.
+# Indents each line of shellcheck's report by four spaces, reproducing what
+# `printf '%s\n' "$out" | sed 's/^/    /'` produced here — down to the lone
+# indented blank line an empty report gave, which is why this is a do-while
+# rather than a guard.
+#
+# Spelled in parameter expansion because every alternative costs a process per
+# failing file, and on Windows a process launch dominates everything else in
+# this script: over 256 failing files, `sed` spent 14.5s and a pipe into a
+# builtin loop 9.1s, against 0.02s for this. A here-string would be simpler
+# still but stages the text through a temp file, which is its own cost.
+#
+# The carriage return is stripped deliberately. shellcheck emits CRLF on
+# Windows, and MSYS `sed` was quietly discarding the CR as a side effect of
+# reading in text mode — a normalisation the same pipe would NOT have performed
+# on Linux, where `sed` passes the byte through. Doing it here makes the report
+# read the same on every platform, and makes the intent legible instead of
+# incidental.
+indent_report() { # report-text
+  local rest="$1" line
+  while :; do
+    line="${rest%%$'\n'*}"
+    printf '    %s\n' "${line%$'\r'}"
+    [ "$rest" = "$line" ] && break
+    rest="${rest#*$'\n'}"
+  done
+}
+
 lint_files() {
   local f out
   LINT_FAILED=0
@@ -78,7 +105,7 @@ lint_files() {
       printf '  %-44s ok\n' "$f"
     else
       printf '  %-44s FINDINGS\n' "$f"
-      printf '%s\n' "$out" | sed 's/^/    /'
+      indent_report "$out"
       LINT_FAILED=$((LINT_FAILED + 1))
     fi
   done

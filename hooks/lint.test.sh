@@ -87,9 +87,14 @@ check "an untracked script with a finding exits 1" "1" "$st"
 # ── the tally does not ride on an exit status, which wraps at 256 ──
 # Exactly 256 is the boundary: while the count was returned as an exit status,
 # this run reported "0 failing" and printed "clean" over a wholly red tree.
-# Costs a few seconds — 256 shellcheck invocations — and is worth them, since
-# the failure it guards is a silent inversion of the gate's verdict, on the
-# whole-repo run lint.sh's own header invites.
+# This block is the bulk of the suite's runtime — 256 shellcheck launches, some
+# 16s of the ~24s total on Windows, where a process launch costs far more than
+# the analysis it carries. It is worth every second: the failure it guards is a
+# silent inversion of the gate's verdict, on the whole-repo run lint.sh's own
+# header invites. Batching the 256 into one shellcheck call would take it to
+# under a second, but only by trading the report's source line, caret and wiki
+# link for gcc one-liners — the wrong side of that bargain for a tool someone
+# reads while fixing the finding.
 MANY="$WORK/many"
 mkdir -p "$MANY"
 i=1
