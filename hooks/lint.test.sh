@@ -18,7 +18,8 @@ contains() { # needle haystack
 }
 
 if ! command -v shellcheck >/dev/null 2>&1; then
-  echo "shellcheck not installed — brew install shellcheck" >&2
+  echo "shellcheck not installed — winget install koalaman.shellcheck (Windows)," \
+       "brew install shellcheck (macOS), apt install shellcheck (Debian/Ubuntu)" >&2
   exit 2
 fi
 

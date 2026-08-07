@@ -25,7 +25,12 @@ set -uo pipefail
 SEVERITY="${SHELLCHECK_SEVERITY:-warning}"
 
 if ! command -v shellcheck >/dev/null 2>&1; then
-  echo "shellcheck not installed — brew install shellcheck" >&2
+  # This repo is installed on Windows as readily as macOS, so name every route
+  # rather than the one the author happened to be standing on.
+  echo "shellcheck not installed — winget install koalaman.shellcheck (Windows)," \
+       "brew install shellcheck (macOS), apt install shellcheck (Debian/Ubuntu)" >&2
+  echo "note: a freshly installed binary is invisible to an already-running shell" \
+       "until its PATH is reloaded" >&2
   exit 2
 fi
 
