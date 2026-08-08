@@ -150,8 +150,17 @@ colorize_temp() {
 WEATHER_CACHE="/tmp/.claude_weather_cache"
 weather="Weather N/A"
 
+# mtime of a file, or 0 when it cannot be read. GNU (Linux, Git Bash) spells the
+# format -c, BSD (macOS) spells it -f, and neither accepts the other's flag. GNU
+# goes first because BSD stat bears no -c at all and so cannot answer it by
+# accident, whereas GNU's -f means "filesystem status" and could in principle
+# print something numeric before failing.
+file_mtime() {
+    stat -c "%Y" "$1" 2>/dev/null || stat -f "%m" "$1" 2>/dev/null || echo 0
+}
+
 if [ -f "$WEATHER_CACHE" ]; then
-    cache_age=$(( $(date +%s) - $(stat -f "%m" "$WEATHER_CACHE" 2>/dev/null || echo 0) ))
+    cache_age=$(( $(date +%s) - $(file_mtime "$WEATHER_CACHE") ))
     if [ "$cache_age" -lt 1800 ]; then
         weather=$(cat "$WEATHER_CACHE")
     fi
