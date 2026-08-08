@@ -28,6 +28,9 @@ hash_tree() {
   shift
   local line
   while IFS= read -r line; do
+    # `map` is a nameref (local -n), so this writes into the caller's array — a
+    # genuine use. shellcheck cannot follow namerefs and reads the name as unused.
+    # shellcheck disable=SC2034
     map["${line:34}"]="${line:0:32}"
   done < <(find "$@" -name '.*' -prune -o -type f -print0 | xargs -0 -r md5sum)
 }
