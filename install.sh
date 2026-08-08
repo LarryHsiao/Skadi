@@ -138,12 +138,18 @@ if [ ${#live[@]} -gt 0 ]; then
   hash_tree DST_MD5 "${live[@]}"
 fi
 
-# Global CLAUDE.md — stub for the default root; full content for profile roots.
-if [ "$CLAUDE_DIR" = "$HOME/.claude" ]; then
-  install_file "$REPO/CLAUDE.stub.md" "$CLAUDE_DIR/CLAUDE.md"
-else
-  install_file "$REPO/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
+# Global CLAUDE.md — the full file, save for one case. Claude Code loads
+# ~/.claude/CLAUDE.md as a baseline beside whichever profile root is active, so
+# on a machine that HAS a profile root the full text would arrive twice in one
+# context window; there the default root takes the stub instead. Where no
+# profile root stands, ~/.claude *is* the active root and must carry the rules —
+# keying on the path alone (as this once did) left them nowhere. compgen's
+# trailing slash matches directories only, so ~/.claude.json cannot pass for one.
+claude_md="$REPO/CLAUDE.md"
+if [ "$CLAUDE_DIR" = "$HOME/.claude" ] && compgen -G "$HOME/.claude-*/" >/dev/null; then
+  claude_md="$REPO/CLAUDE.stub.md"
 fi
+install_file "$claude_md" "$CLAUDE_DIR/CLAUDE.md"
 
 # Global settings (with {{SKADI_ROOT}} substitution)
 install_settings "$REPO/settings.json" "$CLAUDE_DIR/settings.json"
