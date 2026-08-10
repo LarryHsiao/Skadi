@@ -488,23 +488,27 @@
           )
           .join("");
         let body;
+        // The pulled reading for this app, if one was ever written. Looked up
+        // before the branch because both ways the live fetch can fail to produce
+        // a number need it: a fetch that returns null, and one that errors
+        // outright. The errored case is the commoner — a project with no
+        // Crashlytics BigQuery export makes board-server.py answer 400 — and it
+        // once returned here without ever looking, leaving a scraped number on
+        // disk, correct and invisible.
+        const pulled = stabilityChannels.find(
+          (c) => c.label === stabilitySelected && c.crash_free_pct != null,
+        );
         if (stabilityLoading) {
           body = `<div class="kpi">—</div><div class="meter"><i style="width:0%"></i></div>
       <div class="spin">querying BigQuery…</div>`;
-        } else if (stabilityError) {
+        } else if (stabilityError && !pulled) {
           body = `<div class="kpi">—</div><div class="meter"><i style="width:0%"></i></div>
       <div class="muted">fetch failed: ${esc(stabilityError)}</div>`;
-        } else if (stabilityResult) {
-          const live = stabilityResult.crash_free_pct;
+        } else if (stabilityResult || stabilityError) {
+          const live = stabilityResult ? stabilityResult.crash_free_pct : null;
           // No source/age label by design — the tile shows whichever number
           // it has, live BigQuery or a last-scraped console reading alike.
-          const fallback =
-            live == null
-              ? stabilityChannels.find(
-                  (c) =>
-                    c.label === stabilitySelected && c.crash_free_pct != null,
-                )
-              : null;
+          const fallback = live == null ? pulled : null;
           const pct =
             live != null ? live : fallback ? fallback.crash_free_pct : null;
           const warn = pct != null && pct < STABILITY_WARN_BELOW;
