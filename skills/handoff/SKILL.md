@@ -105,17 +105,26 @@ printf '%s' "<composed baton>" | ~/.claude/hooks/handoff.sh send <channel> [--fr
 After the hook confirms `sent to '<channel>' ...`, try to wake the receiving
 session immediately instead of leaving it to the next `handoff-poll.sh` tick:
 
-1. Call `ListAgents`. Match a row whose path's basename, sanitized the same
-   way the hook sanitizes channel names, equals `<channel>` — that is the
-   session `handoff-autosub.sh` would have auto-joined to this channel.
+1. Call `ListAgents`. Its rows carry a session **name** (plus an optional
+   `[ref]` disambiguator) — no path. Strip a trailing `-<digits>` suffix from
+   a row's name and sanitize what's left the same way the hook sanitizes
+   channel names; if that equals `<channel>`, treat it as the session
+   `handoff-autosub.sh` would have auto-joined to this channel. This rides a
+   naming convention this environment happens to follow for local sessions
+   (`<repo>-<n>`), not a guarantee the tool makes — a best-effort heuristic,
+   not a certainty.
 2. Exactly one match, and it isn't this session → `SendMessage` it a one-line
    nudge: `New message on handoff channel '<channel>' — run /handoff read
-   <channel>.` Never resend the body itself over SendMessage; the file is
-   still the record, this is a wake-up call only.
-3. Zero matches, more than one, or the SendMessage call failing → say nothing
-   about it and let normal poll/subscribe pick it up. This step is silent and
-   must never block or fail the `send` verb — the hook's file write already
-   succeeded before this step runs.
+   <channel>.` Send the row's full `name [ref]` form, not the bare name —
+   `SendMessage` can reject a bare name as insufficient even with a single
+   unambiguous match; if it does, retry once with the `[ref]` the error
+   supplies. Never resend the body itself over SendMessage; the file is still
+   the record, this is a wake-up call only.
+3. Zero matches, more than one match, or the SendMessage call still failing
+   after the `[ref]` retry → say nothing about it and let normal
+   poll/subscribe pick it up. This step is silent and must never block or
+   fail the `send` verb — the hook's file write already succeeded before
+   this step runs.
 
 ## Verb: subscribe
 
