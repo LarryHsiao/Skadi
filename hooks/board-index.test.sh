@@ -23,7 +23,9 @@ out=$(node - "$PAGE" <<'JS'
 const fs = require("fs");
 const page = fs.readFileSync(process.argv[2], "utf8");
 
-const start = page.indexOf("function stabilityTileHtml(");
+// From the door helper through the tile render — both are needed, and the
+// slice keeps them together so neither can be tested against a stale copy.
+const start = page.indexOf("function consoleDoor(");
 const end = page.indexOf("async function loadStabilityApps(", start);
 if (start === -1 || end === -1) {
   console.log("EXTRACT_FAILED");
@@ -39,7 +41,12 @@ const esc = (s) =>
 // shipped source.
 const STABILITY_WARN_BELOW = Number(
   page.match(/const STABILITY_WARN_BELOW = (\d+)/)[1]);
-const APPS = [{ label: "app · na · IOS", platform: "IOS" }];
+const APPS = [{
+  label: "app · na · IOS",
+  platform: "IOS",
+  project: "vitallink-ca",
+  bundle: "com.jubohealth.vitallink-ca",
+}];
 const CHANNELS = [{ channel: "stability", label: "app · na · IOS", crash_free_pct: 70.42 }];
 
 // The state stabilityTileHtml reads. Re-assigned per case, so `let`, and the
@@ -49,16 +56,23 @@ let stabilityApps, stabilitySelected, stabilityResult, stabilityError, stability
 // `stabilityTileHtml` itself, and a same-named const here would collide.
 const renderTile = eval(src + "\nstabilityTileHtml;");
 
-// One case: set the state, render, report which number reached the tile.
-function render({ result = null, error = null, channels = [] }) {
-  stabilityApps = APPS;
-  stabilitySelected = "app · na · IOS";
+// One case: set the state, render, report which number reached the tile and
+// the console door's href, if one was drawn.
+function render({ result = null, error = null, channels = [], selected = "app · na · IOS", apps = APPS }) {
+  stabilityApps = apps;
+  stabilitySelected = selected;
   stabilityLoading = false;
   stabilityResult = result;
   stabilityError = error;
   const html = renderTile(channels);
   const kpi = html.match(/class="kpi[^"]*">([^<]*)</);
-  return { shown: kpi ? kpi[1].trim() : "?", failed: html.includes("fetch failed") };
+  const enter = html.match(/<a class="enter" href="([^"]*)"([^>]*)>/);
+  return {
+    shown: kpi ? kpi[1].trim() : "?",
+    failed: html.includes("fetch failed"),
+    door: enter ? enter[1] : "",
+    doorAttrs: enter ? enter[2] : "",
+  };
 }
 
 const live = render({ result: { crash_free_pct: 93.1, window_days: 7, note: null }, channels: CHANNELS });
@@ -75,6 +89,29 @@ console.log("ERR_CH " + errWithChannel.shown);
 
 const errNoChannel = render({ error: "Dataset not found", channels: [] });
 console.log("ERR_NOCH " + (errNoChannel.failed ? "failed" : errNoChannel.shown));
+
+// The console door. It hangs off the picked app alone, so it must stand even
+// when the number could not be had — that is when it is most wanted.
+console.log("DOOR " + live.door);
+console.log("DOOR_ERR " + errNoChannel.door);
+console.log("DOOR_NOPICK " + (render({ selected: null }).door || "none"));
+// Same shape as the growth and pulse tiles' doors, which sit on a KPI row too.
+console.log("DOOR_ATTRS " + live.doorAttrs.trim().replace(/\s+/g, " "));
+
+// A hand-written stability-apps.json entry can carry a label and nothing else —
+// board-stability.py's merge_apps admits it and replaces the discovered record.
+// The tile must still render; an unguarded read here throws inside renderStrip's
+// template and blanks the whole top strip.
+let bare = { thrown: null, out: null };
+try {
+  bare.out = render({
+    result: { crash_free_pct: 93.1, window_days: 7, note: null },
+    apps: [{ label: "app · na · IOS" }],
+  });
+} catch (e) {
+  bare.thrown = String((e && e.message) || e);
+}
+console.log("BARE " + (bare.thrown ? "THREW:" + bare.thrown : bare.out.shown + "|" + (bare.out.door || "none")));
 JS
 )
 
@@ -97,6 +134,30 @@ check "an errored fetch still falls back to the pulled channel" "70.42%" "$(fiel
 
 # The error must not be swallowed when there is nothing to show in its place.
 check "an errored fetch with no channel still reports the failure" "failed" "$(field ERR_NOCH)"
+
+# The console door. No /u/<N> segment: Google routes to the signed-in account
+# and rewrites the path itself, so naming an index would bake this machine's
+# account order into a file that installs to every root.
+expected_door="https://console.firebase.google.com/project/vitallink-ca/crashlytics/app/ios:com.jubohealth.vitallink-ca"
+check "the door deep-links the picked app, with no account index" "$expected_door" "$(field DOOR)"
+
+# It hangs off the picked app, not off the number — most wanted when the fetch
+# failed outright.
+check "the door stands even when the fetch errored" "$expected_door" "$(field DOOR_ERR)"
+
+# Nothing picked, nothing to open — no anchor rather than a dead one.
+check "no app picked draws no door at all" "none" "$(field DOOR_NOPICK)"
+
+# Same attributes as the growth and pulse doors, which also sit on a KPI row —
+# board-index.html:602 and :622. A door that reads differently from its siblings
+# is a divergence whether or not it works.
+expected_attrs='target="_blank" rel="noopener" style="font-size:0.7rem"'
+actual_attrs=$(printf '%s\n' "$out" | sed -n 's/^DOOR_ATTRS //p')
+check "the door wears the same attributes as its sibling doors" "$expected_attrs" "$actual_attrs"
+
+# A roster entry bearing only a label — legal per merge_apps — must cost the
+# door, never the tile. The number still renders; only the link is withheld.
+check "a roster entry with no platform renders the tile and withholds the door" "93.1%|none" "$(field BARE)"
 
 echo ""
 echo "── $pass passed, $fail failed ──"

@@ -466,6 +466,27 @@
         return `${arrow}${Math.abs(p)}% wow`;
       }
 
+      // The Firebase console door for one roster app, or "" when its entry
+      // cannot form a link.
+      //
+      // Guarded rather than trusted: stability-apps.json is hand-maintained and
+      // board-stability.py's merge_apps admits any entry bearing a `label`,
+      // *replacing* the discovered record — so project, platform or bundle may
+      // each be absent. An unguarded read throws, and since this renders inline
+      // inside renderStrip's template the throw would blank the whole top strip,
+      // not merely this tile.
+      //
+      // The URL carries no /u/<N> account segment: Google routes to whichever
+      // account is signed in and rewrites the path itself, where a hardcoded
+      // index would bake one machine's account order into a file that installs
+      // to every root. The `:` between platform and bundle stays outside the
+      // encoding — Firebase wants it literal, as `ios:com.example.app`.
+      function consoleDoor(app) {
+        if (!app || !app.project || !app.platform || !app.bundle) return "";
+        const appPath = `${encodeURIComponent(app.platform.toLowerCase())}:${encodeURIComponent(app.bundle)}`;
+        return `<a class="enter" href="https://console.firebase.google.com/project/${encodeURIComponent(app.project)}/crashlytics/app/${appPath}" target="_blank" rel="noopener" style="font-size:0.7rem">Enter ↵</a>`;
+      }
+
       // The Stability tile's markup for whatever state it's currently in —
       // not yet loaded, no app bound, mid-fetch, errored, or holding a number.
       // `stabilityChannels` is the pulled fallback — stability-<slug>.json
@@ -498,11 +519,17 @@
         const pulled = stabilityChannels.find(
           (c) => c.label === stabilitySelected && c.crash_free_pct != null,
         );
+        const app = stabilityApps.find((a) => a.label === stabilitySelected);
+        // The door hangs off which app is picked, never off whether a number
+        // came back — it is most wanted when the number didn't.
+        const door = consoleDoor(app);
         if (stabilityLoading) {
-          body = `<div class="kpi">—</div><div class="meter"><i style="width:0%"></i></div>
+          body = `<div class="row"><div class="kpi">—</div>${door}</div>
+      <div class="meter"><i style="width:0%"></i></div>
       <div class="spin">querying BigQuery…</div>`;
         } else if (stabilityError && !pulled) {
-          body = `<div class="kpi">—</div><div class="meter"><i style="width:0%"></i></div>
+          body = `<div class="row"><div class="kpi">—</div>${door}</div>
+      <div class="meter"><i style="width:0%"></i></div>
       <div class="muted">fetch failed: ${esc(stabilityError)}</div>`;
         } else if (stabilityResult || stabilityError) {
           const live = stabilityResult ? stabilityResult.crash_free_pct : null;
@@ -512,7 +539,6 @@
           const pct =
             live != null ? live : fallback ? fallback.crash_free_pct : null;
           const warn = pct != null && pct < STABILITY_WARN_BELOW;
-          const app = stabilityApps.find((a) => a.label === stabilitySelected);
           const platform = app && app.platform ? esc(app.platform) : "";
           let detail;
           if (pct == null) {
@@ -522,11 +548,12 @@
           } else {
             detail = `${stabilityResult.window_days}d window${platform ? " · " + platform : ""}`;
           }
-          body = `<div class="kpi${warn ? " warn" : ""}">${pct == null ? "—" : pct + "%"}<small> crash-free users</small></div>
+          body = `<div class="row"><div class="kpi${warn ? " warn" : ""}">${pct == null ? "—" : pct + "%"}<small> crash-free users</small></div>${door}</div>
       <div class="meter"><i${warn ? ' class="warn"' : ""} style="width:${pct || 0}%"></i></div>
       <div class="muted">${detail}</div>`;
         } else {
-          body = `<div class="kpi">—</div><div class="meter"><i style="width:0%"></i></div>
+          body = `<div class="row"><div class="kpi">—</div>${door}</div>
+      <div class="meter"><i style="width:0%"></i></div>
       <div class="muted">pick an app</div>`;
         }
         return `<div class="tile">
