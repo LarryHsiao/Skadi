@@ -20,6 +20,9 @@ rate_7d_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty
 model_name=$(echo "$input" | jq -r '.model.display_name // empty' 2>/dev/null)
 cwd=$(echo "$input" | jq -r '.cwd // "."' 2>/dev/null)
 git_branch=$(git -C "$cwd" rev-parse --abbrev-ref HEAD 2>/dev/null)
+git_dir=$(git -C "$cwd" rev-parse --git-dir 2>/dev/null)
+git_common_dir=$(git -C "$cwd" rev-parse --git-common-dir 2>/dev/null)
+git_toplevel=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)
 diff_stat=$(git -C "$cwd" diff --cached --shortstat 2>/dev/null)
 lines_added=$(echo "$diff_stat" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+')
 lines_removed=$(echo "$diff_stat" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+')
@@ -250,11 +253,18 @@ ellipsize_end() {
     echo "${str:0:$(( max_len - 3 ))}..."
 }
 
-# Line 1: project name + branch
+# Line 1: project name + worktree name (if any) + branch
 project_name=$(basename "$cwd")
+worktree_name=""
+if [ -n "$git_common_dir" ] && [ "$git_dir" != "$git_common_dir" ]; then
+    project_name=$(basename "$(dirname "$git_common_dir")")
+    worktree_name=$(basename "$git_toplevel")
+fi
 project_label=$(ellipsize_end "$project_name" 25)
 branch_label=$(ellipsize_end "${git_branch:-N/A}" 35)
-printf "📁 %s  🌿 %s\n" "$project_label" "$branch_label"
+worktree_segment=""
+[ -n "$worktree_name" ] && worktree_segment="🌳 $(ellipsize_end "$worktree_name" 25)  "
+printf "📁 %s  %s🌿 %s\n" "$project_label" "$worktree_segment" "$branch_label"
 
 # Line 2: branch info
 printf "✏️ %s  %s  %s  %s\n" "$lines_str" "$changed_str" "$unpushed_str" "$grammar_str"
