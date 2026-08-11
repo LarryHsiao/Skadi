@@ -205,6 +205,14 @@ Per-project `.claude/` directories — local settings, skill overrides, hooks sc
 
 Secrets live in Vaultwarden, read via `~/.claude/hooks/secret.sh` — which tries `bw serve`'s REST API first and falls back to an env var. Never read a token directly from `$ENV_VAR` in a hook; always route through the helper. See `docs/tools/secrets.md` for setup ritual, helper signature, and authoring rules.
 
+## Memory Bootstrap
+
+Claude Code's auto-memory lives per project (`~/.claude*/projects/<hash>/memory/`) and starts empty on every machine or freshly cloned project — nothing carries over on its own. A separate, git-backed knowledge base predates any one machine's local memory and should be checked before starting cold on a topic.
+
+**Locating the repo.** Read `~/.skadi/memory-repo.md` for this machine's pointer — a single absolute path to the memory-backup repo (e.g. Minerva). If the file does not exist, ask the user once where their memory-backup repo lives, then write the answer into `~/.skadi/memory-repo.md` — never guess the path, and never ask again once it's recorded. This pointer is deliberately outside the auto-memory system itself: it exists to bootstrap memory before any project-local memory exists, so it cannot live inside the thing it bootstraps.
+
+**When to check it.** Before treating a topic, project, or question as entirely new — when this project's own auto-memory has nothing relevant on it — search the memory-backup repo for an existing note before starting from scratch. Read it in place; do not duplicate its content into project-local memory.
+
 ## Shell Compatibility
 
 When a needed command is missing on the current shell, do not reach for a different terminal to escape the gap — no spawning bash from PowerShell, no calling PowerShell from bash to borrow its cmdlets. Name the missing tool plainly and ask the user to install it (e.g. `zip` absent from Git Bash). If a native substitute exists in the current shell (`tar`, `Compress-Archive`), use that instead.
