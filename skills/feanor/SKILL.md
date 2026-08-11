@@ -116,6 +116,17 @@ For each pass `n` (1 to `--max`):
      or the screenshot alone. Insets, margins, and rounding are stated there as
      explicit values — exactly what a screenshot glance or a bare geometry dump
      both under-report.
+   - **For any app-bar, header, or toolbar-shaped region, enumerate its slots by
+     name rather than trusting a holistic read.** A fixed small set of
+     independent slots (leading icon, title, trailing action) is exactly where a
+     side-by-side read misses one — attention gets captured by whichever delta is
+     most salient elsewhere on the screen, and a small, spatially separate slot
+     (a corner icon plus a text link) never earns its own forced look. "Check for
+     missing elements" as a general instruction is not enough — proven
+     insufficient by exactly this kind of miss. List what occupies each named
+     slot in both images, independently of whatever delta already dominated the
+     pass. The same applies to any other region with a small fixed number of
+     independent slots — a row of icon buttons, a tab bar.
 
 3. **Decide the exit** (before any edit):
    - **Aligned** — no material deltas remain. Stop; report `ALIGNED` and the pass
