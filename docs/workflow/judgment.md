@@ -148,3 +148,29 @@ those instances in the same state too — one may hide the identical bug.
 - ❌ *Wrong:* you fix the row against its empty first-load screenshot and report
   done — the user opens the live dropdown and finds the identical bug in the
   same row, untouched, because the taller state was never driven.
+
+## 7 · A concrete external pointer outranks an unresolved internal thread
+
+**Signal:** you are deep in a low-confidence investigation — an unknown scale
+or unit, a missing access, an ambiguous metric with no clear resolution in
+sight — and the user names a specific, concrete element instead ("the X
+button looks wrong", "check the Y field").
+
+**Action:** drop the ambiguous thread immediately and look at exactly what
+they pointed to. Do not finish the current thread first out of momentum — a
+specific human pointer at a real symptom outranks an unresolved technical
+rabbit hole, every time.
+
+- ✅ *Right:* mid-investigation on whether a login card's screen-coverage
+  proportion is a bug — the export scale is unknown and the reference file's
+  Figma node is inaccessible — the user says "the offline measurement button
+  seems not right." You drop the proportion thread and look at that button;
+  it turns out to be a confirmed color-token bug, found in under 5 tool calls.
+- ❌ *Wrong:* you keep scanning pixel transitions to settle the proportion
+  question "first," then get to the button the user actually asked about ten
+  minutes later — after chasing a thread that may never resolve.
+
+This mirrors Rubric 1's "switch roads" instinct, but the trigger differs:
+Rubric 1 fires when your *own* fixes keep failing the same way; this fires
+when the *user* supplies a higher-signal target while you are still
+investigating, before you have even attempted a fix.
