@@ -45,6 +45,19 @@ two images names **actionable deltas** — *"the header band is too tall, the ac
 runs orange where the spec is amber, the card gutters are wider"* — and each delta
 maps to an edit. That is what lets the loop converge instead of flail.
 
+**The full-resolution, un-resized, un-fuzzed side-by-side read is the primary
+check, every pass — never a fallback.** A resize-to-match-frame-plus-fuzz pixel
+score (e.g. `magick compare -fuzz 10%`) blurs a real structural rearrangement —
+a 2-column grid collapsed to 1, a field twice the spec's width, a label moved from
+inline to above its box — into a diff that looks small in aggregate; the metric
+cannot tell "blurry anti-aliasing" from "an entire section rearranged" when both
+read as a similar overall color distribution. Any such score, if computed at all,
+is a **secondary sanity signal only** — it is never sufficient on its own to
+declare `ALIGNED`. And do not carry a prior pass's "accepted cause" explanation
+for a diff region forward onto a new pass's diff in that same region without
+re-deriving it fresh — reusing a stale explanation is how a real regression
+keeps getting waved through as "the same known gap."
+
 ## The loop
 
 ### 0. Resolve the spec image once
@@ -81,9 +94,28 @@ For each pass `n` (1 to `--max`):
    The shot includes the OS status/nav bars — name deltas against the **app content
    region**, not the system chrome.
 
-2. **Compare.** Read the spec image and `feanor-pass-<n>.png`. Name the visual
-   deltas as a concrete checklist — colour, layout, proportion, spacing, presence of
-   elements, typography. Order them by how much they move the eye.
+2. **Compare.** Read the spec image and `feanor-pass-<n>.png`, full resolution,
+   un-resized, un-fuzzed, side by side. Name the visual deltas as a concrete
+   checklist — colour, layout, proportion, spacing, presence of elements,
+   typography. Order them by how much they move the eye.
+
+   - **Sample a region's boundary, not only its interior.** When checking a
+     region's fill or shape, also sample near its true edge — the screen edge, or
+     the edge of its stated container (e.g. pixels at `x=2`, `x=max-2`, `y=max-2`)
+     — in addition to a point well inside it. A color-correct interior does not
+     imply a color-correct or shape-correct edge: an inset card with rounded
+     corners and an edge-to-edge flush rectangle can sample identically at their
+     centers and only diverge at the boundary (a border, an inset margin, a
+     rounding radius).
+   - **When the spec comes from a design tool with an MCP, cross-check structure
+     there before trusting the screenshot alone.** For suspected structural
+     differences — insets, margins, container shape, sizing — prefer a
+     structured-layout read (e.g. Figma's `get_design_context`, which returns the
+     node tree with its actual layout classes/values, such as a wrapper carrying
+     `pb-[8px] px-[8px]` around a child with `rounded-[8px]`) over `get_metadata`
+     or the screenshot alone. Insets, margins, and rounding are stated there as
+     explicit values — exactly what a screenshot glance or a bare geometry dump
+     both under-report.
 
 3. **Decide the exit** (before any edit):
    - **Aligned** — no material deltas remain. Stop; report `ALIGNED` and the pass
@@ -122,6 +154,34 @@ Report the verdict and **why** it stopped, never a bare "done":
 - `CAP` (N of N, still closing) — **fail loud**: the passes ran out while progress
   was still being made. List the remaining deltas and suggest re-running with a
   higher `--max`.
+
+## Beyond the pixel — what ALIGNED does not prove
+
+`ALIGNED` means the reflection matches; it does not mean the task is done. Two
+failure modes sit outside anything a screenshot can show, and both surface only
+once the loop is embedded in a larger, scoped change (e.g. "fix this one screen's
+offline mode" touching shared widgets):
+
+- **A scope-gated edit leaking into an unscoped sibling.** When a mend is meant to
+  fire only under some condition (an `isOfflineMode` branch, a feature flag) but
+  the edit lands in a shared, const-constructed, or otherwise unconditional
+  widget, the change silently reaches screens the task never named — and the
+  before/after screenshots of the *target* screen still read `ALIGNED`, because
+  the leak is invisible from there. Before declaring the surrounding task done,
+  grep the diff for the task's scope-gating condition and confirm every touched
+  file that could leak actually gates on it.
+- **A structural move breaking a test that located the old structure.** Relocating
+  or restructuring a widget (out of an `AppBar` into the body, a re-parented
+  grid) can silently break a test that found it by ancestry or position (e.g.
+  `find.descendant(of: find.byType(AppBar), matching: find.byType(TextField))`)
+  rather than by a stable key — and no visual check will ever catch it. Run any
+  test file whose target widget's structure changed, not just a static-analysis
+  pass, before calling the surrounding task done.
+
+Fëanor itself stays scoped to visual alignment — these checks belong to whatever
+task wraps the Fëanor loop, and its own Compliance Review step (where the
+project runs one) is the natural place they land. Naming them here is a
+reminder, not a mandate for Fëanor to run them itself.
 
 ## Watching it converge
 
