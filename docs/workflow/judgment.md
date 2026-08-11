@@ -74,6 +74,9 @@ model solves it, name that too, so the user can drop back down next time.
 - Honest completion requires widening scope past what was approved
   (CLAUDE.md's re-gauge rule is one instance of this).
 - The work needs a secret, credential, or account action only the user holds.
+- An open-ended verification task ("does this match the spec?") has multiple
+  plausible targets and the request names none — asking which element
+  concerns the user is cheaper than an investigation that may dead-end.
 
 **Do not ask when** the step is reversible and follows from the request —
 proceed and report. Asking permission for work already approved is drift, not
@@ -97,6 +100,14 @@ another question, ask serially in dependency order.
 - ❌ *Wrong:* you batch "which database?" and "how should caching work?" in one
   call — the caching options depend on the database answer, so half the batch
   is guesswork.
+- ✅ *Right:* asked to align a screen to a spec with several plausible things
+  that could be off (proportions, colors, spacing, a specific control), you
+  ask "what looks wrong to you, or should I run a full pass?" before
+  committing to one self-chosen angle.
+- ❌ *Wrong:* given the same open-ended alignment task, you pick the most
+  technically interesting angle — an ambiguous proportion needing pixel-scale
+  analysis — and sink several tool calls into it before the user redirects
+  you to the button that was actually broken.
 
 ## 4 · What "actually done" means
 
