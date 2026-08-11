@@ -127,6 +127,21 @@ For each pass `n` (1 to `--max`):
      slot in both images, independently of whatever delta already dominated the
      pass. The same applies to any other region with a small fixed number of
      independent slots — a row of icon buttons, a tab bar.
+   - **When a rendered element's source carries an explicit numeric size
+     constraint — a `minimumSize`, a literal width or height, a hardcoded
+     padding value — that is not obviously derived from the design system's
+     spacing scale, verify its actual proportion, not just its screenshot
+     appearance.** A screenshot comparison can pass — colour, structure,
+     presence all read correct — while a magic number silently distorts one
+     element's scale: a button forced 36% wider than its icon-and-text content
+     needed (`minimumSize: Size(212, 36)`) still reads as "a button in the
+     right place" at a glance. Measure the element's width or height as a
+     **fraction of a stable parent** — a card, a row, the screen edge — in both
+     spec and build, since absolute pixels do not compare meaningfully across
+     differently scaled reference images. Flag a roughly >20% relative
+     divergence between the two fractions as worth a second look — that gap is
+     the signal a magic number was eyeballed rather than measured when the
+     widget was first built.
 
 3. **Decide the exit** (before any edit):
    - **Aligned** — no material deltas remain. Stop; report `ALIGNED` and the pass
