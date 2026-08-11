@@ -107,7 +107,7 @@ there is nothing fresh to mirror or scan.
 Henneth so it can be read locally:
 
 ```bash
-printf '%s' "$EREST_OR_BODY" | python3 ~/.claude/hooks/council-plan-html.py render-plan <TICKET-ID> ~/.claude/previews/henneth/plan-<TICKET-ID>.html
+printf '%s' "$EREST_OR_BODY" | python3 ~/.claude/hooks/council-plan-html.py render-plan <TICKET-ID> ~/.skadi/henneth/plan-<TICKET-ID>.html
 ```
 
 This always runs, on every draft and redraft — independent of whether a

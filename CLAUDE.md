@@ -75,7 +75,7 @@ Changes: <files and intent, one or two lines>
 
 ## Previews (Henneth)
 
-Visual artifacts render as HTML into the shared Henneth folder (`~/.claude/previews/henneth/`), watched by the standing `/henneth` window. Before rendering any preview, read `docs/workflow/previews.md` — file shape, shared theme, serving, fallbacks all live there. The when:
+Visual artifacts render as HTML into the shared Henneth folder (`~/.skadi/henneth/`), watched by the standing `/henneth` window. Before rendering any preview, read `docs/workflow/previews.md` — file shape, shared theme, serving, fallbacks all live there. The when:
 
 - **UI change** → wireframe before code, **both data states** (populated and empty), one sketch per concern.
 - **UML** (class, sequence, state, ER) → one diagram per concern; no data states.

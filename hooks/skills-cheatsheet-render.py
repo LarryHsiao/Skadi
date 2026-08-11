@@ -4,7 +4,7 @@
 Renders a quick-browse HTML cheatsheet of every skadi skill's name and purpose,
 parsed from each <skills-dir>/*/SKILL.md's leading frontmatter, into one
 self-contained page at <dest-file>. Drop <dest-file> under Henneth's watched
-folder (~/.claude/previews/henneth/) to serve it at its own stable URL.
+folder (~/.skadi/henneth/) to serve it at its own stable URL.
 """
 import re
 import sys

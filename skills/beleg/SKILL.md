@@ -143,7 +143,7 @@ Three cautions, all worth stating when they bite:
 
 ## 5. Render the brief
 
-Render into the Henneth folder (`~/.claude/previews/henneth/`), newest-first, and
+Render into the Henneth folder (`~/.skadi/henneth/`), newest-first, and
 print the URL. The brief leads with the source it used and, when
 `missing_signals` is non-empty, **names which signals were unavailable** — a
 ranking resting on half the inputs must not wear the same face as a full one.

@@ -8,7 +8,7 @@
 
 When a section calls for a visual preview — a wireframe or UML diagram (Visual Review), a plan (Plan Preview) — write it as an HTML file and serve it locally so the user can open it in a browser.
 
-**Where files land.** The shared Henneth folder, `~/.claude/previews/henneth/` — one file per distinct preview, each named for what it shows (`wireframe-login.html`, `class-diagram-user.html`). The folder is shared across all sessions and persists across turns, so earlier previews stay browsable in the one standing window.
+**Where files land.** The shared Henneth folder, `~/.skadi/henneth/` — one file per distinct preview, each named for what it shows (`wireframe-login.html`, `class-diagram-user.html`). The folder is shared across all sessions and persists across turns, so earlier previews stay browsable in the one standing window.
 
 **Serving the file.** The Henneth window already watches this folder, so the preview appears there on its own — boot it once with `/henneth` if it is not yet running. Should you need a standalone server instead, bind `python -m http.server <port>` in that folder as a background process — Python is universal, no install. Pick a free port; surface the URL inline (e.g. `http://localhost:8765/wireframe-login.html`) so the user can click through. Subsequent previews drop into the same folder under fresh filenames; the running server picks them up without restart.
 
@@ -33,3 +33,20 @@ When a change touches UI layout (a new screen, a rearranged panel, a rethought c
 When a plan is generated — a task breakdown, an implementation plan, plan-mode output — whether it lands in markdown or only in the console, also write it as an HTML page under the previews directory per the Local Preview rules (`plan-<topic>.html`), so it appears in the standing Henneth window. The chat or markdown copy stays the source of truth; the HTML is a mirror for the eye.
 
 If the Henneth server is not running, render the preview file all the same and hint the user to boot the window with `/henneth` — the hint, not an auto-launch, is the assistant's part.
+
+## Cross-Machine Sync
+
+`~/.skadi/henneth/` is a plain folder — nothing in skadi's code needs to know how it gets from one machine to another. To carry it (and its artifacts) across PCs, point it at a folder synced by any file-sync tool (OneDrive, Syncthing, Dropbox) via a symlink. No code change is needed for this; the fixed path stays `~/.skadi/henneth` everywhere.
+
+**First machine** (the one that already has content):
+
+1. Move the real folder into the synced tree, e.g. `mv ~/.skadi/henneth ~/OneDrive/skadi-previews/henneth`.
+2. Symlink the fixed path back to it: `ln -s ~/OneDrive/skadi-previews/henneth ~/.skadi/henneth`.
+3. Run `/henneth` to confirm the server still boots and serves from the new real location.
+
+**Each additional machine**, once the sync client has pulled the folder down:
+
+1. If `~/.skadi/henneth` already exists there (e.g. from a prior local-only run), remove it first — check it holds nothing worth keeping before deleting.
+2. Symlink: `ln -s ~/OneDrive/skadi-previews/henneth ~/.skadi/henneth`.
+
+`install.sh` and every Henneth-writing hook or skill resolve the fixed path transparently through the symlink — nothing else to configure.

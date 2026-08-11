@@ -16,7 +16,7 @@ export LC_ALL=C.UTF-8
 BOARD_DIR="${BOARD_DIR:-$HOME/.skadi/board}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APPGROWTH="$HOME/.claude/hooks/appgrowth.py"
-HENNETH="$HOME/.claude/previews/henneth"
+HENNETH="$HOME/.skadi/henneth"
 
 mkdir -p "$BOARD_DIR"
 

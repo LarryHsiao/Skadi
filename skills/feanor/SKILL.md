@@ -50,12 +50,12 @@ maps to an edit. That is what lets the loop converge instead of flail.
 ### 0. Resolve the spec image once
 
 If `<spec>` is a PNG, it is the spec image — copy it into the Henneth folder
-(`$HOME/.claude/previews/henneth/`) as `feanor-spec.png` so it stands in the window
+(`$HOME/.skadi/henneth/`) as `feanor-spec.png` so it stands in the window
 beside each pass. If `<spec>` is an HTML page or URL, shoot it once into that folder
 at the chosen viewport:
 
     ~/.claude/hooks/feanor-shot.sh "<spec-url>" \
-      "$HOME/.claude/previews/henneth/feanor-spec.png" "<WxH>"
+      "$HOME/.skadi/henneth/feanor-spec.png" "<WxH>"
 
 Read `feanor-spec.png`; this is the fixed light every pass measures against.
 
@@ -67,7 +67,7 @@ For each pass `n` (1 to `--max`):
    `feanor-pass-<n>.png` (`feanor-pass-1.png` on the first pass, and so on):
 
        ~/.claude/hooks/feanor-shot.sh "<target-url>" \
-         "$HOME/.claude/previews/henneth/feanor-pass-<n>.png" "<WxH>"
+         "$HOME/.skadi/henneth/feanor-pass-<n>.png" "<WxH>"
 
    If the hook exits non-zero, **stop and fail loud** — there is no image to align
    to, and three blind passes are worse than none.
@@ -76,7 +76,7 @@ For each pass `n` (1 to `--max`):
    is the device's, so `--viewport` does not apply):
 
        ~/.claude/hooks/feanor-flutter-shot.sh \
-         "$HOME/.claude/previews/henneth/feanor-pass-<n>.png" [<deviceId>]
+         "$HOME/.skadi/henneth/feanor-pass-<n>.png" [<deviceId>]
 
    The shot includes the OS status/nav bars — name deltas against the **app content
    region**, not the system chrome.

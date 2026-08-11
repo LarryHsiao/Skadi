@@ -11,7 +11,7 @@
 set -euo pipefail
 
 BOARD_DIR="${BOARD_DIR:-$HOME/.skadi/board}"
-HENNETH_DIR="${HENNETH_DIR:-$HOME/.claude/previews/henneth}"
+HENNETH_DIR="${HENNETH_DIR:-$HOME/.skadi/henneth}"
 PORT_FILE="$HENNETH_DIR/.henneth-port"
 
 mkdir -p "$BOARD_DIR"

@@ -132,11 +132,14 @@ hash_tree SRC_MD5 \
   "$REPO/previews/henneth/skadi-theme.css"
 
 live=()
-for path in hooks skills docs CLAUDE.md statusline.sh previews/henneth/skadi-theme.css; do
+for path in hooks skills docs CLAUDE.md statusline.sh; do
   if [ -e "$CLAUDE_DIR/$path" ]; then
     live+=("$CLAUDE_DIR/$path")
   fi
 done
+if [ -e "$HOME/.skadi/henneth/skadi-theme.css" ]; then
+  live+=("$HOME/.skadi/henneth/skadi-theme.css")
+fi
 if [ ${#live[@]} -gt 0 ]; then
   hash_tree DST_MD5 "${live[@]}"
 fi
@@ -202,11 +205,13 @@ if [ -d "$REPO/docs" ]; then
 fi
 
 # Preview theme — a single shared stylesheet for Henneth previews to link.
-# Copy the one file only; never prune the previews folder — it holds the user's
-# rendered artifacts, which are runtime, not ours to delete.
+# Henneth's folder is fixed at ~/.skadi/henneth regardless of which profile root
+# is being installed, so this copy targets that one shared path, not $CLAUDE_DIR.
+# Copy the one file only; never prune the folder — it holds the user's rendered
+# artifacts, which are runtime, not ours to delete.
 if [ -f "$REPO/previews/henneth/skadi-theme.css" ]; then
-  mkdir -p "$CLAUDE_DIR/previews/henneth"
-  install_file "$REPO/previews/henneth/skadi-theme.css" "$CLAUDE_DIR/previews/henneth/skadi-theme.css"
+  mkdir -p "$HOME/.skadi/henneth"
+  install_file "$REPO/previews/henneth/skadi-theme.css" "$HOME/.skadi/henneth/skadi-theme.css"
 fi
 
 echo ""

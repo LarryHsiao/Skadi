@@ -13,7 +13,7 @@ Where `/este` asks whether the config's rules and skills were *followed*, `/fide
 
     python3 ~/.claude/hooks/fidelity-scan.py
 
-This reads `~/.skadi/mandos/history.jsonl` (read-only — written by `mandos-record.sh` as a side effect of `/mandos`), writes the board channel `~/.skadi/board/fidelity.json`, and renders `~/.claude/previews/henneth/plan-fidelity.html`. It prints the headline Faithful rate.
+This reads `~/.skadi/mandos/history.jsonl` (read-only — written by `mandos-record.sh` as a side effect of `/mandos`), writes the board channel `~/.skadi/board/fidelity.json`, and renders `~/.skadi/henneth/plan-fidelity.html`. It prints the headline Faithful rate.
 
 Then ensure the Henneth window is up (boot it with `/henneth` if not) and surface the dashboard URL inline — the page follows the folder, so the dashboard appears on its own once rendered.
 

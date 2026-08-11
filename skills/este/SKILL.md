@@ -19,7 +19,7 @@ window.
 This walks `~/.claude`, `~/.claude-personal`, `~/.claude-work` under
 `projects/**/*.jsonl` (read-only), appends a line to `~/.skadi/pulse/history.jsonl`,
 writes the board channel `~/.skadi/board/pulse.json`, and renders
-`~/.claude/previews/henneth/adherence-pulse.html`. It prints the headline overall.
+`~/.skadi/henneth/adherence-pulse.html`. It prints the headline overall.
 
 Then ensure the Henneth window is up (boot it with `/henneth` if not) and surface
 the dashboard URL inline — the page follows the folder, so the pulse appears on its

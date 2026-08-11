@@ -1875,7 +1875,7 @@ def main():
     now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     pulse_dir = _pulse_dir()
     board_dir = os.environ.get("BOARD_DIR", os.path.expanduser("~/.skadi/board"))
-    henneth_dir = os.environ.get("HENNETH_DIR", os.path.expanduser("~/.claude/previews/henneth"))
+    henneth_dir = os.environ.get("HENNETH_DIR", os.path.expanduser("~/.skadi/henneth"))
     files = session_files(_default_roots(), WINDOW_DAYS, now.timestamp())
     items, models = apply_rubric(files, rubric)
     door = render_dashboard(items, models, pulse_dir, henneth_dir, now_iso)

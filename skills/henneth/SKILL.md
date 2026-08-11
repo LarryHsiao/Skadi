@@ -1,6 +1,6 @@
 ---
 name: henneth
-description: Use when the user runs /henneth. Boots (or reuses) one standing background web server, shared across all sessions, that serves a live gallery of rendered artifacts — wireframes, mockups, images, diagrams dropped into ~/.claude/previews/henneth/. The page lists every artifact newest-first and follows the latest in its main pane unless pinned. Drop a file and the open screen updates on its own; a row's delete button removes an artifact from the folder. Henneth Annûn — the Window of the Sunset, a window one looks through.
+description: Use when the user runs /henneth. Boots (or reuses) one standing background web server, shared across all sessions, that serves a live gallery of rendered artifacts — wireframes, mockups, images, diagrams dropped into ~/.skadi/henneth/. The page lists every artifact newest-first and follows the latest in its main pane unless pinned. Drop a file and the open screen updates on its own; a row's delete button removes an artifact from the folder. Henneth Annûn — the Window of the Sunset, a window one looks through.
 purpose: Serves a standing gallery window for rendered previews and artifacts.
 user_invocable: true
 ---
@@ -20,7 +20,7 @@ edits one.
 Henneth runs one standing instance for all sessions, so the folder is fixed — no
 session id, no drift. Every session resolves the **same** path:
 
-    DIR="$HOME/.claude/previews/henneth"
+    DIR="$HOME/.skadi/henneth"
     mkdir -p "$DIR"
 
 `$DIR` is the one folder henneth serves **and** the one folder you render into (see
@@ -61,7 +61,7 @@ the file and its sidecar. To clear several at once, click **Select**, tick the r
 
 Every artifact you render for the screen must be written into `$DIR` — that exact
 path is the binding henneth watches. Resolve it the same way each time
-(`$HOME/.claude/previews/henneth`); render anywhere else and it will not appear on
+(`$HOME/.skadi/henneth`); render anywhere else and it will not appear on
 the window. The path is fixed and shared, so any session writes to the one window
 without remembering a path.
 
@@ -145,7 +145,7 @@ hook and gathers under Ungrouped until given a sidecar.
 
 ## Notes
 
-- **One instance, shared.** The folder is fixed at `~/.claude/previews/henneth`, so
+- **One instance, shared.** The folder is fixed at `~/.skadi/henneth`, so
   every session shares one folder, one port, one URL. The first session to run
   `/henneth` boots the server; the rest reuse it. Artifacts accrue across sessions
   — there is no per-session board.

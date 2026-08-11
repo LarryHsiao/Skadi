@@ -156,7 +156,7 @@ def main():
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     history_dir = os.environ.get("MANDOS_HISTORY_DIR", os.path.expanduser("~/.skadi/mandos"))
     board_dir = os.environ.get("BOARD_DIR", os.path.expanduser("~/.skadi/board"))
-    henneth_dir = os.environ.get("HENNETH_DIR", os.path.expanduser("~/.claude/previews/henneth"))
+    henneth_dir = os.environ.get("HENNETH_DIR", os.path.expanduser("~/.skadi/henneth"))
     records = read_records(os.path.join(history_dir, "history.jsonl"))
     headline = summarize(records)
     series = trend_series(records)

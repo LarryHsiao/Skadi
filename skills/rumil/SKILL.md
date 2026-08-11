@@ -248,7 +248,7 @@ If the folder does not exist, create it and say so. If a concept of that slug al
 
 ### 8. Mirror and report
 
-Mirror the plan to the Henneth window per CLAUDE.md's *Previews* section — `~/.claude/previews/henneth/plan-<slug>.html`, mechanics in `docs/workflow/previews.md`. The markdown concept stays the source of truth; the HTML is a mirror for the eye.
+Mirror the plan to the Henneth window per CLAUDE.md's *Previews* section — `~/.skadi/henneth/plan-<slug>.html`, mechanics in `docs/workflow/previews.md`. The markdown concept stays the source of truth; the HTML is a mirror for the eye.
 
 Then report, short:
 

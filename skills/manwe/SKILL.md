@@ -19,15 +19,15 @@ does — it only looks, and says plainly what does not match.
   navigate to the target screen; Manwë only captures it.
 - **`<spec>`** (optional) — the ideal to weigh against: a **PNG**, an **HTML
   page/URL** (shot to a PNG first), or a Henneth wireframe already sitting in
-  `~/.claude/previews/henneth/` from the same session's *Previews* step. Absent a
+  `~/.skadi/henneth/` from the same session's *Previews* step. Absent a
   spec, Manwë falls back to the sibling comparison below.
 
 ## With a spec
 
 1. Resolve the spec image once — copy a PNG as-is, or shoot an HTML/URL spec —
    exactly as Fëanor's *"Resolve the spec image once"* step does, into
-   `~/.claude/previews/henneth/manwe-spec.png`.
-2. Shoot `<target>` once into `~/.claude/previews/henneth/manwe-shot.png`, via
+   `~/.skadi/henneth/manwe-spec.png`.
+2. Shoot `<target>` once into `~/.skadi/henneth/manwe-shot.png`, via
    `feanor-shot.sh` (web) or `feanor-flutter-shot.sh` (Flutter). If the hook exits
    non-zero, stop and fail loud — there is nothing to weigh.
 3. Read both images and name the deltas — Fëanor's oracle (*"The oracle"* in
