@@ -68,6 +68,60 @@ class ScanTest(unittest.TestCase):
         result = mirror.scan(self.dir)
         self.assertEqual(expected, result)
 
+    def test_pinned_from_sidecar_defaults_false(self):
+        self._write("held.png", 1000)
+        (self.dir / "held.json").write_text(json.dumps({"pinned": True}), encoding="utf-8")
+        self._write("plain.png", 2000)
+
+        expected = [
+            {"name": "plain.png", "pinned": False},
+            {"name": "held.png", "pinned": True},
+        ]
+        result = [{"name": e["name"], "pinned": e["pinned"]} for e in mirror.scan(self.dir)]
+        self.assertEqual(expected, result)
+
+
+class SetPinnedTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_creates_sidecar_when_absent(self):
+        path = self.dir / "shot.png"
+        path.write_text("x", encoding="utf-8")
+
+        mirror.set_pinned(path, True)
+
+        expected = {"pinned": True}
+        result = json.loads((self.dir / "shot.json").read_text(encoding="utf-8"))
+        self.assertEqual(expected, result)
+
+    def test_preserves_other_fields(self):
+        path = self.dir / "shot.png"
+        path.write_text("x", encoding="utf-8")
+        (self.dir / "shot.json").write_text(
+            json.dumps({"title": "Shot", "group": "nav-rail"}), encoding="utf-8")
+
+        mirror.set_pinned(path, True)
+
+        expected = {"title": "Shot", "group": "nav-rail", "pinned": True}
+        result = json.loads((self.dir / "shot.json").read_text(encoding="utf-8"))
+        self.assertEqual(expected, result)
+
+    def test_unpin_sets_false(self):
+        path = self.dir / "shot.png"
+        path.write_text("x", encoding="utf-8")
+        (self.dir / "shot.json").write_text(json.dumps({"pinned": True}), encoding="utf-8")
+
+        mirror.set_pinned(path, False)
+
+        expected = {"pinned": False}
+        result = json.loads((self.dir / "shot.json").read_text(encoding="utf-8"))
+        self.assertEqual(expected, result)
+
 
 class ServerTest(unittest.TestCase):
     def test_routes_serve_page_scan_and_files(self):
@@ -206,6 +260,81 @@ class DeleteTest(unittest.TestCase):
             outside.unlink()
 
 
+class PinTest(unittest.TestCase):
+    def setUp(self):
+        import threading
+        from functools import partial
+        from http.server import ThreadingHTTPServer
+
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self._tmp.name)
+        self.server = ThreadingHTTPServer(
+            ("127.0.0.1", 0), partial(mirror.Handler, directory=str(self.dir)))
+        self.port = self.server.server_address[1]
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self._tmp.cleanup()
+
+    def _pin(self, name, pinned):
+        import http.client
+
+        conn = http.client.HTTPConnection("127.0.0.1", self.port)
+        conn.request("POST", "/pin", body=json.dumps({"name": name, "pinned": pinned}))
+        resp = conn.getresponse()
+        resp.read()
+        return resp
+
+    def test_pin_sets_sidecar_flag(self):
+        (self.dir / "shot.png").write_text("x", encoding="utf-8")
+
+        expected_status = 204
+        resp = self._pin("shot.png", True)
+        self.assertEqual(expected_status, resp.status)
+        sidecar = json.loads((self.dir / "shot.json").read_text(encoding="utf-8"))
+        self.assertTrue(sidecar["pinned"])
+
+    def test_unpin_clears_sidecar_flag(self):
+        (self.dir / "shot.png").write_text("x", encoding="utf-8")
+        (self.dir / "shot.json").write_text(json.dumps({"pinned": True}), encoding="utf-8")
+
+        expected_status = 204
+        resp = self._pin("shot.png", False)
+        self.assertEqual(expected_status, resp.status)
+        sidecar = json.loads((self.dir / "shot.json").read_text(encoding="utf-8"))
+        self.assertFalse(sidecar["pinned"])
+
+    def test_pin_missing_artifact_returns_404(self):
+        expected_status = 404
+        resp = self._pin("ghost.png", True)
+        self.assertEqual(expected_status, resp.status)
+
+    def test_pin_traversal_refused(self):
+        outside = self.dir.parent / "henneth-outside.png"
+        outside.write_text("x", encoding="utf-8")
+        try:
+            expected_status = 404
+            resp = self._pin("../henneth-outside.png", True)
+            self.assertEqual(expected_status, resp.status)
+            self.assertFalse(outside.with_suffix(".json").exists())
+        finally:
+            outside.unlink()
+
+    def test_pin_malformed_body_returns_400(self):
+        import http.client
+
+        (self.dir / "shot.png").write_text("x", encoding="utf-8")
+        conn = http.client.HTTPConnection("127.0.0.1", self.port)
+        conn.request("POST", "/pin", body="not json")
+        resp = conn.getresponse()
+        resp.read()
+
+        expected_status = 400
+        self.assertEqual(expected_status, resp.status)
+
+
 class GroupSelectionTest(unittest.TestCase):
     def test_group_header_checkbox_wiring_present(self):
         expected_markers = [
@@ -237,6 +366,19 @@ class ImageZoomTest(unittest.TestCase):
             ".stage img { max-width:100%; max-height:100%; object-fit:contain; cursor:zoom-in; }",
             ".stage.zoomed img { max-width:none; max-height:none; cursor:zoom-out; }",
             'classList.toggle("zoomed")',
+        ]
+        for marker in expected_markers:
+            self.assertIn(marker, mirror.PAGE)
+
+
+class PinnedSortTest(unittest.TestCase):
+    def test_pinned_items_sort_first_within_their_group(self):
+        expected_markers = [
+            "bucket.filter(a => a.pinned)",
+            "bucket.filter(a => !a.pinned)",
+            'data-pin="${esc(a.name)}"',
+            "async function togglePin(name, on)",
+            'fetch("/pin", {method:"POST"',
         ]
         for marker in expected_markers:
             self.assertIn(marker, mirror.PAGE)

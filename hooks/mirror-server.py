@@ -31,7 +31,7 @@ def type_of(suffix):
 
 
 def sidecar(path):
-    """Read `<stem>.json` beside an artifact for {title, note, group}; {} on any error."""
+    """Read `<stem>.json` beside an artifact for {title, note, group, pinned}; {} on any error."""
     side = path.with_suffix(".json")
     try:
         data = json.loads(side.read_text(encoding="utf-8"))
@@ -39,9 +39,23 @@ def sidecar(path):
             "title": str(data["title"]) if "title" in data else "",
             "note": str(data["note"]) if "note" in data else "",
             "group": str(data["group"]) if "group" in data else "",
+            "pinned": bool(data["pinned"]) if "pinned" in data else False,
         }
     except (OSError, ValueError, TypeError):
         return {}
+
+
+def set_pinned(path, on):
+    """Merge {"pinned": on} into <stem>.json beside path, preserving its other fields."""
+    side = path.with_suffix(".json")
+    try:
+        data = json.loads(side.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            data = {}
+    except (OSError, ValueError, TypeError):
+        data = {}
+    data["pinned"] = on
+    side.write_text(json.dumps(data), encoding="utf-8")
 
 
 def scan(directory):
@@ -59,6 +73,7 @@ def scan(directory):
             "label": meta.get("title") or humanize(path.stem),
             "note": meta.get("note", ""),
             "group": meta.get("group") or UNGROUPED,
+            "pinned": meta.get("pinned", False),
         })
     entries.sort(key=lambda e: e["mtime"], reverse=True)
     return entries
@@ -97,6 +112,12 @@ PAGE = r"""<!DOCTYPE html>
   .item:hover { background:#2f2f2f; }
   .item.active { background:#30364d; border-left-color:var(--accent); color:#fff; }
   .item .lbl { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:22px; }
+  .item.pinned { background:#20263a; }
+  .pinbtn { position:absolute; left:7px; top:50%; transform:translateY(-50%); display:none; background:none; border:0; color:var(--muted); font-size:12px; line-height:1; cursor:pointer; padding:2px 4px; border-radius:4px; }
+  .item:hover .pinbtn, .item.pinned .pinbtn { display:block; }
+  .item.pinned .pinbtn { color:var(--accent); }
+  .pinbtn:hover { background:#30364d; }
+  .selecting .pinbtn { display:none !important; }
   .del { position:absolute; right:10px; top:50%; transform:translateY(-50%); display:none; background:none; border:0; color:var(--muted); font-size:16px; line-height:1; cursor:pointer; padding:2px 6px; border-radius:4px; }
   .item:hover .del { display:block; }
   .del:hover { color:#f7768e; background:#3a2a2e; }
@@ -177,6 +198,9 @@ function ago(mtime){
 
 // Bucket the (already newest-first) artifacts by group, preserving first-seen
 // order — so the group bearing the newest artifact leads, and follows active work.
+// Within a group, pinned artifacts sort first (still newest-first among themselves,
+// since the incoming list is already mtime-sorted); the group's own position among
+// other groups is untouched by pinning.
 function groupsOf(items){
   const order = [];
   const byName = new Map();
@@ -184,14 +208,25 @@ function groupsOf(items){
     if(!byName.has(a.group)){ byName.set(a.group, []); order.push(a.group); }
     byName.get(a.group).push(a);
   }
-  return order.map(name => ({name, items: byName.get(name)}));
+  return order.map(name => {
+    const bucket = byName.get(name);
+    const items = [...bucket.filter(a => a.pinned), ...bucket.filter(a => !a.pinned)];
+    return {name, items};
+  });
 }
 
 function itemHtml(a){
-  return `<div class="item${a.name===current?' active':''}" data-name="${esc(a.name)}">` +
+  return `<div class="item${a.name===current?' active':''}${a.pinned?' pinned':''}" data-name="${esc(a.name)}">` +
     `<input type="checkbox" class="chk" tabindex="-1"${selected.has(a.name)?' checked':''}>` +
+    `<button class="pinbtn" data-pin="${esc(a.name)}" title="${a.pinned?'Unpin from top of group':'Pin to top of group'}">&#128204;</button>` +
     `<span class="lbl">${esc(a.label)}</span><small>${ago(a.mtime)}</small>` +
     `<button class="del" data-del="${esc(a.name)}" title="Delete">&times;</button></div>`;
+}
+
+async function togglePin(name, on){
+  try { await fetch("/pin", {method:"POST", body: JSON.stringify({name, pinned:on})}); }
+  catch(_) { return; }
+  poll();
 }
 
 // Names how many of a group's artifacts are selected: fully (all), partially
@@ -226,6 +261,12 @@ function renderList(){
     el.onclick = () => selecting ? toggleSel(el.dataset.name) : select(el.dataset.name));
   list.querySelectorAll(".del[data-del]").forEach(el =>
     el.onclick = e => { e.stopPropagation(); remove(el.dataset.del); });
+  list.querySelectorAll(".pinbtn[data-pin]").forEach(el =>
+    el.onclick = e => {
+      e.stopPropagation();
+      const a = artifacts.find(x => x.name === el.dataset.pin);
+      if(a) togglePin(a.name, !a.pinned);
+    });
   list.querySelectorAll(".ghead[data-group]").forEach(el => {
     const g = groups.find(x => x.name === el.dataset.group);
     const box = el.querySelector(".gchk");
@@ -435,7 +476,7 @@ class Handler(SimpleHTTPRequestHandler):
     def do_DELETE(self):
         target = Path(self.translate_path(self.path))
         root = Path(self.directory).resolve()
-        if not self._deletable(target, root):
+        if not self._in_scope(target, root):
             return self.send_error(404)
         try:
             target.unlink()
@@ -447,7 +488,26 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
-    def _deletable(self, target, root):
+    def do_POST(self):
+        if self.path.split("?")[0] != "/pin":
+            return self.send_error(404)
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            payload = json.loads(self.rfile.read(length))
+            name = str(payload["name"])
+            on = bool(payload["pinned"])
+        except (ValueError, KeyError, TypeError):
+            return self.send_error(400)
+        target = Path(self.directory) / name
+        root = Path(self.directory).resolve()
+        if not self._in_scope(target, root):
+            return self.send_error(404)
+        set_pinned(target, on)
+        self.send_response(204)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _in_scope(self, target, root):
         """True when target is an artifact file living inside the watched root."""
         if target.suffix.lower() not in ARTIFACT_EXTS or not target.is_file():
             return False
