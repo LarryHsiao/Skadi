@@ -124,7 +124,7 @@ present and invisible.
 **Why a server at all, when the page opens from disk.** Reading needs none: over
 `file://` the selector, preview, dashboard, collapse and resize all work. Two
 things need HTTP. Auto-reload — the page polls its own URL and refreshes when the
-bytes change (`galadriel-render.py:537`); over `file://` that fetch is refused and
+bytes change (`galadriel-render.py:538`); over `file://` that fetch is refused and
 the call swallows its own failure, so the page is whole but will not refresh
 itself. And **deleting** — `DELETE` is an HTTP verb, so from disk the selection
 controls are removed outright rather than offering a button that cannot work.

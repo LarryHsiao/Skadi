@@ -230,7 +230,7 @@ Past roughly twenty-five steps, do not halt — the user asked for small steps a
 
 Only when the spec changes screens. Two artifacts, both optional if the change is a single label or a colour:
 
-**The flow.** Write `<plans-folder>/flow-<slug>.html` — a **sibling of the concept file**. The renderer refuses any preview path resolving outside the plans folder (`galadriel-render.py:88`), so a path elsewhere degrades to "preview unavailable". Then point the concept at it:
+**The flow.** Write `<plans-folder>/flow-<slug>.html` — a **sibling of the concept file**. The renderer refuses any preview path resolving outside the plans folder (`galadriel-render.py:90`), so a path elsewhere degrades to "preview unavailable". Then point the concept at it:
 
 ```markdown
 <!-- preview: flow-<slug>.html -->

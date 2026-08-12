@@ -6,7 +6,7 @@
 > Constraints 1 and 2 below are pinned by `hooks/test_rumil_format.py`, each
 > with a trap case proving the failure is real — run it if you change them.
 > **Constraint 3 is not pinned by any test**: the table-versus-bullets choice is
-> decided by `inline()` (`galadriel-render.py:270`), which runs in the browser,
+> decided by `inline()` (`galadriel-render.py:287`), which runs in the browser,
 > and the Python suite cannot exercise browser JS. It rests on reading that
 > function. Treat it with the extra care an unenforced rule deserves.
 
@@ -18,14 +18,14 @@ one fails silently rather than loudly.
 
 - **Acceptance criteria are plain `-` bullets, never `- [ ]`.** Every checkbox
   line in the file is collected as a step, whatever heading it sits under
-  (`galadriel-render.py:108`). Three criteria written as checkboxes read as
+  (`galadriel-render.py:112`). Three criteria written as checkboxes read as
   three unfinished steps and poison the progress bar.
 - **Purpose and Acceptance lead with a bold run, not a heading.** Lines matching
-  `^#{1,6}\s+` are dropped from the overview walk (`galadriel-render.py:116`),
+  `^#{1,6}\s+` are dropped from the overview walk (`galadriel-render.py:118`),
   so `## Purpose` renders as a headless blob of prose.
 - **The wiring is bullets, never a table.** The overview renders inline markdown
-  only — code, bold, italic and nothing else (`galadriel-render.py:270`, called
-  from `:308`) — so a markdown table arrives as raw pipe characters.
+  only — code, bold, italic and nothing else (`galadriel-render.py:287`, called
+  from `:402`) — so a markdown table arrives as raw pipe characters.
 
 Everything before the first checkbox becomes the overview; everything from the
 first checkbox on becomes the step list. That is the whole of the parser's
