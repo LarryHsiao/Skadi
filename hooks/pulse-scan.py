@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """pulse-scan.py — the adherence pulse engine.
 
-Walks every config root's projects/*/*.jsonl (read-only), applies the
+Walks Claude projects/*/*.jsonl and Codex sessions/**/*.jsonl (read-only), applies the
 declarative rubric (pulse-rubric.json), and writes a per-run history line, a
 board-channel snapshot, and a self-contained Henneth dashboard. Subagent
 transcripts, a level deeper, are read only where a session's own reviewers are
@@ -70,7 +70,7 @@ def _turn_text(message):
         return "".join(
             b.get("text", "")
             for b in content
-            if isinstance(b, dict) and b.get("type") == "text"
+            if isinstance(b, dict) and b.get("type") in ("text", "input_text", "output_text")
         )
     return ""
 
@@ -134,8 +134,46 @@ def _bash_commands(message):
     ]
 
 
+def _codex_tool(name, raw_input):
+    """Translate a Codex tool item to the Claude-shaped names used by scorers."""
+    haystack = "%s\n%s" % (name or "", raw_input or "")
+    if "apply_patch" in haystack:
+        return "Write"
+    if re.search(r"(?:spawn_agent|followup_task|send_message|wait_agent)", haystack):
+        return "Agent"
+    if "request_user_input" in haystack:
+        return "AskUserQuestion"
+    if name in ("exec", "exec_command", "functions.exec_command") or "exec_command" in haystack:
+        return "Bash"
+    return name or "CodexTool"
+
+
+def _codex_tool_input(payload):
+    raw = payload.get("arguments", payload.get("input", ""))
+    if isinstance(raw, dict):
+        return raw, json.dumps(raw, ensure_ascii=False)
+    if not isinstance(raw, str):
+        raw = json.dumps(raw, ensure_ascii=False)
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        parsed = {"command": raw}
+    if not isinstance(parsed, dict):
+        parsed = {"command": raw}
+    return parsed, raw
+
+
+def _codex_message(payload):
+    return {"content": payload.get("content", [])}
+
+
+def _codex_tool_result(payload):
+    body = payload.get("output", "")
+    return {"content": [{"type": "tool_result", "content": body}]}
+
+
 def read_turns(path):
-    """Ordered turns from one transcript; torn lines skipped, not fatal. Each
+    """Ordered Claude or Codex turns; torn lines skipped, not fatal. Each
     turn carries the session it came from, so a scorer can key a per-gate cache
     by session and turn index, and the path it was read from, so a scorer can
     reach the session's own subagent transcripts (see _review_transcripts)."""
@@ -146,6 +184,7 @@ def read_turns(path):
     except OSError as err:
         print("pulse-scan: cannot open %s: %s" % (path, err), file=sys.stderr)
         return turns
+    active_model = None
     with fh:
         for line in fh:
             line = line.strip()
@@ -155,20 +194,45 @@ def read_turns(path):
                 d = json.loads(line)
             except ValueError:
                 continue  # torn write — skip, don't blank the session
+            runtime = "claude"
             t = d.get("type")
-            if t not in ("user", "assistant"):
-                continue
             message = d.get("message", {})
+            if t == "turn_context":
+                active_model = (d.get("payload") or {}).get("model") or active_model
+                continue
+            if t == "response_item":
+                runtime = "codex"
+                payload = d.get("payload") or {}
+                item_type = payload.get("type")
+                if item_type == "message" and payload.get("role") in ("user", "assistant"):
+                    t = payload["role"]
+                    message = _codex_message(payload)
+                elif item_type in ("function_call", "custom_tool_call"):
+                    parsed, raw = _codex_tool_input(payload)
+                    name = _codex_tool(payload.get("name"), raw)
+                    if name == "Bash" and "command" not in parsed:
+                        parsed["command"] = raw
+                    t = "assistant"
+                    message = {"content": [{"type": "tool_use", "name": name,
+                                              "input": parsed}]}
+                elif item_type in ("function_call_output", "custom_tool_call_output"):
+                    t = "user"
+                    message = _codex_tool_result(payload)
+                else:
+                    continue
+            elif t not in ("user", "assistant"):
+                continue
             turns.append({
                 "type": t,
                 "text": _turn_text(message),
                 "tools": _tool_names(message) if t == "assistant" else [],
                 "bash_commands": _bash_commands(message) if t == "assistant" else [],
                 "tool_results": _tool_results(message) if t == "user" else [],
-                "model": message.get("model") if t == "assistant" else None,
+                "model": (message.get("model") or active_model) if t == "assistant" else None,
                 "ts": d.get("timestamp", ""),
                 "session": session,
                 "source": path,
+                "runtime": runtime,
             })
     return turns
 
@@ -190,14 +254,16 @@ def _is_sweep_session(turns):
 
 
 def session_files(roots, window_days, now_epoch):
-    """Every projects/*/*.jsonl across roots whose mtime is within the window."""
+    """Recent Claude project transcripts and Codex session rollouts."""
     cutoff = now_epoch - window_days * SECONDS_PER_DAY
     found = []
     for root in roots:
         root = os.path.expanduser(root)
         if not os.path.isdir(root):
             continue
-        for path in glob.glob(os.path.join(root, "projects", "*", "*.jsonl")):
+        candidates = glob.glob(os.path.join(root, "projects", "*", "*.jsonl"))
+        candidates += glob.glob(os.path.join(root, "sessions", "**", "*.jsonl"), recursive=True)
+        for path in candidates:
             try:
                 if os.path.getmtime(path) >= cutoff:
                     found.append(path)
@@ -215,7 +281,8 @@ def _is_prompt(text):
         return False
     noise = ("<command-name>", "<command-message>", "<command-args>",
              "Base directory for this skill:", "<local-command-stdout>",
-             "<local-command-caveat>", "<task-notification>")
+             "<local-command-caveat>", "<task-notification>",
+             "<environment_context>")
     return not any(tok in text for tok in noise)
 
 
@@ -1572,7 +1639,8 @@ def _default_roots():
     override = os.environ.get("PULSE_ROOTS")
     if override:
         return override.split(":")
-    return ["~/.claude", "~/.claude-personal", "~/.claude-work"]
+    return ["~/.claude", "~/.claude-personal", "~/.claude-work",
+            "~/.codex", "~/.codex-personal", "~/.codex-work"]
 
 
 def _history_series(pulse_dir):
@@ -1746,6 +1814,9 @@ const MODEL_LABELS = {
   "claude-opus-4-8": "Opus 4.8",
   "claude-sonnet-5": "Sonnet 5",
   "claude-fable-5": "Fable 5",
+  "gpt-5.6-sol": "Codex Sol",
+  "gpt-5.6-terra": "Codex Terra",
+  "gpt-5.6-luna": "Codex Luna",
 };
 const modelLabel = (m) => m === "Overall" ? S().overall : (MODEL_LABELS[m] || m);
 

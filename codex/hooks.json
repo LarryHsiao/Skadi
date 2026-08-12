@@ -1,0 +1,72 @@
+{
+  "description": "Skadi lifecycle hooks for Codex.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "^(apply_patch|Edit|Write)$",
+        "hooks": [
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/flutter-analyze.sh", "statusMessage": "Formatting, analyzing, testing Dart..." },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/prettier-format.sh", "statusMessage": "Running Prettier..." },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/eslint-check.sh", "statusMessage": "Running ESLint..." },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/henneth-group.py", "statusMessage": "Stamping Henneth group..." }
+        ]
+      },
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/destructive-warn.sh" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/dir-guard.sh", "statusMessage": "Checking directory..." },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/protected-repo-guard.sh", "statusMessage": "Checking protected repos..." },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/pre-commit-guard.sh" }
+        ]
+      },
+      {
+        "matcher": "^(apply_patch|Edit|Write)$",
+        "hooks": [
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/dir-guard.sh", "statusMessage": "Checking directory..." },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/worktree-guard.sh", "statusMessage": "Checking worktree..." },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/protected-repo-guard.sh", "statusMessage": "Checking protected repos..." }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/grammar-counter.sh" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/grammar-reminder.sh" },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/gate-reminder.sh" },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/compliance-review-reminder.sh" },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/handoff-poll.sh" },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/ping-pong.sh" }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/session-readme.sh" },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/handoff-autosub.sh" }
+        ]
+      },
+      {
+        "matcher": "^compact$",
+        "hooks": [
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/compact-context.sh" }
+        ]
+      }
+    ]
+  }
+}

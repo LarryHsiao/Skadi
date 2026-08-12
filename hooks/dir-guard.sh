@@ -62,6 +62,10 @@ ALLOWED_ROOTS=(
   "$HOME_DIR/.claude"
   "$HOME_DIR/.claude-personal"
   "$HOME_DIR/.claude-work"
+  "$HOME_DIR/.codex"
+  "$HOME_DIR/.codex-personal"
+  "$HOME_DIR/.codex-work"
+  "${CODEX_HOME:-$HOME_DIR/.codex}"
   # skadi's runtime data root — the handoff mailbox, the moria mend list, the
   # board channels, the repo-watch file. Shared across every profile and never
   # touched by /install, so it belongs beside the config roots rather than
@@ -74,7 +78,7 @@ ALLOWED_ROOTS=(
   "${DEV_DIRS[@]}"
 )
 
-# Returns 0 if path is under project dir, .claude dir, .skadi, /tmp, or any dev dir
+# Returns 0 if path is under project dir, an agent config root, .skadi, /tmp, or any dev dir
 in_allowed_dir() {
   local p="$1"
   local _root

@@ -12,7 +12,50 @@ fi
 # /install skill passes when invoking this script. Fall back to pwd outside a
 # git repo (rare; install.sh always lives inside the skadi clone).
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && (git rev-parse --show-toplevel 2>/dev/null || pwd))"
-CLAUDE_DIR="${1:-$HOME/.claude}"
+
+MODE="claude"
+CLAUDE_DIR="$HOME/.claude"
+CODEX_DIR="$HOME/.codex"
+PAIR_CLAUDE=""
+PAIR_CODEX=""
+
+case "${1:-}" in
+  --claude)
+    MODE="claude"
+    CLAUDE_DIR="${2:-$HOME/.claude}"
+    [ "$#" -le 2 ] || { echo "usage: $0 --claude [root]" >&2; exit 2; }
+    ;;
+  --codex)
+    MODE="codex"
+    CODEX_DIR="${2:-$HOME/.codex}"
+    [ "$#" -le 2 ] || { echo "usage: $0 --codex [root]" >&2; exit 2; }
+    ;;
+  --pair)
+    MODE="pair"
+    PAIR_CLAUDE="${2:-}"
+    PAIR_CODEX="${3:-}"
+    [ -n "$PAIR_CLAUDE" ] && [ -n "$PAIR_CODEX" ] && [ "$#" -eq 3 ] \
+      || { echo "usage: $0 --pair <claude-root> <codex-root>" >&2; exit 2; }
+    ;;
+  --all)
+    MODE="all"
+    [ "$#" -eq 1 ] || { echo "usage: $0 --all" >&2; exit 2; }
+    ;;
+  --help|-h)
+    cat <<'EOF'
+Usage:
+  install.sh [claude-root]                  legacy Claude-only install
+  install.sh --claude [claude-root]
+  install.sh --codex [codex-root]
+  install.sh --pair <claude-root> <codex-root>
+  install.sh --all                          install every registered pair
+EOF
+    exit 0
+    ;;
+  "") ;;
+  --*) echo "unknown option: $1" >&2; exit 2 ;;
+  *) CLAUDE_DIR="$1" ;;
+esac
 
 # Content digests, keyed by absolute path, for the source tree and the live one.
 # Filled once per run by hash_tree; read by install_file.
@@ -70,11 +113,14 @@ install_file() {
 install_settings() {
   local src="$1"
   local dst="$2"
+  local profile
+  profile="$(profile_for_root "$CLAUDE_DIR")"
 
   [ -L "$dst" ] && rm "$dst"
 
   local rendered
-  rendered=$(sed "s|{{SKADI_ROOT}}|$REPO|g" "$src")
+  rendered=$(sed -e "s|{{SKADI_ROOT}}|$REPO|g" \
+                 -e "s|{{SKADI_PROFILE}}|$profile|g" "$src")
 
   # RTK is not wired on Windows. Its PreToolUse entry is a self-contained
   # line, so dropping it here leaves valid JSON. Strip before the comparison
@@ -123,6 +169,88 @@ prune_tree() {
 
   find "$dst" -depth -mindepth 1 -type d -empty -not -name '.*' -delete 2>/dev/null || true
 }
+
+profile_for_root() {
+  if [ -n "${SKADI_PROFILE_OVERRIDE:-}" ]; then
+    printf '%s\n' "$SKADI_PROFILE_OVERRIDE"
+    return
+  fi
+  case "${1##*/}" in
+    .claude-personal|.codex-personal) echo personal ;;
+    .claude-work|.codex-work) echo work ;;
+    .claude|.codex) echo default ;;
+    *)
+      local profile="${1##*/}"
+      profile="${profile#.claude-}"
+      profile="${profile#.codex-}"
+      printf '%s\n' "${profile:-default}"
+      ;;
+  esac
+}
+
+record_pair() {
+  local claude_root="$1" codex_root="$2" profile registry tmp
+  profile="$(profile_for_root "$claude_root")"
+  registry="$HOME/.skadi/install/roots.tsv"
+  mkdir -p "$(dirname "$registry")"
+  tmp="${registry}.tmp.$$"
+  if [ -f "$registry" ]; then
+    awk -F '\t' -v p="$profile" '$1 != p' "$registry" > "$tmp"
+  else
+    : > "$tmp"
+  fi
+  printf '%s\t%s\t%s\n' "$profile" "$claude_root" "$codex_root" >> "$tmp"
+  mv "$tmp" "$registry"
+  echo "registered:     $profile -> $claude_root | $codex_root"
+}
+
+install_codex() {
+  local root="$1" profile
+  profile="$(profile_for_root "$root")"
+  command -v python3 >/dev/null 2>&1 \
+    || { echo "Codex installation needs python3" >&2; exit 1; }
+  python3 "$REPO/hooks/install-codex.py" "$REPO" "$root" "$profile"
+  if [ -f "$REPO/previews/henneth/skadi-theme.css" ]; then
+    mkdir -p "$HOME/.skadi/henneth"
+    cp -p "$REPO/previews/henneth/skadi-theme.css" "$HOME/.skadi/henneth/skadi-theme.css"
+  fi
+  echo ""
+  echo "Done: Codex $profile profile at $root"
+}
+
+case "$MODE" in
+  codex)
+    install_codex "$CODEX_DIR"
+    exit 0
+    ;;
+  pair)
+    pair_profile="$(profile_for_root "$PAIR_CLAUDE")"
+    SKADI_PROFILE_OVERRIDE="$pair_profile" "$REPO/install.sh" --claude "$PAIR_CLAUDE"
+    SKADI_PROFILE_OVERRIDE="$pair_profile" "$REPO/install.sh" --codex "$PAIR_CODEX"
+    record_pair "$PAIR_CLAUDE" "$PAIR_CODEX"
+    exit 0
+    ;;
+  all)
+    registry="$HOME/.skadi/install/roots.tsv"
+    if [ ! -s "$registry" ]; then
+      mkdir -p "$(dirname "$registry")"
+      printf 'default\t%s/.claude\t%s/.codex\npersonal\t%s/.claude-personal\t%s/.codex-personal\nwork\t%s/.claude-work\t%s/.codex-work\n' \
+        "$HOME" "$HOME" "$HOME" "$HOME" "$HOME" "$HOME" > "$registry"
+    fi
+    if awk -F '\t' 'NF != 3 || $1 == "" || $2 == "" || $3 == "" {bad=1} END {exit !bad}' "$registry"; then
+      echo "malformed install registry: $registry (expected profile<TAB>claude-root<TAB>codex-root)" >&2
+      exit 2
+    fi
+    while IFS=$'\t' read -r _profile claude_root codex_root; do
+      SKADI_PROFILE_OVERRIDE="$_profile" "$REPO/install.sh" --claude "$claude_root"
+      SKADI_PROFILE_OVERRIDE="$_profile" "$REPO/install.sh" --codex "$codex_root"
+    done < "$registry"
+    exit 0
+    ;;
+esac
+
+# A first-time profile may not have been launched by Claude Code yet.
+mkdir -p "$CLAUDE_DIR"
 
 # Digest both trees up front — every install_file below reads these maps.
 # settings.json is absent: install_settings compares the rendered text instead.

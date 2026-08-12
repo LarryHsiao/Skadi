@@ -16,8 +16,9 @@ window.
 
     python3 ~/.claude/hooks/pulse-scan.py
 
-This walks `~/.claude`, `~/.claude-personal`, `~/.claude-work` under
-`projects/**/*.jsonl` (read-only), appends a line to `~/.skadi/pulse/history.jsonl`,
+This walks Claude `projects/**/*.jsonl` and Codex `sessions/**/*.jsonl` beneath
+the default, personal, and work config roots (read-only), appends a line to
+`~/.skadi/pulse/history.jsonl`,
 writes the board channel `~/.skadi/board/pulse.json`, and renders
 `~/.skadi/henneth/adherence-pulse.html`. It prints the headline overall.
 
@@ -31,10 +32,12 @@ own once rendered.
 - **Markers only.** The first cut scores machine-checkable signals — per-skill
   completion and grammar rate. Two rule items (commit-footer, PR assignee) are
   defined but marked `pending` until their git/forge probes are built.
-- **Subagent verdicts under-report.** A skill that posts its verdict through a
-  subagent — `/council`'s `[COUNSEL]`, `/celebrimbor`'s `[GWAITH]` — writes that
-  marker in the tracker, not the main-thread transcript the pulse reads, so those
-  rows read low. A known first-cut limitation, not a failure of the skill.
+- **Subagent-backed rows under-report in Codex.** Claude exposes child
+  transcripts beside the parent session; Codex rollouts do not currently expose
+  the same parent-to-child path to this scanner. Separately, a skill that posts
+  its verdict only in a tracker — `/council`'s `[COUNSEL]`, `/celebrimbor`'s
+  `[GWAITH]` — leaves no marker in the main transcript, so those rows also read
+  low. These are known limitations, not failures of the skills.
 - **Compliance Review bills per task segment, not per prompt turn.**
   `rule.compliance-review` folds consecutive mutating runs (the user steering
   between edits) plus their read-only wind-down into one segment — CLAUDE.md

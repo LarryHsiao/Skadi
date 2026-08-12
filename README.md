@@ -1,6 +1,9 @@
 # Skadi
 
-My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) configuration. Global instructions, settings, custom skills, and hooks — all version-controlled and copied into `~/.claude/` (and any other configured roots) by `install.sh`.
+My personal configuration for [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+and [Codex](https://learn.chatgpt.com/docs/codex). Global instructions, skills,
+hooks, safety policy, and workflow state are version-controlled here and
+installed into paired `~/.claude*` and `~/.codex*` homes by `install.sh`.
 
 ![Skadi — Plan · Forge · Review](docs/flow.png)
 
@@ -9,7 +12,10 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 | Path | Purpose |
 |---|---|
 | `CLAUDE.md` | Global instructions loaded into every conversation |
+| `AGENTS.md` | Runtime-neutral global instructions installed into Codex homes |
 | `settings.json` | Model, permissions, plugins, and hook definitions |
+| `codex/hooks.json` | Native Codex lifecycle-hook definitions |
+| `codex/rules/skadi.rules` | Native Codex command escalation policy |
 | `statusline.sh` | Custom status line script |
 | `hooks/` | Shell scripts that run before/after tool calls |
 | `hooks/lint.sh` | Shellcheck gate over the scripts a branch changed — `./hooks/lint.sh` (add paths to widen it) |
@@ -27,12 +33,25 @@ My personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) config
 - **Grammar check** — Every user message is silently checked for grammar and phrasing. If anything's off, a single corrected line is appended to the response with the changed tokens bolded on both sides (e.g. `"should **i** go?"` → `"should **I** go?"`). A counter hook tallies corrections per session so trends stay visible.
 - **Tolkien narrator tone** — Measured cadence, a touch formal, a storyteller's weight. Tight sentences; no breathless filler, no hype.
 - **Free-form gate** — Every free-form mutating turn opens with one block — a three-tier size gauge (reach, depth, reversibility), acceptance outcomes, and a change summary — then waits for the user's word; slash-invoked skills run straight through. A `gate-reminder.sh` hook re-injects the gate with every prompt so lower-tier models hold to it.
-- **Multi-root install** — `/install` copies this repo into every root listed in memory (`~/.claude`, `~/.claude-personal`, `~/.claude-work`) so switching contexts stays consistent.
-- **Source of truth** — `~/.claude/` is a copy. Edits there get overwritten on the next install; every change must land in this repo first.
+- **Multi-root install** — `/install` updates every Claude/Codex pair in
+  `~/.skadi/install/roots.tsv`; the first `--all` install registers the default,
+  personal, and work pairs.
+- **Paired agent profiles** — `default`, `personal`, and `work` map to isolated
+  Claude and Codex homes. Paired homes share Skadi routing/preferences under
+  `~/.skadi/profiles/`, but never authentication or chat history.
+- **Native Codex adaptation** — installation renders strict Codex skill
+  frontmatter, `$skill` invocations, Codex hook paths, current subagent/tool
+  language, and patch-aware safety hooks from the same source skill tree.
+- **Source of truth** — `~/.claude*/` and Skadi-owned files under `~/.codex*/`
+  are installed copies. Make changes in this repo first; unrelated Codex config,
+  authentication, history, and user hooks are preserved.
 
 ### Skills
 
-- `/install` — Copy this repo into every configured Claude config root
+The catalog below uses Claude's `/name` notation. In Codex, invoke the same
+installed workflow as `$name`.
+
+- `/install` — Update every registered Claude/Codex profile pair
 - `/commit` — Generate a commit message from the diff and commit after approval; pass `--push` to push after the commit lands
 - `/stage` — Interactively stage files
 - `/summary` — Summarize staged changes
@@ -202,11 +221,28 @@ The council brakes at five `[COUNSEL vN]`s without a verdict. On what would be `
 ```bash
 git clone git@github.com:LarryHsiao/Skadi.git ~/skadi
 cd ~/skadi
-./install.sh                 # installs into ~/.claude by default
-./install.sh ~/.claude-work  # or any other root
+./install.sh --all           # install default, personal, and work pairs
+./install.sh ~/.claude-work  # backward-compatible Claude-only install
+./install.sh --codex ~/.codex-work
+./install.sh --pair ~/.claude-work ~/.codex-work
 ```
 
-The installer copies every file into the target root. Re-running is safe — unchanged files are skipped. Inside a Claude session, `/install` iterates over all roots saved in memory in a single call.
+Pair mappings live in `~/.skadi/install/roots.tsv`. Re-running is safe: Codex
+authentication, sessions, `config.toml`, unrelated rules/hooks/skills, and user
+text outside Skadi's marked `AGENTS.md` block are preserved. After installing a
+Codex home, start a new session and use `/hooks` once to review and trust the
+new or changed lifecycle hooks.
+
+Launch an isolated Codex profile by setting its home explicitly:
+
+```bash
+CODEX_HOME="$HOME/.codex-personal" codex
+CODEX_HOME="$HOME/.codex-work" codex
+```
+
+Claude retains its scripted weather/diff status line. Codex uses its native
+`/statusline` picker for model, reasoning, context, rate limits, directory, and
+Git branch because Codex does not execute a custom status-line program.
 
 ## License
 

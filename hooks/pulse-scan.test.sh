@@ -1893,7 +1893,45 @@ PY
 )
 check "rule.compliance-review scores end to end, its waiver counted apart" "$expected_compliance_live" "$actual_compliance_live"
 
-# ── 60 · the mend-judge caches: first pass calls the model, second pass calls
+# ── 60 · Codex rollout records normalize into the same scorer turn shape ──
+d=$(tmpdir)
+mkdir -p "$d/codex/sessions/2026/08/12"
+cat >"$d/codex/sessions/2026/08/12/rollout.jsonl" <<'JSON'
+{"timestamp":"2026-08-12T01:00:00Z","type":"session_meta","payload":{"id":"codex-1"}}
+{"timestamp":"2026-08-12T01:00:01Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"fix the bug"}]}}
+{"timestamp":"2026-08-12T01:00:02Z","type":"turn_context","payload":{"model":"gpt-5.6-sol"}}
+{"timestamp":"2026-08-12T01:00:03Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Editing."}]}}
+{"timestamp":"2026-08-12T01:00:04Z","type":"response_item","payload":{"type":"custom_tool_call","name":"exec","input":"const r = await tools.apply_patch(\"*** Begin Patch\");"}}
+{"timestamp":"2026-08-12T01:00:05Z","type":"response_item","payload":{"type":"custom_tool_call_output","output":[{"type":"input_text","text":"Done!"}]}}
+JSON
+expected_codex="user:fix the bug|assistant:Editing.:gpt-5.6-sol|assistant:Write:gpt-5.6-sol|user:result"
+actual_codex=$(python3 - "$SCAN" "$d/codex/sessions/2026/08/12/rollout.jsonl" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+out=[]
+for t in m.read_turns(sys.argv[2]):
+    if t["tool_results"]: out.append("user:result")
+    elif t["tools"]: out.append("assistant:%s:%s" % (t["tools"][0], t["model"]))
+    elif t["type"] == "assistant": out.append("assistant:%s:%s" % (t["text"], t["model"]))
+    else: out.append("user:%s" % t["text"])
+print("|".join(out))
+PY
+)
+check "Codex rollout normalizes text, patch calls, results, and model" "$expected_codex" "$actual_codex"
+
+# ── 61 · session discovery includes both runtime layouts ──
+mkdir -p "$d/codex/projects/p"
+printf '%s\n' '{"type":"user","message":{"content":"claude"}}' >"$d/codex/projects/p/claude.jsonl"
+expected_discovery="claude.jsonl,rollout.jsonl"
+actual_discovery=$(python3 - "$SCAN" "$d/codex" <<'PY'
+import importlib.util as u, sys, time, os
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+print(",".join(sorted(os.path.basename(p) for p in m.session_files([sys.argv[2]], 30, time.time()))))
+PY
+)
+check "session discovery includes Claude and Codex layouts" "$expected_discovery" "$actual_discovery"
+
+# ── 62 · the mend-judge caches: first pass calls the model, second pass calls
 #         nothing — mirrors test 31, one level down the same judge machinery ──
 d=$(tmpdir)
 cat >"$d/fakemendjudge.py" <<'PY'
@@ -1922,7 +1960,7 @@ PY
 )
 check "mend-judge caches: second pass makes no model call" "$expected_mendjudge" "$actual_mendjudge"
 
-# ── 61 · review.verdict's final-result framing: a FAIL the mend-judge calls
+# ── 63 · review.verdict's final-result framing: a FAIL the mend-judge calls
 #         mended counts as sound; one it calls unmended still does not ──
 # The reviewer quotes the rule before it settles on FAIL — the same shape test
 # 55 guards against — so this also re-proves the last-match-wins read is not
@@ -1965,7 +2003,7 @@ PY
 )
 check "review.verdict: a FAIL the mend-judge calls unmended still does not" "$expected_unmended" "$actual_unmended"
 
-# ── 62 · review.recovered isolates the FAIL population; an unjudged FAIL is
+# ── 64 · review.recovered isolates the FAIL population; an unjudged FAIL is
 #         excluded from the rate but named beneath it, not guessed at ──
 cat >"$d/mendcheck/subagents/agent-a2.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-20T10:00:12Z","message":{"content":[{"type":"text","text":"A second finding.\nCompliance Review: FAIL"}]}}
@@ -1984,7 +2022,7 @@ PY
 )
 check "review.recovered: isolates FAILs, an unjudged one excluded but counted beneath" "$expected_recovered" "$actual_recovered"
 
-# ── 63 · a FAIL dispatched during a read-only run, before any edit exists to
+# ── 65 · a FAIL dispatched during a read-only run, before any edit exists to
 #         mend, is excluded — there is no segment to show the judge a mend in ──
 d=$(tmpdir)
 mkdir -p "$d/nosegment/subagents"
@@ -2010,7 +2048,7 @@ PY
 )
 check "a FAIL with no segment to show a mend in is excluded" "$expected_nosegment" "$actual_nosegment"
 
-# ── 64 · review.recovered is wired into apply_rubric end to end with the live
+# ── 66 · review.recovered is wired into apply_rubric end to end with the live
 #         rubric; the second pass proves the mend cache, not a second model
 #         call, answers it ──
 d=$(tmpdir)
