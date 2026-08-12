@@ -258,7 +258,7 @@ deliberate "this channel is spent, wipe it" act.
 - Live pickup is turn-fired, not a daemon. The `handoff-poll.sh`
   `UserPromptSubmit` hook runs only when the receiving session takes a turn; no
   server, no long-poll loop. That distinction was weighed and the daemon
-  rejected (see `docs/superpowers/specs/2026-06-24-handoff-design.md`).
+  rejected deliberately.
 - Subscriptions and read cursors are per session, kept under the hidden
   `~/.skadi/handoff/.subs/` and `~/.skadi/handoff/.cursors/` — never shown as
   channels by `list`, never composed by the model.

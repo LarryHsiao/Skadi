@@ -25,9 +25,7 @@ RENDERER = HERE / "galadriel-render.py"
 # reaches for when it cites a second line of the same file ("called from `:402`").
 CITATION = re.compile(r"galadriel-render\.py:(\d+)|from `:(\d+)`")
 
-# The documents whose citations describe the renderer as it stands now. The dated
-# plan and spec records under docs/superpowers/ are deliberately absent: they
-# describe a past state, and holding them to today's code would rewrite history.
+# The documents whose citations describe the renderer as it stands now.
 CITING_DOCS = ("skills/rumil/format.md", "skills/rumil/SKILL.md", "skills/galadriel/SKILL.md")
 
 # (document, the phrase its citation follows, the construct that line must carry).

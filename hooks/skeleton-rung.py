@@ -11,7 +11,6 @@ and where the latest [FORTH] sits relative to each comment's watermark, decide i
 A bot [METTA] (closed on merge) is the terminal mark — its presence yields
 `at_rest`, distinct from `done` (forged, not yet closed), so Aulë's close-on-merge
 sweep never re-closes a ticket already laid to rest.
-See docs/superpowers/specs/2026-06-08-skeleton-stage-design.md.
 """
 import sys, json, re
 
