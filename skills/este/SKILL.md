@@ -110,6 +110,22 @@ own once rendered.
   completion it silently described stays counted clean — so the rate reads high by
   up to the unattributed count, which stands beneath the row rather than hiding
   behind the ⓘ. Both approximations hold the row in the heuristic tier.
+- **`verify.test` and `verify.lint` read whether running the check actually
+  caught something, not whether the ritual was performed.** Both are plain
+  exit-code reads — every Bash call classified as a test-runner or
+  lint/static-analysis invocation (a fixed command list per row's `match`
+  pattern, not a shell parse), scored by whether its own answering
+  `tool_result` came back clean. No model judgment sits behind either row,
+  so both carry the `deterministic` tier — the only rows that do; every other
+  row is `heuristic`. The pairing is by the transcript's own `tool_use_id`,
+  not position in the reply, so a turn that ran other tools alongside the
+  Bash call (a Read before it, say) still matches the right result to the
+  right call; a call whose result can't be pinned down is excluded from both
+  sides rather than guessed at. Known limitation shared by both rows: the
+  classifier is a fixed list of known runners, so an unlisted tool goes
+  uncounted, and a compound command chaining a check with something else
+  (`npm run lint && npm test`) is scored by the one exit code the whole line
+  returned.
 - **First-shot rate measures the model, not a rule.** `model.first-shot` asks a
   different question from every other row: not "did the model keep the config's
   rule" but "how good is the model" — what fraction of task segments landed

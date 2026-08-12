@@ -80,7 +80,8 @@ actual_rubric=$(python3 - "$RUBRIC" <<'PY'
 import json, sys
 rows = json.load(open(sys.argv[1], encoding="utf-8"))
 kinds = {"workflow", "grammar", "freeform-gate", "post-gate", "task-shot", "plan-gate",
-         "git-probe", "forge-probe", "bug-gate", "review-verdict", "review-recovered"}
+         "git-probe", "forge-probe", "bug-gate", "review-verdict", "review-recovered",
+         "verify"}
 tiers = {"deterministic", "structural", "heuristic"}
 req = {"id", "label", "kind", "tier", "applies", "complied", "denom", "criterion"}
 for r in rows:
@@ -92,6 +93,9 @@ for r in rows:
     # has a denominator.
     assert r["kind"] not in ("review-verdict", "review-recovered") or "reviewed" in r, \
         "no reviewed pattern in %s" % r["id"]
+    # verify reads 'match' to classify a Bash command as a test/lint run at
+    # all — without it the scorer has no denominator either.
+    assert r["kind"] != "verify" or "match" in r, "no match pattern in %s" % r["id"]
 ids = [r["id"] for r in rows]
 assert len(ids) == len(set(ids)), "duplicate id"
 print("ok")
@@ -2097,6 +2101,82 @@ print("%s|%s|%s|%s|%s" % (item["status"], item["applied"], item["complied"], ite
 PY
 )
 check "review.recovered: cached mend verdict, no second model call needed" "$expected_recoveredlive" "$actual_recoveredlive2"
+
+# ── 67 · verify scorer: a test-runner call that passes complies, one that
+#         fails doesn't, and a non-matching Bash call (git status) is never
+#         counted at all — reads the tool_result's own error flag, no judge ──
+d=$(tmpdir)
+cat >"$d/verify-test.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-01T09:00:00Z","message":{"content":"run the checks"}}
+{"type":"assistant","timestamp":"2026-08-01T09:00:05Z","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-01T09:00:06Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"5 passed"}]}}
+{"type":"assistant","timestamp":"2026-08-01T09:00:10Z","message":{"content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"npm test"}}]}}
+{"type":"user","timestamp":"2026-08-01T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t2","is_error":true,"content":"1 failing"}]}}
+{"type":"assistant","timestamp":"2026-08-01T09:00:15Z","message":{"content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"git status"}}]}}
+{"type":"user","timestamp":"2026-08-01T09:00:16Z","message":{"content":[{"type":"tool_result","tool_use_id":"t3","content":"clean"}]}}
+JSON
+expected_verifytest="2/1"
+actual_verifytest=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-test.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+entry = next(r for r in rubric if r["id"] == "verify.test")
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_verify(turns, entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "verify.test: pytest passes, npm test fails, git status uncounted" "$expected_verifytest" "$actual_verifytest"
+
+# ── 68 · verify scorer: pairs a Bash call to its own result by tool_use_id,
+#         not position — a turn that ran Read before Bash still matches the
+#         lint call to its own result even listed first in the reply; a call
+#         whose result never resolves is excluded from both sides ──
+d=$(tmpdir)
+cat >"$d/verify-lint.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-01T09:10:00Z","message":{"content":"lint the diff"}}
+{"type":"assistant","timestamp":"2026-08-01T09:10:05Z","message":{"content":[{"type":"tool_use","id":"r1","name":"Read","input":{}},{"type":"tool_use","id":"b1","name":"Bash","input":{"command":"eslint ."}}]}}
+{"type":"user","timestamp":"2026-08-01T09:10:06Z","message":{"content":[{"type":"tool_result","tool_use_id":"b1","content":"0 problems"},{"type":"tool_result","tool_use_id":"r1","content":"file contents"}]}}
+{"type":"assistant","timestamp":"2026-08-01T09:10:10Z","message":{"content":[{"type":"tool_use","id":"b2","name":"Bash","input":{"command":"rtk lint"}}]}}
+{"type":"user","timestamp":"2026-08-01T09:10:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"unrelated","content":"nothing to see here"}]}}
+JSON
+expected_verifylint="1/1"
+actual_verifylint=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-lint.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+entry = next(r for r in rubric if r["id"] == "verify.lint")
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_verify(turns, entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "verify.lint: id-matched despite mixed-tool turn and out-of-order results; unresolved call excluded" "$expected_verifylint" "$actual_verifylint"
+
+# ── 69 · verify.test and verify.lint wired into apply_rubric end to end with
+#         the live rubric — real JSON, real kind dispatch, not a hand-built
+#         entry ──
+d=$(tmpdir)
+cat >"$d/verify-live.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-01T09:20:00Z","message":{"content":"ship it"}}
+{"type":"assistant","timestamp":"2026-08-01T09:20:05Z","message":{"content":[{"type":"tool_use","id":"v1","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-01T09:20:06Z","message":{"content":[{"type":"tool_result","tool_use_id":"v1","content":"3 passed"}]}}
+{"type":"assistant","timestamp":"2026-08-01T09:20:10Z","message":{"content":[{"type":"tool_use","id":"v2","name":"Bash","input":{"command":"cargo clippy"}}]}}
+{"type":"user","timestamp":"2026-08-01T09:20:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"v2","is_error":true,"content":"warning: unused import"}]}}
+JSON
+expected_verifylive="ok|1|1|100||ok|1|0|0"
+actual_verifylive=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-live.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+items, _ = m.apply_rubric([sys.argv[3]], rubric)
+by_id = {i["id"]: i for i in items}
+t, l = by_id["verify.test"], by_id["verify.lint"]
+print("%s|%s|%s|%s||%s|%s|%s|%s" % (t["status"], t["applied"], t["complied"], t["rate"],
+                                     l["status"], l["applied"], l["complied"], l["rate"]))
+PY
+)
+check "verify.test/verify.lint wired through apply_rubric with the live rubric" "$expected_verifylive" "$actual_verifylive"
 
 echo ""
 echo "── $pass passed, $fail failed ──"

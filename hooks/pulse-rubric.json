@@ -65,5 +65,31 @@
     "criterion": "Applies to every Compliance Review that reads FAIL and whose timestamp falls inside a task segment (so there is something to show a mend in), dated on or after 2026-07-16. ✓ a mend-judge — reading the reviewer's own findings beside what the segment's turns did afterward — calls the findings mended before the segment closed · ✗ it calls them unmended, or the segment closed with the same defect still standing. Isolates the population review.verdict folds back into its own 'final result' rate: that row asks how sound the work shipped overall, this one asks, of the reviews that misfired, how many were caught and fixed — the recovery rate a low review.verdict number does not by itself distinguish from carelessness. A FAIL the judge could not answer (unreachable, or not yet warmed) is excluded from both sides and counted beneath the row as unjudged, the same discipline as plan.accepted's abandoned count. The judge reads only prose — the reviewer's report and the segment's own turns, never a diff — so it is a judgment call like plan.accepted and plan.bug-reported, hence the heuristic tier.",
     "label_zh": "Compliance Review 的 FAIL 在段落收尾前被修好",
     "criterion_zh": "適用於每一次判決讀作 FAIL、且其時間點落在某個任務段落之內（因此有地方可展示修補與否）的 Compliance Review，日期於 2026-07-16 以後。✓ 由修補判斷者——比對審查者自己的發現與該段落之後的所有回合——判定發現在段落收尾前已被修好 · ✗ 判定為未修好，或段落收尾時同一個缺陷仍原封不動。這一列拆出的是 review.verdict 自己「最終成果」比率裡折進去的那個子集：那一列問的是整體成果健不健全，這一列問的是，在失手的審查裡，有多少被抓到並修好——這正是 review.verdict 偏低時，單看那個數字分辨不出「審查在起作用」還是「工作真的粗心」的地方。判斷者答不出來的 FAIL（連不上模型，或尚未預熱）兩邊都不計入，另在該列下方記為未判定的數量，做法同 plan.accepted 的放棄計數。判斷者讀的只是文字——審查者的回報與段落本身的回合，並非逐字比對的差異——因此和 plan.accepted、plan.bug-reported 一樣是一種判斷，故歸在啟發式這一層。"
+  },
+  {
+    "id": "verify.test",
+    "label": "Unit tests pass when run",
+    "kind": "verify",
+    "tier": "deterministic",
+    "applies": "",
+    "complied": "",
+    "match": "\\b(?:py\\.?test|jest|vitest|mocha|ava|rspec|phpunit)\\b|\\b(?:npm|pnpm|yarn)\\s+(?:run\\s+)?test\\b|\\b(?:cargo|go|flutter|dart|dotnet|swift|make)\\s+test\\b|\\b(?:gradle|gradlew|mvn)\\s+test\\b|\\brtk\\s+(?:cargo\\s+)?test\\b|\\brtk\\s+(?:vitest|playwright)\\b|\\bplaywright\\s+test\\b",
+    "denom": "test runs",
+    "criterion": "Applies to every Bash call whose command reads as a test-suite invocation (pytest, npm/pnpm/yarn test, cargo/go/flutter/dart test, jest/vitest/mocha/ava/rspec/phpunit, gradle/mvn test, this repo's own rtk wrappers, and the like) whose answering tool_result can be pinned to that call. ✓ the result carries no error · ✗ it does. A call whose result can't be located — a multi-tool turn with no matching id, a transcript cut short — is excluded from both sides rather than guessed at, the same discipline as review.recovered's unjudged count. Read straight from the tool_result's own error flag, no model judgment involved, so this is the one row that earns the deterministic tier rather than heuristic. Known limitation: the classifier is a fixed command list, not a shell parse — an unlisted runner won't be caught, and a compound command chaining a test run with something else is scored by whatever exit code the whole line returned.",
+    "label_zh": "跑單元測試時，測試通過",
+    "criterion_zh": "適用於每一次指令讀起來像是測試套件呼叫（pytest、npm/pnpm/yarn test、cargo/go/flutter/dart test、jest/vitest/mocha/ava/rspec/phpunit、gradle/mvn test、本專案自己的 rtk 包裝指令等等）、且能對應到自己那次 tool_result 的 Bash 呼叫。✓ 該結果不帶錯誤 · ✗ 帶錯誤。找不到對應結果的呼叫——一次呼叫多種工具卻對不上 id、或逐字稿被截斷——兩邊都不計入，而不是用猜的，做法同 review.recovered 的未判定計數。直接讀 tool_result 自己的錯誤旗標，不涉及模型判斷，因此是唯一歸在確定性這一層、而非啟發式的一列。已知限制：分類器是固定的指令清單，並非真正解析 shell——清單外的測試工具不會被抓到，而串接測試與其他動作的複合指令，計的是整行指令共用的那個結束碼。"
+  },
+  {
+    "id": "verify.lint",
+    "label": "Lint passes when run",
+    "kind": "verify",
+    "tier": "deterministic",
+    "applies": "",
+    "complied": "",
+    "match": "\\b(?:eslint|flake8|ruff|pylint|shellcheck|swiftlint|rubocop|stylelint|golangci-lint)\\b|\\bcargo\\s+clippy\\b|\\b(?:dart|flutter)\\s+analyze\\b|\\brtk\\s+lint\\b|\\brtk\\s+(?:cargo\\s+)?clippy\\b|\\brtk\\s+tsc\\b|\\brtk\\s+prettier\\b|\\bprettier\\s+--check\\b|\\b(?:npm|pnpm|yarn)\\s+run\\s+lint\\b",
+    "denom": "lint runs",
+    "criterion": "Applies to every Bash call whose command reads as a lint or static-analysis invocation (eslint, flake8/ruff/pylint, shellcheck, cargo clippy, dart/flutter analyze, rtk's lint/clippy/tsc/prettier wrappers, and the like) whose answering tool_result can be pinned to that call. ✓ the result carries no error · ✗ it does. A call whose result can't be located is excluded from both sides rather than guessed at, same discipline as verify.test. Read straight from the tool_result's own error flag, no model judgment involved — deterministic tier, same reasoning as verify.test. Same known limitation as verify.test: a fixed command list, not a shell parse.",
+    "label_zh": "跑 lint 時，檢查通過",
+    "criterion_zh": "適用於每一次指令讀起來像是 lint 或靜態分析呼叫（eslint、flake8/ruff/pylint、shellcheck、cargo clippy、dart/flutter analyze、rtk 的 lint/clippy/tsc/prettier 包裝指令等等）、且能對應到自己那次 tool_result 的 Bash 呼叫。✓ 該結果不帶錯誤 · ✗ 帶錯誤。找不到對應結果的呼叫，兩邊都不計入，做法同 verify.test。直接讀 tool_result 自己的錯誤旗標，不涉及模型判斷——確定性這一層，理由同 verify.test。已知限制也同 verify.test：固定的指令清單，並非真正解析 shell。"
   }
 ]
