@@ -110,6 +110,33 @@ own once rendered.
   completion it silently described stays counted clean — so the rate reads high by
   up to the unattributed count, which stands beneath the row rather than hiding
   behind the ⓘ. Both approximations hold the row in the heuristic tier.
+- **`verify.test` and `verify.lint` ask how often the code, as produced,
+  cleared the check on its first submission.** One task segment yields one
+  verdict, taken from the *first* readable run of the suite or the linter in
+  that segment. Only the first: the re-runs that follow a failure describe
+  the repair, not the work, and folding them in would let one stubborn bug
+  outvote a dozen clean segments. The verdict is the `tool_result`'s own
+  error flag and nothing else — no output text is parsed, so no per-tool
+  string pattern can silently rot.
+- **The pipeline caveat is what governs these two rows' coverage.** A bare
+  pipeline returns only its last stage's status: `flutter analyze 2>&1 | tail
+  -6` hands back `tail`'s, and `tail` succeeds whatever the analyzer found.
+  Measured raw, 99% of piped lint runs read clean against 77% of unpiped ones
+  — a 22-point gap that is the pipe manufacturing passes, not the code being
+  cleaner. Such a run is therefore *excluded* and counted beneath the row as
+  `unmeasured`, never credited as a pass. `set -o pipefail` restores the
+  check's own status, so a piped run carrying it is readable again — which is
+  why CLAUDE.md now asks for that prefix, and why these rows' coverage grows
+  as the habit takes hold. The `unmeasured` count doubles as a read on how
+  widely that rule is being kept.
+- **Both `verify.*` rows are `structural`, not `deterministic`.** The read
+  itself is mechanical, but *which* runs are visible is not neutral: output
+  is trimmed most often on the largest suites, so the measured population
+  skews toward smaller, faster checks until pipefail closes the gap. An
+  existence probe (`command -v golangci-lint`) is not a run and never counts;
+  this repo's own `hooks/lint.sh` and `*.test.sh` gates are classified
+  alongside the standard tools. `verify.lint` carries the thinnest
+  denominator on the board — read its short-run movement with care.
 - **First-shot rate measures the model, not a rule.** `model.first-shot` asks a
   different question from every other row: not "did the model keep the config's
   rule" but "how good is the model" — what fraction of task segments landed

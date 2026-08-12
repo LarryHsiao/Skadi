@@ -80,7 +80,8 @@ actual_rubric=$(python3 - "$RUBRIC" <<'PY'
 import json, sys
 rows = json.load(open(sys.argv[1], encoding="utf-8"))
 kinds = {"workflow", "grammar", "freeform-gate", "post-gate", "task-shot", "plan-gate",
-         "git-probe", "forge-probe", "bug-gate", "review-verdict", "review-recovered"}
+         "git-probe", "forge-probe", "bug-gate", "review-verdict", "review-recovered",
+         "verify"}
 tiers = {"deterministic", "structural", "heuristic"}
 req = {"id", "label", "kind", "tier", "applies", "complied", "denom", "criterion"}
 for r in rows:
@@ -92,6 +93,9 @@ for r in rows:
     # has a denominator.
     assert r["kind"] not in ("review-verdict", "review-recovered") or "reviewed" in r, \
         "no reviewed pattern in %s" % r["id"]
+    # verify reads 'match' to classify a Bash command as a test/lint run at
+    # all — without it the scorer has no denominator either.
+    assert r["kind"] != "verify" or "match" in r, "no match pattern in %s" % r["id"]
 ids = [r["id"] for r in rows]
 assert len(ids) == len(set(ids)), "duplicate id"
 print("ok")
@@ -2097,6 +2101,216 @@ print("%s|%s|%s|%s|%s" % (item["status"], item["applied"], item["complied"], ite
 PY
 )
 check "review.recovered: cached mend verdict, no second model call needed" "$expected_recoveredlive" "$actual_recoveredlive2"
+
+# ── 67 · verify scorer: one verdict per segment, taken from the FIRST
+#         readable run. Two segments open red and are driven green — both
+#         still score misses, because the re-runs describe the repair, not
+#         the code as written; a third opens green and stays clean even
+#         though a later run breaks. The counts are deliberately asymmetric
+#         (3/1 here, 3/2 under a last-run rule): a symmetric fixture scores
+#         the same either way and lets a last-run implementation pass. ──
+d=$(tmpdir)
+cat >"$d/verify-first.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-01T09:00:00Z","message":{"content":"add the parser"}}
+{"type":"assistant","timestamp":"2026-08-01T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-01T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-01T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":"1 failed"}]}}
+{"type":"assistant","timestamp":"2026-08-01T09:00:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-01T09:00:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"5 passed"}]}}
+{"type":"user","timestamp":"2026-08-01T09:05:00Z","message":{"content":"what does it do?"}}
+{"type":"assistant","timestamp":"2026-08-01T09:05:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"It parses."}]}}
+{"type":"user","timestamp":"2026-08-01T09:10:00Z","message":{"content":"now the writer"}}
+{"type":"assistant","timestamp":"2026-08-01T09:10:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e2","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-01T09:10:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-01T09:10:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t3","is_error":true,"content":"1 failed"}]}}
+{"type":"assistant","timestamp":"2026-08-01T09:10:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t4","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-01T09:10:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"t4","content":"5 passed"}]}}
+{"type":"user","timestamp":"2026-08-01T09:15:00Z","message":{"content":"and the docs?"}}
+{"type":"assistant","timestamp":"2026-08-01T09:15:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Written."}]}}
+{"type":"user","timestamp":"2026-08-01T09:20:00Z","message":{"content":"now the reader"}}
+{"type":"assistant","timestamp":"2026-08-01T09:20:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e3","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-01T09:20:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t5","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-01T09:20:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t5","content":"5 passed"}]}}
+{"type":"assistant","timestamp":"2026-08-01T09:20:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t6","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-01T09:20:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"t6","is_error":true,"content":"1 failed"}]}}
+JSON
+expected_verifyfirst="3/1"
+actual_verifyfirst=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-first.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+entry = next(r for r in rubric if r["id"] == "verify.test")
+a, c, _ = m.score_verify(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "verify.test: one verdict per segment, read from the first run only" "$expected_verifyfirst" "$actual_verifyfirst"
+
+# ── 68 · _exit_belongs_to_check: a bare pipeline hands back tail's status and
+#         is unreadable; the same command under `set -o pipefail` reports the
+#         check's own status and is readable again; an unpiped command always
+#         was. This is the gate that decides the row's whole coverage ──
+expected_pipe="plain:True|redirect:True|piped:False|pipefail:True|euo-pipefail:True"
+actual_pipe=$(python3 - "$SCAN" <<'PY'
+import importlib.util as u, sys, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rx = re.compile(r"\b(?:dart|flutter)\s+analyze\b")
+cases = [("plain", "flutter analyze"),
+         ("redirect", "flutter analyze > /tmp/out.txt 2>&1"),
+         ("piped", "flutter analyze 2>&1 | tail -6"),
+         ("pipefail", "set -o pipefail; flutter analyze 2>&1 | tail -6"),
+         ("euo-pipefail", "set -euo pipefail; flutter analyze | tail -20")]
+print("|".join("%s:%s" % (n, m._exit_belongs_to_check(c, rx.search(c))) for n, c in cases))
+PY
+)
+check "_exit_belongs_to_check: bare pipe unreadable, pipefail restores it" "$expected_pipe" "$actual_pipe"
+
+# ── 69 · a masked run is never credited as a pass: a segment whose only test
+#         run is piped without pipefail scores in neither side and is counted
+#         as unmeasured instead ──
+d=$(tmpdir)
+cat >"$d/verify-masked.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-04T09:00:00Z","message":{"content":"tidy it"}}
+{"type":"assistant","timestamp":"2026-08-04T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-04T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"pytest -q 2>&1 | tail -5"}}]}}
+{"type":"user","timestamp":"2026-08-04T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"1 failed"}]}}
+JSON
+expected_masked="0/0|unmeasured=1"
+actual_masked=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-masked.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+entry = next(r for r in rubric if r["id"] == "verify.test")
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_verify(turns, entry)
+print("%d/%d|unmeasured=%d" % (a, c, m._unmeasured_runs([turns], entry)))
+PY
+)
+check "verify.test: a pipe-masked run is excluded, not credited, and counted as unmeasured" "$expected_masked" "$actual_masked"
+
+# ── 70 · the live classifiers know this repo's own gates, and an existence
+#         probe is never mistaken for a run of the tool it names ──
+expected_classify="lint.sh:lint|test.sh:test|pytest:test|probe-v:none|probe-which:none|clippy:lint|probe-then-run:lint"
+actual_classify=$(python3 - "$SCAN" "$RUBRIC" <<'PY'
+import importlib.util as u, sys, json, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+pats = {r["id"].split(".")[1]: re.compile(r["match"])
+        for r in rubric if r["kind"] == "verify"}
+cases = [("lint.sh", "./hooks/lint.sh"), ("test.sh", "bash hooks/pulse-scan.test.sh"),
+         ("pytest", "python3 -m pytest -q"), ("probe-v", "command -v golangci-lint"),
+         ("probe-which", "which shellcheck"), ("clippy", "cargo clippy"),
+         # probed, then genuinely run — the run after && must survive the probe
+         ("probe-then-run", "command -v ruff && ruff check .")]
+out = []
+for name, cmd in cases:
+    hit = "none"
+    # _check_match is the production decision, called directly — a test that
+    # re-implements the probe guard in its own harness asserts against a copy
+    # of the logic and passes even when the real guard is deleted.
+    for row, rx in pats.items():
+        if m._check_match(cmd, rx):
+            hit = row
+    out.append("%s:%s" % (name, hit))
+print("|".join(out))
+PY
+)
+check "verify classifiers cover this repo's gates; a probe is dropped but a run after it survives" "$expected_classify" "$actual_classify"
+
+# ── 70b · a segment whose FIRST run was masked yields no verdict at all. The
+#          readable run that follows is the re-run after a fix, so scoring it
+#          would answer the opposite question — and it reads far cleaner for
+#          that reason (95% vs 69% across the live roots). Excluded, not guessed ──
+d=$(tmpdir)
+cat >"$d/verify-maskedfirst.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-05T09:00:00Z","message":{"content":"add the reader"}}
+{"type":"assistant","timestamp":"2026-08-05T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-05T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"pytest -q 2>&1 | tail -5"}}]}}
+{"type":"user","timestamp":"2026-08-05T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"1 failed"}]}}
+{"type":"assistant","timestamp":"2026-08-05T09:00:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-05T09:00:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"5 passed"}]}}
+JSON
+expected_maskedfirst="0/0|unmeasured=1"
+actual_maskedfirst=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-maskedfirst.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+entry = next(r for r in rubric if r["id"] == "verify.test")
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_verify(turns, entry)
+print("%d/%d|unmeasured=%d" % (a, c, m._unmeasured_runs([turns], entry)))
+PY
+)
+check "verify.test: a masked first run voids the segment — the later green re-run is not scored in its place" "$expected_maskedfirst" "$actual_maskedfirst"
+
+# ── 70c · _PIPEFAIL_RE demands the option be switched ON. `set +o pipefail`
+#          switches it OFF, and a command merely naming the word never set it ──
+expected_pf="on:True|euo:True|off:False|mention:False|none:False"
+actual_pf=$(python3 - "$SCAN" <<'PY'
+import importlib.util as u, sys, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rx = re.compile(r"\bshellcheck\b|\bflutter\s+analyze\b")
+cases = [("on", "set -o pipefail; flutter analyze | tail -3"),
+         ("euo", "set -euo pipefail; flutter analyze | tail -3"),
+         ("off", "set +o pipefail; flutter analyze | tail -3"),
+         ("mention", "grep -rn pipefail hooks/lint.sh | head -3 && shellcheck x.sh | head -1"),
+         ("none", "flutter analyze | tail -3")]
+print("|".join("%s:%s" % (n, m._exit_belongs_to_check(c, m._check_match(c, rx))) for n, c in cases))
+PY
+)
+check "_PIPEFAIL_RE: 'set +o pipefail' and a bare mention do not make a pipeline readable" "$expected_pf" "$actual_pf"
+
+# ── 70d · _tool_result_for pairs by tool_use_id, not position: a turn that ran
+#          a Read alongside the Bash check gets the check's own result even
+#          when the results come back in the other order ──
+d=$(tmpdir)
+cat >"$d/verify-idpair.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-06T09:00:00Z","message":{"content":"check it"}}
+{"type":"assistant","timestamp":"2026-08-06T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-06T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"r1","name":"Read","input":{}},{"type":"tool_use","id":"b1","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-06T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"r1","content":"file contents"},{"type":"tool_result","tool_use_id":"b1","is_error":true,"content":"1 failed"}]}}
+JSON
+expected_idpair="1/0"
+actual_idpair=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-idpair.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+entry = next(r for r in rubric if r["id"] == "verify.test")
+a, c, _ = m.score_verify(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "verify.test: the check's own result is found by id, not by position among siblings" "$expected_idpair" "$actual_idpair"
+
+# ── 71 · both rows wired into apply_rubric end to end with the live rubric —
+#         real JSON, real kind dispatch, real segment fold, unmeasured surfaced ──
+d=$(tmpdir)
+cat >"$d/verify-live.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-03T09:00:00Z","message":{"content":"tidy the module"}}
+{"type":"assistant","timestamp":"2026-08-03T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-03T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"a1","name":"Bash","input":{"command":"set -o pipefail; flutter analyze 2>&1 | tail -6"}}]}}
+{"type":"user","timestamp":"2026-08-03T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"a1","content":"No issues found!"}]}}
+{"type":"assistant","timestamp":"2026-08-03T09:00:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"p1","name":"Bash","input":{"command":"command -v golangci-lint"}}]}}
+{"type":"user","timestamp":"2026-08-03T09:00:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"p1","is_error":true,"content":"not found"}]}}
+{"type":"assistant","timestamp":"2026-08-03T09:00:30Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"flutter test"}}]}}
+{"type":"user","timestamp":"2026-08-03T09:00:31Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":"1 failed"}]}}
+{"type":"assistant","timestamp":"2026-08-03T09:00:40Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"flutter test 2>&1 | tail -3"}}]}}
+{"type":"user","timestamp":"2026-08-03T09:00:41Z","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"All tests passed!"}]}}
+JSON
+expected_verifylive="lint ok|1|1|100|unmeasured=0||test ok|1|0|0|unmeasured=1"
+actual_verifylive=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-live.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+items, _ = m.apply_rubric([sys.argv[3]], rubric)
+by_id = {i["id"]: i for i in items}
+t, l = by_id["verify.test"], by_id["verify.lint"]
+print("lint %s|%s|%s|%s|unmeasured=%s||test %s|%s|%s|%s|unmeasured=%s" % (
+    l["status"], l["applied"], l["complied"], l["rate"], l["unmeasured"],
+    t["status"], t["applied"], t["complied"], t["rate"], t["unmeasured"]))
+PY
+)
+check "live rubric: pipefail'd lint counts clean, first test run counts red, its masked re-run only unmeasured" "$expected_verifylive" "$actual_verifylive"
 
 echo ""
 echo "── $pass passed, $fail failed ──"

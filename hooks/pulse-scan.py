@@ -96,11 +96,14 @@ ANSWERED_MARK = "Your questions have been answered"
 
 
 def _tool_results(message):
-    """The tool results a user turn carries, as {is_error, text}. _turn_text
-    keeps prose only, so a turn that is purely a tool result reads as empty —
-    but the plan-gate scorer must tell an answered AskUserQuestion from a
-    rejected one, and only the result block says which. The text is clipped:
-    the marker that decides it stands at the front."""
+    """The tool results a user turn carries, as {is_error, text, tool_use_id}.
+    _turn_text keeps prose only, so a turn that is purely a tool result reads
+    as empty — but the plan-gate scorer must tell an answered AskUserQuestion
+    from a rejected one, and only the result block says which. The text is
+    clipped: the marker that decides it stands at the front. tool_use_id lets
+    _tool_result_for pair a Bash call with its own answer inside a turn that
+    ran several tools at once; a Codex-translated block carries none (see
+    _codex_tool_result)."""
     if not isinstance(message, dict):
         return []
     content = message.get("content")
@@ -113,22 +116,24 @@ def _tool_results(message):
         body = block.get("content")
         text = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
         results.append({"is_error": bool(block.get("is_error")),
-                        "text": text[:TOOL_RESULT_KEEP]})
+                        "text": text[:TOOL_RESULT_KEEP],
+                        "tool_use_id": block.get("tool_use_id")})
     return results
 
 
 def _bash_commands(message):
-    """The shell command text of any Bash tool_use blocks in an assistant turn.
-    The tool name 'Bash' alone doesn't say whether it mutated anything (git
-    status vs. git commit), so the command text is what _mutates actually
-    judges."""
+    """The Bash tool_use blocks of an assistant turn, as {id, command}. The
+    tool name 'Bash' alone doesn't say whether it mutated anything (git status
+    vs. git commit), so the command text is what _mutates actually judges. id
+    pairs a call with its answering tool_result via _tool_result_for; a
+    Codex-translated block carries none (see _codex_tool)."""
     if not isinstance(message, dict):
         return []
     content = message.get("content")
     if not isinstance(content, list):
         return []
     return [
-        b.get("input", {}).get("command", "")
+        {"id": b.get("id"), "command": b.get("input", {}).get("command", "")}
         for b in content
         if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") == "Bash"
     ]
@@ -470,6 +475,173 @@ def score_grammar(turns, entry):
     return applied, complied, by_model
 
 
+def _tool_result_for(turns, i, call_id):
+    """The tool_result answering the Bash call turns[i] issued — results
+    always land in the turn immediately following the call that made them.
+    Matched by tool_use_id when the call carries one (every real Claude
+    block does), since a turn that ran several tools at once — Bash beside a
+    Read, say — mixes their results into one list where position no longer
+    lines up with the call. A Codex-translated call carries no id, but a
+    Codex turn holds exactly one tool each, so its lone id-less result needs
+    no id to disambiguate. Returns None — excluded rather than guessed —
+    when the id doesn't resolve or the shape doesn't match either case."""
+    if i + 1 >= len(turns) or turns[i + 1]["type"] != "user":
+        return None
+    results = turns[i + 1]["tool_results"]
+    if call_id:
+        for result in results:
+            if result.get("tool_use_id") == call_id:
+                return result
+        return None
+    return results[0] if len(results) == 1 else None
+
+
+# A command that asks whether a tool EXISTS rather than running it — `command
+# -v golangci-lint`, `which shellcheck`. Matched against the text standing
+# before the classifier's own match, so only the probe verb governing that
+# tool disqualifies it. Without this, 27 such probes entered the lint
+# denominator, every one of them "failing" because the tool was absent.
+_PROBE_RE = re.compile(r"(?:command\s+-v|which|type|hash)\s+$")
+
+# `set -o pipefail` in any of its spellings (`set -euo pipefail` too). The
+# option must be switched ON: matching the bare word would read `set +o
+# pipefail` — which switches it OFF — as though it enabled the thing, and
+# would take a `grep -rn pipefail …` that merely mentions it for a command
+# that set it.
+_PIPEFAIL_RE = re.compile(r"\bset\s+-[a-zA-Z]*o\s+pipefail\b")
+
+
+def _exit_belongs_to_check(cmd, match):
+    """Whether this command's exit status reports the CHECK's result rather
+    than some later stage's. A bare pipeline hands back only its last stage's
+    status — `flutter analyze 2>&1 | tail -6` returns tail's, and tail
+    succeeds whatever the analyzer found, so 99% of piped lint runs read
+    clean regardless. Such a run says nothing and must be excluded rather
+    than counted as a pass. `set -o pipefail` restores the check's own
+    status, so a piped run carrying it is readable again — which is why
+    CLAUDE.md now asks for that prefix, and why this row's coverage grows as
+    the habit takes hold.
+
+    The pipe is found by character, not by parsing the shell, so a `|` inside
+    a quoted argument (`pytest -k "parse|write"`) or a `||` also reads as a
+    pipeline and costs that run its place. The error is one-directional — it
+    excludes runs that were in fact readable, never admits one that was not —
+    so it shrinks coverage rather than corrupting the rate."""
+    if "|" not in cmd[match.start():]:
+        return True
+    return bool(_PIPEFAIL_RE.search(cmd))
+
+
+def _check_match(cmd, match_re):
+    """The first mention of this check that is an actual run, or None if the
+    command only ever names it. Every mention is weighed, not just the
+    first: `command -v ruff && ruff check .` probes the tool and then runs
+    it, and reading only the leading mention would throw the genuine run away
+    with the probe."""
+    for match in match_re.finditer(cmd):
+        if not _PROBE_RE.search(cmd[:match.start()]):
+            return match
+    return None
+
+
+def _first_check_run(seg_turns, match_re):
+    """(verdict, model, unmeasured) for one task segment — verdict being
+    whether the FIRST readable run of this check passed, or None when the
+    segment holds no readable run at all.
+
+    Only the first counts. Once a failure is found the same suite is re-run
+    while the fix is worked out, and those re-runs describe the mending, not
+    the code that was written; folding them in would let one stubborn bug
+    outvote a dozen clean segments. The first run is the honest question:
+    did the code, as produced, pass the check?
+
+    A segment whose first run was masked yields no verdict at all, even when
+    a readable run follows. That later run is the re-run after a fix, so
+    scoring it would answer the opposite of this row's question — and it
+    reads far cleaner for exactly that reason: across the live roots those
+    segments scored 95% against 69% for the ones whose opening run could be
+    read, inflating verify.lint by eleven points. Where the first run cannot
+    be seen, the segment is excluded rather than guessed at.
+
+    unmeasured counts the runs passed over because a pipeline swallowed the
+    check's exit status (see _exit_belongs_to_check). It is reported beneath
+    the row rather than hidden, and doubles as a read on how widely the
+    pipefail rule is being kept."""
+    verdict = None
+    model = None
+    unmeasured = 0
+    masked_first = False
+    for i, turn in enumerate(seg_turns):
+        if turn["type"] != "assistant":
+            continue
+        for call in turn.get("bash_commands", []):
+            match = _check_match(call["command"], match_re)
+            if match is None:
+                continue
+            if not _exit_belongs_to_check(call["command"], match):
+                unmeasured += 1
+                masked_first = masked_first or verdict is None
+                continue
+            result = _tool_result_for(seg_turns, i, call.get("id"))
+            if result is None or verdict is not None:
+                continue
+            verdict = not result["is_error"]
+            model = _real_model(turn.get("model"))
+    if masked_first:
+        return None, None, unmeasured
+    return verdict, model, unmeasured
+
+
+def score_verify(turns, entry):
+    """applied = task segments holding at least one readable run of the check
+    entry['match'] classifies (a test suite, or a lint/static-analysis pass);
+    complied = those whose FIRST such run passed.
+
+    The question is how often the code, as produced, cleared the check —
+    first submission, before anything was mended. Hence one segment, one
+    verdict: the re-runs that follow a failure describe the repair, not the
+    work, and counting them would let a single stubborn bug outvote a dozen
+    clean segments.
+
+    The verdict is the tool_result's own error flag, nothing else — no output
+    text is parsed, so no per-tool string patterns can silently rot. That
+    reading is only sound where the exit status belongs to the check, so a
+    run whose pipeline swallowed it is excluded and counted beneath the row
+    (see _exit_belongs_to_check).
+
+    Structural rather than deterministic: the read itself is mechanical, but
+    which runs are visible is not neutral. Output is trimmed most often on
+    the largest suites, so the measured population skews toward smaller,
+    faster checks until the pipefail habit closes the gap."""
+    match_re = re.compile(entry["match"])
+    applied = 0
+    complied = 0
+    by_model = {}
+    for seg in _task_segments(_prompt_runs(turns, entry.get("since", ""))):
+        verdict, model, _ = _first_check_run(_segment_turns(seg), match_re)
+        if verdict is None:
+            continue
+        applied += 1
+        if verdict:
+            complied += 1
+        _bump_model(by_model, model, verdict)
+    return applied, complied, by_model
+
+
+def _unmeasured_runs(sessions, entry):
+    """How many runs of this check were passed over because a pipeline
+    swallowed the exit status — the count standing beneath the row, so the
+    excluded population is named rather than hidden. It also reads as
+    adherence to CLAUDE.md's pipefail rule: as that spreads, this falls and
+    the row's own denominator grows."""
+    match_re = re.compile(entry["match"])
+    total = 0
+    for turns in sessions:
+        for seg in _task_segments(_prompt_runs(turns, entry.get("since", ""))):
+            total += _first_check_run(_segment_turns(seg), match_re)[2]
+    return total
+
+
 _MUTATING_BASH_RE = re.compile(
     r"\bgit\s+(commit|push|add|merge|rebase|reset|clean|checkout\s+-b)\b"
     r"|\b(rm|mkdir|mv|cp|touch|chmod|chown)\s"
@@ -490,7 +662,7 @@ def _mutates(turn):
         return False
     if any(name in ("Edit", "Write") for name in turn.get("tools", [])):
         return True
-    return any(_MUTATING_BASH_RE.search(cmd) for cmd in turn.get("bash_commands", []))
+    return any(_MUTATING_BASH_RE.search(call["command"]) for call in turn.get("bash_commands", []))
 
 
 def _gate_complies(gate, complied_re, pre_text):
@@ -1516,7 +1688,7 @@ def apply_rubric(files, rubric):
                "review-verdict": score_review_verdict,
                "review-recovered": score_review_recovered,
                "task-shot": score_task_shot, "plan-gate": score_plan_gate,
-               "bug-gate": score_bug_gate}
+               "bug-gate": score_bug_gate, "verify": score_verify}
     sessions = [read_turns(f) for f in files]
     session_is_sweep = [_is_sweep_session(turns) for turns in sessions]
     if any(entry["kind"] == "plan-gate" for entry in rubric):
@@ -1572,6 +1744,8 @@ def apply_rubric(files, rubric):
                 item["unreviewed"] = _unreviewed_segments(sessions, entry)
             if kind == "review-recovered":
                 item["unjudged"] = _unjudged_fails(sessions, entry)
+            if kind == "verify":
+                item["unmeasured"] = _unmeasured_runs(sessions, entry)
             items.append(item)
         except re.error as err:
             print("pulse-scan: %s matcher error: %s" % (entry["id"], err), file=sys.stderr)
@@ -1775,6 +1949,7 @@ const STRINGS = {
     reviewExcluded: (silent, skipped) => `Excluded from this rate: ${silent} segment${silent === 1 ? "" : "s"} closed with no review${skipped ? `, ${skipped} explicitly skipped` : ""} — a review never run is no verdict on the work.`,
     reviewWaived: (n) => `${n} segment${n === 1 ? "" : "s"} waived the review with a reasoned SKIPPED — excluded from this rate, neither credited nor penalized.`,
     bugUnattributed: (n) => `${n} bug report${n === 1 ? "" : "s"} named no completion — each still counts its target clean, so this rate reads high by up to that many.`,
+    runsUnmeasured: (n) => `${n} run${n === 1 ? "" : "s"} piped their output without 'set -o pipefail', so the exit status read is the pipe's, not the check's — excluded rather than counted as passes.`,
     day: (n) => `${n} day${n === 1 ? "" : "s"}`,
     gateAria: "Plan acceptance rate by session date, one line per model",
   },
@@ -1797,6 +1972,7 @@ const STRINGS = {
     reviewExcluded: (silent, skipped) => `不計入此比率：${silent} 個段落未經審查即收尾${skipped ? `，另有 ${skipped} 個明示略過` : ""}——未曾進行的審查，對成果不構成任何判決。`,
     reviewWaived: (n) => `${n} 個段落以具名理由的 SKIPPED 免除審查——不計入此比率，既不記功亦不記過。`,
     bugUnattributed: (n) => `${n} 筆缺陷回報指不出對應的完成項——它們的目標仍被算作乾淨，因此此比率最多高估這麼多。`,
+    runsUnmeasured: (n) => `${n} 次執行把輸出接上管線卻未加 'set -o pipefail'，讀到的結束碼屬於管線而非檢查本身——予以排除，而不是記成通過。`,
     day: (n) => `${n} 天`,
     gateAria: "依 session 日期呈現的計畫接受率，每個模型一條線",
   },
@@ -2016,6 +2192,7 @@ function render(tab, model) {
       ? `<p class="gnote">${esc(S().reviewExcluded(i.unreviewed.silent, i.unreviewed.skipped))}</p>` : "";
     const waived = i.skipped ? `<p class="gnote">${esc(S().reviewWaived(i.skipped))}</p>` : "";
     const unpinned = i.unattributed ? `<p class="gnote">${esc(S().bugUnattributed(i.unattributed))}</p>` : "";
+    const unmeasured = i.unmeasured ? `<p class="gnote">${esc(S().runsUnmeasured(i.unmeasured))}</p>` : "";
     const critRow = i.criterion ? `<tr class="critrow" data-crit="${esc(i.id)}"><td colspan="3"><div class="crit">${criterionHtml(itemCriterion(i))}</div></td></tr>` : "";
     // The rate above obeys the selected chip, as every row does; the chart below
     // still draws every model's line — comparing them costs no clicks — but dims
@@ -2023,7 +2200,7 @@ function render(tab, model) {
     const gateRow = i.byDate !== undefined
       ? `<tr class="gaterow"><td colspan="3">${gateChart(i, model)}</td></tr>` : "";
     return `<tr class="${i.status !== "ok" ? "pending" : ""}">
-      <td><code>${esc(i.id)}</code> ${info} ${statusBadge}<br>${esc(itemLabel(i))}${bar}${excluded}${waived}${unpinned}</td>
+      <td><code>${esc(i.id)}</code> ${info} ${statusBadge}<br>${esc(itemLabel(i))}${bar}${excluded}${waived}${unpinned}${unmeasured}</td>
       <td>${esc(rate)}</td><td>${esc(n)}</td></tr>${critRow}${gateRow}`;
   };
   document.getElementById("rows").innerHTML = Object.keys(groups).sort((a, b) => tierRank(a) - tierRank(b)).map(t =>
