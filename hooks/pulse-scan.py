@@ -665,6 +665,48 @@ def _mutates(turn):
     return any(_MUTATING_BASH_RE.search(call["command"]) for call in turn.get("bash_commands", []))
 
 
+# Shell that writes file *content*, as against the tree-moving that
+# _MUTATING_BASH_RE also matches (git, mkdir, chmod, install.sh). Only
+# `sed -i` is listed: a `>` redirect writes content too, but the same
+# operator far more often lands a build log in /tmp, and _MUTATING_BASH_RE
+# cannot tell the two apart by target. Redirect-authoring is therefore left
+# outside — see _owes_review, which measures what that costs.
+_AUTHORING_BASH_RE = re.compile(r"\bsed\s+-i\b")
+
+
+def _authors(turn):
+    """An assistant turn that wrote file content, rather than merely moving
+    the tree around. _mutates is the broader test — it opens a task segment
+    on any tree-changing action at all, git and mkdir included — and that
+    breadth is right for deciding when work *began*, but wrong for deciding
+    what owes a code review."""
+    if turn["type"] != "assistant":
+        return False
+    if any(name in ("Edit", "Write") for name in turn.get("tools", [])):
+        return True
+    return any(_AUTHORING_BASH_RE.search(call["command"])
+               for call in turn.get("bash_commands", []))
+
+
+def _owes_review(seg_turns):
+    """Whether this segment authored anything for a Compliance Review to
+    weigh. A segment that only ran `git commit`, `mkdir`, `install.sh`, or
+    piped a build log through `tee` changed no file the review could read:
+    its diff, where one exists at all, belongs to work already weighed in an
+    earlier segment. Counting those as misses put 163 such segments into the
+    rate — 30% of the denominator, complying 1% of the time — and penalized
+    the config for not reviewing commits and directories. plan.accepted keeps
+    the same discipline, never billing a run that owed no gauge.
+
+    The test is Edit/Write or `sed -i`. It under-reaches in one direction:
+    a segment that authored only through a shell redirect, or that removed a
+    tracked file with `rm` or `git mv`, is excluded though it arguably owed a
+    review. Measured against the live roots, 17 of the 214 excluded segments
+    bear such a command — 8%. The error lifts the rate rather than lowering
+    it, so it flatters the config and is named here rather than buried."""
+    return any(_authors(t) for t in seg_turns)
+
+
 def _gate_complies(gate, complied_re, pre_text):
     """Whether a run's pre-edit narration satisfies this gate's marker."""
     if gate == "approval":
@@ -838,6 +880,8 @@ def score_post_gate(turns, entry):
     by_model = {}
     for seg in _task_segments(_prompt_runs(turns, since)):
         seg_turns = _segment_turns(seg)
+        if not _owes_review(seg_turns):
+            continue  # nothing authored — a commit or a mkdir has no diff to weigh
         if skipped_re is not None and _segment_skipped(seg_turns, complied_re,
                                                        skipped_re, review_times):
             continue  # an explicit, reasoned skip is not silence — excluded from both sides
@@ -865,7 +909,10 @@ def _skipped_reviews(sessions, entry):
     for turns in sessions:
         review_times = _review_times(turns, complied_re, since)
         for seg in _task_segments(_prompt_runs(turns, since)):
-            if _segment_skipped(_segment_turns(seg), complied_re, skipped_re, review_times):
+            seg_turns = _segment_turns(seg)
+            if not _owes_review(seg_turns):
+                continue  # same population score_post_gate bills — see _owes_review
+            if _segment_skipped(seg_turns, complied_re, skipped_re, review_times):
                 waived += 1
     return waived
 
@@ -1068,6 +1115,8 @@ def _unreviewed_segments(sessions, entry):
         review_times = _review_times(turns, reviewed_re, since)
         for seg in _task_segments(_prompt_runs(turns, since)):
             seg_turns = _segment_turns(seg)
+            if not _owes_review(seg_turns):
+                continue  # same population score_post_gate bills — see _owes_review
             if _segment_complies(seg_turns, reviewed_re, review_times):
                 continue
             if skipped_re is not None and _segment_skipped(seg_turns, reviewed_re,

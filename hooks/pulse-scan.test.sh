@@ -2282,6 +2282,77 @@ PY
 )
 check "verify.test: the check's own result is found by id, not by position among siblings" "$expected_idpair" "$actual_idpair"
 
+# ── 70e · rule.compliance-review bills only segments that AUTHORED something.
+#          A segment whose whole mutation is `git commit` / `mkdir` / `tee`
+#          has no diff for a review to read and is excluded from both sides;
+#          one bearing an Edit is billed and, unreviewed, scores a miss.
+#          Both segments here fail the marker check, so a scorer that ignored
+#          _owes_review would read 2/0 rather than 1/0 ──
+d=$(tmpdir)
+cat >"$d/owes-review.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-07T09:00:00Z","message":{"content":"commit what is staged"}}
+{"type":"assistant","timestamp":"2026-08-07T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"g1","name":"Bash","input":{"command":"git commit -m 'wip' && git push"}}]}}
+{"type":"user","timestamp":"2026-08-07T09:00:06Z","message":{"content":[{"type":"tool_result","tool_use_id":"g1","content":"ok"}]}}
+{"type":"assistant","timestamp":"2026-08-07T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"g2","name":"Bash","input":{"command":"mkdir -p ~/.skadi/scratch"}}]}}
+{"type":"user","timestamp":"2026-08-07T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"g2","content":"ok"}]}}
+{"type":"assistant","timestamp":"2026-08-07T09:00:15Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Pushed."}]}}
+{"type":"user","timestamp":"2026-08-07T09:05:00Z","message":{"content":"anything else pending?"}}
+{"type":"assistant","timestamp":"2026-08-07T09:05:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"No."}]}}
+{"type":"user","timestamp":"2026-08-07T09:10:00Z","message":{"content":"rename the helper"}}
+{"type":"assistant","timestamp":"2026-08-07T09:10:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-07T09:10:15Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Renamed."}]}}
+JSON
+expected_owes="1/0"
+actual_owes=$(python3 - "$SCAN" "$RUBRIC" "$d/owes-review.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+entry = next(r for r in rubric if r["id"] == "rule.compliance-review")
+a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "rule.compliance-review: a git/mkdir-only segment owes no review; an editing one still does" "$expected_owes" "$actual_owes"
+
+# ── 70f · the SAME _owes_review predicate governs the row's SKIPPED count and
+#          review.verdict's unreviewed count, so all three describe one
+#          population. Three segments: a git-only one bearing a SKIPPED
+#          marker, a git-only one bearing nothing, and an editing one bearing
+#          nothing. Only the last owes a review, so skipped=0 and silent=1;
+#          drop the guard from either helper and it reads skipped=1/silent=2 ──
+d=$(tmpdir)
+cat >"$d/owes-helpers.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-08T09:00:00Z","message":{"content":"commit the version bump"}}
+{"type":"assistant","timestamp":"2026-08-08T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"g1","name":"Bash","input":{"command":"git commit -m 'bump' && git push"}}]}}
+{"type":"user","timestamp":"2026-08-08T09:00:06Z","message":{"content":[{"type":"tool_result","tool_use_id":"g1","content":"ok"}]}}
+{"type":"assistant","timestamp":"2026-08-08T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Pushed.\nCompliance Review: SKIPPED (reason: version bump touching no logic)"}]}}
+{"type":"user","timestamp":"2026-08-08T09:02:00Z","message":{"content":"anything pending?"}}
+{"type":"assistant","timestamp":"2026-08-08T09:02:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"No."}]}}
+{"type":"user","timestamp":"2026-08-08T09:04:00Z","message":{"content":"make the scratch dir"}}
+{"type":"assistant","timestamp":"2026-08-08T09:04:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"g2","name":"Bash","input":{"command":"mkdir -p ~/.skadi/scratch"}}]}}
+{"type":"user","timestamp":"2026-08-08T09:04:06Z","message":{"content":[{"type":"tool_result","tool_use_id":"g2","content":"ok"}]}}
+{"type":"assistant","timestamp":"2026-08-08T09:04:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Made."}]}}
+{"type":"user","timestamp":"2026-08-08T09:06:00Z","message":{"content":"thanks"}}
+{"type":"assistant","timestamp":"2026-08-08T09:06:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Welcome."}]}}
+{"type":"user","timestamp":"2026-08-08T09:08:00Z","message":{"content":"rename the helper"}}
+{"type":"assistant","timestamp":"2026-08-08T09:08:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-08T09:08:15Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Renamed."}]}}
+JSON
+expected_oweshelpers="skipped=0|silent=1"
+actual_oweshelpers=$(python3 - "$SCAN" "$RUBRIC" "$d/owes-helpers.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+post = next(r for r in rubric if r["id"] == "rule.compliance-review")
+verdict = next(r for r in rubric if r["id"] == "review.verdict")
+turns = m.read_turns(sys.argv[3])
+waived = m._skipped_reviews([turns], post)
+unreviewed = m._unreviewed_segments([turns], verdict)
+print("skipped=%d|silent=%d" % (waived, unreviewed["silent"]))
+PY
+)
+check "_owes_review also governs the SKIPPED count and review.verdict's unreviewed split" "$expected_oweshelpers" "$actual_oweshelpers"
+
 # ── 71 · both rows wired into apply_rubric end to end with the live rubric —
 #         real JSON, real kind dispatch, real segment fold, unmeasured surfaced ──
 d=$(tmpdir)

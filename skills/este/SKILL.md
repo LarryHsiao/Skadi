@@ -38,6 +38,21 @@ own once rendered.
   its verdict only in a tracker — `/council`'s `[COUNSEL]`, `/celebrimbor`'s
   `[GWAITH]` — leaves no marker in the main transcript, so those rows also read
   low. These are known limitations, not failures of the skills.
+- **Only a segment that authored something owes a review.** `_owes_review`
+  bills a segment when it carries an Edit/Write or a `sed -i`, and excludes
+  one whose whole mutation was `git commit`, `mkdir`, `install.sh`, or a
+  build log piped through `tee` — such a segment changed no file the review
+  could read, and its diff, where one exists, belongs to work weighed in an
+  earlier segment. Before this, 163 such segments sat in the denominator —
+  30% of it, complying 1% of the time — so the row was largely scoring the
+  config for not reviewing commits and directories. **Read the resulting jump
+  (11% → 15%) as a mended denominator, not as improved conduct:** the
+  correction removes a nearly all-failing population, so it flatters the
+  number without any change in behaviour. It errs the other way too — a
+  segment that authored only through a shell redirect, or removed a tracked
+  file with `rm` or `git mv`, is excluded though it arguably owed a review.
+  The same predicate governs the row's `SKIPPED` count and `review.verdict`'s
+  `unreviewed` count, so all three describe one population.
 - **Compliance Review bills per task segment, not per prompt turn.**
   `rule.compliance-review` folds consecutive mutating runs (the user steering
   between edits) plus their read-only wind-down into one segment — CLAUDE.md
