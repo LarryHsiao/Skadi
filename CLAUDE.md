@@ -209,6 +209,19 @@ Secrets live in Vaultwarden, read via `~/.claude/hooks/secret.sh` — which trie
 
 Claude Code's auto-memory lives per project (`~/.claude*/projects/<hash>/memory/`) and starts empty on every machine or freshly cloned project — nothing carries over on its own. A separate, git-backed knowledge base predates any one machine's local memory and should be checked before starting cold on a topic.
 
+**Skadi workflow state is neutral.** Named routing and preference files used by
+Skadi skills — Jira configuration, repository/forge routing, CI bindings,
+branch defaults, account maps, sweep cursors, and similar operational state —
+do not belong to Claude auto-memory. Resolve them with
+`~/.claude/hooks/skadi-state.sh path "${SKADI_PROFILE:-default}" "$PWD"
+<filename>`. The installer sets `SKADI_PROFILE` to `default`, `personal`, or
+`work` for the active config root. This
+rule takes precedence over older skill prose that calls one of these files
+"auto-memory". Paired Codex profiles read the same state directory; chat memory
+and general learned notes remain product-owned. On first use, run the helper's
+`migrate` verb against the paired Claude root; it copies only missing values and
+stops on conflicts.
+
 **Locating the repo.** Read `~/.skadi/memory-repo.md` for this machine's pointer — a single absolute path to the memory-backup repo (e.g. Minerva). If the file does not exist, ask the user once where their memory-backup repo lives, then write the answer into `~/.skadi/memory-repo.md` — never guess the path, and never ask again once it's recorded. This pointer is deliberately outside the auto-memory system itself: it exists to bootstrap memory before any project-local memory exists, so it cannot live inside the thing it bootstraps.
 
 **When to check it.** Before treating a topic, project, or question as entirely new — when this project's own auto-memory has nothing relevant on it — search the memory-backup repo for an existing note before starting from scratch. Read it in place; do not duplicate its content into project-local memory.

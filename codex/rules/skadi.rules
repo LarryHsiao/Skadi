@@ -1,0 +1,32 @@
+# Skadi command policy for Codex. Sandbox restrictions still apply; these rules
+# decide whether an escalation may proceed without another prompt.
+
+prefix_rule(
+    pattern = ["git", ["status", "diff", "log", "show", "branch", "rev-parse"]],
+    decision = "allow",
+    justification = "Read-only Git inspection used by Skadi workflows.",
+    match = ["git status --short", "git diff --cached", "git rev-parse --show-toplevel"],
+    not_match = ["git commit -m message", "git push origin main"],
+)
+
+prefix_rule(
+    pattern = ["gh", ["pr", "api"]],
+    decision = "prompt",
+    justification = "GitHub commands can publish reviews, comments, or pull requests.",
+    match = ["gh pr view 12", "gh api repos/example/project/pulls/12"],
+)
+
+prefix_rule(
+    pattern = ["glab", ["mr", "api"]],
+    decision = "prompt",
+    justification = "GitLab commands can publish reviews, comments, or merge requests.",
+    match = ["glab mr view 12", "glab api projects/1/merge_requests/12"],
+)
+
+prefix_rule(
+    pattern = ["rm", "-rf", ["/", "~", "$HOME"]],
+    decision = "forbidden",
+    justification = "Refuse recursive deletion of broad system or home roots; name an explicit narrow target instead.",
+    match = ["rm -rf /", "rm -rf ~", "rm -rf $HOME"],
+    not_match = ["rm -rf /tmp/skadi-specific-worktree"],
+)

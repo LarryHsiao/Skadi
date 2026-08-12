@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """pulse-scan.py — the adherence pulse engine.
 
-Walks every config root's projects/*/*.jsonl (read-only), applies the
+Walks Claude projects/*/*.jsonl and Codex sessions/**/*.jsonl (read-only), applies the
 declarative rubric (pulse-rubric.json), and writes a per-run history line, a
 board-channel snapshot, and a self-contained Henneth dashboard. Subagent
 transcripts, a level deeper, are read only where a session's own reviewers are
@@ -70,7 +70,7 @@ def _turn_text(message):
         return "".join(
             b.get("text", "")
             for b in content
-            if isinstance(b, dict) and b.get("type") == "text"
+            if isinstance(b, dict) and b.get("type") in ("text", "input_text", "output_text")
         )
     return ""
 
@@ -134,8 +134,46 @@ def _bash_commands(message):
     ]
 
 
+def _codex_tool(name, raw_input):
+    """Translate a Codex tool item to the Claude-shaped names used by scorers."""
+    haystack = "%s\n%s" % (name or "", raw_input or "")
+    if "apply_patch" in haystack:
+        return "Write"
+    if re.search(r"(?:spawn_agent|followup_task|send_message|wait_agent)", haystack):
+        return "Agent"
+    if "request_user_input" in haystack:
+        return "AskUserQuestion"
+    if name in ("exec", "exec_command", "functions.exec_command") or "exec_command" in haystack:
+        return "Bash"
+    return name or "CodexTool"
+
+
+def _codex_tool_input(payload):
+    raw = payload.get("arguments", payload.get("input", ""))
+    if isinstance(raw, dict):
+        return raw, json.dumps(raw, ensure_ascii=False)
+    if not isinstance(raw, str):
+        raw = json.dumps(raw, ensure_ascii=False)
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        parsed = {"command": raw}
+    if not isinstance(parsed, dict):
+        parsed = {"command": raw}
+    return parsed, raw
+
+
+def _codex_message(payload):
+    return {"content": payload.get("content", [])}
+
+
+def _codex_tool_result(payload):
+    body = payload.get("output", "")
+    return {"content": [{"type": "tool_result", "content": body}]}
+
+
 def read_turns(path):
-    """Ordered turns from one transcript; torn lines skipped, not fatal. Each
+    """Ordered Claude or Codex turns; torn lines skipped, not fatal. Each
     turn carries the session it came from, so a scorer can key a per-gate cache
     by session and turn index, and the path it was read from, so a scorer can
     reach the session's own subagent transcripts (see _review_transcripts)."""
@@ -146,6 +184,7 @@ def read_turns(path):
     except OSError as err:
         print("pulse-scan: cannot open %s: %s" % (path, err), file=sys.stderr)
         return turns
+    active_model = None
     with fh:
         for line in fh:
             line = line.strip()
@@ -155,20 +194,45 @@ def read_turns(path):
                 d = json.loads(line)
             except ValueError:
                 continue  # torn write — skip, don't blank the session
+            runtime = "claude"
             t = d.get("type")
-            if t not in ("user", "assistant"):
-                continue
             message = d.get("message", {})
+            if t == "turn_context":
+                active_model = (d.get("payload") or {}).get("model") or active_model
+                continue
+            if t == "response_item":
+                runtime = "codex"
+                payload = d.get("payload") or {}
+                item_type = payload.get("type")
+                if item_type == "message" and payload.get("role") in ("user", "assistant"):
+                    t = payload["role"]
+                    message = _codex_message(payload)
+                elif item_type in ("function_call", "custom_tool_call"):
+                    parsed, raw = _codex_tool_input(payload)
+                    name = _codex_tool(payload.get("name"), raw)
+                    if name == "Bash" and "command" not in parsed:
+                        parsed["command"] = raw
+                    t = "assistant"
+                    message = {"content": [{"type": "tool_use", "name": name,
+                                              "input": parsed}]}
+                elif item_type in ("function_call_output", "custom_tool_call_output"):
+                    t = "user"
+                    message = _codex_tool_result(payload)
+                else:
+                    continue
+            elif t not in ("user", "assistant"):
+                continue
             turns.append({
                 "type": t,
                 "text": _turn_text(message),
                 "tools": _tool_names(message) if t == "assistant" else [],
                 "bash_commands": _bash_commands(message) if t == "assistant" else [],
                 "tool_results": _tool_results(message) if t == "user" else [],
-                "model": message.get("model") if t == "assistant" else None,
+                "model": (message.get("model") or active_model) if t == "assistant" else None,
                 "ts": d.get("timestamp", ""),
                 "session": session,
                 "source": path,
+                "runtime": runtime,
             })
     return turns
 
@@ -190,14 +254,16 @@ def _is_sweep_session(turns):
 
 
 def session_files(roots, window_days, now_epoch):
-    """Every projects/*/*.jsonl across roots whose mtime is within the window."""
+    """Recent Claude project transcripts and Codex session rollouts."""
     cutoff = now_epoch - window_days * SECONDS_PER_DAY
     found = []
     for root in roots:
         root = os.path.expanduser(root)
         if not os.path.isdir(root):
             continue
-        for path in glob.glob(os.path.join(root, "projects", "*", "*.jsonl")):
+        candidates = glob.glob(os.path.join(root, "projects", "*", "*.jsonl"))
+        candidates += glob.glob(os.path.join(root, "sessions", "**", "*.jsonl"), recursive=True)
+        for path in candidates:
             try:
                 if os.path.getmtime(path) >= cutoff:
                     found.append(path)
@@ -215,7 +281,8 @@ def _is_prompt(text):
         return False
     noise = ("<command-name>", "<command-message>", "<command-args>",
              "Base directory for this skill:", "<local-command-stdout>",
-             "<local-command-caveat>", "<task-notification>")
+             "<local-command-caveat>", "<task-notification>",
+             "<environment_context>")
     return not any(tok in text for tok in noise)
 
 
@@ -673,10 +740,62 @@ def _review_times(turns, reviewed_re, since):
     return filed
 
 
+def _review_fail_items(turns, entry):
+    """FAIL reviews located inside a task segment, each as {"key", "findings",
+    "context"} for the mend-judge (MEND_JUDGE_PROMPT) to classify "mended" or
+    "unmended". Walked separately from score_review_verdict's own pass because
+    that pass needs no segment membership and this one does: the judge is
+    shown what the segment did after the FAIL, up to its close — a real mend
+    shows up there or nowhere.
+
+    key = "<session>:<subagent transcript filename>" — unique per dispatch and
+    stable across runs, since a closed transcript never changes; the shape
+    _judge_pending's on-disk cache already expects a caller's key to hold.
+    findings = the reviewer's own full report (the whole assistant turn
+    carrying the marker), not just the matched "Compliance Review: FAIL"
+    substring — the judge needs the actual findings to grade against.
+    context = the segment's own turns dated after the review, concatenated —
+    every edit or explanation that followed, which is where a real mend would
+    leave its trace, or where its absence would. A FAIL whose timestamp falls
+    inside no segment's span is skipped — there is nothing to show the judge
+    followed it."""
+    reviewed_re = re.compile(entry["reviewed"])
+    passed_re = re.compile(entry["complied"])
+    since = entry.get("since", "")
+    session = turns[0]["session"] if turns else ""
+    segments = [_segment_turns(seg) for seg in _task_segments(_prompt_runs(turns, since))]
+    items = []
+    for path in _review_transcripts(turns):
+        rturns = read_turns(path)
+        # _agent_verdict, not a bare passed_re.search over the turn's own text:
+        # a reviewer may quote the rule ("close with PASS or FAIL") before it
+        # settles on FAIL, and a bare search would match that quoted PASS.
+        verdict = _agent_verdict(rturns, reviewed_re, since)
+        if verdict is None or passed_re.search(verdict["text"]):
+            continue
+        ts = verdict["ts"]
+        findings_turn = next(t for t in rturns if t["ts"] == ts)
+        seg_turns = next((s for s in segments if s and s[0]["ts"] <= ts <= s[-1]["ts"]), None)
+        if seg_turns is None:
+            continue
+        context = "\n".join(t["text"] for t in seg_turns if t["ts"] > ts and t["text"])
+        items.append({"key": "%s:%s" % (session, os.path.basename(path)),
+                      "findings": findings_turn["text"], "context": context})
+    return items
+
+
 def score_review_verdict(turns, entry):
     """applied = the Compliance Reviews this session actually ran — one per
     subagent transcript whose report carries a verdict (entry['reviewed']);
-    complied = those whose verdict reads PASS (entry['complied']).
+    complied = those whose FINAL result reads sound: a PASS outright, or a
+    FAIL the mend-judge calls "mended" (see _review_fail_items,
+    MEND_JUDGE_PROMPT) — a finding raised and then fixed before the segment
+    closed is the review doing its job, not a miss against it. A FAIL left
+    unjudged (the judge unreachable, or it fell inside no segment to show a
+    mend in) stays uncredited here: this row asks whether the work ultimately
+    shipped sound, and an unproven mend is not proof of that. review.recovered
+    isolates the FAIL population alone and names the recovery rate this row's
+    "final result" framing folds in but does not show on its own.
 
     Read from the reviewer's own transcript, never the thread's closing line,
     because the thread never writes FAIL: CLAUDE.md's order is review, then fix
@@ -700,6 +819,8 @@ def score_review_verdict(turns, entry):
     passed_re = re.compile(entry["complied"])
     since = entry.get("since", "")
     author = _run_model(turns)
+    session = turns[0]["session"] if turns else ""
+    mend_cache = _mend_verdicts()
     applied = 0
     complied = 0
     by_model = {}
@@ -709,10 +830,54 @@ def score_review_verdict(turns, entry):
             continue
         applied += 1
         ok = bool(passed_re.search(verdict["text"]))
+        if not ok:
+            key = "%s:%s" % (session, os.path.basename(path))
+            ok = mend_cache.get(key) == MENDED_VERDICT
         if ok:
             complied += 1
         _bump_model(by_model, author, ok)
     return applied, complied, by_model
+
+
+def score_review_recovered(turns, entry):
+    """applied = FAIL reviews located inside a task segment (see
+    _review_fail_items — a FAIL with no segment to show a mend in cannot be
+    judged, so it is absent here rather than guessed at); complied = those the
+    mend-judge calls "mended". Isolates the FAIL population review.verdict
+    folds back into its "final result" rate: that row asks how sound the work
+    shipped overall, this one asks, of the reviews that misfired, how many
+    were caught and fixed before the report — the recovery rate a low
+    review.verdict number does not by itself distinguish from carelessness.
+
+    byModel attributes a recovery to the model that authored the session under
+    review, mirroring score_review_verdict — the same per-session
+    approximation, hence the same heuristic tier."""
+    author = _run_model(turns)
+    mend_cache = _mend_verdicts()
+    applied = 0
+    complied = 0
+    by_model = {}
+    for item in _review_fail_items(turns, entry):
+        verdict = mend_cache.get(item["key"])
+        if verdict not in (MENDED_VERDICT, UNMENDED_VERDICT):
+            continue
+        applied += 1
+        ok = verdict == MENDED_VERDICT
+        if ok:
+            complied += 1
+        _bump_model(by_model, author, ok)
+    return applied, complied, by_model
+
+
+def _unjudged_fails(sessions, entry):
+    """FAIL reviews review.recovered could not judge — the judge unreachable,
+    or a cache miss it has not warmed yet. Reported beneath the row, mirroring
+    _unreviewed_segments for review.verdict, so a low applied count reads as
+    "few FAILs to recover" only when that is actually true, not when the
+    judging simply never ran."""
+    mend_cache = _mend_verdicts()
+    return sum(1 for turns in sessions for item in _review_fail_items(turns, entry)
+               if mend_cache.get(item["key"]) not in (MENDED_VERDICT, UNMENDED_VERDICT))
 
 
 def _unreviewed_segments(sessions, entry):
@@ -899,6 +1064,10 @@ ABANDONED_VERDICT = "abandoned"
 # is bound once rather than retyped.
 BUG_VERDICT = "bug"
 UNRELATED_VERDICT = "unrelated"
+
+# The two verdicts a mend-judge report may carry — see MEND_JUDGE_PROMPT.
+MENDED_VERDICT = "mended"
+UNMENDED_VERDICT = "unmended"
 
 
 def _judged_gates(turns):
@@ -1163,6 +1332,50 @@ def _bug_judge_batch(batch):
     return _parse_bug_verdicts(_ask_judge("\n".join(parts)))
 
 
+MEND_JUDGE_PROMPT = """You are grading whether a Compliance Review's FAIL
+findings were mended before the task's segment closed.
+
+Each item below gives the reviewer's own findings and everything the main
+thread did in that same segment afterward. Classify each as exactly one of:
+
+  mended    - the findings (or the specific defects they named) were
+              addressed by an edit or an explicit fix afterward. A partial fix
+              that still leaves a named finding's core defect open is
+              unmended.
+  unmended  - nothing afterward addresses the findings, or the segment closed
+              with the same defect still standing.
+
+Reply with a JSON array and nothing else:
+[{"key": "<the key given>", "verdict": "mended|unmended"}]
+"""
+
+
+def _parse_mend_verdicts(raw):
+    """The JSON array a judge returned, as {key: "mended"|"unmended"}.
+    Anything that is not a legal verdict is dropped, so a malformed answer
+    costs coverage rather than correctness — mirrors _parse_verdicts /
+    _parse_bug_verdicts."""
+    start, end = raw.find("["), raw.rfind("]")
+    if start == -1 or end <= start:
+        return {}
+    try:
+        rows = json.loads(raw[start:end + 1])
+    except ValueError:
+        return {}
+    legal = (MENDED_VERDICT, UNMENDED_VERDICT)
+    return {row["key"]: row["verdict"] for row in rows
+            if isinstance(row, dict) and row.get("key") and row.get("verdict") in legal}
+
+
+def _mend_judge_batch(batch):
+    parts = [MEND_JUDGE_PROMPT]
+    for item in batch:
+        parts.append("--- key: %s\nfindings:\n%s\n\nafterward:\n%s\n"
+                     % (item["key"], item["findings"][:1200],
+                        item["context"][:1200] or "(nothing followed)"))
+    return _parse_mend_verdicts(_ask_judge("\n".join(parts)))
+
+
 def _load_verdicts(path):
     """The cached verdicts, or {} when there are none. A cache that will not
     parse is set aside as <path>.corrupt rather than silently read as empty:
@@ -1221,6 +1434,10 @@ def _bug_verdicts():
     return _cached_verdicts(os.path.join(_pulse_dir(), "bug-verdicts.json"))
 
 
+def _mend_verdicts():
+    return _cached_verdicts(os.path.join(_pulse_dir(), "mend-verdicts.json"))
+
+
 def _judge_pending(pending, path, batch_fn):
     """{key: value} for the given items, judged once and cached on disk at
     path. A closed transcript never changes, so a verdict keyed by session and
@@ -1254,6 +1471,11 @@ def judged_bug_verdicts(pending, pulse_dir):
     return _judge_pending(pending, os.path.join(pulse_dir, "bug-verdicts.json"), _bug_judge_batch)
 
 
+def judged_mend_verdicts(pending, pulse_dir):
+    """Mend verdicts: {key: "mended"|"unmended"}."""
+    return _judge_pending(pending, os.path.join(pulse_dir, "mend-verdicts.json"), _mend_judge_batch)
+
+
 def _warm_gate_verdicts(sessions):
     """Judge every unjudged gate across all sessions in one pass, so the
     per-session scorer afterwards finds a warm cache and calls no model. Judging
@@ -1272,6 +1494,15 @@ def _warm_bug_verdicts(sessions, since):
         judged_bug_verdicts(pending, _pulse_dir())
 
 
+def _warm_mend_verdicts(sessions, entry):
+    """Judge every unjudged FAIL review across all sessions in one pass,
+    mirroring _warm_bug_verdicts — the per-session scorers (review.verdict,
+    review.recovered) afterwards find a warm cache and call no model."""
+    pending = [item for turns in sessions for item in _review_fail_items(turns, entry)]
+    if pending:
+        judged_mend_verdicts(pending, _pulse_dir())
+
+
 def apply_rubric(files, rubric):
     """One result per rubric entry, aggregated across every session file.
     workflow-kind items additionally split into direct (top-level, the
@@ -1283,6 +1514,7 @@ def apply_rubric(files, rubric):
     scorers = {"workflow": score_workflow, "grammar": score_grammar,
                "freeform-gate": score_freeform_gate, "post-gate": score_post_gate,
                "review-verdict": score_review_verdict,
+               "review-recovered": score_review_recovered,
                "task-shot": score_task_shot, "plan-gate": score_plan_gate,
                "bug-gate": score_bug_gate}
     sessions = [read_turns(f) for f in files]
@@ -1292,6 +1524,9 @@ def apply_rubric(files, rubric):
     bug_entry = next((e for e in rubric if e["kind"] == "bug-gate"), None)
     if bug_entry is not None:
         _warm_bug_verdicts(sessions, bug_entry.get("since", ""))
+    mend_entry = next((e for e in rubric if e["kind"] in ("review-verdict", "review-recovered")), None)
+    if mend_entry is not None:
+        _warm_mend_verdicts(sessions, mend_entry)
     items = []
     for entry in rubric:
         kind = entry["kind"]
@@ -1335,6 +1570,8 @@ def apply_rubric(files, rubric):
                 item["skipped"] = _skipped_reviews(sessions, entry)
             if kind == "review-verdict":
                 item["unreviewed"] = _unreviewed_segments(sessions, entry)
+            if kind == "review-recovered":
+                item["unjudged"] = _unjudged_fails(sessions, entry)
             items.append(item)
         except re.error as err:
             print("pulse-scan: %s matcher error: %s" % (entry["id"], err), file=sys.stderr)
@@ -1402,7 +1639,8 @@ def _default_roots():
     override = os.environ.get("PULSE_ROOTS")
     if override:
         return override.split(":")
-    return ["~/.claude", "~/.claude-personal", "~/.claude-work"]
+    return ["~/.claude", "~/.claude-personal", "~/.claude-work",
+            "~/.codex", "~/.codex-personal", "~/.codex-work"]
 
 
 def _history_series(pulse_dir):
@@ -1576,6 +1814,9 @@ const MODEL_LABELS = {
   "claude-opus-4-8": "Opus 4.8",
   "claude-sonnet-5": "Sonnet 5",
   "claude-fable-5": "Fable 5",
+  "gpt-5.6-sol": "Codex Sol",
+  "gpt-5.6-terra": "Codex Terra",
+  "gpt-5.6-luna": "Codex Luna",
 };
 const modelLabel = (m) => m === "Overall" ? S().overall : (MODEL_LABELS[m] || m);
 

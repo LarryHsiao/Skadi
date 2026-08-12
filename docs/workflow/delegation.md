@@ -23,20 +23,25 @@ Do it yourself when:
   would cost more than doing it (judgment calls mid-discussion, small edits in
   files already open).
 
-## Model roster (as of 2026-07 — verify before relying; models rot)
+## Model roster (as of 2026-08 — verify before relying; models rot)
 
-| `model` | Name | Use for |
-|---|---|---|
-| `haiku` | Haiku 4.5 | Mechanical work: grep-style search, list reduction, structured extraction, format checks, batch application of an already-solved pattern. |
-| `sonnet` | Sonnet 5 | Default worker: implementation of a specified change, medium-depth research, code review against written rules, doc writing from an outline. |
-| `opus` | Opus 4.8 | Design trade-offs, broad refactors, debugging that resists two rounds, review where the *spec itself* may be wrong. |
-| `fable` | Fable 5 | Highest tier. Taste, ambiguity, architecture, adversarial judgment. Spend deliberately. |
+Choose by capability first; the runtime-specific name is an implementation
+detail. Verify the current roster before dispatch because aliases and
+availability change independently in Claude Code and Codex.
+
+| Tier | Claude example | Codex example | Use for |
+|---|---|---|---|
+| Mechanical | `haiku` | `gpt-5.6-luna` | Grep-style search, list reduction, structured extraction, format checks, batch application of an already-solved pattern. |
+| Default worker | `sonnet` | `gpt-5.6-terra` | Implementation of a specified change, medium-depth research, rule-based code review, doc writing from an outline. |
+| Strong judgment | `opus` | `gpt-5.6-sol` | Design trade-offs, broad refactors, resistant debugging, review where the specification itself may be wrong. |
+| Highest available | `fable` when available | `gpt-5.6-sol` at the highest supported effort | Taste, ambiguity, architecture, and adversarial judgment. Spend deliberately. |
 
 Rules of thumb:
 
-- When `model` is omitted, the agent uses its agent definition's model if one
-  is set, otherwise inherits the session's. Name a *lighter* model explicitly
-  whenever the role does not need the session's tier.
+- When `model` is omitted, the agent uses its role definition's model if one is
+  set, otherwise inherits the session's. Name a *lighter capability tier*
+  explicitly whenever the role does not need the session's tier; translate it
+  to a model slug supported by the active runtime.
 - Reasoning effort: inherited from the session. Some harness surfaces expose
   it per-call — when one does, use `low` for mechanical stages and the high
   tiers only for verify/judge stages; when none does, the model choice alone
@@ -76,9 +81,9 @@ whether two tasks touch the same seam, dispatch them serially.
 
 | Situation | Action |
 |---|---|
-| Haiku-tier agent fails once, with a sound brief | Re-dispatch at `sonnet`. Do not iterate prompts at Haiku. |
-| Sonnet-tier agent fails twice on the *same* subtask | Re-dispatch at `opus` (or the session tier if higher), **carrying the full failure trail** — both attempts, their errors, what was already ruled out. |
-| A hard subtask is solved and the same pattern repeats elsewhere | Push the solved pattern *down*: batch-apply at `haiku`/`sonnet` with the worked example in the prompt. |
+| Mechanical-tier agent fails once, with a sound brief | Re-dispatch at the default-worker tier. Do not iterate prompts at the mechanical tier. |
+| Default-worker agent fails twice on the *same* subtask | Re-dispatch at the strong-judgment tier (or the session tier if higher), **carrying the full failure trail** — both attempts, their errors, what was already ruled out. |
+| A hard subtask is solved and the same pattern repeats elsewhere | Push the solved pattern *down*: batch-apply at the mechanical/default-worker tier with the worked example in the prompt. |
 | Two full rounds at the top available tier fail | Stop. Report the failure trail to the user; do not burn a third round. |
 
 "Fails" means: wrong result, or blocked for reasons a better model would

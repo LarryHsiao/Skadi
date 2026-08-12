@@ -155,7 +155,8 @@
   "model": "opusplan",
   "theme": "light",
   "env": {
-    "CLAUDE_DEV_DIRS": "~/.pub-cache"
+    "CLAUDE_DEV_DIRS": "~/.pub-cache",
+    "SKADI_PROFILE": "{{SKADI_PROFILE}}"
   },
   "hooks": {
     "PostToolUse": [
