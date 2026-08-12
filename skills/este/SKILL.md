@@ -57,25 +57,44 @@ own once rendered.
   last edit, because CLAUDE.md's order is review, then mend the findings (more
   mutating turns), then verify, then the verdict — so the review routinely
   precedes the segment's last edit.
-- **`review.verdict` reads the reviewer's verdict, not the thread's.** Where
-  `rule.compliance-review` asks whether the review was performed at all, this
-  row asks how the reviews that *were* performed came out: the rate is PASS
-  over PASS + FAIL, counted one per Compliance Review agent dispatched.
-  The verdict is read from the reviewer's own transcript
-  (`<session>/subagents/agent-*.jsonl`), never the thread's closing line. The
-  thread never writes FAIL: CLAUDE.md's order is review, then mend the
-  findings, then report — so by the time the closing line is typed the findings
-  are mended and it reads PASS. Scoring that line asked the summarizer to grade
-  itself, and admitted a segment to the denominator by the very marker that
-  scored it, so the rate could only ever read 100%. A mutating segment that
-  closed with no review behind it is neither credited nor penalized: a review
-  never run is no verdict on the work. That excluded population is reported
-  beneath the row rather than hidden, split into silent and explicitly
-  `SKIPPED` — counted per segment, where the rate itself counts reviews, since
-  one task may draw several audits or none. Two approximations hold it in the
-  heuristic tier: the segment fold behind that excluded count, and `byModel`
-  attributing a review to the model that authored the *session* under review
-  rather than the run.
+- **`review.verdict` traces the FINAL result, not the reviewer's first draft.**
+  Where `rule.compliance-review` asks whether the review was performed at all,
+  this row asks how sound the work that shipped actually was: the rate is
+  (PASS, or FAIL judged mended) over every Compliance Review agent dispatched.
+  The verdict is still read from the reviewer's own transcript
+  (`<session>/subagents/agent-*.jsonl`), never the thread's closing line — the
+  thread never writes FAIL, since CLAUDE.md's order is review, then mend the
+  findings, then report, so scoring that line would ask the summarizer to
+  grade itself and could only ever read 100%. But a raw FAIL is not the same
+  question as a *sound outcome*: a finding that gets fixed before the report
+  is the review doing its job, not a miss against it. So a FAIL folds back in
+  as compliant once a mend-judge — reading the reviewer's own findings beside
+  what the segment did afterward, cached in `mend-verdicts.json` — calls it
+  `mended`; one it calls `unmended`, or one it could not reach at all, stays a
+  miss. `review.recovered` isolates that FAIL population on its own and names
+  the recovery rate this row folds in but does not show by itself. A mutating
+  segment that closed with no review behind it is neither credited nor
+  penalized: a review never run is no verdict on the work. That excluded
+  population is reported beneath the row rather than hidden, split into
+  silent and explicitly `SKIPPED` — counted per segment, where the rate itself
+  counts reviews, since one task may draw several audits or none. Three
+  approximations hold it in the heuristic tier: the segment fold behind that
+  excluded count, `byModel` attributing a review to the model that authored
+  the *session* under review rather than the run, and the mend-judge's own
+  call on whether a FAIL's findings were actually addressed.
+- **`review.recovered` is the FAIL-only twin: of the reviews that misfired, how
+  many were caught and fixed?** review.verdict's final-result framing means a
+  low number there does not, by itself, distinguish "reviews are working —
+  findings get fixed" from "findings are shipping unfixed." This row answers
+  that directly: applied is every FAIL located inside a task segment (one
+  outside any segment — a review dispatched during a purely read-only run,
+  before any edit exists to mend — has nothing to show a mend in, and is
+  absent rather than guessed at); complied is the ones the same mend-judge
+  calls `mended`. A FAIL the judge could not reach is excluded from both sides
+  and named beneath the row as `unjudged`, the same discipline as
+  `plan.accepted`'s abandoned count. Heuristic tier for the same reason
+  `plan.accepted` and `plan.bug-reported` are: the call is a model's judgment,
+  cached per review so a closed transcript is never re-judged.
 - **`plan.bug-reported` names each completion by its request, and its rate leans
   high.** The row asks whether a finished piece of work drew a bug report later in
   the same session, so a *high* rate is the good reading. Two things shape it.

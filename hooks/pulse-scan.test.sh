@@ -80,16 +80,18 @@ actual_rubric=$(python3 - "$RUBRIC" <<'PY'
 import json, sys
 rows = json.load(open(sys.argv[1], encoding="utf-8"))
 kinds = {"workflow", "grammar", "freeform-gate", "post-gate", "task-shot", "plan-gate",
-         "git-probe", "forge-probe", "bug-gate", "review-verdict"}
+         "git-probe", "forge-probe", "bug-gate", "review-verdict", "review-recovered"}
 tiers = {"deterministic", "structural", "heuristic"}
 req = {"id", "label", "kind", "tier", "applies", "complied", "denom", "criterion"}
 for r in rows:
     assert req <= set(r), "missing keys in %s" % r.get("id")
     assert r["kind"] in kinds, "bad kind %s" % r["kind"]
     assert r["tier"] in tiers, "bad tier %s" % r["tier"]
-    # review-verdict reads two patterns: which segments carried a review, and
-    # which of those closed clean. Without 'reviewed' the scorer has no denominator.
-    assert r["kind"] != "review-verdict" or "reviewed" in r, "no reviewed pattern in %s" % r["id"]
+    # review-verdict and review-recovered both read 'reviewed' to find which
+    # subagent transcripts carry a verdict at all — without it neither scorer
+    # has a denominator.
+    assert r["kind"] not in ("review-verdict", "review-recovered") or "reviewed" in r, \
+        "no reviewed pattern in %s" % r["id"]
 ids = [r["id"] for r in rows]
 assert len(ids) == len(set(ids)), "duplicate id"
 print("ok")
@@ -1733,7 +1735,7 @@ cat >"$d/verdict/subagents/agent-a4.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-01T09:00:00Z","message":{"model":"claude-haiku-4-5-20251001","content":[{"type":"text","text":"Compliance Review: FAIL"}]}}
 JSON
 expected_verdict="2/1 author:claude-opus-5"
-actual_verdict=$(python3 - "$SCAN" "$REVIEW_ENTRY" "$d/verdict.jsonl" <<'PY'
+actual_verdict=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$REVIEW_ENTRY" "$d/verdict.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 entry = json.load(open(sys.argv[2], encoding="utf-8"))
@@ -1757,7 +1759,7 @@ cat >"$d/self-graded.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-20T10:00:10Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"}]}}
 JSON
 expected_selfgraded="0/0"
-actual_selfgraded=$(python3 - "$SCAN" "$REVIEW_ENTRY" "$d/self-graded.jsonl" <<'PY'
+actual_selfgraded=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$REVIEW_ENTRY" "$d/self-graded.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 entry = json.load(open(sys.argv[2], encoding="utf-8"))
@@ -1808,7 +1810,7 @@ cat >"$d/verdict-noagent.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-22T10:00:10Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"}]}}
 JSON
 expected_noagent="0/0 silent:1 skipped:0"
-actual_noagent=$(python3 - "$SCAN" "$REVIEW_ENTRY" "$d/verdict-noagent.jsonl" <<'PY'
+actual_noagent=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$REVIEW_ENTRY" "$d/verdict-noagent.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 entry = json.load(open(sys.argv[2], encoding="utf-8"))
@@ -1824,7 +1826,10 @@ check "review-verdict: an unbacked verdict is no review — excluded, counted si
 #         patterns tolerate the full-width colon a Chinese verdict line may bear ──
 # Two reviewers behind one segment — a heavy task's per-step audits — one clean,
 # one not. The segment itself closes silent, so it lands in the excluded count
-# while its two reviews still score.
+# while its two reviews still score. review.verdict now warms a mend-judge
+# pass too (the FAIL falls inside this segment) — PULSE_JUDGE_CMD points at a
+# script that does not exist, so that pass answers nothing and the FAIL stays
+# unjudged, same as this test always expected.
 d=$(tmpdir)
 mkdir -p "$d/verdict-live/subagents"
 cat >"$d/verdict-live.jsonl" <<'JSON'
@@ -1840,7 +1845,7 @@ cat >"$d/verdict-live/subagents/agent-b2.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-23T10:00:15Z","message":{"content":[{"type":"text","text":"Compliance Review: FAIL"}]}}
 JSON
 expected_live="ok|2|1|50|silent:1 skipped:0"
-actual_live=$(python3 - "$SCAN" "$RUBRIC" "$d/verdict-live.jsonl" <<'PY'
+actual_live=$(PULSE_DIR="$d/pulse" PULSE_JUDGE_CMD="$d/nothing-here.sh" python3 - "$SCAN" "$RUBRIC" "$d/verdict-live.jsonl" <<'PY'
 import importlib.util as u, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
@@ -1887,6 +1892,173 @@ print("%s|%s|%s|%s|skipped:%d" % (item["status"], item["applied"], item["complie
 PY
 )
 check "rule.compliance-review scores end to end, its waiver counted apart" "$expected_compliance_live" "$actual_compliance_live"
+
+# ── 60 · the mend-judge caches: first pass calls the model, second pass calls
+#         nothing — mirrors test 31, one level down the same judge machinery ──
+d=$(tmpdir)
+cat >"$d/fakemendjudge.py" <<'PY'
+import os, sys
+sys.stdin.read()
+with open(os.environ["FAKE_JUDGE_CALLS"], "a", encoding="utf-8") as fh:
+    fh.write("call\n")
+print('[{"key":"s1:agent-a1.jsonl","verdict":"mended"}]')
+PY
+: >"$d/calls"
+dwin="$d"
+command -v cygpath >/dev/null 2>&1 && dwin="$(cygpath -m "$d")"
+expected_mendjudge="mended|1|mended|1"
+actual_mendjudge=$(FAKE_JUDGE_CALLS="$dwin/calls" PULSE_JUDGE_CMD="python3 $dwin/fakemendjudge.py" \
+  python3 - "$SCAN" "$d" "$d/calls" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+pulse_dir, calls = sys.argv[2], sys.argv[3]
+pending = [{"key": "s1:agent-a1.jsonl", "findings": "A test is missing.", "context": "Added the test."}]
+out = []
+for _ in range(2):
+    v = m.judged_mend_verdicts(pending, pulse_dir)
+    out += [v["s1:agent-a1.jsonl"], str(sum(1 for _ in open(calls)))]
+print("|".join(out))
+PY
+)
+check "mend-judge caches: second pass makes no model call" "$expected_mendjudge" "$actual_mendjudge"
+
+# ── 61 · review.verdict's final-result framing: a FAIL the mend-judge calls
+#         mended counts as sound; one it calls unmended still does not ──
+# The reviewer quotes the rule before it settles on FAIL — the same shape test
+# 55 guards against — so this also re-proves the last-match-wins read is not
+# fooled by the mend-judge wiring built on top of it (see _review_fail_items).
+d=$(tmpdir)
+mkdir -p "$d/mendcheck/subagents"
+cat >"$d/mendcheck.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-20T10:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-20T10:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-20T10:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-20T10:00:20Z","message":{"content":[{"type":"text","text":"Fixed the missing test.\nCompliance Review: PASS"}]}}
+JSON
+cat >"$d/mendcheck/subagents/agent-a1.jsonl" <<'JSON'
+{"type":"assistant","timestamp":"2026-07-20T10:00:10Z","message":{"content":[{"type":"text","text":"The rule asks me to close with Compliance Review: PASS or FAIL.\nA test is missing.\nCompliance Review: FAIL"}]}}
+JSON
+mkdir -p "$d/pulse"
+printf '{"mendcheck:agent-a1.jsonl": "mended"}' >"$d/pulse/mend-verdicts.json"
+expected_mended="1/1"
+actual_mended=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$REVIEW_ENTRY" "$d/mendcheck.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_review_verdict(turns, entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "review.verdict: a FAIL the mend-judge calls mended counts as sound" "$expected_mended" "$actual_mended"
+
+printf '{"mendcheck:agent-a1.jsonl": "unmended"}' >"$d/pulse/mend-verdicts.json"
+expected_unmended="1/0"
+actual_unmended=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$REVIEW_ENTRY" "$d/mendcheck.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_review_verdict(turns, entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "review.verdict: a FAIL the mend-judge calls unmended still does not" "$expected_unmended" "$actual_unmended"
+
+# ── 62 · review.recovered isolates the FAIL population; an unjudged FAIL is
+#         excluded from the rate but named beneath it, not guessed at ──
+cat >"$d/mendcheck/subagents/agent-a2.jsonl" <<'JSON'
+{"type":"assistant","timestamp":"2026-07-20T10:00:12Z","message":{"content":[{"type":"text","text":"A second finding.\nCompliance Review: FAIL"}]}}
+JSON
+printf '{"mendcheck:agent-a1.jsonl": "mended"}' >"$d/pulse/mend-verdicts.json"
+expected_recovered="1/1 unjudged:1"
+actual_recovered=$(PULSE_DIR="$d/pulse" python3 - "$SCAN" "$REVIEW_ENTRY" "$d/mendcheck.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_review_recovered(turns, entry)
+uj = m._unjudged_fails([turns], entry)
+print("%d/%d unjudged:%d" % (a, c, uj))
+PY
+)
+check "review.recovered: isolates FAILs, an unjudged one excluded but counted beneath" "$expected_recovered" "$actual_recovered"
+
+# ── 63 · a FAIL dispatched during a read-only run, before any edit exists to
+#         mend, is excluded — there is no segment to show the judge a mend in ──
+d=$(tmpdir)
+mkdir -p "$d/nosegment/subagents"
+cat >"$d/nosegment.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-19T09:00:00Z","message":{"content":"what does this file do"}}
+{"type":"assistant","timestamp":"2026-07-19T09:00:05Z","message":{"content":[{"type":"tool_use","id":"a0","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-19T09:00:10Z","message":{"content":[{"type":"text","text":"It parses widgets."}]}}
+{"type":"user","timestamp":"2026-07-19T09:01:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-19T09:01:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-19T09:01:10Z","message":{"content":[{"type":"text","text":"Compliance Review: PASS"}]}}
+JSON
+cat >"$d/nosegment/subagents/agent-a0.jsonl" <<'JSON'
+{"type":"assistant","timestamp":"2026-07-19T09:00:07Z","message":{"content":[{"type":"text","text":"Unrelated stray FAIL.\nCompliance Review: FAIL"}]}}
+JSON
+expected_nosegment="0"
+actual_nosegment=$(python3 - "$SCAN" "$REVIEW_ENTRY" "$d/nosegment.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+turns = m.read_turns(sys.argv[3])
+print(len(m._review_fail_items(turns, entry)))
+PY
+)
+check "a FAIL with no segment to show a mend in is excluded" "$expected_nosegment" "$actual_nosegment"
+
+# ── 64 · review.recovered is wired into apply_rubric end to end with the live
+#         rubric; the second pass proves the mend cache, not a second model
+#         call, answers it ──
+d=$(tmpdir)
+mkdir -p "$d/live-recovered/subagents"
+cat >"$d/live-recovered.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-26T10:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-26T10:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-26T10:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-26T10:00:20Z","message":{"content":[{"type":"text","text":"Fixed.\nCompliance Review: PASS"}]}}
+JSON
+cat >"$d/live-recovered/subagents/agent-a1.jsonl" <<'JSON'
+{"type":"assistant","timestamp":"2026-07-26T10:00:10Z","message":{"content":[{"type":"text","text":"A test is missing.\nCompliance Review: FAIL"}]}}
+JSON
+cat >"$d/fakemendjudge2.py" <<'PY'
+# Stands in for `claude -p`: every FAIL is judged mended, so this test proves
+# the wiring (review-recovered registered, warmed, and cached) without
+# asserting on the judge's own semantics, which tests 61/62 already cover.
+import re, sys, json
+raw = sys.stdin.read()
+keys = re.findall(r"--- key: (\S+)", raw)
+print(json.dumps([{"key": k, "verdict": "mended"} for k in keys]))
+PY
+mkdir -p "$d/pulse"
+expected_recoveredlive="ok|1|1|100|0"
+actual_recoveredlive=$(PULSE_DIR="$d/pulse" PULSE_JUDGE_CMD="python3 $d/fakemendjudge2.py" python3 - "$SCAN" "$RUBRIC" "$d/live-recovered.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+items, _ = m.apply_rubric([sys.argv[3]], rubric)
+item = next(i for i in items if i["id"] == "review.recovered")
+print("%s|%s|%s|%s|%s" % (item["status"], item["applied"], item["complied"], item["rate"], item["unjudged"]))
+PY
+)
+check "review.recovered wired through apply_rubric with the live rubric" "$expected_recoveredlive" "$actual_recoveredlive"
+
+rm -f "$d/fakemendjudge2.py"  # if the second pass calls the judge again, this fails loudly instead of silently
+actual_recoveredlive2=$(PULSE_DIR="$d/pulse" PULSE_JUDGE_CMD="python3 $d/fakemendjudge2.py" python3 - "$SCAN" "$RUBRIC" "$d/live-recovered.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+items, _ = m.apply_rubric([sys.argv[3]], rubric)
+item = next(i for i in items if i["id"] == "review.recovered")
+print("%s|%s|%s|%s|%s" % (item["status"], item["applied"], item["complied"], item["rate"], item["unjudged"]))
+PY
+)
+check "review.recovered: cached mend verdict, no second model call needed" "$expected_recoveredlive" "$actual_recoveredlive2"
 
 echo ""
 echo "── $pass passed, $fail failed ──"
