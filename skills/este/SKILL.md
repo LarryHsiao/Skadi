@@ -53,6 +53,23 @@ own once rendered.
   file with `rm` or `git mv`, is excluded though it arguably owed a review.
   The same predicate governs the row's `SKIPPED` count and `review.verdict`'s
   `unreviewed` count, so all three describe one population.
+- **A rendered verdict closes the task segment.** Waiting only for a
+  read-only lull merged two tasks run back to back, and that merge did not
+  merely under-bill — it inverted the reading: the first task's marker no
+  longer followed the segment's last edit, so a properly reviewed task
+  scored a miss, while the unreviewed task after it hid inside the same
+  segment and was never billed at all. 58 of the 390 segments owing a review
+  sat in that state — as many as the fold credited in total, its complied
+  count being 58 as well.
+  Closing on the verdict credits the first and exposes the second, and it is
+  the *stricter* rule — a marker rendered mid-task now closes there, so the
+  edits after it open a fresh segment owing a verdict of its own, where
+  before one marker could cover any length of later work. It is not
+  circular: over half the segments carry no marker at all and are closed by
+  the lull rule as before, and the reviewer-verdict requirement still
+  refuses a marker typed unearned. **This moved the rate 15% → 24% with no
+  change in conduct** — the third mending of this row's arithmetic in one
+  day, and like the others a truer denominator rather than improvement.
 - **Compliance Review bills per task segment, not per prompt turn.**
   `rule.compliance-review` folds consecutive mutating runs (the user steering
   between edits) plus their read-only wind-down into one segment — CLAUDE.md

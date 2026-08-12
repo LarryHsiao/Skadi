@@ -35,18 +35,22 @@ SECONDS_PER_DAY = 86400
 GAUGE_RE = re.compile(r"Size (?:▰▱▱|▰▰▱|▰▰▰) +(?:minimum|medium|heavy)")
 REMINDER_RE = re.compile(r"Size ▰▱▱\|▰▰▱\|▰▰▰")
 
+# The three Compliance Review patterns below ask three different questions and
+# so keep three different verdict sets — per universal.md, look-alikes bearing
+# different meanings stay apart. What they share is this prefix, and only it:
+# lifted on its third recurrence so the full-width colon (which the rubric's
+# own patterns also tolerate) cannot fall out of step between them by hand.
+_VERDICT_PREFIX = r"Compliance Review[:：]\s*"
+
 # A Compliance Review closing PASS specifically — not PASS|FAIL like
 # rule.compliance-review's marker, since bug-gate cares whether the segment
-# actually closed clean, not merely whether the ritual was performed. Both
-# constants tolerate the full-width colon, as the rubric's own patterns do:
-# bug-gate is the one call site that cannot inherit those, so the two must be
-# kept in step by hand.
-COMPLIANCE_PASS_RE = re.compile(r"Compliance Review[:：]\s*PASS")
+# actually closed clean, not merely whether the ritual was performed.
+COMPLIANCE_PASS_RE = re.compile(_VERDICT_PREFIX + r"PASS")
 
 # Either verdict a review agent may file. _segment_complies asks two different
 # questions of these two patterns: COMPLIANCE_PASS_RE decides what the segment
 # closed with, this one decides whether a reviewer reported at all.
-COMPLIANCE_VERDICT_RE = re.compile(r"Compliance Review[:：]\s*(PASS|FAIL)")
+COMPLIANCE_VERDICT_RE = re.compile(_VERDICT_PREFIX + r"(PASS|FAIL)")
 
 JUDGE_BATCH = 20
 JUDGE_TIMEOUT = 600
@@ -777,6 +781,40 @@ def _prompt_runs(turns, since):
     return runs
 
 
+# A rendered Compliance Review verdict, in any of its three closing forms —
+# SKIPPED among them, since a reasoned waiver ends a task as surely as a
+# verdict does, and omitting it would let the waived segment absorb the next
+# task and re-bill the waiver as that task's miss. CLAUDE.md has this line
+# stand where a task ends — "before the done report is rendered" — so it
+# marks a task boundary more truly than the read-only lull _task_segments
+# otherwise waits for.
+_SEGMENT_CLOSER_RE = re.compile(_VERDICT_PREFIX + r"(PASS|FAIL|SKIPPED)")
+
+# A verdict named rather than rendered — `Compliance Review: PASS` inside
+# backticks or quotes, as this repo's own sessions write constantly when
+# discussing the rule. 23 of 438 assistant matches across the live roots are
+# such mentions; counted as closers they split a task spuriously and inflate
+# every segment-folded denominator.
+_QUOTE_CHARS = "`'\""
+
+
+def _renders_verdict(text):
+    """Whether this prose actually closed a task with a verdict, rather than
+    merely quoting the marker while talking about it."""
+    return any(text[m.start() - 1:m.start()] not in _QUOTE_CHARS
+               for m in _SEGMENT_CLOSER_RE.finditer(text))
+
+
+def _closes_task(run):
+    """Whether this run rendered a Compliance Review verdict, declaring the
+    task done. Assistant turns only: `compliance-review-reminder.sh` injects
+    all three verdict forms into every user prompt, and 79 user turns across
+    the live roots carry them — read as closers they would cut a segment at
+    every prompt."""
+    return any(t["type"] == "assistant" and _renders_verdict(t["text"])
+               for t in run)
+
+
 def _task_segments(runs):
     """Runs folded into task segments, each a list of (prompt_text, run_turns,
     is_mutating) triples so callers can still see run boundaries and opening
@@ -785,9 +823,32 @@ def _task_segments(runs):
     points left") between edits — so: a segment opens at a mutating run, carries the
     following mutating streak, and keeps the read-only runs after it as its
     wind-down tail; the next mutating run after that tail opens a new
-    segment. Known trade-off: two tasks back-to-back with no read-only run
-    between them merge into one segment — slight under-billing, preferred
-    over the per-turn over-billing it replaces."""
+    segment.
+
+    A segment ALSO closes on a rendered Compliance Review verdict, whatever
+    follows it. Waiting only for a read-only lull merged two tasks run back
+    to back, and the merge did not merely under-bill — it inverted the
+    reading. The first task's marker no longer followed the segment's last
+    edit, so a properly reviewed task scored a miss, while the unreviewed
+    task that followed hid inside the same segment and was never billed at
+    all. 58 of the 390 segments owing a review sat in that state — a marker
+    standing in the segment but not after its last edit — and the fold's own
+    complied count was also 58, so the flaw was costing as many segments as
+    it credited. Closing on the verdict credits the first task and exposes
+    the second, and it is the stricter rule: a
+    marker rendered mid-task now closes there, so the edits after it open a
+    fresh segment owing a verdict of its own, where before one marker could
+    cover any length of later work.
+
+    Note the coupling this creates. Eight call sites fold segments through
+    this one function — model.first-shot, plan.bug-reported, both verify.*
+    rows and review.verdict's unreviewed count among them — so all of them
+    are now cut on a Compliance-Review marker rather than on a boundary of
+    their own naming. Their rates barely moved (a point at most), but their
+    denominators grew by up to two fifths as merged segments came apart. That
+    is the finer granularity each of them wanted anyway; it is recorded here
+    because nothing else in the file says a rule-specific constant governs
+    every segment-folded row."""
     segments = []
     seg = None
     in_tail = False
@@ -803,6 +864,10 @@ def _task_segments(runs):
         elif seg is not None:
             seg.append((prompt, run, is_mutating))
             in_tail = True
+        if seg is not None and _closes_task(run):
+            segments.append(seg)
+            seg = None
+            in_tail = False
     if seg is not None:
         segments.append(seg)
     return segments

@@ -2353,6 +2353,95 @@ PY
 )
 check "_owes_review also governs the SKIPPED count and review.verdict's unreviewed split" "$expected_oweshelpers" "$actual_oweshelpers"
 
+# ── 70g · a Compliance Review verdict CLOSES a task segment. Two tasks run
+#          back to back with no read-only run between them: the first is
+#          reviewed properly, the second is not. Bounded by the marker they
+#          are two segments, 1/2 — task one credited, task two exposed.
+#          Without that boundary they fold into one segment whose marker no
+#          longer follows the last edit, scoring 0/1: the compliant task's
+#          credit is destroyed AND the delinquent task is hidden inside it ──
+d=$(tmpdir)
+mkdir -p "$d/marker-bound/subagents"
+cat >"$d/marker-bound.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-09T09:00:00Z","message":{"content":"add the parser"}}
+{"type":"assistant","timestamp":"2026-08-09T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-09T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-09T09:00:30Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Parser added.\nCompliance Review: PASS"}]}}
+{"type":"user","timestamp":"2026-08-09T09:01:00Z","message":{"content":"now add the writer too"}}
+{"type":"assistant","timestamp":"2026-08-09T09:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e2","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-09T09:01:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Writer added."}]}}
+JSON
+cat >"$d/marker-bound/subagents/agent-1.jsonl" <<'JSON'
+{"type":"assistant","timestamp":"2026-08-09T09:00:20Z","message":{"content":[{"type":"text","text":"Nothing amiss.\nCompliance Review: PASS"}]}}
+JSON
+expected_bound="2/1"
+actual_bound=$(python3 - "$SCAN" "$RUBRIC" "$d/marker-bound.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+entry = next(r for r in rubric if r["id"] == "rule.compliance-review")
+a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "a Compliance Review verdict closes the segment: back-to-back tasks score 1 of 2, not 0 of 1" "$expected_bound" "$actual_bound"
+
+# ── 70h · the closer must be RENDERED, not merely named. A turn quoting the
+#          marker inside backticks while discussing the rule (23 of 438
+#          assistant matches across the live roots do exactly this, skadi's
+#          own sessions most of all) must not cut a task in two; nor may the
+#          reminder hook's copy, which rides in on every USER prompt — 79 of
+#          those stand in the live roots ──
+expected_render="rendered:True|backticked:False|single:False|double:False|subagent-result-user-turn:False|skipped:True"
+actual_render=$(python3 - "$SCAN" <<'PY'
+import importlib.util as u, sys
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+prose = [("rendered", "All mended.\nCompliance Review: PASS"),
+         ("backticked", "The done report closes with a literal `Compliance Review: PASS` line."),
+         ("single", "End the summary with 'Compliance Review: FAIL' when it fails."),
+         ("double", 'Type "Compliance Review: PASS" only once earned.'),
+         ("skipped", "Nothing to weigh.\nCompliance Review: SKIPPED (reason: docs only)")]
+out = ["%s:%s" % (n, m._renders_verdict(t)) for n, t in prose]
+# A subagent's report lands back in the parent as a USER turn, verdict
+# unquoted — 53 such turns stand in the live roots. The reviewer closed its
+# own task, not the parent's, so this must not cut the parent's segment.
+# Unquoted deliberately: a quoted sample would be caught by the quote guard
+# above and would never exercise the assistant-only test at all.
+echoed = [{"type": "user", "text": "All findings mended, none outstanding.\nCompliance Review: PASS</result>"}]
+out.insert(4, "subagent-result-user-turn:%s" % m._closes_task(echoed))
+print("|".join(out))
+PY
+)
+check "a quoted or reminder-injected marker never closes a task; a rendered PASS or SKIPPED does" "$expected_render" "$actual_render"
+
+# ── 70i · SKIPPED belongs in the closer set. A waived task followed at once
+#          by an unreviewed one: with SKIPPED closing the first, the waiver is
+#          excluded and counted apart (applied 1 / skipped 1); without it the
+#          two fold together and the waiver is re-billed as the second task's
+#          miss ──
+d=$(tmpdir)
+cat >"$d/skipped-closer.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-10T09:00:00Z","message":{"content":"fix the typo in the readme"}}
+{"type":"assistant","timestamp":"2026-08-10T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-10T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Fixed.\nCompliance Review: SKIPPED (reason: a one-word doc fix touching no logic)"}]}}
+{"type":"user","timestamp":"2026-08-10T09:01:00Z","message":{"content":"now rewrite the parser"}}
+{"type":"assistant","timestamp":"2026-08-10T09:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e2","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-10T09:01:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Rewritten."}]}}
+JSON
+expected_skipcloser="applied=1|complied=0|skipped=1"
+actual_skipcloser=$(python3 - "$SCAN" "$RUBRIC" "$d/skipped-closer.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+entry = next(r for r in rubric if r["id"] == "rule.compliance-review")
+turns = m.read_turns(sys.argv[3])
+a, c, _ = m.score_post_gate(turns, entry)
+print("applied=%d|complied=%d|skipped=%d" % (a, c, m._skipped_reviews([turns], entry)))
+PY
+)
+check "SKIPPED closes a task too: the waiver stays excluded instead of becoming the next task's miss" "$expected_skipcloser" "$actual_skipcloser"
+
 # ── 71 · both rows wired into apply_rubric end to end with the live rubric —
 #         real JSON, real kind dispatch, real segment fold, unmeasured surfaced ──
 d=$(tmpdir)
