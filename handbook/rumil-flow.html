@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rúmil — the flow</title>
+    <link rel="stylesheet" href="../previews/henneth/skadi-theme.css" />
+    <style>
+      .flow {
+        max-width: 920px;
+        margin: 0 auto;
+      }
+
+      /* Chapter-specific only. The parchment theme — tokens, body, panels,
+         tables, code — is the shared stylesheet the sibling chapters link. */
+      .backnav {
+        max-width: 920px;
+        margin: 0 auto 0.6rem;
+      }
+      .road {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+      .node {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 4px;
+        padding: 0.6rem 0.85rem;
+      }
+      .node .n {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.72rem;
+        color: var(--accent);
+        letter-spacing: 0.04em;
+      }
+      .node .t {
+        font-weight: 600;
+      }
+      .node .d {
+        font-size: 0.84rem;
+        color: #6b5c45;
+        margin-top: 0.15rem;
+      }
+      .node.key {
+        border: 2px solid var(--accent);
+        background: var(--raise);
+      }
+      .arrow {
+        align-self: center;
+        color: var(--accent);
+        font-size: 1.1rem;
+        line-height: 1;
+        padding: 0.3rem 0;
+      }
+      .sources {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.6rem;
+      }
+      .src {
+        border: 2px solid var(--accent);
+        background: var(--raise);
+        border-radius: 4px;
+        padding: 0.6rem 0.85rem;
+      }
+      .src b {
+        display: block;
+        font-size: 0.9rem;
+      }
+      .src i {
+        font-style: normal;
+        font-size: 0.79rem;
+        color: #6b5c45;
+      }
+      .terminal {
+        border: 2px solid var(--accent);
+        background: var(--raise);
+        border-radius: 4px;
+        padding: 0.7rem 0.85rem;
+        text-align: center;
+      }
+      .terminal .t {
+        font-weight: 700;
+      }
+      .terminal .d {
+        font-size: 0.82rem;
+        color: #6b5c45;
+        font-style: italic;
+        margin-top: 0.2rem;
+      }
+      .loop {
+        border: 2px dashed var(--accent);
+        border-radius: 6px;
+        padding: 0.8rem;
+        background: rgba(122, 90, 46, 0.045);
+      }
+      .loop h3 {
+        margin: 0 0 0.55rem;
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .signals {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+        margin: 0.5rem 0;
+      }
+      .sig {
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        background: var(--panel);
+        padding: 0.4rem 0.55rem;
+        font-size: 0.82rem;
+      }
+      .sig b {
+        display: block;
+        font-size: 0.78rem;
+        color: var(--accent);
+      }
+      .fork {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        margin-top: 0.55rem;
+      }
+      .branch {
+        border-radius: 3px;
+        padding: 0.5rem 0.6rem;
+        font-size: 0.83rem;
+      }
+      .branch.back {
+        border: 1px solid var(--accent);
+        background: var(--raise);
+      }
+      .branch.out {
+        border: 1px solid var(--green);
+        background: rgba(63, 107, 58, 0.07);
+      }
+      .branch b {
+        display: block;
+        margin-bottom: 0.15rem;
+      }
+      .refuse {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .refuse li {
+        padding: 0.4rem 0;
+        border-bottom: 1px dotted var(--line);
+        font-size: 0.87rem;
+      }
+      .refuse li:last-child {
+        border-bottom: 0;
+      }
+      .refuse .x {
+        color: var(--red);
+        font-weight: 700;
+        margin-right: 0.35rem;
+      }
+      .size {
+        font-variant: small-caps;
+        letter-spacing: 0.03em;
+        font-weight: 600;
+      }
+      td .badge {
+        margin-bottom: 0;
+      }
+      .badge.ask {
+        background: var(--red);
+      }
+      .badge.phase {
+        background: var(--blue);
+      }
+      .q {
+        color: var(--red);
+        font-style: italic;
+      }
+      .keep {
+        color: var(--green);
+      }
+      @media (max-width: 720px) {
+        .wrap,
+        .signals,
+        .fork,
+        .sources {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="backnav"><a href="index.html">← Skadi Handbook</a></div>
+    <div class="flow">
+      <h1>Rúmil — the flow</h1>
+      <p class="sub">
+        A product spec goes in; an engineering plan comes out, the questions are
+        put to a human on the way, and what they could not answer goes back.
+      </p>
+
+      <div class="panel full">
+        <h2>The road</h2>
+        <div class="road">
+          <div class="sources">
+            <div class="src">
+              <b>The rules — a text spec</b>
+              <i
+                >an Outline wiki page, a markdown file, or prose. States what
+                must be true; never draws the flow.</i
+              >
+            </div>
+            <div class="src">
+              <b>The screens — a UI spec</b>
+              <i
+                >a Figma file (preferred) or exported frames. Draws the flow;
+                never states the rules.</i
+              >
+            </div>
+          </div>
+          <div class="arrow">▼&nbsp;&nbsp;&nbsp;▼</div>
+
+          <div class="node">
+            <span class="n">STEP 1</span>
+            <div class="t">Read both specs</div>
+            <div class="d">
+              What arrives already reads plan-shaped — that is the trap. A Figma
+              file is structured data, so frame names, same-row order and design
+              tokens are read directly rather than squinted out of a screenshot.
+              A ticket key is only a place to find links, never a spec.
+            </div>
+          </div>
+          <div class="arrow">▼</div>
+
+          <div class="node key">
+            <span class="n">STEP 1b</span>
+            <div class="t">Wire the two specs to each other</div>
+            <div class="d">
+              <b>The step nobody else performs.</b> Bind every screen to the
+              rule that governs it, and every rule to the screen that exercises
+              it. The correspondence is written down nowhere — today it is
+              assembled in the head of whichever engineer reads both documents,
+              and it evaporates when they move on. <br /><br />Three findings
+              fall out, each a numbered question, never a quiet reconciliation:
+              <b>orphan screen</b> (drawn, ungoverned) ·
+              <b>orphan rule</b> (stated, undrawn) · <b>contradiction</b> (the
+              text says one thing, the mock another — never pick a winner).
+            </div>
+          </div>
+          <div class="arrow">▼</div>
+
+          <div class="node">
+            <span class="n">STEP 2</span>
+            <div class="t">Read the ground — bind every product noun</div>
+            <div class="d">
+              “the receipt list”, “the sync banner” → a real
+              <code>file:line</code>, or else a new surface earning its own
+              steps. A noun that binds to neither is a misunderstanding, and
+              becomes a question.
+            </div>
+          </div>
+          <div class="arrow">▼</div>
+
+          <div class="node">
+            <span class="n">STEP 3 · 3b · 3c</span>
+            <div class="t">
+              Distil, walk the undrawn states, write the questions
+            </div>
+            <div class="d">
+              Purpose, then acceptance that something can actually fail. Every
+              screen walked against the seven undrawn states. What remains
+              unanswered is numbered <span class="name">Q1…Qn</span> — in the
+              author's language, never filled by guesswork.
+            </div>
+          </div>
+          <div class="arrow">▼</div>
+
+          <div class="node key">
+            <span class="n">STEP 3d</span>
+            <div class="t">Put the questions to the user — in session</div>
+            <div class="d">
+              The questions are not filed away for later: they are asked now,
+              while the spec is fresh and a human is at the keyboard, via
+              <code>AskUserQuestion</code> — four at a time, batch after batch,
+              until <b>none stands unaddressed</b>. Every one ends either
+              <b>answered</b> — folded straight back into the draft and dropped
+              from the running list — or <b>deferred</b>, which keeps its number
+              and goes back to the spec's author. <br /><br />Rúmil never
+              answers them itself; asking is what keeps the answer the user's
+              rather than a guess wearing the author's name. Headless, with
+              nobody to ask, every question is deferred and the sift proceeds.
+            </div>
+          </div>
+          <div class="arrow">▼</div>
+
+          <div class="loop">
+            <h3>
+              <span class="badge">STEP 4</span> The sift
+              <span
+                style="
+                  font-weight: 400;
+                  font-style: italic;
+                  color: var(--accent);
+                "
+                >— the loop</span
+              >
+            </h3>
+            <div style="font-size: 0.85rem; color: #6b5c45">
+              Number every step <code>1..N</code>. Render the verdict table in
+              chat — a silent sift is not a sift. Then gauge each step against
+              four signals; <b>all four</b> must hold for
+              <span class="size">minimum</span>.
+            </div>
+            <div class="signals">
+              <div class="sig">
+                <b>ONE SEAM</b>one file, or one file and its test
+              </div>
+              <div class="sig">
+                <b>ONE CHECK</b>a single named verification proves it
+              </div>
+              <div class="sig">
+                <b>ONE REVERT</b>one <code>git revert</code>, tree still builds
+              </div>
+              <div class="sig">
+                <b>NO CONJUNCTION</b>one action — a second verb is a second
+                step; a conjoined noun (“the table and its migration”) passes
+              </div>
+            </div>
+            <div class="fork">
+              <div class="branch back">
+                <b>↻ any step fails</b>
+                Split it into 2–4 children, renumber, and gauge again
+                <i>from the top</i> — a split shifts every later number and can
+                invert a dependency.
+              </div>
+              <div class="branch out">
+                <b>✓ a pass splits nothing</b>
+                Converged. A <i>first</i> pass that splits nothing is
+                suspicious, not successful — name which signal each step passes.
+              </div>
+            </div>
+            <div class="note" style="margin-top: 0.55rem">
+              <b>The ceiling — four passes.</b> A step still failing is marked
+              <span class="name">[WILL NOT CLEAVE]</span> and reported with its
+              failing signal. Never relabelled minimum to force the loop shut: a
+              false <span class="size">minimum</span> is worse than an honest
+              <span class="size">medium</span>, because the next session trusts
+              it.
+            </div>
+          </div>
+          <div class="arrow">▼</div>
+
+          <div class="node">
+            <span class="n">STEP 5 · 6</span>
+            <div class="t">Order, tag, and sketch</div>
+            <div class="d">
+              Phases group the steps; numbers stay global so a dependency reads
+              unambiguously.
+              <code>[independent]</code> <code>[depends on N]</code>
+              <code>[blocked on Qn]</code> <br />A spec that changes screens
+              also gets <code>flow-&lt;slug&gt;.html</code> beside the concept,
+              each arrow carrying the rule that governs it — or marked unwired
+              with its question number.
+            </div>
+          </div>
+          <div class="arrow">▼</div>
+
+          <div class="node">
+            <span class="n">STEP 7 · 8</span>
+            <div class="t">Write the concept, mirror it</div>
+            <div class="d">
+              <code>docs/plans/&lt;slug&gt;.md</code> — the source of truth —
+              plus a Henneth mirror for the eye.
+            </div>
+          </div>
+          <div class="arrow">▼</div>
+
+          <div class="terminal" style="border-color: var(--green)">
+            <div class="t">
+              An engineering plan · and the deferred questions, returned
+            </div>
+            <div class="d">
+              /galadriel renders it and tracks the ticks; what step 3d could not
+              settle in session goes back to whoever wrote the spec, and any
+              step awaiting one carries
+              <span class="name">[blocked on Qn]</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="wrap">
+        <div class="panel">
+          <h2>What Rúmil refuses to carry across</h2>
+          <ul class="refuse">
+            <li>
+              <span class="x">✕</span
+              ><b>Its milestones are not your steps.</b> “M2 — sync” is a
+              fortnight of work. It may become a phase heading; it is never a
+              step.
+            </li>
+            <li>
+              <span class="x">✕</span
+              ><b>Its acceptance is not your acceptance.</b> “Feels instant”,
+              “delightful”, “works reliably” are product intent, not checks.
+            </li>
+            <li>
+              <span class="x">✕</span><b>What is not drawn is not decided.</b> A
+              screen sketched in one state has had one state designed — not all
+              of them.
+            </li>
+            <li>
+              <span class="x">✕</span
+              ><b>A contradiction is not yours to settle.</b> Both sides are
+              quoted and the question goes back.
+            </li>
+          </ul>
+          <div class="open" style="margin-top: 0.7rem">
+            Never sharpen product language into a criterion of your own
+            invention. A fabricated threshold reads as the author's decision
+            once written down, and nobody will remember it was yours.
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>The seven undrawn states</h2>
+          <table>
+            <tr>
+              <th>State</th>
+              <th>The question it asks</th>
+            </tr>
+            <tr>
+              <td><b>Empty</b></td>
+              <td>first run — what stands where content would be?</td>
+            </tr>
+            <tr>
+              <td><b>Loading</b></td>
+              <td>spinner, skeleton, or nothing?</td>
+            </tr>
+            <tr>
+              <td><b>Error</b></td>
+              <td>what is shown, and what can they do next?</td>
+            </tr>
+            <tr>
+              <td><b>Offline</b></td>
+              <td>work, degrade, or block?</td>
+            </tr>
+            <tr>
+              <td><b>Permission</b></td>
+              <td>camera or location declined — then what?</td>
+            </tr>
+            <tr>
+              <td><b>Overflow</b></td>
+              <td>longest name, hundredth row — layout holds?</td>
+            </tr>
+            <tr>
+              <td><b>Interruption</b></td>
+              <td>back mid-flow, app killed — what survives?</td>
+            </tr>
+          </table>
+          <p class="v">
+            Walked against every screen. Never answered by Rúmil — a default
+            invented here becomes an unowned decision the author never made.
+          </p>
+        </div>
+      </div>
+
+      <div class="panel full">
+        <h2>The translation, line by line</h2>
+        <table>
+          <tr>
+            <th style="width: 38%">The spec says</th>
+            <th style="width: 12%">Verdict</th>
+            <th>Becomes</th>
+          </tr>
+          <tr>
+            <td>
+              “the queue drains in capture order once the network returns”
+            </td>
+            <td><span class="badge">keeps</span></td>
+            <td class="keep">
+              An acceptance line as written — something can already fail it.
+            </td>
+          </tr>
+          <tr>
+            <td>“syncing feels instant”</td>
+            <td><span class="badge ask">question</span></td>
+            <td class="q">
+              Q3: what is the budget, and measured from which moment?
+            </td>
+          </tr>
+          <tr>
+            <td>“handles errors gracefully”</td>
+            <td><span class="badge ask">question</span></td>
+            <td class="q">Q6: which errors, and what does the user see?</td>
+          </tr>
+          <tr>
+            <td>“M2 — sync”</td>
+            <td><span class="badge phase">phase</span></td>
+            <td>
+              A <code>### Phase 2</code> heading. The steps beneath it are
+              Rúmil's to derive.
+            </td>
+          </tr>
+        </table>
+        <div class="note" style="margin-top: 0.9rem">
+          <b>The test for a question:</b> could the person who wrote the spec
+          answer it <b>without opening the codebase</b>?
+          <table style="margin-top: 0.5rem">
+            <tr>
+              <td style="width: 5rem"><span class="badge">good</span></td>
+              <td>
+                Q1: When a receipt is rejected, does the app retry on its own,
+                or wait for the courier to resubmit it?
+              </td>
+            </tr>
+            <tr>
+              <td><span class="badge ask">bad</span></td>
+              <td>
+                <code
+                  >Q1: Retry semantics for the 422 branch of
+                  ReceiptDrain.next?</code
+                >
+              </td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

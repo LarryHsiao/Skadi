@@ -1,6 +1,6 @@
 ---
 name: rumil
-description: Use when the user runs /rumil <spec> [--folder=<path>], or asks in plain words to "break this spec into tasks", "plan this out", "turn this PM/design spec into something we can build". Translates a product specification — the plan-shaped document a PM or UI designer writes, which reads like a plan but cannot be coded from — into an engineering plan under docs/plans/. Takes a text spec and its UI mockups together in one invocation, because a feature usually arrives as two documents: the text carries the rules and never draws the flow, the mockups draw the flow and never state the rules. A text spec may be an Outline wiki document read via seshat, and given only a ticket key it searches Outline and confirms the title before reading — the tracker ticket is where a human finds the links, never a spec Rúmil parses. A UI spec may be a figma.com/design URL, which is preferred over screenshots — the file is structured data, so frame names give the screen vocabulary, same-row x/y order gives the flow, slash-named components give design-system bindings, and get_variable_defs gives typography and colour as decided values rather than pixels to estimate. Wires the two to each other — every screen bound to the rule that governs it, every rule to the screen that exercises it — and raises the three findings that fall out (an orphan screen, an orphan rule, a text-versus-mock contradiction) as numbered questions, never resolving a contradiction quietly. That correspondence is written down nowhere else; today it exists only in the head of whichever engineer reads both. Binds every product noun to a real file:line, refuses to carry the spec's milestones across as steps, turns product acceptance nothing can fail ("feels instant") into a numbered question rather than an invented threshold, and walks a checklist of the states designers leave undrawn (empty, loading, error, offline, permission, overflow, interruption). Questions are written so their author can answer them without opening the codebase, and are put to the user in session via AskUserQuestion — answered or explicitly deferred — before the plan is written; a step awaiting a deferred one carries [blocked on Qn]. Names the Purpose and the Acceptance criteria, then sifts the work through a repeating loop: gauge every step against four objective signals (one seam, one check, one revert, no conjunction), split whatever fails, renumber, and gauge again from the top until nothing above minimum remains or four passes elapse. Steps gather under phase headings, carry global numbers, and declare [independent] / [depends on N]. A spec that changes screens also gets a UI flow rendered as docs/plans/flow-<slug>.html, which /galadriel inlines beside the plan. Writes plans only — never code, never commits, never a PR.
+description: Use when the user runs /rumil <spec> [--folder=<path>], or asks in plain words to "break this spec into tasks", "turn this PM/design spec into something we can build". Translates a product specification — the plan-shaped document a PM or designer writes, which reads like a plan but cannot be coded from — into an engineering plan under docs/plans/. Takes a text spec and its UI mockups together: the text carries the rules, the mockups the flow. A text spec may be an Outline wiki page read via seshat; a UI spec may be a figma.com/design URL, preferred over screenshots for being structured data. Wires the two to each other — every screen bound to the rule that governs it — and raises what falls out (orphan screen, orphan rule, text-versus-mock contradiction) as numbered questions, never settling a contradiction quietly. Binds every product noun to a real file:line, refuses to carry the spec's milestones across as steps, turns product acceptance nothing can fail ("feels instant") into a question rather than an invented threshold, and walks the states left undrawn (empty, loading, error, offline, permission, overflow, interruption). Puts every question to the user in session via AskUserQuestion — answered or deferred — before the plan is written. Sifts every step against four signals (one seam, one check, one revert, no conjunction), splitting until nothing above minimum remains. Writes plans only — never code, never commits, never a PR.
 purpose: Translates a product spec and its UI mockups into an engineering plan.
 user_invocable: true
 ---
@@ -22,6 +22,8 @@ Rúmil authors. `/galadriel` renders what he writes. The two compose: the concep
 | **Land** | [7](#7-write-the-concept) · [8](#8-mirror-and-report) | write the concept, mirror it, report the findings |
 
 Reference, read on demand: **`sources.md`** (how to read an Outline or Figma URL — read it before step 1 touches either) · **`format.md`** (the output shape — read it before writing a concept) · [The refine round](#the-refine-round) · [Rules](#rules).
+
+The same road as one drawn page is the handbook's chapter IV, `handbook/rumil-flow.html` — open it with `./handbook.sh`. It is a poster for the eye, not a source: when the road below changes, that page changes with it.
 
 ## Argument parsing
 
@@ -181,7 +183,7 @@ A step reads **▰▱▱ minimum** only when **all four** signals hold:
 | **One seam** | It touches one file, or one file and its test. Two production files is two steps. |
 | **One check** | A single named verification proves it — one test run, one command, one page rendered. |
 | **One revert** | One `git revert` undoes it and leaves the tree building. |
-| **No conjunction** | Its own description carries no "and", no "then", no comma-joined second verb. |
+| **No conjunction** | Its description names **one action**. A second verb — "and write", "then render", a comma-joined clause — is a second step. The token "and" is not itself the fault: a conjoined *noun* that ships in the same edit and reverts with it ("the table and its migration") passes. |
 
 A step failing any signal is not minimum, however small it feels.
 
@@ -196,6 +198,8 @@ A step failing any signal is not minimum, however small it feels.
    | 1 | Add the ReceiptQueue table and its migration | ▰▱▱ | — |
    | 2 | Write enqueue and drain with tests           | ▰▰▱ | conjunction; two seams |
    ```
+
+   Row 1 passes the two signals a reader might doubt it on: the migration *is* the table's definition — one file, one revert — and "and its migration" conjoins a noun, not a second action. Row 2 fails both: `enqueue` and `drain` are two actions, in two seams.
 
    The table is not decoration. A loop whose working is invisible converges on whatever the author already believed; showing every verdict is what makes the sift auditable.
 3. Split each failing step into two to four children, each a candidate step for the next pass.
