@@ -96,14 +96,11 @@ ANSWERED_MARK = "Your questions have been answered"
 
 
 def _tool_results(message):
-    """The tool results a user turn carries, as {is_error, text, tool_use_id}.
-    _turn_text keeps prose only, so a turn that is purely a tool result reads
-    as empty — but the plan-gate scorer must tell an answered AskUserQuestion
-    from a rejected one, and only the result block says which. The text is
-    clipped: the marker that decides it stands at the front. tool_use_id lets
-    _tool_result_for pair a Bash call with its own answer inside a turn that
-    ran several tools at once; a Codex-translated block carries none (see
-    _codex_tool_result)."""
+    """The tool results a user turn carries, as {is_error, text}. _turn_text
+    keeps prose only, so a turn that is purely a tool result reads as empty —
+    but the plan-gate scorer must tell an answered AskUserQuestion from a
+    rejected one, and only the result block says which. The text is clipped:
+    the marker that decides it stands at the front."""
     if not isinstance(message, dict):
         return []
     content = message.get("content")
@@ -116,24 +113,22 @@ def _tool_results(message):
         body = block.get("content")
         text = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
         results.append({"is_error": bool(block.get("is_error")),
-                        "text": text[:TOOL_RESULT_KEEP],
-                        "tool_use_id": block.get("tool_use_id")})
+                        "text": text[:TOOL_RESULT_KEEP]})
     return results
 
 
 def _bash_commands(message):
-    """The Bash tool_use blocks of an assistant turn, as {id, command}. The
-    tool name 'Bash' alone doesn't say whether it mutated anything (git status
-    vs. git commit), so the command text is what _mutates actually judges. id
-    pairs a call with its answering tool_result via _tool_result_for; a
-    Codex-translated block carries none (see _codex_tool)."""
+    """The shell command text of any Bash tool_use blocks in an assistant turn.
+    The tool name 'Bash' alone doesn't say whether it mutated anything (git
+    status vs. git commit), so the command text is what _mutates actually
+    judges."""
     if not isinstance(message, dict):
         return []
     content = message.get("content")
     if not isinstance(content, list):
         return []
     return [
-        {"id": b.get("id"), "command": b.get("input", {}).get("command", "")}
+        b.get("input", {}).get("command", "")
         for b in content
         if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") == "Bash"
     ]
@@ -475,63 +470,6 @@ def score_grammar(turns, entry):
     return applied, complied, by_model
 
 
-def _tool_result_for(turns, i, call_id):
-    """The tool_result answering the Bash call turns[i] issued — results
-    always land in the turn immediately following the call that made them.
-    Matched by tool_use_id when the call carries one (every real Claude
-    block does), since a turn that ran several tools at once — Bash beside a
-    Read, say — mixes their results into one list where position no longer
-    lines up with the call. A Codex-translated call carries no id, but a
-    Codex turn holds exactly one tool each, so its lone id-less result needs
-    no id to disambiguate. Returns None — excluded rather than guessed —
-    when the id doesn't resolve or the shape doesn't match either case."""
-    if i + 1 >= len(turns) or turns[i + 1]["type"] != "user":
-        return None
-    results = turns[i + 1]["tool_results"]
-    if call_id:
-        for result in results:
-            if result.get("tool_use_id") == call_id:
-                return result
-        return None
-    return results[0] if len(results) == 1 else None
-
-
-def score_verify(turns, entry):
-    """applied = Bash calls whose command matches entry['match'] (the test- or
-    lint-runner classifier this row is scoped to — the pattern lives on the
-    rubric entry, not a Python constant, so pulse-rubric.json stays the one
-    place that defines what counts as a test or lint run); complied = the
-    ones whose answering tool_result carries no error. A direct exit-code
-    read, not a judgment call — the only scorer that earns the
-    'deterministic' tier rather than 'heuristic'. A call whose result
-    _tool_result_for can't pin down is excluded from both sides rather than
-    guessed at, same discipline as review.recovered's unjudged count. A
-    compound command running both checks in one Bash call (`npm run lint &&
-    npm test`) reads as one applied instance under each row it matches, both
-    scored by that single shared exit code — a known imprecision of scoring
-    at the command-classifier level rather than parsing the shell. by_model
-    credits the model that issued the call, not the run it sat inside."""
-    match_re = re.compile(entry["match"])
-    applied = 0
-    complied = 0
-    by_model = {}
-    for i, turn in enumerate(turns):
-        if turn["type"] != "assistant":
-            continue
-        for call in turn.get("bash_commands", []):
-            if not match_re.search(call["command"]):
-                continue
-            result = _tool_result_for(turns, i, call.get("id"))
-            if result is None:
-                continue
-            applied += 1
-            ok = not result["is_error"]
-            if ok:
-                complied += 1
-            _bump_model(by_model, _real_model(turn.get("model")), ok)
-    return applied, complied, by_model
-
-
 _MUTATING_BASH_RE = re.compile(
     r"\bgit\s+(commit|push|add|merge|rebase|reset|clean|checkout\s+-b)\b"
     r"|\b(rm|mkdir|mv|cp|touch|chmod|chown)\s"
@@ -552,7 +490,7 @@ def _mutates(turn):
         return False
     if any(name in ("Edit", "Write") for name in turn.get("tools", [])):
         return True
-    return any(_MUTATING_BASH_RE.search(call["command"]) for call in turn.get("bash_commands", []))
+    return any(_MUTATING_BASH_RE.search(cmd) for cmd in turn.get("bash_commands", []))
 
 
 def _gate_complies(gate, complied_re, pre_text):
@@ -1578,7 +1516,7 @@ def apply_rubric(files, rubric):
                "review-verdict": score_review_verdict,
                "review-recovered": score_review_recovered,
                "task-shot": score_task_shot, "plan-gate": score_plan_gate,
-               "bug-gate": score_bug_gate, "verify": score_verify}
+               "bug-gate": score_bug_gate}
     sessions = [read_turns(f) for f in files]
     session_is_sweep = [_is_sweep_session(turns) for turns in sessions]
     if any(entry["kind"] == "plan-gate" for entry in rubric):
