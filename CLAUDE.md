@@ -53,6 +53,14 @@ A question bearing no verdict — open design talk, a request to explore options
 
 This governs the *shape* of a reply, not its register: the cadence of `Tone` still holds, but it builds beneath the verdict, never in front of it.
 
+## Markdown Emphasis
+
+Chat output renders as plain CommonMark in a monospace terminal — no ANSI color passthrough. When a reply presents a plan, a result set, a findings list, or a status rundown, use markdown structure to differentiate items instead of color: **bold** for the key term or verdict, `code spans` for identifiers and state words, blockquotes for callouts, tables for parallel fields, task-list checkboxes, priority tags (`**[BLOCKER]**`), nested bullets for compound items, collapsible `<details>` for long output (stack traces, logs), definition-style bullets for term/description pairs.
+
+No emoji as status markers (✅⏳⬜) — that collides with the standing no-emoji-unless-asked rule (`Tone`, `docs/style/general.md`). Use plain-text state words in code spans instead: `[DONE]`, `[IN PROGRESS]`, `[TODO]`, `[BLOCKER]`.
+
+Governs ordinary chat prose only. Artifacts may use full CSS color per the Artifact tool's own rules.
+
 ## Free-Form Gate (Task Sizing · Acceptance · Change Approval)
 
 Applies when a turn will modify files or run mutating commands **with no slash-invoked skill frame**. A slash invocation is itself approval for that skill's declared purpose — skills carrying their own confirm step (`/commit`, `/reset`, `/cleanup-dev`) keep it, no outer gate added. Read-only turns are exempt. Session-level opt-out ("just do it", "skip the summary") disables the gate for the session. Plan mode on or off makes no difference.
