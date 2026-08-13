@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Use when the user runs /handoff send <channel> [message], /handoff read <channel> [--older-than <Nd>], /handoff list, /handoff subscribe <channel>, or /handoff clear <channel> [--older-than <Nd>] [--all]. An async file mailbox between Claude Code sessions — one session leaves a message (or a whole context baton) on a named channel, another reads it on demand or subscribes for live auto-pickup. No server. Messages live under ~/.skadi/handoff/. `clear` with no flag prunes messages older than 3 days by default; `--all` wipes the channel outright.
+description: Use when the user runs /handoff send <channel> [message], /handoff read <channel> [--older-than <Nd>], /handoff list, /handoff subscribe <channel>, or /handoff clear <channel> [--older-than <Nd>] [--all]. An async file mailbox between Claude Code sessions — one session leaves a message (or a whole context baton) on a named channel, another reads it on demand or subscribes for live auto-pickup. No server. Messages live under ~/.skadi/handoff/. `clear` with no flag prunes messages older than 3 days by default and `--all` wipes the channel outright, but neither unlinks anything until the user has confirmed — the hook refuses without `--confirm`.
 purpose: An async file mailbox for handing context or messages between Claude Code sessions.
 user_invocable: true
 ---
@@ -56,6 +56,9 @@ the verbs and, in baton mode, composes the body.
 - `clear <channel> [--older-than <Nd>] [--all]` → prune a channel's messages
   (confirm first). No flag prunes anything older than 3 days; `--older-than`
   overrides that cutoff; `--all` bypasses age entirely and wipes the channel.
+  The hook refuses to unlink anything without `--confirm`, which this skill
+  passes only after the user's yes — so a skipped confirmation removes nothing
+  rather than trusting the caller to have asked.
 
 The sender tag (`from`) defaults to a short slice of this session's id; pass
 `--from <label>` anywhere in a `send` to override it with a human name
@@ -213,7 +216,10 @@ to open one.
 A channel's messages are append-only and persist until cleared — `read` never
 consumes them. This verb prunes a channel. It is destructive, so it carries its
 own confirm gate (like `/commit` and `/reset`), and it always previews first so
-the confirm names an exact count, never a guess:
+the confirm names an exact count, never a guess. The gate is enforced by the
+hook, not merely described here: a session once read these steps and cleared six
+channels without asking, so `--confirm` is now the only thing that unlinks a
+message.
 
 1. Resolve the cutoff: `--older-than <Nd>` if the user named one, else the
    3-day default, unless `--all` was named (no cutoff at all — everything goes).
@@ -231,10 +237,11 @@ the confirm names an exact count, never a guess:
    cutoff (or "all messages" for `--all`), and the exact count from step 2. On
    **no**, stop and change nothing.
 
-4. On **yes**, clear it:
+4. On **yes**, clear it — `--confirm` is what carries the user's word to the
+   hook, and without it the hook removes nothing:
 
    ```bash
-   ~/.claude/hooks/handoff.sh clear <channel> [--older-than <Nd-or-default>] [--all]
+   ~/.claude/hooks/handoff.sh clear <channel> [--older-than <Nd-or-default>] [--all] --confirm
    ```
 
    Relay the hook's one-line confirmation (`pruned '<channel>' (N of M

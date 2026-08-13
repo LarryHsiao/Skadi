@@ -94,7 +94,7 @@ check "channel sanitized to lower + _" "feat_foo_bar	1" \
 #    unconditional wipe, now explicit; list no longer shows it, read notices.
 printf 'bye' | "$HOOK" send temp >/dev/null
 expected_clear="cleared 'temp' (1 message(s) removed)"
-check "clear --all reports count removed" "$expected_clear" "$("$HOOK" clear temp --all)"
+check "clear --all reports count removed" "$expected_clear" "$("$HOOK" clear temp --all --confirm)"
 check "cleared channel gone from list" "" "$("$HOOK" list | grep '^temp' || true)"
 check "cleared channel read shows notice" "no messages in channel 'temp'" \
   "$("$HOOK" read temp)"
@@ -107,10 +107,10 @@ check "clear missing channel notice" "$expected_missing" "$("$HOOK" clear ghost)
 #    freshly-sent message survives, the channel stays listed.
 printf 'fresh' | "$HOOK" send prune-fresh >/dev/null
 expected_prune_fresh="pruned 'prune-fresh' (0 of 1 message(s) removed, older than 3d)"
-check "default clear keeps a fresh message" "$expected_prune_fresh" "$("$HOOK" clear prune-fresh)"
+check "default clear keeps a fresh message" "$expected_prune_fresh" "$("$HOOK" clear prune-fresh --confirm)"
 check "fresh channel still listed" "prune-fresh	1" \
   "$("$HOOK" list | grep '^prune-fresh' | cut -f1,2)"
-"$HOOK" clear prune-fresh --all >/dev/null
+"$HOOK" clear prune-fresh --all --confirm >/dev/null
 
 # 9. A channel with one ancient message and one fresh one: read --older-than
 #    previews just the old one, then a default clear removes only that one.
@@ -120,15 +120,15 @@ check "read --older-than previews only the old message" "from: archivist" \
   "$("$HOOK" read prune-mixed --older-than 1d | grep '^from:')"
 expected_prune_mixed="pruned 'prune-mixed' (1 of 2 message(s) removed, older than 3d)"
 check "default clear removes only the old message" "$expected_prune_mixed" \
-  "$("$HOOK" clear prune-mixed)"
+  "$("$HOOK" clear prune-mixed --confirm)"
 check "the fresh message survives" "from: author" \
   "$("$HOOK" read prune-mixed | grep '^from:')"
-"$HOOK" clear prune-mixed --all >/dev/null
+"$HOOK" clear prune-mixed --all --confirm >/dev/null
 
 # 10. When every message in the channel is older than the cutoff, the emptied
 #     channel directory is dropped too — no ghost 0-message channel in list.
 mk_old_message prune-all-old 30 archivist "gone"
-"$HOOK" clear prune-all-old >/dev/null
+"$HOOK" clear prune-all-old --confirm >/dev/null
 check "fully-pruned channel dropped from list" "" \
   "$("$HOOK" list | grep '^prune-all-old' || true)"
 
@@ -136,10 +136,10 @@ check "fully-pruned channel dropped from list" "" \
 mk_old_message prune-override 2 archivist "two days old"
 expected_no_default="pruned 'prune-override' (0 of 1 message(s) removed, older than 3d)"
 check "2-day-old message survives the 3d default" "$expected_no_default" \
-  "$("$HOOK" clear prune-override)"
+  "$("$HOOK" clear prune-override --confirm)"
 expected_override="pruned 'prune-override' (1 of 1 message(s) removed, older than 1d)"
 check "--older-than 1d overrides the default and removes it" "$expected_override" \
-  "$("$HOOK" clear prune-override --older-than 1d)"
+  "$("$HOOK" clear prune-override --older-than 1d --confirm)"
 
 # 12. --all and --older-than are mutually exclusive.
 printf 'x' | "$HOOK" send prune-conflict >/dev/null
@@ -147,7 +147,7 @@ out="$("$HOOK" clear prune-conflict --all --older-than 1d 2>&1)"; code=$?
 check "mutually exclusive flags exit 2" "2" "$code"
 check "mutually exclusive flags message" \
   "usage: handoff.sh clear: --all and --older-than are mutually exclusive" "$out"
-"$HOOK" clear prune-conflict --all >/dev/null
+"$HOOK" clear prune-conflict --all --confirm >/dev/null
 
 # 13. a malformed --older-than value is a usage error, not a numeric crash.
 printf 'x' | "$HOOK" send prune-badarg >/dev/null
@@ -155,14 +155,14 @@ out="$("$HOOK" clear prune-badarg --older-than 30 2>&1)"; code=$?
 check "bad --older-than value exits 2" "2" "$code"
 check "bad --older-than value message" \
   "usage: handoff.sh clear: --older-than wants '<N>d' (e.g. 30d)" "$out"
-"$HOOK" clear prune-badarg --all >/dev/null
+"$HOOK" clear prune-badarg --all --confirm >/dev/null
 
 # 14. read --older-than with nothing that old reports the age-specific notice.
 printf 'x' | "$HOOK" send prune-readnotice >/dev/null
 check "read --older-than notice when nothing matches" \
   "no messages older than 30d in channel 'prune-readnotice'" \
   "$("$HOOK" read prune-readnotice --older-than 30d)"
-"$HOOK" clear prune-readnotice --all >/dev/null
+"$HOOK" clear prune-readnotice --all --confirm >/dev/null
 
 # 15. Pickup consumes: a message poll prints is removed from the channel, so a
 #     second poll by the same session finds nothing left to show.
@@ -192,12 +192,39 @@ check "own echo is not shown" "" "$("$HOOK" poll --session "$SUB_C")"
 expected_kept="1"
 check "own echo survives the poll" "$expected_kept" \
   "$(message_count "$HANDOFF_ROOT/echoes")"
-"$HOOK" clear echoes --all >/dev/null
+"$HOOK" clear echoes --all --confirm >/dev/null
 
 # 18. A channel emptied by pickup leaves no ghost 0-message entry in list —
 #     the same guarantee clear's prune already makes (test 10).
 check "channel emptied by pickup dropped from list" "" \
   "$("$HOOK" list | grep '^queue' || true)"
+
+# 19. The confirm gate: without --confirm, clear removes nothing and says so.
+#     The skill's prose already asked for a confirmation and a model walked
+#     past it, so the refusal lives here, where reasoning cannot reach it.
+printf 'precious' | "$HOOK" send guarded >/dev/null
+out="$("$HOOK" clear guarded --all 2>&1)"; code=$?
+check "unconfirmed --all exits 2" "2" "$code"
+check "unconfirmed --all names what it would remove" \
+  "would clear 'guarded' (1 message(s)) — nothing removed" \
+  "$(printf '%s' "$out" | head -1)"
+check "unconfirmed --all removes nothing" "guarded	1" \
+  "$("$HOOK" list | grep '^guarded	' | cut -f1,2)"
+
+mk_old_message guarded-prune 30 archivist "old"
+out="$("$HOOK" clear guarded-prune 2>&1)"; code=$?
+check "unconfirmed prune exits 2" "2" "$code"
+check "unconfirmed prune names what it would remove" \
+  "would prune 'guarded-prune' (1 of 1 message(s), older than 3d) — nothing removed" \
+  "$(printf '%s' "$out" | head -1)"
+check "unconfirmed prune removes nothing" "guarded-prune	1" \
+  "$("$HOOK" list | grep '^guarded-prune' | cut -f1,2)"
+
+# A missing channel needs no confirmation — there is nothing to lose.
+check "missing channel needs no confirm" "no such channel 'ghost2'" "$("$HOOK" clear ghost2)"
+
+"$HOOK" clear guarded --all --confirm >/dev/null
+"$HOOK" clear guarded-prune --all --confirm >/dev/null
 
 # Note: baton mode (/handoff send <channel> with no message) is the SKILL's
 # job — it composes the body and pipes it to `send`, which this suite already

@@ -9,17 +9,20 @@
 #   handoff.sh send <channel> [--from <label>] [--session <id>]  # body on stdin
 #   handoff.sh read <channel> [--older-than <Nd>]  # print thread, oldest -> newest
 #   handoff.sh list                              # channels: name<TAB>count<TAB>last
-#   handoff.sh clear <channel> [--older-than <Nd>] [--all]  # prune/remove messages
+#   handoff.sh clear <channel> [--older-than <Nd>] [--all] --confirm  # prune/remove
 #   handoff.sh subscribe <channel> [--from <label>] [--session <id>]  # watch it
 #   handoff.sh poll [--session <id>]             # print new, non-self messages on
 #                                                # subscribed channels, deleting each
 #                                                # one it prints; advance cursors
 #
-# `clear` deletes without prompting — the confirm gate is the caller's (skill's)
-# job, matching how /commit and /reset guard destructive acts. With no flag it
-# prunes messages older than DEFAULT_PRUNE_DAYS; `--older-than <Nd>` overrides
-# the cutoff, `--all` bypasses age entirely and wipes the whole channel (the
-# hook's original, unconditional behavior).
+# `clear` unlinks nothing without `--confirm`: it names the exact count it
+# would remove, says nothing was removed, and exits 2. The gate lives here
+# rather than in the skill's prose because prose is what a model reasons past —
+# a session once read the skill's confirm step and cleared six channels anyway.
+# With no age flag it prunes messages older than DEFAULT_PRUNE_DAYS;
+# `--older-than <Nd>` overrides the cutoff, `--all` bypasses age entirely and
+# wipes the whole channel. A channel that does not exist needs no confirmation:
+# there is nothing to lose.
 #
 # A session's identity (`from`) is: explicit --from > its subscribe profile's
 # from > the first 8 chars of its session id > "unknown". Subscriptions live in
@@ -222,16 +225,17 @@ cmd_list() {
 }
 
 cmd_clear() {
-  local channel="" older="" all=0
+  local channel="" older="" all=0 confirm=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --all) all=1; shift ;;
+      --confirm) confirm=1; shift ;;
       --older-than) older="${2:-}"; shift 2 ;;
       --older-than=*) older="${1#--older-than=}"; shift ;;
       *) [ -z "$channel" ] && channel="$1"; shift ;;
     esac
   done
-  [ -n "$channel" ] || { echo "usage: handoff.sh clear <channel> [--older-than <Nd>] [--all]" >&2; exit 2; }
+  [ -n "$channel" ] || { echo "usage: handoff.sh clear <channel> [--older-than <Nd>] [--all] --confirm" >&2; exit 2; }
   if [ "$all" -eq 1 ] && [ -n "$older" ]; then
     echo "usage: handoff.sh clear: --all and --older-than are mutually exclusive" >&2
     exit 2
@@ -249,6 +253,11 @@ cmd_clear() {
     for f in "$dir"/*.md; do
       count=$((count + 1))
     done
+    if [ "$confirm" -eq 0 ]; then
+      echo "would clear '$channel' ($count message(s)) — nothing removed"
+      echo "handoff.sh clear: pass --confirm to remove them" >&2
+      exit 2
+    fi
     rm -rf "$dir"
     echo "cleared '$channel' ($count message(s) removed)"
     return 0
@@ -261,10 +270,24 @@ cmd_clear() {
   else
     days="$DEFAULT_PRUNE_DAYS"
   fi
-  local cutoff total=0 removed=0 f base
+  # Count what the cutoff catches before unlinking any of it, so the refusal
+  # below can name an exact number rather than a guess — and so a run without
+  # --confirm touches nothing at all.
+  local cutoff total=0 matched=0 removed=0 f base
   cutoff="$(cutoff_fname "$days")"
   for f in "$dir"/*.md; do
     total=$((total + 1))
+    base="$(basename "$f")"
+    if [[ "$base" < "$cutoff" ]]; then
+      matched=$((matched + 1))
+    fi
+  done
+  if [ "$confirm" -eq 0 ]; then
+    echo "would prune '$channel' ($matched of $total message(s), older than ${days}d) — nothing removed"
+    echo "handoff.sh clear: pass --confirm to remove them" >&2
+    exit 2
+  fi
+  for f in "$dir"/*.md; do
     base="$(basename "$f")"
     if [[ "$base" < "$cutoff" ]]; then
       rm -f "$f"
@@ -402,7 +425,9 @@ usage:
   handoff.sh send <channel> [--from <label>]   # message body on stdin
   handoff.sh read <channel> [--older-than <Nd>]
   handoff.sh list
-  handoff.sh clear <channel> [--older-than <Nd>] [--all]
+  handoff.sh clear <channel> [--older-than <Nd>] [--all] --confirm
+                                 # without --confirm it names the count,
+                                 # removes nothing, and exits 2
   handoff.sh subscribe <channel> [--from <label>]
   handoff.sh poll [--session <id>]
 EOF
