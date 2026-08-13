@@ -32,14 +32,15 @@ renderer = repo / "hooks" / "render-codex-skill.py"
 root.mkdir(parents=True, exist_ok=True)
 
 
-def rendered_text(source: Path) -> str:
+def rendered_text(source: Path, *, json_safe: bool = False) -> str:
     text = source.read_text(encoding="utf-8")
     home = str(Path.home())
+    root_str = str(root).replace("\\", "\\\\") if json_safe else str(root)
     replacements = (
         ("~/.claude-personal", f"{home}/.codex-personal"),
         ("~/.claude-work", f"{home}/.codex-work"),
-        ("~/.claude", str(root)),
-        ("{{CODEX_ROOT}}", str(root)),
+        ("~/.claude", root_str),
+        ("{{CODEX_ROOT}}", root_str),
         ("{{SKADI_PROFILE}}", profile),
     )
     for old, new in replacements:
@@ -86,7 +87,7 @@ def merge_agents() -> None:
 
 def merge_hooks() -> None:
     destination = root / "hooks.json"
-    source = json.loads(rendered_text(repo / "codex" / "hooks.json"))
+    source = json.loads(rendered_text(repo / "codex" / "hooks.json", json_safe=True))
     if destination.exists():
         try:
             current = json.loads(destination.read_text(encoding="utf-8"))
