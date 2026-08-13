@@ -56,7 +56,7 @@ Composed over those stages, not before them: **`/anduin`** rides plan and forge 
 
 - **Grammar check** — Every user message is silently checked for grammar and phrasing. If anything's off, a single corrected line is appended to the response with the changed tokens bolded on both sides (e.g. `"should **i** go?"` → `"should **I** go?"`). A counter hook tallies corrections per session so trends stay visible.
 - **Tolkien narrator tone** — Measured cadence, a touch formal, a storyteller's weight. Tight sentences; no breathless filler, no hype.
-- **Free-form gate** — Every free-form mutating turn opens with one block — a three-tier size gauge (reach, depth, reversibility), acceptance outcomes, and a change summary — then waits for the user's word; slash-invoked skills run straight through. A `gate-reminder.sh` hook re-injects the gate with every prompt so lower-tier models hold to it.
+- **Free-form gate** — Every free-form mutating turn opens with one four-field block — a three-tier size gauge (reach, depth, reversibility), acceptance outcomes, the non-goals a diff must not cross, and a change summary — then waits for the user's word; slash-invoked skills run straight through, and read-only turns are exempt. A `gate-reminder.sh` hook re-injects the gate with every prompt so lower-tier models hold to it. See [The work loop](#the-work-loop).
 - **Multi-root install** — `/install` updates every Claude/Codex pair in
   `~/.skadi/install/roots.tsv`; the first `--all` install registers the default,
   personal, and work pairs.
@@ -195,6 +195,39 @@ installed workflow as `$name`.
 - **skadi-worktree**, **worktree-guard** — Create or enter an isolated git worktree and block strays outside it
 - **protected-repo-guard** — Block writes and commits against protected repositories
 - **daily-mark-run**, **triage-mark-run** — Record the last-run timestamp for `/daily` and `/triage`
+
+## The work loop
+
+Every free-form task runs the same eight stages. The gate at stage 3 is the only
+one that waits for a human; the rest are the model's own discipline, re-injected
+each turn by `gate-reminder.sh` and `compliance-review-reminder.sh` so a
+lower-tier model cannot quietly drop them. Chapter I of the handbook
+(`./handbook.sh`) tells it at length.
+
+```mermaid
+graph TD
+    A["1 · gauge<br/>reach · depth · reversibility"] --> B["2 · acceptance<br/>observable outcomes, not actions"]
+    B --> C{"3 · the gate<br/>await the user's word"}
+    C -->|"approved"| D["4 · previews<br/>wireframe first, both data states"]
+    C -->|"no gate owed: read-only · slash-invoked"| D
+    D --> E["5 · implementation loop<br/>one step, one named verification"]
+    E -->|"diverges → the code"| E
+    E -->|"outgrew its gauge"| A
+    E --> F["6 · compliance review<br/>spec compliance, then code quality"]
+    F -->|"findings first"| E
+    F --> G["7 · fresh verification<br/>run it again, in this turn"]
+    G --> H(["8 · done — completed · deferred · uncertain"])
+```
+
+A session-level opt-out (“just do it”) stands down both the gate and the
+previews for that session; a read-only turn or a slash-invoked skill skips only
+the waiting, not the sketch.
+
+Three edges carry the weight. A step that outgrows its gauge goes **back to the
+gauge**, not onward — the word given covers the work described, not what it
+became. A verification that diverges returns to **the code**, never to a bent
+test. And a review finding is mended **before** the fresh run, so the evidence a
+report cites comes from the same turn as the claim it backs.
 
 ## Skeleton-stage pipeline
 
