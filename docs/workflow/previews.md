@@ -28,6 +28,18 @@ When a change touches UI layout (a new screen, a rearranged panel, a rethought c
 
 **Fallback.** A console sketch in Unicode box-drawing (ASCII) inline.
 
+## Choice Preview
+
+When a choice is put to the user — through `AskUserQuestion` or otherwise — render the candidates as an HTML page under the previews directory per the Local Preview rules above, so the eye can weigh them before the answer is given. Every choice earns this, not only the ones that are visually comparative; a two-word either/or still gets a page, kept short rather than skipped.
+
+**Filename and grouping.** `choice-<topic>.html`, with a sidecar `choice-<topic>.json` carrying `{"group": "choices"}` (see SKILL.md's *Artifact labels* and *Grouping* sections). The shared `group` clusters every choice page under one collapsible heading in the sidebar, so they sweep out together via Select → Delete rather than scattering across per-session groups under the `henneth-group.py` fallback.
+
+**Page shape.** One card per candidate, laid out side by side, each headed by the option's label with its substance beneath: a rendered wireframe for a layout choice, a highlighted code block (per SKILL.md's *Presenting code* rules) for a code choice, plain prose for a plain choice.
+
+**The picker carries no `preview`.** Keep `AskUserQuestion` options to `label` and `description` only — the visual comparison happens on the page, not in the terminal's monospace box. Name the Henneth URL in the question text so the eye knows where to look.
+
+**Fallback.** If the render cannot be written or Henneth cannot be reached, ask in chat as before and say plainly that the preview is absent — the absent window must never block the question.
+
 ## Plan Preview
 
 When a plan is generated — a task breakdown, an implementation plan, plan-mode output — whether it lands in markdown or only in the console, also write it as an HTML page under the previews directory per the Local Preview rules (`plan-<topic>.html`), so it appears in the standing Henneth window. The chat or markdown copy stays the source of truth; the HTML is a mirror for the eye.
