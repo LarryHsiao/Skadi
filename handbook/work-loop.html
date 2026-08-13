@@ -112,7 +112,6 @@
         <div class="panel">
           <h2>
             <span class="num">2.</span> Acceptance
-            <span class="new-tag">NEW</span>
           </h2>
           Name what <i>done</i> looks like — two or three
           <b>observable outcomes</b>, phrased as outcomes not actions, rendered
@@ -141,14 +140,31 @@
           </h2>
           <ul class="tight">
             <li>
-              <b>Free-form work</b> → lay out the summary (files, intent,
-              acceptance), then <b>await the user’s word</b>.
+              <b>Free-form work</b> → render the four-field block below, then
+              <b>await the user’s word</b>.
             </li>
             <li>
               <b>Slash-invoked skill</b> → the invocation <i>is</i> the word;
-              run it.
+              run it. Skills carrying their own confirm step keep it; no outer
+              gate is added.
+            </li>
+            <li>
+              <b>Read-only turns are exempt</b>, and a session-level opt-out
+              (“just do it”) disables the gate for the session. Plan mode makes
+              no difference either way.
             </li>
           </ul>
+          <pre class="prec">
+Size ▰▱▱|▰▰▱|▰▰▰ &lt;minimum|medium|heavy&gt; — &lt;one-line why&gt;
+Acceptance:
+- &lt;observable outcome&gt; (or: none — internal change)
+Non-goals: &lt;what this turn will deliberately not touch&gt; (or: none)
+Changes: &lt;files and intent, one line&gt;</pre>
+          <span class="small"
+            ><b>Non-goals</b> is a field, not a flourish: it is the line the
+            Compliance Review reads as the one a diff must not cross. Write
+            <span class="name">none</span> when scope is unambiguous.</span
+          >
         </div>
       </div>
       <div class="arrow">↓</div>
@@ -156,7 +172,35 @@
       <!-- 4 -->
       <div class="stage">
         <div class="panel">
-          <h2><span class="num">4.</span> Implementation Loop</h2>
+          <h2><span class="num">4.</span> Previews</h2>
+          Before the code, the picture — rendered into the standing
+          <span class="name">/henneth</span> window.
+          <ul class="tight">
+            <li>
+              <b>A UI change</b> → a wireframe first, in <b>both data states</b>
+              — populated and empty — one sketch per concern.
+            </li>
+            <li>
+              <b>A UML concern</b> (class, sequence, state, ER) → one diagram
+              each; no data states.
+            </li>
+            <li>
+              <b>Any generated plan</b> → mirrored as
+              <span class="name">plan-&lt;topic&gt;.html</span>; the chat or
+              markdown copy stays the source of truth.
+            </li>
+          </ul>
+          <span class="small"
+            >The same session-level opt-out as the gate applies.</span
+          >
+        </div>
+      </div>
+      <div class="arrow">↓</div>
+
+      <!-- 5 -->
+      <div class="stage">
+        <div class="panel">
+          <h2><span class="num">5.</span> Implementation Loop</h2>
           Work the steps in order.
           <b
             >Each step is closed by a named verification before the next
@@ -165,7 +209,24 @@
           <ul class="tight">
             <li>
               Name the verification path <i>before</i> the step, so success and
-              failure are recognizable.
+              failure are recognizable. Where it cannot be automated — a
+              wireframe to eye, a tone to feel — <b>say so</b> and describe the
+              manual check standing in its place.
+            </li>
+            <li>
+              <b>Steps are cut in layers, not slabs.</b> The first builds the
+              smallest thing that works end to end; each after it adds one
+              capability atop something that already runs. Never trade a working
+              product for unfinished complexity.
+            </li>
+            <li>
+              A step belonging to a <span class="name">/galadriel</span> plan
+              concept is ticked <i>in place</i> as it moves —
+              <span class="name">- [ ]</span> →
+              <span class="name">- [~]</span> before it begins,
+              <span class="name">- [x]</span> with its
+              <span class="name">&lt;!-- sha: … --&gt;</span> once verification
+              closes it.
             </li>
             <li>
               Step grew heavier than its gauge? Stop, re-gauge, re-summarize,
@@ -175,7 +236,21 @@
               <b>Heavy</b> tasks: a per-step Compliance audit fires after each
               step clears.
             </li>
+            <li>
+              Context nearing its end mid-task? Write the baton to a
+              <span class="name">/handoff</span> channel named for the repo
+              <i>before anything else</i>.
+            </li>
           </ul>
+          <div class="prec">
+            set -o pipefail; flutter analyze 2>&amp;1 | tail -6
+          </div>
+          <span class="small"
+            >Trimming a check’s output must not swallow its exit code: a shell
+            reports only the <i>last</i> stage of a pipe, and
+            <span class="name">tail</span> succeeds whatever the analyzer found.
+            An unpiped command needs nothing.</span
+          >
           <div class="loopback">
             <b>↺ Divergence returns to the code.</b> When the result diverges
             from what the plan called for, return to the code —
@@ -185,11 +260,11 @@
       </div>
       <div class="arrow">↓</div>
 
-      <!-- 5 -->
+      <!-- 6 -->
       <div class="stage">
         <div class="panel">
           <h2>
-            <span class="num">5.</span> Compliance Review
+            <span class="num">6.</span> Compliance Review
             <span class="gate">— gate, before “done”</span>
           </h2>
           Spawn a lighter <b>read-only</b> agent over the cumulative diff, two
@@ -204,19 +279,40 @@
               local convention.
             </li>
           </ul>
+          Three checks ride along when the change earns them, and each is easily
+          skipped:
+          <ul class="tight">
+            <li>
+              a new or edited <b>user-facing string</b> → read the
+              <i>sibling</i> string’s actual current value, not its key, and
+              flag divergence in shape;
+            </li>
+            <li>
+              <b>translated strings</b> across locales for a feature, or for
+              privacy/legal copy → one read-only reviewer per non-English
+              locale, in parallel;
+            </li>
+            <li>
+              a <b>UI component’s render</b> → invoke
+              <span class="name">/manwe</span> against the spec, or against a
+              sibling component’s real layout values when there is none.
+            </li>
+          </ul>
           <span class="small"
             >Findings: fix before “done”, or name plainly as a knowing
-            exception. Fixes happen <i>before</i> the fresh verification.</span
+            exception. Fixes happen <i>before</i> the fresh verification — and a
+            fix is itself code, so one pass of the project’s lint rides the
+            fresh run beside the step’s own check.</span
           >
         </div>
       </div>
       <div class="arrow">↓</div>
 
-      <!-- 6 -->
+      <!-- 7 -->
       <div class="stage">
         <div class="panel">
           <h2>
-            <span class="num">6.</span> Fresh Verification
+            <span class="num">7.</span> Fresh Verification
             <span class="gate">— the last gate</span>
           </h2>
           Run the verification <b>once more in the current turn</b> — prior runs
@@ -237,20 +333,32 @@
       </div>
       <div class="arrow">↓</div>
 
-      <!-- 7 -->
+      <!-- 8 -->
       <div class="stage">
         <div class="panel">
-          <h2><span class="num">7.</span> Done — spoken loud</h2>
+          <h2><span class="num">8.</span> Done — spoken loud</h2>
           Report what was <b>completed</b>, what was <b>deferred</b>, what
           remains <b>uncertain</b>. “Done” is wrong if anything was skipped
-          silently.
+          silently — and <b>“tests pass” is wrong</b> if any were skipped,
+          marked pending, or stubbed out.
+          <pre class="prec">
+Compliance Review: PASS
+Compliance Review: FAIL
+Compliance Review: SKIPPED (reason: &lt;one line&gt;)</pre>
+          <span class="small"
+            >Close on one of those three lines, <b>literally</b> — the pulse
+            regex-matches the string rather than guessing at prose, so a summary
+            that only <i>describes</i> a clean review scores as none at all. The
+            third is for a change a second reviewer would have nothing to weigh;
+            it always names why.</span
+          >
         </div>
       </div>
 
       <p class="note" style="margin-top: 1rem">
         <b>Where Acceptance bites:</b> stage&nbsp;2 names the mark;
-        stage&nbsp;5’s spec pass reads it as “what the plan named”; stage&nbsp;6
-        ticks it off line by line with evidence. Without it, stages 5 &amp; 6
+        stage&nbsp;6’s spec pass reads it as “what the plan named”; stage&nbsp;7
+        ticks it off line by line with evidence. Without it, stages 6 &amp; 7
         fall back to a target assembled after the fact — the one most easily
         bent to fit the slip.
       </p>

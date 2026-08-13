@@ -5,7 +5,31 @@ and [Codex](https://learn.chatgpt.com/docs/codex). Global instructions, skills,
 hooks, safety policy, and workflow state are version-controlled here and
 installed into paired `~/.claude*` and `~/.codex*` homes by `install.sh`.
 
-![Skadi — Plan · Forge · Review](docs/flow.png)
+```mermaid
+graph LR
+    T(["a ticket"]) --> P
+
+    subgraph P["Plan"]
+      direction TB
+      C["/council<br/>Erestor drafts [COUNSEL vN]"] --> GL["/glorfindel<br/>sweeps a whole project"]
+    end
+
+    subgraph F["Forge"]
+      direction TB
+      CB["/celebrimbor<br/>branch, implement, draft PR"] --> AU["/aule<br/>sweeps the approved, closes the merged"]
+    end
+
+    subgraph R["Review &amp; mend"]
+      direction TB
+      MI["/mithrandir · /mandos<br/>is it good · is it the right thing"] --> NA["/narvi · /durin · /moria<br/>one commit per comment"]
+    end
+
+    P -->|"[FORTH]"| F
+    F -->|"[GWAITH]"| R
+    R --> M(["merged · [METTA]"])
+```
+
+Composed over those stages, not before them: **`/anduin`** rides plan and forge for one project; **`/rhovanion`** rides every project in the pipeline list, each gated by a cheap movement probe; **`/amon-sul`** keeps any of them riding on an adaptive watch.
 
 ## What's Inside
 
@@ -51,7 +75,7 @@ installed into paired `~/.claude*` and `~/.codex*` homes by `install.sh`.
 The catalog below uses Claude's `/name` notation. In Codex, invoke the same
 installed workflow as `$name`.
 
-- `/install` — Update every registered Claude/Codex profile pair
+- `/install` — Update every registered Claude/Codex profile pair. Repo-local: it lives at `.claude/skills/install/`, not under `skills/`, so it is never itself installed into a profile
 - `/commit` — Generate a commit message from the diff and commit after approval; pass `--push` to push after the commit lands
 - `/stage` — Interactively stage files
 - `/summary` — Summarize staged changes
@@ -94,11 +118,11 @@ installed workflow as `$name`.
 - `/feanor` — Align a web page (or a booted Flutter app) to a visual reference by an automatic render→compare→mend loop: shoot the target to a PNG, name the deltas against the spec, and edit the source to close them. Exits early when aligned or when progress stalls; a hard `--max` (default 3) is the backstop. Renders into the Henneth window so convergence is watchable
 - `/beleg` — Rank an app's Crashlytics issues by impact rather than volume — distinct users (flattened, so one user's retry loop cannot out-shout a fleet-wide fault), trend, version concentration, and whether the blaming frame is code you can actually reach — then read the source at that frame and suggest a fix. Weights live in `hooks/beleg-rubric.json`, each with a criterion line, so the ranking can be argued with without editing code. Prefers the Crashlytics → BigQuery export; when a project carries none the hook exits 2 and the skill falls back to scraping the Firebase console through Chrome, routing those issues through the same scorer via `--from-json` so one value formula stands rather than two that drift. A thinner source is named as such: the brief declares which signals were unavailable rather than implying a completeness it lacks. Bound per repo *and per flavor* in `crash_routing.md`, since one app commonly ships several Firebase projects. Read-only — the `ticket` and `fix` verbs are deliberately unbuilt until the read path has ranked real crashes
 - `/growth` — Render a growth dashboard into the Henneth window — DAU/WAU/MAU with week- and month-over-month deltas, a 12-week trend chart, and a 30-day sparkline — from the GA4 → BigQuery export. Read-only, and within BigQuery's free monthly tier
-- `/board` — A standing situation board served in the browser: the tickets in progress (tracker status plus an AC rate derived from subtask completion) and the metis growth pulse, each a tile following a JSON channel file under `~/.skadi/board/`. The page polls the folder, so a channel added or changed shows on its own. Verbs: bare `/board` serves, `add <KEY> [--active]` seats a ticket (exactly one hero stands), `remove` drops one, `refresh` re-fetches every ticket and the growth numbers, `list` prints the channels. Read-only against Jira, YouTrack, and BigQuery
+- `/board` — A standing situation board served in the browser: the tickets in progress (tracker status plus an AC rate derived from subtask completion), the metis growth pulse, and a Stability tile (crash-free users % per app, chosen from a live dropdown), each a tile following a JSON channel file on disk. `add` / `remove` manage ticket channels; `refresh` re-fetches every ticket and the growth numbers, and with `--stability-scrape` sweeps each bound app's crash-free number, naming the ones needing a Firebase-console read; `stability-write` persists what that read found; `list` prints the channels. Read-only against Jira, BigQuery and the Crashlytics/GA4 exports
 - `/este` — The adherence pulse: a marker-based, per-item scorecard of how faithfully this config's own rules and skills are kept, read across every config root's transcripts. Each row carries a confidence tier and a plain-language criterion (✓ what passes · ✗ what misses) unfolded by an ⓘ button, and the headline reports a figure per tier rather than one average pretending to be certain. Appends each run to history and renders a Henneth dashboard. Read-only over transcripts
 - `/fidelity` — The plan-fidelity rate: what fraction of `/mandos` verdicts came back Faithful, and the Missing-versus-Scope-crept split that explains the rest, read from the recorded verdict history and rendered into Henneth. Fills in only as `/mandos` runs — it is not backfilled from past sessions
 - `/manwe` — Weigh a rendered UI against its spec — a Henneth wireframe, a Figma reference, a screenshot — or, absent a spec, against a sibling component's actual layout values. Reports `DELTAS` or `DIVERGENT` findings on padding, spacing, sizing, and typography; folded into the Compliance Review when a step edits a component's render
-- `/minuial` — The morning-start ritual: boot (or reuse) Henneth, serve the situation board, then refresh it (tickets + metis growth), printing both URLs. Read-only, composes `/henneth` and `/board`
+- `/minuial` — The morning-start ritual: boot (or reuse) Henneth, serve the situation board, raise the Galadriel plan mirror where the project has a plans folder, refresh the board (tickets + metis growth), then compute the `/este` adherence pulse — printing every URL. Read-only; composes `/henneth`, `/board`, `/galadriel` and `/este`
 - `/handoff` — An async file mailbox between Claude Code sessions: one session leaves a message (or a whole context baton) on a named channel, another reads it on demand or subscribes for live auto-pickup. Sessions standing in the same repo join its channel automatically at start, so no subscribing is needed to reach a sibling session. No server — messages live under `~/.skadi/handoff/`
 - `/cleanup-dev` — Free disk space by clearing dev caches and build artifacts
 - `/publish` — Build Flutter release archives and collect into `build/publish/`; macOS builds are signed (Developer ID) and notarized
@@ -153,7 +177,12 @@ installed workflow as `$name`.
 - **appgrowth** — Query the GA4 → BigQuery export for `/growth`
 - **beleg-crashes**, **beleg-rubric.json** — Collect Crashlytics issues from the BigQuery export, rank them by value, and render the brief into Henneth for `/beleg`; `--from-json` ranks issues the skill scraped from the console instead, so both collectors share one scorer. Exits 2 when a project carries no export — absence, distinct from a failed query
 - **scribe** — Export a Minerva section to YouTrack, Outline, or disk for `/scribe`
-- **galadriel-render**, **galadriel-server**, **mirror-server** — Render the `/galadriel` plan mirror to HTML and serve it live; the server also watches every registered project's plans folder and re-renders on its own when a concept file changes
+- **galadriel-render**, **galadriel-server** — Render the `/galadriel` plan mirror to HTML and serve it live; the server also watches every registered project's plans folder and re-renders on its own when a concept file changes
+- **mirror-server** — Henneth's gallery server (port 10001): serves every artifact dropped into `~/.skadi/henneth/` newest-first, follows the latest unless pinned, and deletes on request
+- **install-codex**, **render-codex-skill**, **codex-hook-adapter** — Install Skadi-owned Codex artifacts without replacing user-owned config, render each source skill into a Codex-compatible copy, and translate Codex hook payloads into the Claude-shaped ones the rest of these hooks consume
+- **skadi-state** — Resolve and migrate Skadi-owned workflow state (routing, preferences) shared by paired profiles; chat history and agent memory stay product-owned
+- **board-stability**, **bq_common** — Crash-free users % for the board's Stability tile, and the shared `bq`-CLI scaffolding every BigQuery-backed hook leans on
+- **compact-context** — On a resumed session, remind the model what must survive a compaction
 - **board-ticket**, **board-growth**, **board-henneth**, **board-galadriel**, **board-sweep** — The situation board's channel writers: a tracker issue with its AC rate (Jira REST or YouTrack), the metis growth line, the standing Henneth and Galadriel links, and an `/amon-sul` sweep verdict
 - **board-manifest**, **board-active**, **board-server**, **board** — The manifest the page polls, the single-homed flip that keeps exactly one hero ticket, the static server, and the one entry point `/board` routes every verb through
 - **pulse-scan**, **pulse-rubric.json** — The adherence-pulse engine and its rubric: walks every config root's transcripts read-only, scores each item with a confidence tier and a plain-language criterion, and renders `/este`'s dashboard
@@ -169,38 +198,57 @@ installed workflow as `$name`.
 
 ## Skeleton-stage pipeline
 
-`/council` has a YouTrack modify-only path for skeleton-stage planning, and `/celebrimbor` carries a `--skeleton` mode that carves the skeleton (stubs + a diagram PNG, posted as a `[SKELETON]` comment) before the forge. `/aule` and `/glorfindel` drive the rungs under `/loop`: each tick derives a ticket's rung from its thread via `hooks/skeleton-rung.py` and dispatches the plan, skeleton, or forge work accordingly. Two `[FORTH]`s gate the arc — one to approve the plan, one to approve the skeleton — and the code arrives as a draft PR with `[GWAITH]`.
+The skeleton road is **YouTrack's**, and the tracker chooses it — not the size of the work, and no flag opts in. There, `/council` keeps a living `[PLAN]` comment edited in place, and `/celebrimbor --skeleton` carves stubs and a diagram into a living `[SKELETON]` comment before the forge. `/glorfindel` drives the plan rung; `/aule` drives the skeleton and the forge. Each derives a ticket's rung from its thread via `hooks/skeleton-rung.py`; wrap them in `/amon-sul` to keep them riding. Two `[FORTH]`s gate the arc — one for the plan, one for the skeleton — and the code arrives as a draft PR with `[GWAITH]`. On Jira there is no skeleton rung: council leads straight to the forge.
 
-![Skeleton stage — the working flow](docs/skeleton-stage-flow.png)
+```mermaid
+graph TD
+    A["Elrond — [MELLON]<br/>summons into the sweep"] --> B["Erestor — [PLAN]<br/>the living plan, edited in place"]
+    B --> V1{"Elrond's verdict"}
+    V1 -->|"[ENVINYA] · renew it"| B
+    V1 -->|"[FORTH] · the plan stands"| S["Celebrimbor — [SKELETON]<br/>stubs + diagram, edited in place"]
+    S --> V2{"Elrond's verdict"}
+    V2 -->|"[ENVINYA] · renew it"| S
+    V2 -->|"[FORTH] · the skeleton stands"| G["Celebrimbor — [GWAITH]<br/>draft PR/MR on the approved skeleton"]
+    G --> M["Aulë — [METTA]<br/>closed on merge · at rest"]
+```
 
 ## Council → Forge
 
 `/council`, `/glorfindel`, and `/celebrimbor` work as one machine for turning a ticket into a PR/MR — the ticket thread is the record, no side channels.
 
-1. **Plan** — `/council TICKET-ID`. Erestor (subagent) reads the ticket and drafts `[COUNSEL vN]` as a comment. Elrond (the human) replies in prose; each `/council TICKET-ID` turns the wheel another round, weaving Elrond's reply into `[COUNSEL v(N+1)]`. Read-only — never writes code or opens PRs.
+1. **Plan** — `/council TICKET-ID`. Erestor (subagent) reads the ticket and drafts `[COUNSEL vN]` as a comment. Elrond (the human) replies: bare prose or `[CEIST]` draws a `[PEDO]` answer and the plan stands untouched — only `[ENVINYA]` redrafts it, turning the wheel to `[COUNSEL v(N+1)]`. Read-only — never writes code or opens PRs.
 2. **Sweep** — `/glorfindel TRACKER PROJECT --filter <filter>`. Visits every ticket the filter returns and runs the council on each. Loop-safe — quiet on threads with no fresh counsel since the bot last spoke. A ticket only enrolls in the sweep once it carries either an existing `[COUNSEL v…]` or a `[MELLON]` summons from Elrond, so a fresh project is not flooded with v1 drafts on the first ride. The same `[MELLON]` summons gates plan-drafting in `/aule`; the gate is derived once, in `hooks/skeleton-rung.py` (`await_start`).
 3. **Forge** — `/celebrimbor TRACKER PROJECT [--filter <filter>] [--ticket <id>]`. Picks one ticket bearing `[FORTH]` without `[GWAITH]`, branches off the project's base, dispatches the smith subagent to implement the approved counsel, opens a draft PR/MR via the forge hook, and posts `[GWAITH] <url>` back on the ticket. Single-shot — one ticket per invocation; `/loop` covers throughput.
 
 ### Comment grammar
 
-Seven tokens carry state on the append path. Everything else is counsel. Matching is case-insensitive; English aliases are recognized everywhere their Tolkien primaries are.
+Fourteen tokens carry state. Everything else is counsel. Matching is case-insensitive; English aliases are recognized everywhere their Tolkien primaries are. The canon is [`skills/council/SKILL.md`](skills/council/SKILL.md), *Comment grammar*; the table below follows it and is the one place to change if it moves.
+
+Both trackers keep **one living plan comment, edited in place** — the version in `[COUNSEL vN]` counts the redrafts, it does not count the comments. Only `[PEDO]`, `[PARLEY]`, `[ENWINA]` and the `[VINYA]` notice append.
 
 | Token | Alias | Author | Meaning |
 |---|---|---|---|
 | `[COUNSEL vN]` | `[PLAN vN]` | Erestor | Draft of the plan; N increments each round |
 | `[PARLEY]` | `[AGENT-ASK]` | Erestor | A single clarifying question — speech between sides to come to terms |
+| `[PEDO]` | `[ANSWER]` | Erestor / the smith | *Speak, and answer* — the reply to a `[CEIST]` or to bare prose; the plan stands untouched. Uncounted toward the turn limit |
+| `[VINYA]` | `[RENEWED]` | Council | *Renewed* — appended after the living plan comment is edited in place, since a silent edit fires no notification |
+| `[ENWINA]` | `[STALE]` | Council | *Old — of the elder days* — posted once at approval when the accepted plan has outgrown the ticket description. Names the drift; never rewrites it |
 | `[MELLON]` | `[FRIEND]` | Elrond | Summons — *speak, friend, and enter*; enrolls a planless ticket in the skeleton-stage sweeps (`/glorfindel` and `/aule`). Un-summoned planless tickets stay dormant; direct single-ticket `/council` drafts without it |
+| `[CEIST]` | `[ASK]` | Elrond | *A question put to the council* — draws a `[PEDO]`; the plan is untouched. Bare prose reads the same way |
+| `[ENVINYA]` | `[ALTER]` | Elrond | *Renew it* — the one human word that redrafts the standing plan or skeleton |
 | `[FORTH]` | `[APPROVE]` | Elrond | The plan stands; council adjourns with approval |
 | `[NAY]` | `[REJECT]` | Elrond | The plan is abandoned; council adjourns without approval |
 | `[NAMARIE]` | `[FAREWELL]` | Elrond | *Farewell* — adjourn without verdict (out-of-band resolution, ticket subsumed, etc.) |
-| `[GWAITH]` | `[FORGED]`, `[SHIPPED]` | Celebrimbor | The deed is wrought; PR/MR opened on the approved counsel; body carries the URL |
+| `[GWAITH]` | `[FORGED]`, `[SHIPPED]` | Celebrimbor | The deed is wrought; PR/MR opened on the approved counsel; body carries the URL. Council never posts it; `/celebrimbor` does |
+| `[DOOM]` | `[VERDICT]` | Mandos | *The Doom* — whether the deed matches the decree: Covered / Missing / Scope-crept. Never redrafts or approves; posted by `/mandos post` |
+| `[METTA]` | — | Aulë | *The end* — closed on merge, the ticket moved to the project's closed state. Terminal; posted by `/aule`, never by council |
 
-On the **YouTrack modify-only path** (skeleton-stage pipeline), two further markers head living comments that are *edited in place* — one each, never versioned. Distinct from the `[PLAN vN]` alias above, which is the append path's versioned counsel.
+Two further markers head the living comments of the **skeleton road** (YouTrack), one each, never versioned — distinct from the `[PLAN vN]` alias above, which is the versioned counsel.
 
 | Token | Author | Meaning |
 |---|---|---|
 | `[PLAN]` | Council | The living plan — one comment, modified in place; carries a `<!-- consumed: … -->` watermark |
-| `[SKELETON]` | Celebrimbor | The living skeleton — file tree + stubbed signatures — one comment, modified in place; the diagram PNG is attached to the issue |
+| `[SKELETON]` | Celebrimbor | The living skeleton — file tree + stubbed signatures — one comment, modified in place; the diagram is attached to the issue |
 
 ### When the council adjourns
 
@@ -214,7 +262,7 @@ Verdict precedence is *by token, not by chronology*: `[FORTH]` > `[NAY]` > `[NAM
 
 ### Turn limit
 
-The council brakes at five `[COUNSEL vN]`s without a verdict. On what would be `[COUNSEL v6]`, the comment hook posts a single canned `[PARLEY]` instead — *"The council has turned five times without a verdict. Take it offline."* — and stops. `[PARLEY]` posts do not count toward the limit; only `[COUNSEL vN]`s do. The signal is that the comment thread has outgrown the problem; either split the ticket or move to a doc / call.
+The council brakes at five `[COUNSEL vN]`s without a verdict. On what would be `[COUNSEL v6]`, the council posts a single canned `[PARLEY]` instead — through the comment hook, which counts nothing itself — *"The council has turned five times without a verdict. Take it offline."* — and stops. `[PARLEY]` posts do not count toward the limit; only `[COUNSEL vN]`s do. The signal is that the comment thread has outgrown the problem; either split the ticket or move to a doc / call.
 
 ## Setup
 

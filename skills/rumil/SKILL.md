@@ -146,12 +146,12 @@ Do not answer these yourself. A default invented here becomes an unowned decisio
 
 Open questions go back to a PM or a designer, so they are written in **their** language, not yours. Number them `Q1`, `Q2`, … so a step can point at one.
 
-- Good — `Q3: When a receipt is rejected by the server, does the app retry on its own, or wait for the courier to resubmit it?`
-- Bad — `Q3: Retry semantics for the 422 branch of ReceiptDrain.next?`
+- Good — `Q1: When a receipt is rejected by the server, does the app retry on its own, or wait for the courier to resubmit it?`
+- Bad — `Q1: Retry semantics for the 422 branch of ReceiptDrain.next?`
 
 The test is plain: could the person who wrote the spec answer it without opening the codebase? If not, rewrite it.
 
-A step that cannot be worked until a question is settled ends with `[blocked on Q3]` alongside its dependency tag. The plan still lands whole — the gap is marked, not hidden, and not filled by guesswork.
+A step that cannot be worked until a question is settled ends with `[blocked on Q2]` alongside its dependency tag. The plan still lands whole — the gap is marked, not hidden, and not filled by guesswork.
 
 Every question drafted here is put to the user directly before the plan is shaped further — see 3d.
 

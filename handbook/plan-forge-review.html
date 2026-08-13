@@ -84,25 +84,60 @@
         <li>
           <span class="who">Celebrimbor</span> the forge (<span class="name"
             >/celebrimbor</span
-          >, <span class="name">/aule</span>) — branches, smiths, opens the PR,
-          closes it on merge.
+          >) — branches, smiths, and opens the PR.
+        </li>
+        <li>
+          <span class="who">Aulë</span> the smith-lord (<span class="name"
+            >/aule</span
+          >) — sweeps a project's approved counsels into the forge, and closes
+          each ticket with <span class="name">[METTA]</span> once its PR merges.
         </li>
         <li>
           <span class="who">Mithrandir</span> the review (<span class="name"
             >/mithrandir</span
-          >, <span class="name">/lindir</span>,
-          <span class="name">/nazgul</span>) — weighs the PR and renders a
-          verdict.
+          >) — weighs whether the code is <i>good</i>, and renders Merge / Hold
+          / Refuse.
+        </li>
+        <li>
+          <span class="who">Mandos</span> the doom (<span class="name"
+            >/mandos</span
+          >) — weighs whether it is the <i>right</i> code: Covered / Missing /
+          Scope-crept against the ticket's own goal.
         </li>
         <li>
           <span class="who">Narvi</span> the amends (<span class="name"
             >/narvi</span
-          >, <span class="name">/durin</span>) — answers each comment, one
-          commit at a time.
+          >, <span class="name">/durin</span>, <span class="name">/moria</span>)
+          — answers each comment, one commit at a time; Durin sweeps a repo,
+          Moria every repo on the mend list.
+        </li>
+        <li>
+          <span class="who">The gate-keepers</span> —
+          <span class="name">/argonath</span> weighs the diff before it is
+          pushed, <span class="name">/celebrant</span> merges and sweeps the
+          branch away, and <span class="name">/working</span> is the other door
+          into the forge, cutting a branch straight from a ticket.
         </li>
       </ul>
+      <p class="small">
+        Two more stand beside the review but off this road:
+        <span class="name">/nazgul</span> weighs a <i>local</i> diff or a
+        standing tree — it takes no PR URL — and
+        <span class="name">/lindir</span> renders a reviewer's brief rather than
+        a verdict.
+      </p>
 
-      <h2>The standard arc</h2>
+      <p class="small" style="margin-top:0">
+        The three diagrams below are rendered in the browser by mermaid,
+        fetched from a CDN — the one thing in this handbook that needs the
+        network. Offline they show their source instead, which still reads.
+      </p>
+
+      <h2>The standard arc — Jira</h2>
+      <p class="small" style="margin-top: 0">
+        Council to forge in one leap. This is the whole of the road on Jira: the
+        skeleton rung below does not exist there, and no flag opts into it.
+      </p>
       <div class="diagram">
         <pre class="mermaid">
 graph TD
@@ -110,15 +145,17 @@ graph TD
 
     subgraph PLAN["I. PLAN · /council"]
       direction TB
-      B["Elrond — &lsqb;MELLON&rsqb;<br/>speak, friend, and enter"] --> C["Erestor — &lsqb;COUNSEL v1&rsqb;<br/>drafts the plan"]
-      C --> D["Elrond replies in prose"]
-      D -. refine .-> C
+      B["Elrond — &lsqb;MELLON&rsqb;<br/>summons for the sweeps only;<br/>/council needs no summons"] --> C["Erestor — &lsqb;COUNSEL v1&rsqb;<br/>drafts the plan"]
+      C --> D["Elrond replies"]
+      D -. "prose · &lsqb;CEIST&rsqb;" .-> P["Erestor — &lsqb;PEDO&rsqb;<br/>answers; the plan stands"]
+      D -. "&lsqb;ENVINYA&rsqb;" .-> C
       C --> V{"Elrond's verdict"}
     end
 
     subgraph FORGE["II. FORGE · /celebrimbor"]
       direction TB
-      F["Celebrimbor — branch off base,<br/>the smith implements"] --> G["Celebrimbor — &lsqb;GWAITH&rsqb; url<br/>draft PR/MR opened"]
+      F["Celebrimbor — branch off base,<br/>the smith implements"] --> W["the branch is weighed in place —<br/>toolchain, /mithrandir, mend twice"]
+      W --> G["Celebrimbor — &lsqb;GWAITH&rsqb; url<br/>draft PR/MR opened · ticket moves state"]
     end
 
     subgraph REVIEW["III. REVIEW"]
@@ -131,7 +168,7 @@ graph TD
     V -->|NAY| X(["Plan abandoned"])
     G --> H
     J --> K(["Elrond merges the PR/MR"])
-    K --> L["Celebrimbor — &lsqb;METTA&rsqb;<br/>ticket moved to merged · /aule"]
+    K --> L["Aulë — &lsqb;METTA&rsqb;<br/>ticket moved to merged"]
 
     style PLAN fill:#ece0c3,stroke:#cdbfa0
     style FORGE fill:#dfeade,stroke:#cdbfa0
@@ -139,11 +176,13 @@ graph TD
         </pre>
       </div>
 
-      <h2>The longer road — skeleton stage</h2>
+      <h2>The longer road — YouTrack</h2>
       <p class="small" style="margin-top: 0">
-        For work too large to plan in one leap, a <b>skeleton</b> is carved
-        before the forge. Two <span class="name">[FORTH]</span>s gate the arc —
-        one to approve the plan, one to approve the skeleton.
+        A <b>skeleton</b> is carved before the forge, and two
+        <span class="name">[FORTH]</span>s gate the arc — one to approve the
+        plan, one to approve the skeleton. The rung is chosen by the
+        <i>tracker</i>, never by the size of the work: YouTrack always rides it,
+        Jira never can.
       </p>
       <div class="diagram">
         <pre class="mermaid">
@@ -156,18 +195,22 @@ graph TD
         </pre>
       </div>
       <p class="small">
-        <span class="name">/aule</span> and
-        <span class="name">/glorfindel</span> drive these rungs under
-        <span class="name">/loop</span>: each tick derives a ticket's rung from
-        its thread via <code>hooks/skeleton-rung.py</code> and dispatches the
-        plan, skeleton, or forge work accordingly.
+        <span class="name">/glorfindel</span> drives the plan rung;
+        <span class="name">/aule</span> drives the skeleton and the forge. Each
+        derives a ticket's rung from its thread via
+        <code>hooks/skeleton-rung.py</code> and dispatches accordingly. To keep
+        them riding, wrap them in <span class="name">/amon-sul</span>, the
+        adaptive watch that replaced the older <span class="name">/loop</span>
+        pass.
       </p>
 
       <h2>The comment grammar</h2>
       <p class="small" style="margin-top: 0">
-        Seven tokens carry state; everything else is counsel. Matching is
+        Fourteen tokens carry state; everything else is counsel. Matching is
         case-insensitive; English aliases are recognized everywhere their
-        Tolkien primaries are.
+        Tolkien primaries are. The canon is
+        <code>skills/council/SKILL.md</code>, <i>Comment grammar</i> — this
+        table follows it.
       </p>
       <table>
         <thead>
@@ -192,11 +235,61 @@ graph TD
             <td>A single clarifying question — speech to come to terms</td>
           </tr>
           <tr>
+            <td><span class="name">[PEDO]</span></td>
+            <td><span class="name">[ANSWER]</span></td>
+            <td>Erestor / the smith</td>
+            <td>
+              <i>Speak, and answer.</i> The reply to a
+              <span class="name">[CEIST]</span> or to bare prose — the plan
+              stands untouched. Uncounted toward the turn limit
+            </td>
+          </tr>
+          <tr>
+            <td><span class="name">[VINYA]</span></td>
+            <td><span class="name">[RENEWED]</span></td>
+            <td>Council</td>
+            <td>
+              <i>Renewed.</i> Appended after the living plan comment is edited
+              in place, since a silent edit fires no notification
+            </td>
+          </tr>
+          <tr>
+            <td><span class="name">[ENWINA]</span></td>
+            <td><span class="name">[STALE]</span></td>
+            <td>Council</td>
+            <td>
+              <i>Old — of the elder days.</i> Posted once at approval when the
+              accepted plan has outgrown the ticket description. Names the
+              drift; never rewrites it
+            </td>
+          </tr>
+          <tr>
             <td><span class="name">[MELLON]</span></td>
             <td><span class="name">[FRIEND]</span></td>
             <td>Elrond</td>
             <td>
-              Summons — enrols a planless ticket in the skeleton-stage sweeps
+              Summons — enrols a planless ticket in the skeleton-stage sweeps.
+              Single-ticket <span class="name">/council</span> ignores it; the
+              invocation is itself consent
+            </td>
+          </tr>
+          <tr>
+            <td><span class="name">[CEIST]</span></td>
+            <td><span class="name">[ASK]</span></td>
+            <td>Elrond</td>
+            <td>
+              <i>A question put to the council.</i> Draws a
+              <span class="name">[PEDO]</span>; the plan is untouched. Bare
+              prose reads the same way
+            </td>
+          </tr>
+          <tr>
+            <td><span class="name">[ENVINYA]</span></td>
+            <td><span class="name">[ALTER]</span></td>
+            <td>Elrond</td>
+            <td>
+              <i>Renew it.</i> The one human word that redrafts the standing
+              plan or skeleton. Absent it, fresh prose only draws an answer
             </td>
           </tr>
           <tr>
@@ -224,7 +317,50 @@ graph TD
               <span class="name">[SHIPPED]</span>
             </td>
             <td>Celebrimbor</td>
-            <td>The deed is wrought; PR/MR opened, body carries the URL</td>
+            <td>
+              The deed is wrought; PR/MR opened, body carries the URL. Council
+              never posts it; <span class="name">/celebrimbor</span> does
+            </td>
+          </tr>
+          <tr>
+            <td><span class="name">[DOOM]</span></td>
+            <td><span class="name">[VERDICT]</span></td>
+            <td>Mandos</td>
+            <td>
+              <i>The Doom.</i> Whether the deed matches the decree — Covered /
+              Missing / Scope-crept. Never redrafts or approves; posted by
+              <span class="name">/mandos post</span>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="name">[METTA]</span></td>
+            <td>—</td>
+            <td>Aulë</td>
+            <td>
+              <i>The end.</i> Closed on merge — the ticket moved to the
+              project's closed state. Terminal; posted by
+              <span class="name">/aule</span>, never by council
+            </td>
+          </tr>
+          <tr>
+            <td><span class="name">[PLAN]</span></td>
+            <td>—</td>
+            <td>Council</td>
+            <td>
+              The living plan on the skeleton road — one comment, edited in
+              place, carrying a <code>&lt;!-- consumed: … --&gt;</code>
+              watermark. Distinct from the versioned
+              <span class="name">[PLAN vN]</span> alias above
+            </td>
+          </tr>
+          <tr>
+            <td><span class="name">[SKELETON]</span></td>
+            <td>—</td>
+            <td>Celebrimbor</td>
+            <td>
+              The living skeleton — file tree and stubbed signatures — one
+              comment, edited in place
+            </td>
           </tr>
         </tbody>
       </table>
@@ -238,8 +374,11 @@ graph TD
 
       <h2 style="margin-top: 1.6rem">Run whole — /anduin and the watch</h2>
       <p>
-        The arc above is a stage at a time, run by hand. Two skills run it
-        <i>whole</i>.
+        The arc above is a stage at a time, run by hand. Three skills run it
+        <i>whole</i>: <span class="name">/anduin</span> over one project,
+        <span class="name">/rhovanion</span> over every project in the pipeline
+        list, and <span class="name">/amon-sul</span> standing watch over
+        either.
       </p>
 
       <p>
@@ -254,6 +393,16 @@ graph TD
         — there is no <span class="name">--auto</span> to type; pass
         <span class="name">--dry-run</span> (forge nothing) or
         <span class="name">--confirm</span> (prompt per PR) to gate it.
+      </p>
+
+      <p>
+        <span class="name">/rhovanion</span> widens that to
+        <b>every project</b> in the pipeline list — but gates each behind a
+        cheap movement probe, so a quiet project costs one tracker query rather
+        than a whole pipeline. It rides projects sequentially, so no two
+        contend, and closes in the same <span class="name">STIRRED</span> /
+        <span class="name">QUIET</span>
+        verdict.
       </p>
 
       <p>
