@@ -161,8 +161,11 @@ interactively, or don't pass the flag.
   `BOARD_PORT`) and reuses it whenever it still answers, rather than
   multiplying servers — the URL never drifts across restarts. The handbook
   rides the same server: `board-server.py` routes `/handbook/` and
-  `/previews/` straight to the skadi repo root, so `./handbook.sh` and the
-  board's own "Handbook ↗" link both resolve through this one port.
+  `/previews/` to `BOARD_SKADI_ROOT` — the skadi repo, which `board.sh`
+  resolves from its own parent, or, running as the copy under a config root,
+  from the path `install.sh` records at `~/.skadi/install/skadi-root`. So
+  `./handbook.sh` and the board's own "Handbook ↗" link both resolve through
+  this one port, whichever copy booted the server.
 - **Read-only.** The board reads Jira, BigQuery, and the Crashlytics/GA4 exports;
   it never writes to a tracker.
 - **Tests ride beside the hooks** — `board-ticket.test.sh`, `board-growth.test.sh`,

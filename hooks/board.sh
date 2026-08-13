@@ -35,6 +35,28 @@ SKILLS_CHEATSHEET_DEST="$HENNETH_DIR/skills-cheatsheet.html"
 CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
 DEFAULT_DONE='["4. DEV QA", "5. UAT@DEMO", "7. Done"]'
 
+# Where the skadi repo stands. board-server.py serves /handbook/ and /previews/
+# from BOARD_SKADI_ROOT, and both live in the repo — never in a config root.
+# Run from the repo this script's own parent is the answer; run from the copy
+# install.sh lays under ~/.claude (which is what /board and /minuial boot), it is
+# not, so the installer records the root and this reads it. An explicit override
+# wins over both, and an unresolvable root is left empty for the server to fall
+# back on rather than guessed at.
+# Test seam: SKADI_ROOT_RECORD overrides where the recorded root is read from.
+SKADI_ROOT_RECORD="${SKADI_ROOT_RECORD:-$HOME/.skadi/install/skadi-root}"
+if [[ -z "${BOARD_SKADI_ROOT:-}" ]]; then
+  if [[ -d "$DIR/../handbook" ]]; then
+    BOARD_SKADI_ROOT="$(cd "$DIR/.." && pwd)"
+  elif [[ -r "$SKADI_ROOT_RECORD" ]]; then
+    recorded="$(<"$SKADI_ROOT_RECORD")"
+    # A record naming a repo that has since moved or gone would export a root
+    # the server cannot serve from — no better than the fallback it replaces,
+    # and harder to diagnose. Leave it empty instead.
+    [[ -d "$recorded/handbook" ]] && BOARD_SKADI_ROOT="$recorded"
+  fi
+fi
+[[ -n "${BOARD_SKADI_ROOT:-}" ]] && export BOARD_SKADI_ROOT
+
 cmd="${1:-serve}"
 [[ $# -gt 0 ]] && shift
 

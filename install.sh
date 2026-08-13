@@ -218,6 +218,21 @@ install_codex() {
   echo "Done: Codex $profile profile at $root"
 }
 
+# The machine's skadi root, recorded once where an installed hook can read it.
+# hooks/board.sh needs it to serve the handbook and the preview theme: both live
+# in the repo, never in a config root, and a hook copied into ~/.claude has no
+# way back to the repo otherwise. Written for every mode, since hooks land in
+# Claude and Codex homes alike.
+record_skadi_root() {
+  local record="$HOME/.skadi/install/skadi-root"
+  mkdir -p "$(dirname "$record")"
+  if [ ! -f "$record" ] || [ "$(cat "$record")" != "$REPO" ]; then
+    printf '%s\n' "$REPO" > "$record"
+    echo "recorded root:  $REPO"
+  fi
+}
+record_skadi_root
+
 case "$MODE" in
   codex)
     install_codex "$CODEX_DIR"

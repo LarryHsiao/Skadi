@@ -16,6 +16,10 @@ PORT="$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));prin
 
 cleanup() {
   [[ -n "${SERVER_PID:-}" ]] && kill "$SERVER_PID" 2>/dev/null
+  # Section 9 boots its server through board.sh, which nohups and disowns it —
+  # there is no PID to hold, so it is felled by the port it was given.
+  [[ -n "${PORT2:-}" ]] && pkill -f "board-server.py $PORT2" 2>/dev/null
+  [[ -n "${PORT3:-}" ]] && pkill -f "board-server.py $PORT3" 2>/dev/null
   rm -rf "$ROOT"
 }
 trap cleanup EXIT
@@ -111,6 +115,59 @@ expected_traversal_status="404"
 actual_traversal_status="$(curl -s --path-as-is -o /dev/null -w '%{http_code}' \
   "http://127.0.0.1:$PORT/previews/../CLAUDE.md")"
 check "a /previews/../ escape 404s instead of reaching the repo root" "$expected_traversal_status" "$actual_traversal_status"
+
+# ── 9 · the installed copy — hooks whose parent is a config root, not the repo ──
+# Every check above runs the repo's own copy, where the hooks folder's parent
+# happens to BE the skadi repo, so the handbook resolves by accident. install.sh
+# copies hooks/ into ~/.claude and friends, where the parent holds no handbook/
+# and no previews/ — and /board and /minuial boot that copy. This section is the
+# only one that exercises the path a user actually takes.
+INSTALLED_ROOT="$ROOT/fake-config-root"
+mkdir -p "$INSTALLED_ROOT"
+cp -R "$HERE" "$INSTALLED_ROOT/hooks"
+PORT2="$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")"
+# The record install.sh writes, standing in for this machine's real one so the
+# test proves the read path rather than whatever state $HOME happens to be in.
+printf '%s\n' "$(cd "$HERE/.." && pwd)" >"$ROOT/skadi-root"
+HENNETH_DIR="$ROOT/henneth" BOARD_DIR="$ROOT/installed-board" BOARD_PORT="$PORT2" \
+  SKADI_ROOT_RECORD="$ROOT/skadi-root" \
+  "$INSTALLED_ROOT/hooks/board.sh" serve >/dev/null 2>&1 || true
+
+expected_installed_handbook="200"
+actual_installed_handbook="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT2/handbook/")"
+check "board.sh booted from an installed hooks dir serves the handbook" \
+  "$expected_installed_handbook" "$actual_installed_handbook"
+
+expected_installed_theme="200"
+actual_installed_theme="$(curl -s -o /dev/null -w '%{http_code}' \
+  "http://127.0.0.1:$PORT2/previews/henneth/skadi-theme.css")"
+check "and the theme its pages link" "$expected_installed_theme" "$actual_installed_theme"
+
+# The board's own page must still come from the board dir, not the repo.
+expected_installed_board="200"
+actual_installed_board="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT2/index.html")"
+check "while the board's own page still serves from the board dir" \
+  "$expected_installed_board" "$actual_installed_board"
+
+# ── 10 · a record left pointing at a repo that has moved or gone ──
+# Exporting that path would name a root the server cannot serve from — no better
+# than the fallback it replaces, and harder to diagnose. board.sh must refuse it,
+# leaving the handbook honestly absent while the board itself carries on.
+printf '%s\n' "$ROOT/no-such-repo" >"$ROOT/stale-root"
+PORT3="$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")"
+HENNETH_DIR="$ROOT/henneth" BOARD_DIR="$ROOT/stale-board" BOARD_PORT="$PORT3" \
+  SKADI_ROOT_RECORD="$ROOT/stale-root" \
+  "$INSTALLED_ROOT/hooks/board.sh" serve >/dev/null 2>&1 || true
+
+expected_stale_handbook="404"
+actual_stale_handbook="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT3/handbook/")"
+check "a record naming a vanished repo is refused, not exported" \
+  "$expected_stale_handbook" "$actual_stale_handbook"
+
+expected_stale_board="200"
+actual_stale_board="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT3/index.html")"
+check "and the board still serves despite the stale record" \
+  "$expected_stale_board" "$actual_stale_board"
 
 echo ""
 echo "── $pass passed, $fail failed ──"

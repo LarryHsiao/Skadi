@@ -23,10 +23,14 @@ corrupt across threads.
     GET /handbook/...
     GET /previews/...
 
-serve straight from the skadi repo root rather than the board dir, so the
-handbook (and the theme it links via a relative `../previews/...` path) rides
-the same server and port as the board itself — no second `handbook.sh`
-process on its own port.
+serve from the skadi repo rather than the board dir, so the handbook (and the
+theme it links via a relative `../previews/...` path) rides the same server and
+port as the board itself — no second `handbook.sh` process on its own port.
+
+The repo is named by BOARD_SKADI_ROOT, which board.sh resolves and exports. The
+fallback below — this file's own parent — is right only when the server runs
+from the repo; the copy install.sh lays under a config root has no handbook
+above it, so the variable, not the fallback, is what carries these two routes.
 
 Test seam: BOARD_STABILITY_BIN overrides which script the stability routes
 shell out to, so board-server.test.sh can point at a stub and exercise the
