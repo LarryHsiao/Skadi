@@ -88,7 +88,6 @@ Visual artifacts render as HTML into the shared Henneth folder (`~/.skadi/hennet
 - **UI change** → wireframe before code, **both data states** (populated and empty), one sketch per concern.
 - **UML** (class, sequence, state, ER) → one diagram per concern; no data states.
 - **Any generated plan** → also mirror it as `plan-<topic>.html`; the chat or markdown copy stays the source of truth.
-- **Any choice put to the user** → render the candidates as `choice-<topic>.html` first, then ask through the `AskUserQuestion` picker with its `preview` field left empty and the Henneth URL named in the question text. Every choice, not only the visual ones.
 - The same session-level opt-out as the Free-Form Gate applies.
 
 ## Implementation Loop
