@@ -2472,6 +2472,31 @@ PY
 )
 check "live rubric: pipefail'd lint counts clean, first test run counts red, its masked re-run only unmeasured" "$expected_verifylive" "$actual_verifylive"
 
+# ── 72 · _default_roots() survives the Codex installer's blind text-render ──
+# It must enumerate all six profile roots. It is built by formatting rather
+# than written as literal "~/.claude*" strings, because
+# hooks/install-codex.py blind-text-replaces any "~/.claude" substring in
+# installed file content with the Codex root being installed — a literal
+# list here silently collapsed to the codex three (doubled) on every Codex
+# install. Two checks: the function still returns the right six roots, and
+# the vulnerable literal has not crept back into the source text.
+# The tildes below are literal — _default_roots() returns them unexpanded, and
+# the whole point of this check is that they survive as-is.
+# shellcheck disable=SC2088
+expected_defaultroots="~/.claude:~/.claude-personal:~/.claude-work:~/.codex:~/.codex-personal:~/.codex-work"
+actual_defaultroots=$(env -u PULSE_ROOTS python3 - "$SCAN" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+print(":".join(m._default_roots()))
+PY
+)
+check "_default_roots() enumerates all six profile roots" "$expected_defaultroots" "$actual_defaultroots"
+
+expected_noliteral="0"
+# shellcheck disable=SC2088
+actual_noliteral=$(grep -c '~/\.claude' "$SCAN" || true)
+check "no literal ~/.claude substring in pulse-scan.py's source (Codex install-render guard)" "$expected_noliteral" "$actual_noliteral"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

@@ -1927,8 +1927,15 @@ def _default_roots():
     override = os.environ.get("PULSE_ROOTS")
     if override:
         return override.split(":")
-    return ["~/.claude", "~/.claude-personal", "~/.claude-work",
-            "~/.codex", "~/.codex-personal", "~/.codex-work"]
+    # Built by formatting rather than as literal path strings: install-codex.py
+    # blind-text-replaces this file's own Claude-root self-references with the
+    # Codex root being installed (see its `replacements` tuple) — correct for a
+    # hook's own path, but this list must survive verbatim into every profile
+    # so the pulse reads all six roots, not just the codex three (doubled) it
+    # was silently collapsing to.
+    return [f"~/.{runtime}{suffix}"
+            for runtime in ("claude", "codex")
+            for suffix in ("", "-personal", "-work")]
 
 
 def _history_series(pulse_dir):
