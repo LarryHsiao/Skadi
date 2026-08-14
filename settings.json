@@ -165,8 +165,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/flutter-analyze.sh",
-            "statusMessage": "Formatting, analyzing, testing Dart..."
+            "command": "~/.claude/hooks/dart-format.sh",
+            "statusMessage": "Formatting Dart..."
           },
           {
             "type": "command",

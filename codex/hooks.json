@@ -5,7 +5,7 @@
       {
         "matcher": "^(apply_patch|Edit|Write)$",
         "hooks": [
-          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/flutter-analyze.sh", "statusMessage": "Formatting, analyzing, testing Dart..." },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/dart-format.sh", "statusMessage": "Formatting Dart..." },
           { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/prettier-format.sh", "statusMessage": "Running Prettier..." },
           { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/eslint-check.sh", "statusMessage": "Running ESLint..." },
           { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/henneth-group.py", "statusMessage": "Stamping Henneth group..." }

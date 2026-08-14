@@ -57,7 +57,7 @@ def main(stdin):
         return 0
     # The hook payload names the written file under tool_response.filePath, with
     # tool_input.file_path as the fallback — the same pair the sibling Write|Edit
-    # hooks read (eslint-check.sh, flutter-analyze.sh).
+    # hooks read (eslint-check.sh, dart-format.sh).
     raw = (payload.get("tool_response", {}).get("filePath")
            or payload.get("tool_input", {}).get("file_path") or "")
     if not raw:

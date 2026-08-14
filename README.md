@@ -134,7 +134,7 @@ installed workflow as `$name`.
 - **pre-commit-guard** — Prevent unauthorized commits
 - **destructive-warn** — Warn on destructive shell commands
 - **secret** — Resolve a credential field for a service from Vaultwarden via `bw serve`, falling back to an env var
-- **flutter-analyze** — Run `flutter analyze` after editing Dart files
+- **dart-format** — Run `dart format` after editing Dart files
 - **prettier-format** — Run Prettier after editing supported files
 - **eslint-check** — Run ESLint after editing JS/TS files
 - **grammar-reminder** — Inject the grammar-check reminder on every user prompt
