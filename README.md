@@ -250,7 +250,7 @@ scores seven dimensions from `hooks/pulse-rubric.json`:
 | `verify.test` | Code clears the test suite on its first run of a task | task segments running tests | structural |
 | `verify.lint` | Code clears lint on its first run of a task | task segments running lint | structural |
 
-Each run reads a 30-day window across all six paired roots —
+Each run reads a 90-day window across all six paired roots —
 `~/.claude{,-personal,-work}` and `~/.codex{,-personal,-work}` — and scores two
 confidence tiers: `structural` rows read a tool result's own exit status,
 `heuristic` rows are judged by a model (`claude -p`, cached under

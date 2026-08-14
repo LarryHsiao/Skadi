@@ -19,7 +19,7 @@ import shutil
 import subprocess
 import sys
 
-WINDOW_DAYS = 30
+WINDOW_DAYS = 90
 SECONDS_PER_DAY = 86400
 
 # A gauge the assistant actually rendered: one filled bar followed by its tier

@@ -1651,20 +1651,20 @@ check "bug-gate: an unrelated later prompt does not cost the completion" "$expec
 #         pending to a real rate against the live pulse-rubric.json ──
 d=$(tmpdir)
 cat >"$d/bug1.jsonl" <<'JSON'
-{"type":"user","timestamp":"2026-07-25T09:00:00Z","message":{"content":"add feature X"}}
-{"type":"assistant","timestamp":"2026-07-25T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▰▱ medium — feature X\nAcceptance:\n- X works"}]}}
-{"type":"user","timestamp":"2026-07-25T09:01:00Z","message":{"content":"go"}}
-{"type":"assistant","timestamp":"2026-07-25T09:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Done X."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
-{"type":"user","timestamp":"2026-07-25T09:02:00Z","message":{"content":"thanks"}}
-{"type":"assistant","timestamp":"2026-07-25T09:02:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"You are welcome."}]}}
-{"type":"user","timestamp":"2026-07-25T09:10:00Z","message":{"content":"add feature Y"}}
-{"type":"assistant","timestamp":"2026-07-25T09:10:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Done Y."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
-{"type":"user","timestamp":"2026-07-25T09:11:00Z","message":{"content":"cool"}}
-{"type":"assistant","timestamp":"2026-07-25T09:11:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Glad it helps."}]}}
-{"type":"user","timestamp":"2026-07-25T09:20:00Z","message":{"content":"add feature Z"}}
-{"type":"assistant","timestamp":"2026-07-25T09:20:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Done Z."},{"type":"tool_use","id":"t3","name":"Edit","input":{}},{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
-{"type":"user","timestamp":"2026-07-25T09:21:00Z","message":{"content":"looks good"}}
-{"type":"assistant","timestamp":"2026-07-25T09:21:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Compliance Review: PASS"}]}}
+{"type":"user","timestamp":"2026-08-08T09:00:00Z","message":{"content":"add feature X"}}
+{"type":"assistant","timestamp":"2026-08-08T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Size ▰▰▱ medium — feature X\nAcceptance:\n- X works"}]}}
+{"type":"user","timestamp":"2026-08-08T09:01:00Z","message":{"content":"go"}}
+{"type":"assistant","timestamp":"2026-08-08T09:01:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Done X."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-08-08T09:02:00Z","message":{"content":"thanks"}}
+{"type":"assistant","timestamp":"2026-08-08T09:02:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"You are welcome."}]}}
+{"type":"user","timestamp":"2026-08-08T09:10:00Z","message":{"content":"add feature Y"}}
+{"type":"assistant","timestamp":"2026-08-08T09:10:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Done Y."},{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}
+{"type":"user","timestamp":"2026-08-08T09:11:00Z","message":{"content":"cool"}}
+{"type":"assistant","timestamp":"2026-08-08T09:11:05Z","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Glad it helps."}]}}
+{"type":"user","timestamp":"2026-08-08T09:20:00Z","message":{"content":"add feature Z"}}
+{"type":"assistant","timestamp":"2026-08-08T09:20:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Done Z."},{"type":"tool_use","id":"t3","name":"Edit","input":{}},{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"user","timestamp":"2026-08-08T09:21:00Z","message":{"content":"looks good"}}
+{"type":"assistant","timestamp":"2026-08-08T09:21:05Z","message":{"model":"claude-fable-5","content":[{"type":"text","text":"Compliance Review: PASS"}]}}
 JSON
 mkdir -p "$d/pulse"
 echo '{"bug1:1":"accepted"}' >"$d/pulse/verdicts.json"
@@ -2111,28 +2111,28 @@ check "review.recovered: cached mend verdict, no second model call needed" "$exp
 #         the same either way and lets a last-run implementation pass. ──
 d=$(tmpdir)
 cat >"$d/verify-first.jsonl" <<'JSON'
-{"type":"user","timestamp":"2026-08-01T09:00:00Z","message":{"content":"add the parser"}}
-{"type":"assistant","timestamp":"2026-08-01T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
-{"type":"assistant","timestamp":"2026-08-01T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"pytest -q"}}]}}
-{"type":"user","timestamp":"2026-08-01T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":"1 failed"}]}}
-{"type":"assistant","timestamp":"2026-08-01T09:00:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"pytest -q"}}]}}
-{"type":"user","timestamp":"2026-08-01T09:00:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"5 passed"}]}}
-{"type":"user","timestamp":"2026-08-01T09:05:00Z","message":{"content":"what does it do?"}}
-{"type":"assistant","timestamp":"2026-08-01T09:05:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"It parses."}]}}
-{"type":"user","timestamp":"2026-08-01T09:10:00Z","message":{"content":"now the writer"}}
-{"type":"assistant","timestamp":"2026-08-01T09:10:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e2","name":"Edit","input":{}}]}}
-{"type":"assistant","timestamp":"2026-08-01T09:10:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"pytest -q"}}]}}
-{"type":"user","timestamp":"2026-08-01T09:10:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t3","is_error":true,"content":"1 failed"}]}}
-{"type":"assistant","timestamp":"2026-08-01T09:10:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t4","name":"Bash","input":{"command":"pytest -q"}}]}}
-{"type":"user","timestamp":"2026-08-01T09:10:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"t4","content":"5 passed"}]}}
-{"type":"user","timestamp":"2026-08-01T09:15:00Z","message":{"content":"and the docs?"}}
-{"type":"assistant","timestamp":"2026-08-01T09:15:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Written."}]}}
-{"type":"user","timestamp":"2026-08-01T09:20:00Z","message":{"content":"now the reader"}}
-{"type":"assistant","timestamp":"2026-08-01T09:20:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e3","name":"Edit","input":{}}]}}
-{"type":"assistant","timestamp":"2026-08-01T09:20:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t5","name":"Bash","input":{"command":"pytest -q"}}]}}
-{"type":"user","timestamp":"2026-08-01T09:20:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t5","content":"5 passed"}]}}
-{"type":"assistant","timestamp":"2026-08-01T09:20:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t6","name":"Bash","input":{"command":"pytest -q"}}]}}
-{"type":"user","timestamp":"2026-08-01T09:20:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"t6","is_error":true,"content":"1 failed"}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:00Z","message":{"content":"add the parser"}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":"1 failed"}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"5 passed"}]}}
+{"type":"user","timestamp":"2026-08-13T09:05:00Z","message":{"content":"what does it do?"}}
+{"type":"assistant","timestamp":"2026-08-13T09:05:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"It parses."}]}}
+{"type":"user","timestamp":"2026-08-13T09:10:00Z","message":{"content":"now the writer"}}
+{"type":"assistant","timestamp":"2026-08-13T09:10:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e2","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:10:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:10:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t3","is_error":true,"content":"1 failed"}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:10:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t4","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:10:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"t4","content":"5 passed"}]}}
+{"type":"user","timestamp":"2026-08-13T09:15:00Z","message":{"content":"and the docs?"}}
+{"type":"assistant","timestamp":"2026-08-13T09:15:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Written."}]}}
+{"type":"user","timestamp":"2026-08-13T09:20:00Z","message":{"content":"now the reader"}}
+{"type":"assistant","timestamp":"2026-08-13T09:20:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e3","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:20:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t5","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:20:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t5","content":"5 passed"}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:20:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t6","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:20:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"t6","is_error":true,"content":"1 failed"}]}}
 JSON
 expected_verifyfirst="3/1"
 actual_verifyfirst=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-first.jsonl" <<'PY'
@@ -2170,10 +2170,10 @@ check "_exit_belongs_to_check: bare pipe unreadable, pipefail restores it" "$exp
 #         as unmeasured instead ──
 d=$(tmpdir)
 cat >"$d/verify-masked.jsonl" <<'JSON'
-{"type":"user","timestamp":"2026-08-04T09:00:00Z","message":{"content":"tidy it"}}
-{"type":"assistant","timestamp":"2026-08-04T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
-{"type":"assistant","timestamp":"2026-08-04T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"pytest -q 2>&1 | tail -5"}}]}}
-{"type":"user","timestamp":"2026-08-04T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"1 failed"}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:00Z","message":{"content":"tidy it"}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"pytest -q 2>&1 | tail -5"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"1 failed"}]}}
 JSON
 expected_masked="0/0|unmeasured=1"
 actual_masked=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-masked.jsonl" <<'PY'
@@ -2223,12 +2223,12 @@ check "verify classifiers cover this repo's gates; a probe is dropped but a run 
 #          that reason (95% vs 69% across the live roots). Excluded, not guessed ──
 d=$(tmpdir)
 cat >"$d/verify-maskedfirst.jsonl" <<'JSON'
-{"type":"user","timestamp":"2026-08-05T09:00:00Z","message":{"content":"add the reader"}}
-{"type":"assistant","timestamp":"2026-08-05T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
-{"type":"assistant","timestamp":"2026-08-05T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"pytest -q 2>&1 | tail -5"}}]}}
-{"type":"user","timestamp":"2026-08-05T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"1 failed"}]}}
-{"type":"assistant","timestamp":"2026-08-05T09:00:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"pytest -q"}}]}}
-{"type":"user","timestamp":"2026-08-05T09:00:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"5 passed"}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:00Z","message":{"content":"add the reader"}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"pytest -q 2>&1 | tail -5"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"1 failed"}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"5 passed"}]}}
 JSON
 expected_maskedfirst="0/0|unmeasured=1"
 actual_maskedfirst=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-maskedfirst.jsonl" <<'PY'
@@ -2265,10 +2265,10 @@ check "_PIPEFAIL_RE: 'set +o pipefail' and a bare mention do not make a pipeline
 #          when the results come back in the other order ──
 d=$(tmpdir)
 cat >"$d/verify-idpair.jsonl" <<'JSON'
-{"type":"user","timestamp":"2026-08-06T09:00:00Z","message":{"content":"check it"}}
-{"type":"assistant","timestamp":"2026-08-06T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
-{"type":"assistant","timestamp":"2026-08-06T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"r1","name":"Read","input":{}},{"type":"tool_use","id":"b1","name":"Bash","input":{"command":"pytest -q"}}]}}
-{"type":"user","timestamp":"2026-08-06T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"r1","content":"file contents"},{"type":"tool_result","tool_use_id":"b1","is_error":true,"content":"1 failed"}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:00Z","message":{"content":"check it"}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"r1","name":"Read","input":{}},{"type":"tool_use","id":"b1","name":"Bash","input":{"command":"pytest -q"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"r1","content":"file contents"},{"type":"tool_result","tool_use_id":"b1","is_error":true,"content":"1 failed"}]}}
 JSON
 expected_idpair="1/0"
 actual_idpair=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-idpair.jsonl" <<'PY'
@@ -2446,16 +2446,16 @@ check "SKIPPED closes a task too: the waiver stays excluded instead of becoming 
 #         real JSON, real kind dispatch, real segment fold, unmeasured surfaced ──
 d=$(tmpdir)
 cat >"$d/verify-live.jsonl" <<'JSON'
-{"type":"user","timestamp":"2026-08-03T09:00:00Z","message":{"content":"tidy the module"}}
-{"type":"assistant","timestamp":"2026-08-03T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
-{"type":"assistant","timestamp":"2026-08-03T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"a1","name":"Bash","input":{"command":"set -o pipefail; flutter analyze 2>&1 | tail -6"}}]}}
-{"type":"user","timestamp":"2026-08-03T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"a1","content":"No issues found!"}]}}
-{"type":"assistant","timestamp":"2026-08-03T09:00:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"p1","name":"Bash","input":{"command":"command -v golangci-lint"}}]}}
-{"type":"user","timestamp":"2026-08-03T09:00:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"p1","is_error":true,"content":"not found"}]}}
-{"type":"assistant","timestamp":"2026-08-03T09:00:30Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"flutter test"}}]}}
-{"type":"user","timestamp":"2026-08-03T09:00:31Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":"1 failed"}]}}
-{"type":"assistant","timestamp":"2026-08-03T09:00:40Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"flutter test 2>&1 | tail -3"}}]}}
-{"type":"user","timestamp":"2026-08-03T09:00:41Z","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"All tests passed!"}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:00Z","message":{"content":"tidy the module"}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"a1","name":"Bash","input":{"command":"set -o pipefail; flutter analyze 2>&1 | tail -6"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"a1","content":"No issues found!"}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:20Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"p1","name":"Bash","input":{"command":"command -v golangci-lint"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:21Z","message":{"content":[{"type":"tool_result","tool_use_id":"p1","is_error":true,"content":"not found"}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:30Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"flutter test"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:31Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":"1 failed"}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:40Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"flutter test 2>&1 | tail -3"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:41Z","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"All tests passed!"}]}}
 JSON
 expected_verifylive="lint ok|1|1|100|unmeasured=0||test ok|1|0|0|unmeasured=1"
 actual_verifylive=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-live.jsonl" <<'PY'
