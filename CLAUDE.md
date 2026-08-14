@@ -13,7 +13,9 @@ This repository tracks my personal Claude Code setup: global instructions, setti
 - `previews/henneth/skadi-theme.css` — shared preview stylesheet, copied beside the Henneth artifacts
 - `install.sh` — copies everything into `~/.claude/` (idempotent, safe to re-run)
 
-**This repo is the source of truth for the live Claude config.** Files under `~/.claude/` are copies, not symlinks — edits there will be overwritten on the next install run. Any change to the live config must be made in this repo first, then propagated by invoking the `/install` skill. Never edit `~/.claude/` directly.
+**This repo is the source of truth for the live Claude config.** Every configured install root (see `install.sh`'s registry) is a copy, not a symlink — the same file lands in each byte-for-byte, so reading these instructions from a live copy looks identical to reading them from the source itself. Edits to any copy are silently overwritten on the next install run. Any change to the live config must be made in this repo first, then propagated by invoking the `/install` skill. Never edit a configured root directly — not even the one that happened to supply this file to the current session.
+
+When unsure whether the directory you stand in is this repo or a copy, check `~/.skadi/protected_repos.md` for the real path.
 
 **Rule: always propagate with `/install`, never `./install.sh` directly.** The `/install` skill iterates over every configured root (e.g. `~/.claude`, `~/.claude-personal`, `~/.claude-work`). Running `./install.sh` with no argument only syncs the default root and leaves the others stale. Only call `./install.sh <path>` directly if the user explicitly names a single target.
 
