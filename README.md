@@ -229,6 +229,53 @@ became. A verification that diverges returns to **the code**, never to a bent
 test. And a review finding is mended **before** the fresh run, so the evidence a
 report cites comes from the same turn as the claim it backs.
 
+## Measuring the work
+
+The loop above is discipline; two scorecards check whether it was actually
+kept. Both read only past transcripts and recorded verdicts — neither writes
+to a session, and neither can be gamed by the turn it is scoring.
+
+### The adherence pulse (`/este`)
+
+`hooks/pulse-scan.py` walks every paired config root's session transcripts and
+scores seven dimensions from `hooks/pulse-rubric.json`:
+
+| Dimension | What it weighs | Denominator | Tier |
+|---|---|---|---|
+| `plan.accepted` | Plan accepted as proposed | gates answered | heuristic |
+| `plan.bug-reported` | No bug reported against a prior completion in the same session | completions checked | heuristic |
+| `rule.compliance-review` | Compliance Review dispatches an agent and renders a verdict | authoring task segments | heuristic |
+| `review.verdict` | Compliance Review closes clean, among reviews actually run | reviews run | heuristic |
+| `review.recovered` | A Compliance Review FAIL gets mended before the segment closes | FAILs found | heuristic |
+| `verify.test` | Code clears the test suite on its first run of a task | task segments running tests | structural |
+| `verify.lint` | Code clears lint on its first run of a task | task segments running lint | structural |
+
+Each run reads a 30-day window across all six paired roots —
+`~/.claude{,-personal,-work}` and `~/.codex{,-personal,-work}` — and scores two
+confidence tiers: `structural` rows read a tool result's own exit status,
+`heuristic` rows are judged by a model (`claude -p`, cached under
+`~/.skadi/pulse/`) reading intent rather than keywords. The headline reports a
+figure **per tier** rather than one average pretending to be certain. Every row
+also carries a `byModel` split (Opus / Sonnet / Fable) — the cut that answers
+which model held the rules better. Each run appends to
+`~/.skadi/pulse/history.jsonl`, so drift or improvement over time is readable,
+and renders both a Henneth dashboard and the board's pulse tile. The rubric
+file itself is the canon — each row there carries the fuller ✓/✗ criterion the
+dashboard unfolds behind its ⓘ button.
+
+### Plan fidelity (`/fidelity`)
+
+`hooks/fidelity-scan.py` reads the verdict history `/mandos` appends via
+`hooks/mandos-record.sh` (`~/.skadi/mandos/history.jsonl`) and reduces it to
+the **Faithful rate** — the share of verdicts that came back Faithful rather
+than Missing or Scope-crept — alongside **missing-blocker** and
+**scope-crept-blocker** counts explaining the rest, and a cumulative-rate trend
+across the recorded run. It fills in only as `/mandos` runs; it is never
+backfilled from past sessions.
+
+Both scorecards run directly (`/este`, `/fidelity`), ride inside `/minuial`'s
+morning ritual, and surface as tiles on `/board`.
+
 ## Skeleton-stage pipeline
 
 The skeleton road is **YouTrack's**, and the tracker chooses it — not the size of the work, and no flag opts in. There, `/council` keeps a living `[PLAN]` comment edited in place, and `/celebrimbor --skeleton` carves stubs and a diagram into a living `[SKELETON]` comment before the forge. `/glorfindel` drives the plan rung; `/aule` drives the skeleton and the forge. Each derives a ticket's rung from its thread via `hooks/skeleton-rung.py`; wrap them in `/amon-sul` to keep them riding. Two `[FORTH]`s gate the arc — one for the plan, one for the skeleton — and the code arrives as a draft PR with `[GWAITH]`. On Jira there is no skeleton rung: council leads straight to the forge.
