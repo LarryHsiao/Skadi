@@ -150,7 +150,7 @@
       "Bash(sed:*)",
       "PowerShell(Join-Path *)"
     ],
-    "defaultMode": "default"
+    "defaultMode": "auto"
   },
   "model": "opusplan",
   "theme": "light",
