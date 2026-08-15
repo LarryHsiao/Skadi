@@ -270,12 +270,12 @@ mkdir -p "$CLAUDE_DIR"
 # Digest both trees up front — every install_file below reads these maps.
 # settings.json is absent: install_settings compares the rendered text instead.
 hash_tree SRC_MD5 \
-  "$REPO/hooks" "$REPO/skills" "$REPO/docs" \
+  "$REPO/hooks" "$REPO/skills" "$REPO/docs" "$REPO/output-styles" \
   "$REPO/CLAUDE.md" "$REPO/CLAUDE.stub.md" "$REPO/statusline.sh" \
   "$REPO/previews/henneth/skadi-theme.css"
 
 live=()
-for path in hooks skills docs CLAUDE.md statusline.sh; do
+for path in hooks skills docs output-styles CLAUDE.md statusline.sh; do
   if [ -e "$CLAUDE_DIR/$path" ]; then
     live+=("$CLAUDE_DIR/$path")
   fi
@@ -345,6 +345,17 @@ if [ -d "$REPO/docs" ]; then
     install_file "$src" "$dst"
   done < <(find "$REPO/docs" -name '.*' -prune -o -type f -print0)
   prune_tree "$REPO/docs" "$CLAUDE_DIR/docs"
+fi
+
+# Output styles
+if [ -d "$REPO/output-styles" ]; then
+  mirror_dirs "$REPO/output-styles" "$CLAUDE_DIR/output-styles"
+  while IFS= read -r -d '' src; do
+    rel="${src#$REPO/output-styles/}"
+    dst="$CLAUDE_DIR/output-styles/$rel"
+    install_file "$src" "$dst"
+  done < <(find "$REPO/output-styles" -name '.*' -prune -o -type f -print0)
+  prune_tree "$REPO/output-styles" "$CLAUDE_DIR/output-styles"
 fi
 
 # Preview theme — a single shared stylesheet for Henneth previews to link.
