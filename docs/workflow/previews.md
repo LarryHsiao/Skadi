@@ -33,20 +33,3 @@ When a change touches UI layout (a new screen, a rearranged panel, a rethought c
 When a plan is generated — a task breakdown, an implementation plan, plan-mode output — whether it lands in markdown or only in the console, also write it as an HTML page under the previews directory per the Local Preview rules (`plan-<topic>.html`), so it appears in the standing Henneth window. The chat or markdown copy stays the source of truth; the HTML is a mirror for the eye.
 
 If the Henneth server is not running, render the preview file all the same and hint the user to boot the window with `/henneth` — the hint, not an auto-launch, is the assistant's part.
-
-## Cross-Machine Sync
-
-`~/.skadi/henneth/` is a plain folder — nothing in skadi's code needs to know how it gets from one machine to another. To carry it (and its artifacts) across PCs, point it at a folder synced by any file-sync tool (OneDrive, Syncthing, Dropbox) via a symlink. No code change is needed for this; the fixed path stays `~/.skadi/henneth` everywhere.
-
-**First machine** (the one that already has content):
-
-1. Move the real folder into the synced tree, e.g. `mv ~/.skadi/henneth ~/OneDrive/skadi-previews/henneth`.
-2. Symlink the fixed path back to it: `ln -s ~/OneDrive/skadi-previews/henneth ~/.skadi/henneth`.
-3. Run `/henneth` to confirm the server still boots and serves from the new real location.
-
-**Each additional machine**, once the sync client has pulled the folder down:
-
-1. If `~/.skadi/henneth` already exists there (e.g. from a prior local-only run), remove it first — check it holds nothing worth keeping before deleting.
-2. Symlink: `ln -s ~/OneDrive/skadi-previews/henneth ~/.skadi/henneth`.
-
-`install.sh` and every Henneth-writing hook or skill resolve the fixed path transparently through the symlink — nothing else to configure.
