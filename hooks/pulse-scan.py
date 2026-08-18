@@ -536,19 +536,30 @@ def _exit_belongs_to_check(cmd, match):
     return bool(_PIPEFAIL_RE.search(cmd))
 
 
-def _check_match(cmd, match_re):
+def _check_match(cmd, match_re, exclude_re=None):
     """The first mention of this check that is an actual run, or None if the
     command only ever names it. Every mention is weighed, not just the
     first: `command -v ruff && ruff check .` probes the tool and then runs
     it, and reading only the leading mention would throw the genuine run away
-    with the probe."""
+    with the probe.
+
+    exclude_re, when given, disqualifies the whole command — used to keep a
+    hook's own `*.test.sh` out of verify.lint, where the bare word `eslint`
+    inside `eslint-check.test.sh` would otherwise read as a lint run. The
+    check is against the full command, so a compound run that pairs an
+    excluded name with a genuine one (`./hooks/lint.sh && ./hooks/eslint-
+    check.test.sh`) loses the real run too — one-directional, the same trade
+    the pipe heuristic already takes: it shrinks coverage, never admits a
+    false pass."""
+    if exclude_re is not None and exclude_re.search(cmd):
+        return None
     for match in match_re.finditer(cmd):
         if not _PROBE_RE.search(cmd[:match.start()]):
             return match
     return None
 
 
-def _first_check_run(seg_turns, match_re):
+def _first_check_run(seg_turns, match_re, exclude_re=None):
     """(verdict, model, unmeasured) for one task segment — verdict being
     whether the FIRST readable run of this check passed, or None when the
     segment holds no readable run at all.
@@ -579,7 +590,7 @@ def _first_check_run(seg_turns, match_re):
         if turn["type"] != "assistant":
             continue
         for call in turn.get("bash_commands", []):
-            match = _check_match(call["command"], match_re)
+            match = _check_match(call["command"], match_re, exclude_re)
             if match is None:
                 continue
             if not _exit_belongs_to_check(call["command"], match):
@@ -618,11 +629,12 @@ def score_verify(turns, entry):
     the largest suites, so the measured population skews toward smaller,
     faster checks until the pipefail habit closes the gap."""
     match_re = re.compile(entry["match"])
+    exclude_re = re.compile(entry["exclude"]) if entry.get("exclude") else None
     applied = 0
     complied = 0
     by_model = {}
     for seg in _task_segments(_prompt_runs(turns, entry.get("since", ""))):
-        verdict, model, _ = _first_check_run(_segment_turns(seg), match_re)
+        verdict, model, _ = _first_check_run(_segment_turns(seg), match_re, exclude_re)
         if verdict is None:
             continue
         applied += 1
@@ -639,10 +651,11 @@ def _unmeasured_runs(sessions, entry):
     adherence to CLAUDE.md's pipefail rule: as that spreads, this falls and
     the row's own denominator grows."""
     match_re = re.compile(entry["match"])
+    exclude_re = re.compile(entry["exclude"]) if entry.get("exclude") else None
     total = 0
     for turns in sessions:
         for seg in _task_segments(_prompt_runs(turns, entry.get("since", ""))):
-            total += _first_check_run(_segment_turns(seg), match_re)[2]
+            total += _first_check_run(_segment_turns(seg), match_re, exclude_re)[2]
     return total
 
 

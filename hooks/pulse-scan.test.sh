@@ -2497,6 +2497,72 @@ expected_noliteral="0"
 actual_noliteral=$(grep -c '~/\.claude' "$SCAN" || true)
 check "no literal ~/.claude substring in pulse-scan.py's source (Codex install-render guard)" "$expected_noliteral" "$actual_noliteral"
 
+# ── 73 · verify.lint learns `tsc`, anchored to a real invocation rather than
+#         a bare word — a bare `\btsc\b` would read `grep -n tsc file` as a
+#         run and score off grep's exit status, which could fabricate a pass,
+#         the one direction these heuristics are careful never to take ──
+expected_tscclassify="noemit:lint|npx:lint|pnpm:lint|chained:lint|mention:none|probe:none"
+actual_tscclassify=$(python3 - "$SCAN" "$RUBRIC" <<'PY'
+import importlib.util as u, sys, json, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+pats = {r["id"].split(".")[1]: re.compile(r["match"])
+        for r in rubric if r["kind"] == "verify"}
+cases = [("noemit", "tsc --noEmit"), ("npx", "npx tsc"), ("pnpm", "pnpm tsc"),
+         ("chained", "cd web && tsc --noEmit"),
+         ("mention", "grep -n tsc file"), ("probe", "command -v tsc")]
+out = []
+for name, cmd in cases:
+    hit = "none"
+    for row, rx in pats.items():
+        if m._check_match(cmd, rx):
+            hit = row
+    out.append("%s:%s" % (name, hit))
+print("|".join(out))
+PY
+)
+check "verify.lint: tsc matches a real invocation, not a mention or a probe" "$expected_tscclassify" "$actual_tscclassify"
+
+# ── 74 · a hook's own *.test.sh is a test run, not a lint run — the bare word
+#         `eslint` inside `eslint-check.test.sh` (added by 7b6ff35, the same
+#         commit that unburdened the per-edit Dart/web hooks) would otherwise
+#         register skadi's own hook test as a lint pass. verify.lint's
+#         `exclude` drops it; verify.test has no such exclude and still
+#         counts it, correctly, as the test run it is ──
+d=$(tmpdir)
+cat >"$d/verify-exclude.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-13T09:00:00Z","message":{"content":"run the hook tests"}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:05Z","message":{"model":"claude-opus-4-8","content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-08-13T09:00:10Z","message":{"model":"claude-opus-4-8","content":[{"type":"tool_use","id":"a1","name":"Bash","input":{"command":"./hooks/eslint-check.test.sh"}}]}}
+{"type":"user","timestamp":"2026-08-13T09:00:11Z","message":{"content":[{"type":"tool_result","tool_use_id":"a1","content":"12 passed"}]}}
+JSON
+expected_excludelive="lint 0/0|test 1/1"
+actual_excludelive=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-exclude.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+items, _ = m.apply_rubric([sys.argv[3]], rubric)
+by_id = {i["id"]: i for i in items}
+t, l = by_id["verify.test"], by_id["verify.lint"]
+print("lint %s/%s|test %s/%s" % (l["applied"], l["complied"], t["applied"], t["complied"]))
+PY
+)
+check "verify.lint excludes a hook's own *.test.sh; verify.test still counts it" "$expected_excludelive" "$actual_excludelive"
+
+expected_excludenotlint="1"
+actual_excludenotlint=$(python3 - "$SCAN" "$RUBRIC" <<'PY'
+import importlib.util as u, sys, json, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+entry = next(r for r in rubric if r["id"] == "verify.lint")
+match_re = re.compile(entry["match"])
+exclude_re = re.compile(entry["exclude"])
+# hooks/lint.sh itself is not a *.test.sh — the exclusion must not catch it
+print("1" if m._check_match("./hooks/lint.sh", match_re, exclude_re) else "0")
+PY
+)
+check "verify.lint's exclude does not catch the repo's own lint.sh gate" "$expected_excludenotlint" "$actual_excludenotlint"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

@@ -169,6 +169,28 @@ own once rendered.
   this repo's own `hooks/lint.sh` and `*.test.sh` gates are classified
   alongside the standard tools. `verify.lint` carries the thinnest
   denominator on the board — read its short-run movement with care.
+- **A `PostToolUse` hook's own runs never entered either row, and still
+  don't.** Both scorers walk `bash_commands` off assistant turns only
+  (`pulse-scan.py:592`), and a hook fires outside that stream entirely —
+  `read_turns` drops every record type but `user`/`assistant`
+  (`pulse-scan.py:232`). So when `hooks/flutter-analyze.sh` (deleted
+  2026-08-14) still ran `flutter analyze` and the whole `flutter test` suite
+  silently after every `.dart` write, neither row ever saw it; and today's
+  `hooks/eslint-check.sh`, which still lints every web edit automatically, is
+  equally invisible. Removing the hook's analysis and test calls therefore
+  changed nothing either row measured — what it changed is that the model
+  itself now runs both, as CLAUDE.md's "Analysis and tests have named
+  moments" names. Read these two rows' denominators growing since
+  2026-08-14 as coverage of a discipline made explicit, not as a shift in
+  conduct; the `since` gate on both entries stays at 2026-08-12 because the
+  metric's *definition* never changed, only what it now has occasion to see.
+  `verify.lint`'s `match` also gained `tsc` (anchored to an invocation, not a
+  bare word, so a stray `grep tsc` mention can't fabricate a pass) and an
+  `exclude` for `*.test.sh` — without it, running this repo's own
+  `hooks/eslint-check.test.sh` registered as a lint pass off the bare word
+  `eslint` in its filename, a false positive the same commit introduced by
+  adding that file. `verify.test` needs no such exclude: a `*.test.sh` run is
+  a genuine test run there.
 - **First-shot rate measures the model, not a rule.** `model.first-shot` asks a
   different question from every other row: not "did the model keep the config's
   rule" but "how good is the model" — what fraction of task segments landed
