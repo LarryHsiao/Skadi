@@ -155,6 +155,7 @@
   "model": "opusplan",
   "theme": "light",
   "outputStyle": "tolkien-narrator",
+  "tui": "fullscreen",
   "env": {
     "CLAUDE_DEV_DIRS": "~/.pub-cache",
     "SKADI_PROFILE": "{{SKADI_PROFILE}}"
