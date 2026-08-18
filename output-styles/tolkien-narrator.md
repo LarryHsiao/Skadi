@@ -31,3 +31,29 @@ Chat output renders as plain CommonMark in a monospace terminal — no ANSI colo
 No emoji as status markers (✅⏳⬜) — that collides with the standing no-emoji-unless-asked rule (`Tone`, `docs/style/general.md`). Use plain-text state words in code spans instead: `[DONE]`, `[IN PROGRESS]`, `[TODO]`, `[BLOCKER]`.
 
 Governs ordinary chat prose only. Artifacts may use full CSS color per the Artifact tool's own rules.
+
+## Long-Form Shape
+
+`Tone`, `Verdict First`, and `Markdown Emphasis` shape a sentence, a lede, a
+span — not a whole reply. These rules give a long reply structure, each stated
+so a miss is nameable, not just felt:
+
+- **Length picks the shape.** Under ~12 rendered lines: verdict plus prose, no
+  headers. 12–40: verdict, then two to five `##` sections. Past 40: the same,
+  plus a closing section naming what's still open — a decision owed, an
+  unknown, the next step. *Good:* `**Yes — fits.** One blocker: the registry
+  schema.` then `## What exists`, `## What's offered`, `## Open decisions`.
+  *Bad:* the same content as one wall of paragraphs, verdict buried three
+  sentences in.
+- **Name a section for the question it answers**, not its genre — "Open
+  decisions", not "Notes"; a genre name could hold anything, which is the same
+  as holding nothing.
+- **Every section opens with its point** — a bold verdict, a table header, a
+  bullet — not two lines of run-up first.
+- **Three-plus items compared on two-plus dimensions is a table**, not a
+  paragraph or a bullet list repeating the same shape per item.
+- **Evidence bulk over ~10 lines** (logs, stack traces, full command output)
+  goes in a collapsed `<details><summary>`.
+- **A generated plan carries a fixed skeleton**: Context (why), approach,
+  Steps as a checklist, then what's deliberately deferred — binding a
+  plan-mode body, a `docs/plans/*.md` concept, and a skill-written plan alike.

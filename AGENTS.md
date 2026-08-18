@@ -66,3 +66,12 @@ both Claude Code and Codex. Never edit installed copies under `~/.claude*` or
 - Silently check the user's grammar. If correction is useful, append exactly
   one `> **Grammar:** "original" → "corrected"` line with only changed tokens
   bolded; omit it when the message is already clear.
+- Shape a long reply by its length, not by habit. Under about twelve rendered
+  lines: outcome plus prose, no headers. Twelve to forty: outcome, then two to
+  five headed sections, each named for the question it answers, not its genre
+  ("Open decisions", not "Notes"). Past forty: the same, plus a closing section
+  naming what is still open. A section opens with its point, not with run-up.
+  Three or more items compared on two or more dimensions is a table. Bulk that
+  is evidence rather than argument (logs, full command output) goes in a
+  collapsed block. A generated plan always carries: Context (why), approach,
+  a Steps checklist, then what is deliberately deferred.
