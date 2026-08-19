@@ -23,10 +23,10 @@ root resolved in Step 0 — never the cwd.
 Before anything else, resolve the absolute path to the Minerva repo:
 
 ```bash
-MINERVA_ROOT="${MINERVA_ROOT:-$HOME/phantom/Minerva}"
+MINERVA_ROOT="${MINERVA_ROOT:-$HOME/Minerva}"
 ```
 
-The `MINERVA_ROOT` env var is the override; the `~/phantom/Minerva` fallback is the
+The `MINERVA_ROOT` env var is the override; the `~/Minerva` fallback is the
 default when it is unset. Confirm the path exists (`test -d "$MINERVA_ROOT"`); if it
 does not, tell the user plainly and stop — do not write the note into the cwd.
 
