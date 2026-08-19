@@ -249,6 +249,7 @@ Read when the tool is in play (not auto-loaded):
 - GitLab: `docs/tools/gitlab.md`
 - Secrets: `docs/tools/secrets.md`
 - jq: `docs/tools/jq.md`
+- iOS Simulator: `docs/tools/ios-simulator.md`
 
 ## Workflow
 
