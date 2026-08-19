@@ -79,6 +79,18 @@ check "command referencing a path under ~/.skadi is allowed" "allow" "$(run_cmd 
 check "command referencing ~/.skadi itself is allowed" "allow" "$(run_cmd "ls $HOME/.skadi")"
 check "a sibling of ~/.skadi sharing its prefix is still denied" "deny" "$(run_cmd "cat $HOME/.skadi-other/secrets")"
 
+# ── ~/Downloads and ~/Documents are standard OS user folders — a downloaded
+# file or a drag-and-dropped document lives there regardless of which project
+# is the session's cwd, so they're admitted like ~/.skadi above rather than
+# left to the per-user CLAUDE_DEV_DIRS opt-in. Same anchored-prefix discipline
+# applies: a sibling sharing the prefix is not the same directory ──
+check "command referencing a path under ~/Downloads is allowed" "allow" "$(run_cmd "cat $HOME/Downloads/report.pdf")"
+check "command referencing ~/Downloads itself is allowed" "allow" "$(run_cmd "ls $HOME/Downloads")"
+check "a sibling of ~/Downloads sharing its prefix is still denied" "deny" "$(run_cmd "cat $HOME/Downloads-old/secrets")"
+check "command referencing a path under ~/Documents is allowed" "allow" "$(run_cmd "cat $HOME/Documents/notes.md")"
+check "command referencing ~/Documents itself is allowed" "allow" "$(run_cmd "ls $HOME/Documents")"
+check "a sibling of ~/Documents sharing its prefix is still denied" "deny" "$(run_cmd "cat $HOME/Documents-old/secrets")"
+
 # ── an allowed path glued to a trailing shell operator (no space) is still allowed —
 # shlex.split doesn't treat these as separators, so a naive check would see
 # ".claude-work;" and miss the exact/glob match against ".claude-work" ──
@@ -234,6 +246,8 @@ check "Write file_path inside project is allowed" "allow" "$(run_write "$REPO/ho
 check "Write file_path outside project is denied" "deny" "$(run_write "/etc/passwd")"
 check "Write file_path under .claude-personal is allowed" "allow" "$(run_write "$HOME/.claude-personal/hooks/foo.sh")"
 check "Write file_path under .skadi is allowed" "allow" "$(run_write "$HOME/.skadi/moria/mend_repos.md")"
+check "Write file_path under ~/Downloads is allowed" "allow" "$(run_write "$HOME/Downloads/report.pdf")"
+check "Write file_path under ~/Documents is allowed" "allow" "$(run_write "$HOME/Documents/notes.md")"
 
 # ── the CLAUDE_DEV_DIRS whitelist governs file_path exactly as it governs
 # Bash command args — same in_allowed_dir check, same allowance ──

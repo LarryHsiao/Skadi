@@ -71,6 +71,12 @@ ALLOWED_ROOTS=(
   # touched by /install, so it belongs beside the config roots rather than
   # inside one: skills read and amend those files by absolute path.
   "$HOME_DIR/.skadi"
+  # Standard OS user folders — a downloaded file or a drag-and-dropped
+  # document lives here regardless of which project is the session's cwd, so
+  # they're admitted like the other system-wide roots above rather than left
+  # to CLAUDE_DEV_DIRS, which is per-user opt-in and not set by default.
+  "$HOME_DIR/downloads"
+  "$HOME_DIR/documents"
   /tmp
   /private/tmp
   "$TMPDIR_DIR"
