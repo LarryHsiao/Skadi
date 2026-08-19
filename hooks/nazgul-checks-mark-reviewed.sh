@@ -4,6 +4,7 @@
 
 set -euo pipefail
 
-state="$HOME/.claude/.nazgul-checks-last-review"
+state="$HOME/.skadi/preflight/nazgul-checks-last-review"
+mkdir -p "$HOME/.skadi/preflight"
 date +%s > "$state"
 echo "Marked nazgûl checks reviewed at $(date '+%Y-%m-%d %H:%M:%S')."

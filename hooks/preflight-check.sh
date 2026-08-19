@@ -8,7 +8,7 @@ set -euo pipefail
 now=$(date +%s)
 
 # --- cleanup-dev ---
-cleanup_state="$HOME/.claude/.cleanup-dev-last-run"
+cleanup_state="$HOME/.skadi/preflight/cleanup-dev-last-run"
 if [ -f "$cleanup_state" ]; then
   last=$(cat "$cleanup_state" 2>/dev/null || echo "")
   if [[ "$last" =~ ^[0-9]+$ ]]; then
@@ -25,7 +25,7 @@ else
 fi
 
 # --- daily ---
-daily_state="$HOME/.claude/.daily-last-run"
+daily_state="$HOME/.skadi/preflight/daily-last-run"
 today=$(date +%Y-%m-%d)
 if [ -f "$daily_state" ]; then
   last=$(cat "$daily_state" 2>/dev/null || echo "")
@@ -44,7 +44,7 @@ else
 fi
 
 # --- triage ---
-triage_state="$HOME/.claude/.triage-last-run"
+triage_state="$HOME/.skadi/preflight/triage-last-run"
 if [ -f "$triage_state" ]; then
   last=$(cat "$triage_state" 2>/dev/null || echo "")
   if [[ "$last" =~ ^[0-9]+$ ]]; then
@@ -75,7 +75,7 @@ done
 
 if [ -n "$nazgul_checks_dir" ]; then
   nazgul_count=$(find "$nazgul_checks_dir" -maxdepth 1 -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')
-  nazgul_state="$HOME/.claude/.nazgul-checks-last-review"
+  nazgul_state="$HOME/.skadi/preflight/nazgul-checks-last-review"
   if [ -f "$nazgul_state" ]; then
     n_last=$(cat "$nazgul_state" 2>/dev/null || echo "")
     if [[ "$n_last" =~ ^[0-9]+$ ]]; then

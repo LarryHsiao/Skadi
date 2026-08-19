@@ -4,5 +4,5 @@
 
 set -euo pipefail
 
-mkdir -p "$HOME/.claude"
-date +%s > "$HOME/.claude/.triage-last-run"
+mkdir -p "$HOME/.skadi/preflight"
+date +%s > "$HOME/.skadi/preflight/triage-last-run"

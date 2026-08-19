@@ -220,7 +220,7 @@ changed_str="📄 ${changed_count}"
 unpushed_str="⬆ ${unpushed_count}"
 
 # Grammar error count for today
-GRAMMAR_LOG="$HOME/.claude/.grammar_log"
+GRAMMAR_LOG="$HOME/.skadi/grammar_log"
 TODAY=$(date +%Y-%m-%d)
 grammar_today=0
 if [ -f "$GRAMMAR_LOG" ]; then

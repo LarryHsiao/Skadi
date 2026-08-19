@@ -2,9 +2,10 @@
 # Stop hook: count grammar corrections in Claude's response and persist to log
 
 INPUT=$(cat)
-AGENT_CONFIG_ROOT="${CODEX_HOME:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}}"
-GRAMMAR_LOG="$AGENT_CONFIG_ROOT/.grammar_log"
+GRAMMAR_LOG="$HOME/.skadi/grammar_log"
 TODAY=$(date +%Y-%m-%d)
+
+mkdir -p "$HOME/.skadi"
 
 # Reset if log is from a previous day
 if [ -f "$GRAMMAR_LOG" ]; then
