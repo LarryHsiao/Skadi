@@ -1,16 +1,18 @@
 ---
 name: remember
-description: Use when the user wants to save knowledge to the Minerva knowledge base — from any repo, not just Minerva itself. Determines category, suggests sub-categories, and writes the note into the Minerva repo.
-purpose: Saves knowledge to the Minerva knowledge base.
+description: Use when the user wants to save knowledge to their personal knowledge-base repo — from any repo, not just that repo itself. Determines category, suggests sub-categories, and writes the note into the knowledge-base repo (its location is machine-specific, read from ~/.skadi/memory-repo.md — never hardcoded).
+purpose: Saves knowledge to the personal knowledge-base repo.
 user_invocable: true
 args: "[topic or content to remember]"
 ---
 
-# Remember — Save Knowledge to Minerva
+# Remember — Save Knowledge to the Knowledge Base
 
-This skill writes into the **Minerva** knowledge-base repo regardless of the current
-working directory. Every search, write, and git action below targets the Minerva
-root resolved in Step 0 — never the cwd.
+This skill writes into the personal **knowledge-base repo** — the same repo the
+Memory Bootstrap rule in CLAUDE.md reads from — regardless of the current
+working directory. Every search, write, and git action below targets that
+repo's root, resolved in Step 0, never the cwd. The repo's location and name
+are per-machine detail, never hardcoded here.
 
 ## Arguments
 
@@ -18,17 +20,23 @@ root resolved in Step 0 — never the cwd.
 
 ## Workflow
 
-### Step 0: Resolve the Minerva root, and check whether this session is rooted there
+### Step 0: Resolve the knowledge-base root, and check whether this session is rooted there
 
-Before anything else, resolve the absolute path to the Minerva repo:
+Before anything else, resolve the absolute path to the knowledge-base repo —
+the same pointer file the Memory Bootstrap rule in CLAUDE.md uses, so the two
+never drift apart:
 
 ```bash
-MINERVA_ROOT="${MINERVA_ROOT:-$HOME/Minerva}"
+MEMORY_REPO_ROOT="${MEMORY_REPO_ROOT:-$(cat ~/.skadi/memory-repo.md 2>/dev/null)}"
 ```
 
-The `MINERVA_ROOT` env var is the override; the `~/Minerva` fallback is the
-default when it is unset. Confirm the path exists (`test -d "$MINERVA_ROOT"`); if it
-does not, tell the user plainly and stop — do not write the note into the cwd.
+The `MEMORY_REPO_ROOT` env var is the override; `~/.skadi/memory-repo.md` is the
+source when it is unset. If neither yields a path, ask the user once where
+their knowledge-base repo lives, then write the answer into
+`~/.skadi/memory-repo.md` — never guess the path, and never ask again once
+recorded (mirrors CLAUDE.md's Memory Bootstrap). Confirm the resolved path
+exists (`test -d "$MEMORY_REPO_ROOT"`); if it does not, tell the user plainly
+and stop — do not write the note into the cwd.
 
 **Then check the session's own root against it:**
 
@@ -36,22 +44,23 @@ does not, tell the user plainly and stop — do not write the note into the cwd.
 SESSION_ROOT=$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" 2>/dev/null && pwd)
 ```
 
-- **If `$SESSION_ROOT` is `$MINERVA_ROOT` or nested under it** — proceed with Steps
-  1–5 below exactly as written; every file and git operation targets `$MINERVA_ROOT`.
-- **Otherwise** — this session is rooted outside Minerva, and a direct write would
-  be blocked by `protected-repo-guard.sh` anyway. Skip straight to **Step 0b**
-  below instead of Steps 1, 4, and 5.
+- **If `$SESSION_ROOT` is `$MEMORY_REPO_ROOT` or nested under it** — proceed with
+  Steps 1–5 below exactly as written; every file and git operation targets
+  `$MEMORY_REPO_ROOT`.
+- **Otherwise** — this session is rooted outside the knowledge-base repo, and a
+  direct write would be blocked by `protected-repo-guard.sh` anyway. Skip
+  straight to **Step 0b** below instead of Steps 1, 4, and 5.
 
-All paths named below (`work/…`, `personal/…`) are **relative to `$MINERVA_ROOT`**.
-Read, write, and commit against the absolute path; never against the working
-directory the session happens to sit in.
+All paths named below (`work/…`, `personal/…`) are **relative to
+`$MEMORY_REPO_ROOT`**. Read, write, and commit against the absolute path;
+never against the working directory the session happens to sit in.
 
-### Step 0b: Redirect through /handoff (only when outside Minerva)
+### Step 0b: Redirect through /handoff (only when outside the knowledge-base repo)
 
 Still run **Step 2 (category)** and **Step 3 (sub-category)** below to shape the
-note correctly — that judgment doesn't need Minerva's tree, only the user's input.
-Skip **Step 1** (duplicate check — it greps the live Minerva tree, unreachable from
-here) and **Steps 4–5** (the direct write/commit/push).
+note correctly — that judgment doesn't need the repo's tree, only the user's
+input. Skip **Step 1** (duplicate check — it greps the live repo, unreachable
+from here) and **Steps 4–5** (the direct write/commit/push).
 
 Compose the note body exactly as Step 4 describes (title, company blockquote if
 under `work/`, content, date line) but prefix it with the intended path as a
@@ -63,22 +72,25 @@ heading, so the receiving session knows where to file it:
 <the note content, per Step 4>
 ```
 
-Send it:
+Send it, over the same handoff channel `~/.skadi/protected_repos.md` maps this
+repo to:
 
 ```bash
-printf '%s' "<composed note>" | ~/.claude/hooks/handoff.sh send minerva
+printf '%s' "<composed note>" | ~/.claude/hooks/handoff.sh send memory
 ```
 
-Tell the user plainly: *"Not rooted in Minerva — queued this note on the `minerva`
-handoff channel instead of writing directly. Open a Minerva session and run
-`/handoff read minerva` to file it."* Do not proceed to Steps 4–5.
+Tell the user plainly: *"Not rooted in the knowledge-base repo — queued this
+note on the `memory` handoff channel instead of writing directly. Open a
+session there and run `/handoff read memory` to file it."* Do not proceed to
+Steps 4–5.
 
 ### Step 1: Check for Duplicates
 
-Before creating anything, search the Minerva repo for existing notes on the same topic:
+Before creating anything, search the knowledge-base repo for existing notes on
+the same topic:
 
-1. Use Grep over `$MINERVA_ROOT` to search for key terms from the user's input across
-   all `.md` files.
+1. Use Grep over `$MEMORY_REPO_ROOT` to search for key terms from the user's
+   input across all `.md` files.
 2. If a relevant note already exists, ask the user using AskUserQuestion:
 
 ```
@@ -163,7 +175,7 @@ If a new sub-folder is created, also create a `README.md` in it following the pa
 ### Step 4: Write the Note
 
 1. Pick a `kebab-case.md` filename that captures the topic.
-2. Write the file under `$MINERVA_ROOT/<category>/<sub-folder>/<filename>.md` with:
+2. Write the file under `$MEMORY_REPO_ROOT/<category>/<sub-folder>/<filename>.md` with:
    - A top-level `# Title` heading
    - If the note belongs under `work/`, a `> **Company:** <employer>` blockquote near the top identifying which employer the content pertains to (default: Jubo Health — confirm with the user if the content looks cross-company or generic)
    - The knowledge content, organized clearly
@@ -175,7 +187,7 @@ If a new sub-folder is created, also create a `README.md` in it following the pa
 Ask the user using AskUserQuestion:
 
 ```
-question: "Save this note to Minerva?"
+question: "Save this note to the knowledge base?"
 header: "Confirm"
 options:
   - label: "Save"
@@ -184,8 +196,8 @@ options:
     description: "Delete the file, nothing saved"
 ```
 
-- If **Save**: run the git steps against the Minerva repo, not the cwd —
-  `rtk git -C "$MINERVA_ROOT" add <relative-path> && rtk git -C "$MINERVA_ROOT" commit -m "Add note: <filename>" && rtk git -C "$MINERVA_ROOT" push`
+- If **Save**: run the git steps against the knowledge-base repo, not the cwd —
+  `rtk git -C "$MEMORY_REPO_ROOT" add <relative-path> && rtk git -C "$MEMORY_REPO_ROOT" commit -m "Add note: <filename>" && rtk git -C "$MEMORY_REPO_ROOT" push`
 - If **Discard**: delete the file and notify the user.
 
 ## Rules
@@ -195,4 +207,4 @@ options:
 - Use relative paths for cross-references between notes.
 - Don't over-structure — keep notes concise and scannable.
 - If the user provides multiple unrelated things to remember, create separate files for each.
-- Every file and git operation targets `$MINERVA_ROOT` (Step 0), never the working directory.
+- Every file and git operation targets `$MEMORY_REPO_ROOT` (Step 0), never the working directory.

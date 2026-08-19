@@ -97,6 +97,10 @@ in_allowed_dir() {
   # so a path merely beginning with one of their names is not admitted.
   case "$p" in
     /dev/null|/dev/stdout|/dev/stderr|/dev/tty) return 0 ;;
+    # Explicitly whitelisted by user request — a session may edit its own
+    # shell rc to manage env vars skadi skills read (e.g. MEMORY_REPO_ROOT).
+    # Exact match only; other dotfiles stay out of bounds until asked for.
+    "$HOME_DIR/.zshrc") return 0 ;;
   esac
   return 1
 }
