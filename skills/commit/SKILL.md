@@ -1,7 +1,8 @@
 ---
 name: commit
-description: Use when the user asks to commit changes to git. Generates a commit message from the diff and asks for approval before committing. Pass `--push` to also push to the default remote after the commit lands.
-purpose: Generates a commit message from the diff and commits, optionally pushing, after approval.
+description: Use when the user asks to commit changes to git. Generates a commit message from the diff and commits directly by default — no approval prompt. Pass `--confirm` to ask for approval first. Pass `--push` to also push to the default remote after the commit lands.
+purpose: Generates a commit message from the diff and commits, optionally pushing, without asking unless told to.
+args: "[--push] [--confirm]"
 ---
 
 # Git Commit with Generated Message
@@ -10,9 +11,8 @@ purpose: Generates a commit message from the diff and commits, optionally pushin
 
 1. Run `git status` and `git diff HEAD` in parallel to understand all changes
 2. Draft a commit message based on the diff
-3. Ask for user approval with AskUserQuestion before committing
-4. If approved — commit; if rejected — use their preferred message instead
-5. If `--push` was given, push to the default remote after the commit lands
+3. By default, commit directly with the generated message — no approval step. If `--confirm` was given, ask for approval first (see *Approval*) and use the user's answer instead if they reject or ask for a different message.
+4. If `--push` was given, push to the default remote after the commit lands
 
 ## Commit Message Rules
 
@@ -22,9 +22,9 @@ purpose: Generates a commit message from the diff and commits, optionally pushin
 - Stage specific files by name — avoid `git add .` or `git add -A`
 - Never skip hooks (`--no-verify`)
 
-## Asking for Approval
+## Approval (opt-in via `--confirm`)
 
-Use AskUserQuestion with the generated message as the single option, plus "Other" for custom input. Frame the question by whether `--push` was requested:
+Only when `--confirm` was passed: use AskUserQuestion with the generated message as the single option, plus "Other" for custom input, before committing. Frame the question by whether `--push` was also requested:
 
 - Without `--push`: "Commit with this message?"
 - With `--push`: "Commit and push with this message?"
@@ -35,7 +35,9 @@ options:
     description: "Use this commit message"
 ```
 
-## After Approval
+Without `--confirm`, skip straight to *After Drafting* below.
+
+## After Drafting
 
 ```bash
 git commit -m "$(cat <<'EOF'

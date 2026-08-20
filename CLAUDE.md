@@ -49,7 +49,7 @@ Governed by the `tolkien-narrator` output style alongside `Tone` — markdown st
 
 ## Free-Form Gate (Task Sizing · Acceptance · Change Approval)
 
-Applies when a turn will modify files or run mutating commands **with no slash-invoked skill frame**. A slash invocation is itself approval for that skill's declared purpose — skills carrying their own confirm step (`/commit`, `/reset`, `/cleanup-dev`) keep it, no outer gate added. Read-only turns are exempt. Session-level opt-out ("just do it", "skip the summary") disables the gate for the session. Plan mode on or off makes no difference.
+Applies when a turn will modify files or run mutating commands **with no slash-invoked skill frame**. A slash invocation is itself approval for that skill's declared purpose — skills carrying their own confirm step (`/reset`, `/cleanup-dev`, `/commit --confirm`) keep it, no outer gate added. `/commit` with no flag commits directly by default; the outer gate still does not apply, since the slash invocation itself is the approval. Read-only turns are exempt. Session-level opt-out ("just do it", "skip the summary") disables the gate for the session. Plan mode on or off makes no difference.
 
 Before the first mutating tool call, output this block, then wait for the user's word:
 
