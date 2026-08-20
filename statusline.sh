@@ -253,6 +253,36 @@ ellipsize_end() {
     echo "${str:0:$(( max_len - 3 ))}..."
 }
 
+# account_badge — prints "<glyph>\t<label>" naming the Claude login this session
+# runs under. Each ~/.claude* config root keeps its own .claude.json, so the
+# root the session was launched against is the one that holds the truth; a team
+# or enterprise login shows its organization, a personal one shows "personal",
+# and a login that cannot be read falls back to the profile's own name.
+account_badge() {
+    local config_file="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.claude.json"
+    local account_raw org_type org_name
+    account_raw=$(jq -r '.oauthAccount | [.organizationType // "", .organizationName // ""] | @tsv' "$config_file" 2>/dev/null)
+    IFS=$'\t' read -r org_type org_name <<< "$account_raw"
+
+    local glyph label=""
+    case "$org_type" in
+        claude_team|claude_enterprise)
+            glyph="🏢"
+            label=$(echo "${org_name%% *}" | tr '[:upper:]' '[:lower:]')
+            ;;
+        claude_max|claude_pro|claude_free)
+            glyph="🏠"
+            label="personal"
+            ;;
+    esac
+
+    if [ -z "$label" ]; then
+        glyph="🔑"
+        label="${SKADI_PROFILE:-unknown}"
+    fi
+    printf "%s\t%s" "$glyph" "$label"
+}
+
 # Line 1: project name + worktree name (if any) + branch
 project_name=$(basename "$cwd")
 worktree_name=""
@@ -269,8 +299,10 @@ printf "📁 %s  %s🌿 %s\n" "$project_label" "$worktree_segment" "$branch_labe
 # Line 2: branch info
 printf "✏️ %s  %s  %s  %s\n" "$lines_str" "$changed_str" "$unpushed_str" "$grammar_str"
 
-# Line 3: model + context gauge
-printf "%s %s  📊 %s\n" "$model_emoji" "$model_short" "$context_str"
+# Line 3: model + login badge + context gauge
+IFS=$'\t' read -r account_emoji account_short <<< "$(account_badge)"
+account_short=$(ellipsize_end "$account_short" 12)
+printf "%s %s  %s %s  📊 %s\n" "$model_emoji" "$model_short" "$account_emoji" "$account_short" "$context_str"
 
 # Line 4: quota gauges (5h + 7d) — split off so the three bars don't overrun one line
 printf "⚡ %s  📅 %s\n" "$rate_5h_str" "$rate_7d_str"

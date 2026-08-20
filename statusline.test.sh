@@ -24,11 +24,13 @@ check() { # desc expected actual
 # The cache path is baked into statusline.sh, so the test must borrow the real
 # file. Set it aside and put it back, whatever the outcome.
 BACKUP="$(mktemp)"
+ACCOUNT_ROOT="$(mktemp -d)"
 had_cache=no
 if [ -f "$WEATHER_CACHE" ]; then cp "$WEATHER_CACHE" "$BACKUP"; had_cache=yes; fi
 restore() {
   if [ "$had_cache" = yes ]; then cp "$BACKUP" "$WEATHER_CACHE"; else rm -f "$WEATHER_CACHE"; fi
   rm -f "$BACKUP"
+  rm -rf "$ACCOUNT_ROOT"
 }
 trap restore EXIT
 
@@ -49,6 +51,35 @@ check "a cache younger than 30 minutes is read, not refetched" "$expected_fresh"
 # reading the very same cache (statusline.sh, the `elif [ -f "$WEATHER_CACHE" ]`
 # arm) — so offline, a correct refetch and a broken age check produce identical
 # output. A test that cannot tell the two apart would assert nothing.
+
+# ── 2 · the login badge names the account this config root is authorized under ──
+# Each ~/.claude* root keeps its own .claude.json, so the badge reads the login
+# from the root the session runs against rather than from the profile's name.
+badge_of() { # config_dir profile — prints the badge field of the model line.
+             # An empty profile means none is set in the environment at all.
+  printf '%s\n' "$MARKER" > "$WEATHER_CACHE"   # keep the run offline
+  (
+    unset SKADI_PROFILE
+    [ -n "$2" ] && export SKADI_PROFILE="$2"
+    export CLAUDE_CONFIG_DIR="$1"
+    echo "$PAYLOAD" | bash "$STATUSLINE" 2>/dev/null
+  ) | grep '📊' | awk -F'  ' '{print $2}'
+}
+
+printf '%s' '{"oauthAccount":{"organizationType":"claude_team","organizationName":"Jubo"}}' > "$ACCOUNT_ROOT/.claude.json"
+expected_team="🏢 jubo"
+check "a team login wears its organization's name" "$expected_team" "$(badge_of "$ACCOUNT_ROOT" work)"
+
+printf '%s' '{"oauthAccount":{"organizationType":"claude_max","organizationName":"Larry Hsiao"}}' > "$ACCOUNT_ROOT/.claude.json"
+expected_personal="🏠 personal"
+check "a personal login reads as personal, not as its org name" "$expected_personal" "$(badge_of "$ACCOUNT_ROOT" personal)"
+
+rm -f "$ACCOUNT_ROOT/.claude.json"
+expected_nameless="🔑 nameless"
+check "an unreadable account file falls back to the profile" "$expected_nameless" "$(badge_of "$ACCOUNT_ROOT" nameless)"
+
+expected_unknown="🔑 unknown"
+check "with no profile in the environment, the fallback reads unknown" "$expected_unknown" "$(badge_of "$ACCOUNT_ROOT" "")"
 
 echo ""
 echo "── $pass passed, $fail failed ──"
