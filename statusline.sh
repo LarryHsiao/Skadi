@@ -29,7 +29,7 @@ lines_removed=$(echo "$diff_stat" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]
 lines_added=${lines_added:-0}
 lines_removed=${lines_removed:-0}
 changed_count=$(git -C "$cwd" status --porcelain 2>/dev/null | grep -cE '^\?\?|^.[MDRC]' )
-unpushed_count=$(git -C "$cwd" rev-list --count @{upstream}..HEAD 2>/dev/null || echo 0)
+unpushed_count=$(git -C "$cwd" rev-list --count '@{upstream}..HEAD' 2>/dev/null || echo 0)
 
 # ANSI color codes: colored background
 BLUE=$'\033[44;97m'      # blue bg, white text
@@ -327,7 +327,6 @@ wick_quotes=(
     "Results. That's what I need. — Santino D'Antonio"
     "Consequences. — Winston"
 )
-wick_quote="${wick_quotes[$RANDOM % ${#wick_quotes[@]}]}"
 
 # Proverbs
 proverbs=(
