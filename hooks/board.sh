@@ -16,12 +16,14 @@
 # Passthroughs to the channel writers: `growth` refreshes the metis growth tile,
 # `sweep <name> <verdict> [detail] [scope]` records an amon-sul sweep verdict —
 # the optional scope pins one skill's ride to a project so two scopes coexist,
-# `pulse` recomputes the adherence pulse channel + dashboard.
+# `pulse` recomputes the adherence pulse channel + dashboard, `attention
+# <mrs|prs|jira> [--clear]` refreshes one "what awaits me" surface (or `mail
+# --from-json <file> | --clear`, the model-fed surface refresh can't fetch).
 #
 # Data lives under ~/.skadi/board/ (override with BOARD_DIR). The ticket writer,
-# the growth writer, the henneth-link writer, the shared manifest, and the page
-# are helpers beside this script in the hooks folder — this dispatcher only
-# orchestrates them.
+# the growth writer, the attention writer, the henneth-link writer, the shared
+# manifest, and the page are helpers beside this script in the hooks folder —
+# this dispatcher only orchestrates them.
 
 set -euo pipefail
 export LC_ALL=C.UTF-8
@@ -73,6 +75,10 @@ case "$cmd" in
     exec "$DIR/board-sweep.sh" "$@"
     ;;
 
+  attention)
+    exec "$DIR/board-attention.sh" "$@"
+    ;;
+
   pulse)
     exec python3 "$DIR/pulse-scan.py" "$@"
     ;;
@@ -102,6 +108,10 @@ case "$cmd" in
       else
         "$DIR/board-ticket.sh" "$id" --tracker "$tracker"
       fi
+    done
+    for surface in mrs prs jira; do
+      "$DIR/board-attention.sh" "$surface" \
+        || echo "board: attention $surface refresh failed (skipped)" >&2
     done
     "$DIR/board-growth.sh" || echo "board: growth refresh failed (skipped)" >&2
     "$DIR/board-henneth.sh" || echo "board: henneth link refresh failed (skipped)" >&2
@@ -181,6 +191,10 @@ for name in json.load(open(manifest, encoding="utf-8")).get("channels", []):
     elif d.get("channel") == "sweep":
         print("  sweep %-10s %-8s %s" % (
             d.get("name", ""), d.get("verdict", ""), (d.get("detail") or "")[:40]))
+    elif d.get("channel") == "attention":
+        count = "—" if d.get("count") is None else d.get("count")
+        print("  attn  %-10s %-8s %s" % (
+            d.get("surface", ""), count, (d.get("detail") or "")[:40]))
 PY
     ;;
 
@@ -217,7 +231,7 @@ PY
     ;;
 
   *)
-    echo "usage: board.sh {serve | add <KEY> [--active] | remove <KEY> | refresh [--stability-scrape] | stability-write <label> --from-json <file> | list}" >&2
+    echo "usage: board.sh {serve | add <KEY> [--active] | remove <KEY> | refresh [--stability-scrape] | attention <mrs|prs|jira> [--clear] | attention mail [--clear | --from-json <file>] | stability-write <label> --from-json <file> | list}" >&2
     exit 1
     ;;
 esac

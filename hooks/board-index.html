@@ -277,7 +277,8 @@
         background: var(--line);
         flex: 1;
       }
-      .sweeprows {
+      .sweeprows,
+      .attnrows {
         display: flex;
         flex-direction: column;
         gap: 0.35rem;
@@ -334,6 +335,7 @@
         </div>
         <div class="strip" id="strip"></div>
       </div>
+      <div class="attentionband" id="attention"></div>
       <div class="bento" id="bento">
         <div class="empty">
           No ticket channels yet. Run the writer to raise one.
@@ -439,11 +441,13 @@
         const tickets = channels.filter((c) => c.channel === "ticket");
         const growth = channels.find((c) => c.channel === "growth");
         const sweeps = channels.filter((c) => c.channel === "sweep");
+        const attention = channels.filter((c) => c.channel === "attention");
         const pulse = channels.find((c) => c.channel === "pulse");
         const stabilityChannels = channels.filter(
           (c) => c.channel === "stability",
         );
         renderStrip(tickets, growth, sweeps, pulse, stabilityChannels);
+        renderAttention(attention);
         renderBody(tickets);
         renderSweeps(sweeps);
       }
@@ -680,6 +684,40 @@
           })
           .join("");
         el.innerHTML = `<div class="banddiv">amon-sul · sweeps</div><div class="sweeprows">${rows}</div>`;
+      }
+
+      // What awaits — GitLab MRs, GitHub PRs, Jira movement, unread mail. A
+      // fixed row order (not the manifest's mtime sort) so rows don't shuffle
+      // every refresh; an absent surface's channel is simply not in `items` —
+      // no ghost row, unlike the strip's "channel not wired" tiles, because a
+      // flex column (unlike the strip's fixed grid) leaves nothing to fill.
+      // This deliberately departs from that convention — do not "restore" it.
+      function attentionBandHtml(items) {
+        if (!items.length) return "";
+        const order = { mrs: 0, prs: 1, jira: 2, mail: 3 };
+        const sorted = [...items].sort(
+          (a, b) => (order[a.surface] ?? 99) - (order[b.surface] ?? 99),
+        );
+        const cls = { stirred: "active", quiet: "quiet", unknown: "quiet" };
+        const rows = sorted
+          .map((it) => {
+            const pill = cls[it.verdict] || "quiet";
+            const count = it.count == null ? "—" : String(it.count);
+            const door = it.url
+              ? `<a class="enter" href="${esc(it.url)}" target="_blank" rel="noopener">Enter ↵</a>`
+              : "";
+            return `<div class="srow">
+      <span class="nm">${esc(it.label)}</span>
+      <span><span class="pill ${pill}">${esc(count)}</span></span>
+      <span class="dt">${esc(it.detail) || "—"}</span>
+      ${door}</div>`;
+          })
+          .join("");
+        return `<div class="banddiv">attention</div><div class="attnrows">${rows}</div>`;
+      }
+
+      function renderAttention(items) {
+        document.getElementById("attention").innerHTML = attentionBandHtml(items);
       }
 
       function renderBody(tickets) {

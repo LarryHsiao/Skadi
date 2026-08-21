@@ -159,6 +159,84 @@ check "the door wears the same attributes as its sibling doors" "$expected_attrs
 # door, never the tile. The number still renders; only the link is withheld.
 check "a roster entry with no platform renders the tile and withholds the door" "93.1%|none" "$(field BARE)"
 
+# The Attention band's render — attentionBandHtml() is pure (string in,
+# string out), so this slice needs no DOM harness at all, unlike the Stability
+# tile above. Sliced by its own findable neighbours: the function starts right
+# after renderSweeps's closing brace and ends at renderAttention's own close.
+attn_out=$(node - "$PAGE" <<'JS'
+const fs = require("fs");
+const page = fs.readFileSync(process.argv[2], "utf8");
+
+const start = page.indexOf("function attentionBandHtml(");
+const end = page.indexOf("function renderBody(", start);
+if (start === -1 || end === -1) {
+  console.log("EXTRACT_FAILED");
+  process.exit(0);
+}
+const src = page.slice(start, end);
+
+const esc = (s) =>
+  String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+const fn = eval(src + "\nattentionBandHtml;");
+
+const mkItem = (over) => ({
+  surface: "mrs", label: "GitLab MRs", count: 3, detail: "2 to review · 1 mine",
+  verdict: "stirred", url: "https://gitlab.example.com/dashboard/merge_requests",
+  ...over,
+});
+
+// Fixed order regardless of input array order.
+const outOfOrder = [
+  mkItem({ surface: "jira", label: "Jira movement" }),
+  mkItem({ surface: "mrs", label: "GitLab MRs" }),
+  mkItem({ surface: "prs", label: "GitHub PRs" }),
+];
+const orderHtml = fn(outOfOrder);
+const orderSeen = [...orderHtml.matchAll(/class="nm">([^<]*)</g)].map((m) => m[1]);
+console.log("ORDER " + orderSeen.join(","));
+
+// count null renders an em dash, not "0".
+const nullCount = fn([mkItem({ count: null, verdict: "unknown" })]);
+console.log("NULLCOUNT " + (nullCount.match(/class="pill[^"]*">([^<]*)</) || [, "?"])[1]);
+
+// count 0 renders "0".
+const zeroCount = fn([mkItem({ count: 0, verdict: "quiet" })]);
+console.log("ZEROCOUNT " + (zeroCount.match(/class="pill[^"]*">([^<]*)</) || [, "?"])[1]);
+
+// stirred takes the active pill class.
+console.log("STIRREDCLS " + (fn([mkItem({ verdict: "stirred" })]).match(/class="pill ([^"]*)"/) || [, "?"])[1]);
+
+// Three items -> exactly three rows; a channel simply absent from the input
+// (mail never wired) draws no ghost row.
+const three = fn([mkItem({ surface: "mrs" }), mkItem({ surface: "prs" }), mkItem({ surface: "jira" })]);
+console.log("THREEROWS " + (three.match(/class="srow"/g) || []).length);
+console.log("NOGHOST " + (three.includes("ghost") ? "ghost" : "clean"));
+
+// Empty array -> "" so the band and its divider vanish entirely.
+console.log("EMPTY " + JSON.stringify(fn([])));
+
+// No url -> no Enter link.
+console.log("NOURL " + (fn([mkItem({ url: null })]).includes("Enter") ? "has-link" : "no-link"));
+
+// An unknown surface sorts last but still renders.
+const withUnknown = fn([mkItem({ surface: "zzz", label: "Unknown surface" }), mkItem({ surface: "mrs", label: "GitLab MRs" })]);
+const unknownSeen = [...withUnknown.matchAll(/class="nm">([^<]*)</g)].map((m) => m[1]);
+console.log("UNKNOWNSURF " + unknownSeen.join(","));
+JS
+)
+
+afield() { printf '%s\n' "$attn_out" | awk -v k="$1" '{ if ($1 == k) { $1=""; sub(/^ /,""); print; exit } }'; }
+
+check "fixed row order regardless of input array order" "GitLab MRs,GitHub PRs,Jira movement" "$(afield ORDER)"
+check "count null renders an em dash, not 0" "—" "$(afield NULLCOUNT)"
+check "count 0 renders 0" "0" "$(afield ZEROCOUNT)"
+check "a stirred verdict takes the active pill class" "active" "$(afield STIRREDCLS)"
+check "three items produce exactly three rows" "3" "$(afield THREEROWS)"
+check "an absent channel draws no ghost row" "clean" "$(afield NOGHOST)"
+check "an empty array returns empty string (band + divider vanish)" '""' "$(afield EMPTY)"
+check "no url means no Enter link" "no-link" "$(afield NOURL)"
+check "an unknown surface sorts last but still renders" "GitLab MRs,Unknown surface" "$(afield UNKNOWNSURF)"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
