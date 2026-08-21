@@ -45,6 +45,28 @@ two images names **actionable deltas** — *"the header band is too tall, the ac
 runs orange where the spec is amber, the card gutters are wider"* — and each delta
 maps to an edit. That is what lets the loop converge instead of flail.
 
+**Vision alone cannot be trusted on a same-hue-family color regression.** A
+holistic side-by-side read reliably catches a wrong hue (orange where the spec
+is blue) but not a wrong *shade* within the same family — `warning.dark`
+(#E65100) standing in for `warning.main` (#ED6C02) reads as "the right orange"
+at a glance, especially on a small element (an icon, a status dot) where the
+eye has little area to judge against. Worse, sibling elements that share a
+color *family* — an icon, its label text, a button — do not necessarily share
+the same design-token *variant*: one real case used three distinct tokens
+(`warning.main` for the icon, `warning.main160Percent` for the text and
+button) that all read as "the same orange" on sight. Whenever an element
+carries real semantic or status color weight — not decorative color — sample
+it, do not just look at it:
+
+    ~/.claude/hooks/feanor-sample-color.sh "<pass-or-spec.png>" <x> <y> <w> <h>
+
+returns the region's most-saturated pixel as `#RRGGBB R,G,B` — the pixel that
+carries the region's real color, past whatever background or anti-aliasing
+surrounds it. Sample each semantically-colored element **independently**
+(icon, text, button — never assume a sibling shares its neighbour's sample),
+against both the spec and the pass, and compare hex values directly rather
+than trusting that "same family" means "same token."
+
 **The full-resolution, un-resized, un-fuzzed side-by-side read is the primary
 check, every pass — never a fallback.** A resize-to-match-frame-plus-fuzz pixel
 score (e.g. `magick compare -fuzz 10%`) blurs a real structural rearrangement —
@@ -116,17 +138,23 @@ For each pass `n` (1 to `--max`):
      or the screenshot alone. Insets, margins, and rounding are stated there as
      explicit values — exactly what a screenshot glance or a bare geometry dump
      both under-report.
-   - **For any app-bar, header, or toolbar-shaped region, enumerate its slots by
-     name rather than trusting a holistic read.** A fixed small set of
-     independent slots (leading icon, title, trailing action) is exactly where a
-     side-by-side read misses one — attention gets captured by whichever delta is
-     most salient elsewhere on the screen, and a small, spatially separate slot
-     (a corner icon plus a text link) never earns its own forced look. "Check for
-     missing elements" as a general instruction is not enough — proven
-     insufficient by exactly this kind of miss. List what occupies each named
-     slot in both images, independently of whatever delta already dominated the
-     pass. The same applies to any other region with a small fixed number of
-     independent slots — a row of icon buttons, a tab bar.
+   - **For any composite region with multiple independently-styled
+     children — an app-bar's slots, a banner's icon+text+button, a row of
+     icon buttons, a tab bar — enumerate each child by name rather than
+     trusting a holistic read.** A fixed small set of parts sharing one
+     region or one visual theme is exactly where a side-by-side read misses
+     one — attention gets captured by whichever delta is most salient
+     elsewhere on the screen, and a small, spatially separate or
+     visually-similar part (a corner icon, a banner's reminder text) never
+     earns its own forced look. "Check for missing elements" as a general
+     instruction is not enough — proven insufficient by exactly this kind of
+     miss, twice over: once for a toolbar's slots, again for a status
+     banner's icon/text/button trio, where even a corrective pass sampled
+     only the icon and wrongly assumed the text and button shared its color.
+     List what occupies each named child in both images, independently of
+     whatever delta already dominated the pass — and when the children carry
+     semantic color, sample each one per the pixel-sampling rule above rather
+     than assuming siblings match.
    - **When a rendered element's source carries an explicit numeric size
      constraint — a `minimumSize`, a literal width or height, a hardcoded
      padding value — that is not obviously derived from the design system's
@@ -238,8 +266,15 @@ attached, name its id — the shot hook's optional second argument.
 - **Headless browser required.** The shot hook needs Chrome or Edge (Edge ships on
   Windows; Chrome on macOS). Absent both, set `FEANOR_BROWSER` to a binary, or the
   loop fails loud at the first render rather than aligning to a blank.
-- **Perceptual, not pixel-perfect.** Vision closes colour, layout, proportion, and
-  presence reliably; it cannot reliably *see* a 2px gap. The loop converges to *the
+- **ImageMagick required for pixel sampling.** `feanor-sample-color.sh` needs
+  `magick` (or the legacy `convert`) on PATH. Absent both, set `FEANOR_MAGICK` to
+  a binary, or the sample fails loud rather than returning a guessed colour.
+- **Perceptual, not pixel-perfect.** Vision closes layout, proportion, and presence
+  reliably, and colour too *across* hue families (orange vs. blue); it cannot
+  reliably *see* a 2px gap, and it cannot reliably catch a same-hue-family shade
+  regression (a `.dark` token standing in for `.main`) or a sibling that quietly
+  carries a different token variant of the same family — see the oracle section's
+  pixel-sampling rule above for what closes that gap. The loop converges to *the
   eye's match*, which for a mockup is the true target — but do not expect a
   ruler-exact result.
 - **The cap fails loud, alignment does not.** A `CAP` exit always names what remains;
