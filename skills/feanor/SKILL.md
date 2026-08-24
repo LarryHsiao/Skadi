@@ -45,6 +45,12 @@ two images names **actionable deltas** — *"the header band is too tall, the ac
 runs orange where the spec is amber, the card gutters are wider"* — and each delta
 maps to an edit. That is what lets the loop converge instead of flail.
 
+**A rule belongs in this section when it would still be true of a single look.**
+What lives here is how sight itself fails, which binds any skill that looks at a
+picture — Manwë inherits these by naming this section rather than restating it.
+Rules about conducting one pass of the mend loop — ordering deltas for the edit,
+deciding the exit — live in *The loop* below and are Fëanor's alone.
+
 **Vision alone cannot be trusted on a same-hue-family color regression.** A
 holistic side-by-side read reliably catches a wrong hue (orange where the spec
 is blue) but not a wrong *shade* within the same family — `warning.dark`
@@ -80,22 +86,35 @@ for a diff region forward onto a new pass's diff in that same region without
 re-deriving it fresh — reusing a stale explanation is how a real regression
 keeps getting waved through as "the same known gap."
 
-**A screen is more than its loudest region — take a named inventory of every
-top-level region before naming a single delta, and give each region its own
-line.** The holistic read is honest about what it saw and silent about what it
-never looked at: when one region carries a structurally obvious gap — a pane
-that does not fill its width, a section rendered in the wrong place — attention
-settles there, the delta list fills with what that region owes, and the quiet
-regions are discharged by silence rather than by inspection. One real case lost
-an 8pt top padding on a list's first item for exactly that reason, beside a pane
-that was visibly failing to fill the screen; it surfaced only when a human asked
-twice whether the list had been looked at. Before ordering deltas by how much
-they move the eye, name the regions as the layout itself divides them — an app
-bar, a left list, a hero card, a history row — and write a line per region
-against **both** images, even where that line reads "matches". A region bearing
-no line was not checked. Where a region's suspected delta is one of spacing or
-proportion the eye is at its weakest, so cut the region out of both images and
-measure it rather than looking harder:
+**A holistic read is trustworthy only over parts that have been named — so
+enumerate before judging: the screen into its top-level regions, and any region
+that is itself composite into its children, until the parts are atomic.** The
+read is honest about what it saw and silent about what it never looked at, and
+what it never looks at is whatever stands beside something louder. At screen
+scale, attention settles on the region carrying a structurally obvious gap — a
+pane that does not fill its width, a section rendered in the wrong place — the
+delta list fills with what that region owes, and everything quieter is
+discharged by silence rather than by inspection. One level down the same capture
+happens wherever a fixed small set of parts shares one region or one visual
+theme — an app bar's slots, a banner's icon+text+button, a row of icon buttons,
+a tab bar — and a small, spatially separate or visually-similar part never earns
+its own forced look.
+
+"Check for missing elements" as a general instruction is not enough, proven
+insufficient three times over: once for an app bar's slots; again for a status
+banner's icon/text/button trio, where even the corrective pass sampled only the
+icon and wrongly assumed the text and button shared its color; and again for an
+8pt top padding lost on a list's first item beside a pane that was visibly
+failing to fill the screen, which surfaced only when a human asked twice whether
+the list had been looked at.
+
+Name the parts as the layout itself divides them, and write a line per part
+against **both** images at every level — independently of whatever delta already
+dominates the pass, and even where that line reads "matches". A part bearing no
+line was not checked. Where children carry semantic color, sample each one per
+the pixel-sampling rule above rather than assuming siblings match. Where a
+part's suspected delta is one of spacing or proportion the eye is at its
+weakest, so cut it out of both images and measure it rather than looking harder:
 
     ~/.claude/hooks/feanor-crop.sh "<pass-or-spec.png>" <x> <y> <w> <h> "<out.png>"
 
@@ -143,7 +162,7 @@ For each pass `n` (1 to `--max`):
 
 2. **Compare.** Read the spec image and `feanor-pass-<n>.png`, full resolution,
    un-resized, un-fuzzed, side by side. Name the visual deltas as a concrete
-   checklist — colour, layout, proportion, spacing, presence of elements,
+   checklist — color, layout, proportion, spacing, presence of elements,
    typography. Order them by how much they move the eye.
 
    - **Sample a region's boundary, not only its interior.** When checking a
@@ -163,28 +182,11 @@ For each pass `n` (1 to `--max`):
      or the screenshot alone. Insets, margins, and rounding are stated there as
      explicit values — exactly what a screenshot glance or a bare geometry dump
      both under-report.
-   - **For any composite region with multiple independently-styled
-     children — an app-bar's slots, a banner's icon+text+button, a row of
-     icon buttons, a tab bar — enumerate each child by name rather than
-     trusting a holistic read.** A fixed small set of parts sharing one
-     region or one visual theme is exactly where a side-by-side read misses
-     one — attention gets captured by whichever delta is most salient
-     elsewhere on the screen, and a small, spatially separate or
-     visually-similar part (a corner icon, a banner's reminder text) never
-     earns its own forced look. "Check for missing elements" as a general
-     instruction is not enough — proven insufficient by exactly this kind of
-     miss, twice over: once for a toolbar's slots, again for a status
-     banner's icon/text/button trio, where even a corrective pass sampled
-     only the icon and wrongly assumed the text and button shared its color.
-     List what occupies each named child in both images, independently of
-     whatever delta already dominated the pass — and when the children carry
-     semantic color, sample each one per the pixel-sampling rule above rather
-     than assuming siblings match.
    - **When a rendered element's source carries an explicit numeric size
      constraint — a `minimumSize`, a literal width or height, a hardcoded
      padding value — that is not obviously derived from the design system's
      spacing scale, verify its actual proportion, not just its screenshot
-     appearance.** A screenshot comparison can pass — colour, structure,
+     appearance.** A screenshot comparison can pass — color, structure,
      presence all read correct — while a magic number silently distorts one
      element's scale: a button forced 36% wider than its icon-and-text content
      needed (`minimumSize: Size(212, 36)`) still reads as "a button in the
@@ -294,17 +296,17 @@ attached, name its id — the shot hook's optional second argument.
 - **ImageMagick required for pixel sampling and region crops.**
   `feanor-sample-color.sh` and `feanor-crop.sh` both need `magick` (or the legacy
   `convert`) on PATH. Absent both, set `FEANOR_MAGICK` to a binary, or each fails
-  loud rather than returning a guessed colour or an empty crop.
+  loud rather than returning a guessed color or an empty crop.
 - **Perceptual, not pixel-perfect.** Vision closes layout, proportion, and presence
-  reliably, and colour too *across* hue families (orange vs. blue); it cannot
+  reliably, and color too *across* hue families (orange vs. blue); it cannot
   reliably *see* a 2px gap, and it cannot reliably catch a same-hue-family shade
   regression (a `.dark` token standing in for `.main`) or a sibling that quietly
   carries a different token variant of the same family — see the oracle section's
-  pixel-sampling rule above for what closes the colour gap, and its
-  region-inventory rule for what closes the spacing one (crop the region out and
-  measure a proportion, rather than asking the eye to judge a few pixels). The
-  loop converges to *the eye's match*, which for a mockup is the true target —
-  but do not expect a ruler-exact result.
+  pixel-sampling rule above for what closes the color gap, and its
+  enumerate-before-judging rule for what closes the spacing one (crop the part
+  out and measure a proportion, rather than asking the eye to judge a few
+  pixels). The loop converges to *the eye's match*, which for a mockup is the
+  true target — but do not expect a ruler-exact result.
 - **The cap fails loud, alignment does not.** A `CAP` exit always names what remains;
   an `ALIGNED` exit owes nothing. The verdict always carries its why.
 - **Flutter never auto-launches.** The Flutter adapter only *captures* a device you
