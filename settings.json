@@ -137,6 +137,7 @@
       "Bash(~/.claude/hooks/feanor-shot.sh:*)",
       "Bash(~/.claude/hooks/feanor-flutter-shot.sh:*)",
       "Bash(~/.claude/hooks/feanor-sample-color.sh:*)",
+      "Bash(~/.claude/hooks/feanor-crop.sh:*)",
       "Bash(~/.claude/hooks/handoff.sh:*)",
       "Bash(~/.claude/hooks/handoff-autosub.sh:*)",
       "Bash(~/.claude/hooks/vor-teams-poll.sh:*)",

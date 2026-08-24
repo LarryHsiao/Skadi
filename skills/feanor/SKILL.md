@@ -80,6 +80,31 @@ for a diff region forward onto a new pass's diff in that same region without
 re-deriving it fresh — reusing a stale explanation is how a real regression
 keeps getting waved through as "the same known gap."
 
+**A screen is more than its loudest region — take a named inventory of every
+top-level region before naming a single delta, and give each region its own
+line.** The holistic read is honest about what it saw and silent about what it
+never looked at: when one region carries a structurally obvious gap — a pane
+that does not fill its width, a section rendered in the wrong place — attention
+settles there, the delta list fills with what that region owes, and the quiet
+regions are discharged by silence rather than by inspection. One real case lost
+an 8pt top padding on a list's first item for exactly that reason, beside a pane
+that was visibly failing to fill the screen; it surfaced only when a human asked
+twice whether the list had been looked at. Before ordering deltas by how much
+they move the eye, name the regions as the layout itself divides them — an app
+bar, a left list, a hero card, a history row — and write a line per region
+against **both** images, even where that line reads "matches". A region bearing
+no line was not checked. Where a region's suspected delta is one of spacing or
+proportion the eye is at its weakest, so cut the region out of both images and
+measure it rather than looking harder:
+
+    ~/.claude/hooks/feanor-crop.sh "<pass-or-spec.png>" <x> <y> <w> <h> "<out.png>"
+
+writes the region to its own PNG. Read at full resolution, a gap the whole-screen
+view rendered as a few pixels becomes a proportion statable as a number — measure
+it as a fraction of a stable parent in both images, per the compare step's
+proportion rule below (one such case measured the spec's padding at 18% of the
+item's height against the build's 7%).
+
 ## The loop
 
 ### 0. Resolve the spec image once
@@ -266,17 +291,20 @@ attached, name its id — the shot hook's optional second argument.
 - **Headless browser required.** The shot hook needs Chrome or Edge (Edge ships on
   Windows; Chrome on macOS). Absent both, set `FEANOR_BROWSER` to a binary, or the
   loop fails loud at the first render rather than aligning to a blank.
-- **ImageMagick required for pixel sampling.** `feanor-sample-color.sh` needs
-  `magick` (or the legacy `convert`) on PATH. Absent both, set `FEANOR_MAGICK` to
-  a binary, or the sample fails loud rather than returning a guessed colour.
+- **ImageMagick required for pixel sampling and region crops.**
+  `feanor-sample-color.sh` and `feanor-crop.sh` both need `magick` (or the legacy
+  `convert`) on PATH. Absent both, set `FEANOR_MAGICK` to a binary, or each fails
+  loud rather than returning a guessed colour or an empty crop.
 - **Perceptual, not pixel-perfect.** Vision closes layout, proportion, and presence
   reliably, and colour too *across* hue families (orange vs. blue); it cannot
   reliably *see* a 2px gap, and it cannot reliably catch a same-hue-family shade
   regression (a `.dark` token standing in for `.main`) or a sibling that quietly
   carries a different token variant of the same family — see the oracle section's
-  pixel-sampling rule above for what closes that gap. The loop converges to *the
-  eye's match*, which for a mockup is the true target — but do not expect a
-  ruler-exact result.
+  pixel-sampling rule above for what closes the colour gap, and its
+  region-inventory rule for what closes the spacing one (crop the region out and
+  measure a proportion, rather than asking the eye to judge a few pixels). The
+  loop converges to *the eye's match*, which for a mockup is the true target —
+  but do not expect a ruler-exact result.
 - **The cap fails loud, alignment does not.** A `CAP` exit always names what remains;
   an `ALIGNED` exit owes nothing. The verdict always carries its why.
 - **Flutter never auto-launches.** The Flutter adapter only *captures* a device you
