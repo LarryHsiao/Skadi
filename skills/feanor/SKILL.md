@@ -28,7 +28,8 @@ that mends both Claude's, and a hard cap so it never runs away.
   booted emulator/simulator. **You** boot the device and navigate to the target
   screen; Fëanor captures it with `feanor-flutter-shot.sh` and **never launches a
   device**. The source it edits is the Dart in the working tree that builds that
-  screen. (See *Targeting Flutter* below for the per-pass dance.)
+  screen. (Read `flutter-target.md` before your first pass — a different
+  hand-off dance, since Fëanor never drives your device.)
 - **`<spec>`** — the ideal to align to. A **PNG** (used as-is) or an **HTML page /
   URL** (shot to a PNG first, via the same hook).
 - **`--max N`** — the hard cap on passes. Default **3**. The cap is a backstop, not
@@ -50,6 +51,18 @@ What lives here is how sight itself fails, which binds any skill that looks at a
 picture — Manwë inherits these by naming this section rather than restating it.
 Rules about conducting one pass of the mend loop — ordering deltas for the edit,
 deciding the exit — live in *The loop* below and are Fëanor's alone.
+
+**This section runs past this repo's own ~200-line soft-split guideline for a
+single doc (`docs/workflow/maintenance.md`) and stays inline anyway, on
+purpose.** Every rule below exists because a version of Fëanor that lacked it
+produced a real, shipped miss, and each carries the concrete example that
+same doc's own authoring standard asks a judgment-shaped rule to carry.
+Moving
+this case-log to an optional-read reference would only be consulted if the
+loop remembered to reach for it — exactly the failure these rules were written
+to close. What *did* move out is what was genuinely conditional (Flutter
+targeting, now `flutter-target.md`, read only when the target is Flutter) and
+what was purely restated elsewhere (a Notes bullet trimmed to a pointer).
 
 **Vision alone cannot be trusted on a same-hue-family color regression.** A
 holistic side-by-side read reliably catches a wrong hue (orange where the spec
@@ -262,7 +275,7 @@ For each pass `n` (1 to `--max`):
      (your IDE on save, or `r` in your `flutter run`), and the device must be back
      on the target screen. Fëanor does not drive your `flutter run` session — so
      after the mend, prompt for the reload + navigate, then shoot. (See
-     *Targeting Flutter*.)
+     `flutter-target.md`.)
 
 ### Exit
 
@@ -311,23 +324,6 @@ Every shot lands in the Henneth window — `feanor-spec.png` and each
 If Henneth is not running, hint the user to boot it with `/henneth`; the shots are
 written all the same, and the loop never blocks on the window.
 
-## Targeting Flutter
-
-The loop is the same — render, compare, mend — but the render is a screenshot of a
-**running** app, and the rebuild leans on your session, since Fëanor will neither
-launch nor drive your device. The honest division of hands:
-
-- **You** — boot the emulator/simulator, run the app (`flutter run` or your IDE), and
-  navigate to the target screen. Keep hot-reload-on-save on where you can; it makes
-  the loop nearly seamless.
-- **Fëanor** — shoots the device (`feanor-flutter-shot.sh`), names the deltas against
-  the app content region (ignoring the OS status/nav bars in the shot), edits the
-  Dart, then asks you to hot-reload and return to the screen before the next shot.
-
-So the Flutter loop is *true-but-attended*: faithful to the real device, but the
-reload and navigation are yours between passes. When more than one device is
-attached, name its id — the shot hook's optional second argument.
-
 ## Notes
 
 - **Headless browser required.** The shot hook needs Chrome or Edge (Edge ships on
@@ -337,15 +333,10 @@ attached, name its id — the shot hook's optional second argument.
   `feanor-sample-color.sh` and `feanor-crop.sh` both need `magick` (or the legacy
   `convert`) on PATH. Absent both, set `FEANOR_MAGICK` to a binary, or each fails
   loud rather than returning a guessed color or an empty crop.
-- **Perceptual, not pixel-perfect.** Vision closes layout, proportion, and presence
-  reliably, and color too *across* hue families (orange vs. blue); it cannot
-  reliably *see* a 2px gap, and it cannot reliably catch a same-hue-family shade
-  regression (a `.dark` token standing in for `.main`) or a sibling that quietly
-  carries a different token variant of the same family — see the oracle section's
-  pixel-sampling rule above for what closes the color gap, and its
-  enumerate-before-judging rule for what closes the spacing one (crop the part
-  out and measure a proportion, rather than asking the eye to judge a few
-  pixels). The loop converges to *the eye's match*, which for a mockup is the
+- **Perceptual, not pixel-perfect.** Vision closes layout, proportion, and
+  presence reliably across hue families, but has real, specific blind spots —
+  see the oracle section above for what they are and the checks that close
+  them. The loop converges to *the eye's match*, which for a mockup is the
   true target — but do not expect a ruler-exact result.
 - **The cap fails loud, alignment does not.** A `CAP` exit always names what remains;
   an `ALIGNED` exit owes nothing. The verdict always carries its why.
