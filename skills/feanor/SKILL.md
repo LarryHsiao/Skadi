@@ -157,6 +157,26 @@ it as a fraction of a stable parent in both images, per the compare step's
 proportion rule below (one such case measured the spec's padding at 18% of the
 item's height against the build's 7%).
 
+**A gap being visibly non-zero is not the same claim as the gap being
+proportionally the right size — this applies doubly to an element's own
+outer edge margin against the screen or container boundary**, which is
+exactly where the holistic read is weakest: a small edge inset reads as
+"flush to the edge" at normal viewing scale even when a crop-and-zoom proves
+a real, non-zero gap exists. Nor does a legitimate design-system token
+exempt a value from this check — a token can be correctly drawn from the
+spacing scale and still be the wrong *step* of it, which reads no
+differently on a screenshot than a value picked out of thin air. One real
+case: a banner's `Positioned` overlay used `top/left/right: Sizes.p8` — a
+real spacing-scale token, not a magic number — and the 8px gap it produced
+genuinely existed in both spec and build, so a pixel check confirmed a
+non-zero margin and passed. But 8px against a 2360px-wide capture reads as
+covering the whole background at a glance; the spec actually called for a
+bigger step of the same scale (`Sizes.p16`). Measure the element's own edge
+margin as a fraction of the capture width in both images and diff the
+fractions directly — not just its presence — the same discipline this
+section already requires for other spacing, applied here to an edge that
+borders nothing else to compare it against.
+
 **Two parts at different points in the hierarchy that the layout implies should
 share an edge are a pair, not two independent checks — a correct padding value
 against each one's own parent proves nothing about whether the two line up with
