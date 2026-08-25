@@ -101,12 +101,15 @@ a tab bar — and a small, spatially separate or visually-similar part never ear
 its own forced look.
 
 "Check for missing elements" as a general instruction is not enough, proven
-insufficient three times over: once for an app bar's slots; again for a status
+insufficient four times over: once for an app bar's slots; again for a status
 banner's icon/text/button trio, where even the corrective pass sampled only the
-icon and wrongly assumed the text and button shared its color; and again for an
+icon and wrongly assumed the text and button shared its color; again for an
 8pt top padding lost on a list's first item beside a pane that was visibly
 failing to fill the screen, which surfaced only when a human asked twice whether
-the list had been looked at.
+the list had been looked at; and again for a header's trailing label and a row's
+trailing button, each individually padded correct against its own parent, that
+still landed 21pt apart on-device against the spec's ~5pt — a misalignment
+invisible to any check that stops at one element's own inset.
 
 Name the parts as the layout itself divides them, and write a line per part
 against **both** images at every level — independently of whatever delta already
@@ -123,6 +126,18 @@ view rendered as a few pixels becomes a proportion statable as a number — meas
 it as a fraction of a stable parent in both images, per the compare step's
 proportion rule below (one such case measured the spec's padding at 18% of the
 item's height against the build's 7%).
+
+**Two parts at different points in the hierarchy that the layout implies should
+share an edge are a pair, not two independent checks — a correct padding value
+against each one's own parent proves nothing about whether the two line up with
+each other.** Wherever the eye reads "these should line up" — a header's
+trailing label and a list row's trailing action, a column of right-aligned
+values — crop both regions (the crop hook above) and measure each edge's
+absolute position directly, then diff the two positions against **each other**.
+One real case: a header's own inset checked correct, a row's own inset checked
+correct, and the two still landed 21pt apart against the spec's ~5pt — an extra
+`Padding` wrapper on the row shifted its edge without pushing its own padding
+value outside a plausible range.
 
 ## The loop
 
