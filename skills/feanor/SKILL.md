@@ -73,6 +73,23 @@ surrounds it. Sample each semantically-colored element **independently**
 against both the spec and the pass, and compare hex values directly rather
 than trusting that "same family" means "same token."
 
+**A same-hue, unchanged token can still render wrong once its backdrop changes,
+if the fill it sets is translucent.** A design-system alpha token —
+`warning.main12Percent`, `.withValues(alpha: 0.12)`, any `Opacity`-style
+semi-transparent surface — has no fixed color of its own; its rendered result
+composites against whatever sits behind it. Relocating the widget to a new
+parent (a white `Scaffold` to a pale-blue-gray background, say) can shift its
+sampled color even though the fill's own source line never moved — a source
+diff shows nothing. This is a distinct failure from the wrong-token-variant
+case above, and it takes a distinct check: there the diagnostic move is
+comparing token *names*; here it is re-sampling the *rendered* result of any
+translucent-filled element whose ancestor or backdrop changed, whether or not
+its own fill line did. One real case:
+`warning.main12Percent`, unchanged in source, sampled at `#EAE3D8` instead of
+the spec's `#FCEEE3` once the widget moved onto a new background — the
+predicted alpha composite of that same 12% orange over the new backdrop landed
+exactly on the sampled defect.
+
 **The full-resolution, un-resized, un-fuzzed side-by-side read is the primary
 check, every pass — never a fallback.** A resize-to-match-frame-plus-fuzz pixel
 score (e.g. `magick compare -fuzz 10%`) blurs a real structural rearrangement —
