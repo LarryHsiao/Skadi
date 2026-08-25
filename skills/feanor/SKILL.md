@@ -412,8 +412,8 @@ Report the verdict and **why** it stopped, never a bare "done":
 
 ## Beyond the pixel — what ALIGNED does not prove
 
-`ALIGNED` means the reflection matches; it does not mean the task is done. Two
-failure modes sit outside anything a screenshot can show, and both surface only
+`ALIGNED` means the reflection matches; it does not mean the task is done. Three
+failure modes sit outside anything a screenshot can show, and each surfaces only
 once the loop is embedded in a larger, scoped change (e.g. "fix this one screen's
 offline mode" touching shared widgets):
 
@@ -432,6 +432,21 @@ offline mode" touching shared widgets):
   rather than by a stable key — and no visual check will ever catch it. Run any
   test file whose target widget's structure changed, not just a static-analysis
   pass, before calling the surrounding task done.
+- **Matching the spec is not the same claim as belonging on the page.** Every
+  rule in the oracle section above closes the gap between {build} and {spec}
+  — this is a different pair entirely: {the target widget} and {the rest of
+  the actual, live build} around it. A widget can reach `ALIGNED` against its
+  spec while still visually clashing with its real neighbors — a corner
+  radius that doesn't match a sibling's, a padding rhythm that breaks the
+  surrounding pane's, a type scale that doesn't match adjacent text — and
+  this holds even when that neighbor is itself off-spec: a real user never
+  sees the spec beside the app, only whether the live page reads as one
+  coherent design or a widget bolted on. This needs a distinct check, not a
+  stricter version of the ones above: invoke `/manwe` in its without-spec
+  mode — reading the target's source beside at least one real sibling on the
+  same screen and flagging divergence in padding, spacing, sizing, and
+  typography — as a deliberate follow-up once `ALIGNED` is reached, not only
+  as the fallback it otherwise serves as when no spec exists at all.
 
 Fëanor itself stays scoped to visual alignment — these checks belong to whatever
 task wraps the Fëanor loop, and its own Compliance Review step (where the
