@@ -235,6 +235,25 @@ For each pass `n` (1 to `--max`):
      against the same measurement taken from the build. Insets, margins, and
      rounding are stated there as explicit values — exactly what a screenshot
      glance or a bare geometry dump both under-report.
+
+     **The payload answers more than whatever question prompted the call.**
+     For the part being checked, treat every such field the call returns —
+     padding, radius, size, color, alignment — as its own line to diff, not
+     only the one relevant to the suspected delta, and state both raw values
+     on that line: the spec's literal field value and the build's literal
+     source value, never a bare "matches"/"differs" verdict with nothing
+     shown. A bare verdict word can be written without ever opening either
+     value; two literal values side by side cannot — the same discipline
+     `docs/style/general.md` already asks of a test ("state the expectation,
+     then test the result," not a judgment buried inside the assertion),
+     applied here to a manual check instead of a unit test. One real case: a
+     chip's `get_design_context` response was pulled twice, once per
+     breakpoint, and both times explicitly carried
+     `rounded-bl-[2px] rounded-br-[12px] rounded-tl-[2px] rounded-tr-[2px]`
+     — but each call was reused only to resolve a Row-vs-Column layout
+     question, so the radius field sat unread in both responses, and the
+     build's actual `BorderRadius.circular(Sizes.p16)` went uncompared
+     against it.
    - **When a rendered element's source carries an explicit numeric size
      constraint — a `minimumSize`, a literal width or height, a hardcoded
      padding value — that is not obviously derived from the design system's
