@@ -286,6 +286,21 @@ For each pass `n` (1 to `--max`):
    short record, in your working context, of what each pass changed and why, so pass
    `n` does not undo pass `n-1`.
 
+   **A delta whose named region extends beyond the widget currently being
+   edited's own layout bounds is a signal the fix belongs in a shared
+   ancestor, not the widget in view.** A banner that must cross into a
+   sibling pane, a badge that must overlay a neighboring component — check
+   whether a common parent already composes the affected siblings before
+   reaching for an `OverflowBox`/`Positioned` hack to fake the extent
+   locally. One real case: a banner meant to span two sibling panes was
+   nested inside the right pane's own `PatientDashboardPage` Scaffold — a
+   widget that structurally cannot render past its own bounds, no matter
+   what forces it — the correct mend moved the banner up into
+   `ResidentDualPane`, the widget that actually composes both panes as
+   siblings. A local hack would have produced a plausible-looking but
+   structurally wrong result, the same trap this repo's own Surgical
+   Changes / Read Before Write guidance exists to catch.
+
 5. Let the rebuild reach the rendered surface before the next pass shoots it:
    - **Web** — a static `file://` page is already written (no wait); a dev server
      hot-reloads (a few seconds — if the next shot still shows the pre-edit state,
