@@ -274,21 +274,55 @@ For each pass `n` (1 to `--max`):
      question, so the radius field sat unread in both responses, and the
      build's actual `BorderRadius.circular(Sizes.p16)` went uncompared
      against it.
-   - **When a rendered element's source carries an explicit numeric size
-     constraint — a `minimumSize`, a literal width or height, a hardcoded
-     padding value — that is not obviously derived from the design system's
-     spacing scale, verify its actual proportion, not just its screenshot
-     appearance.** A screenshot comparison can pass — color, structure,
-     presence all read correct — while a magic number silently distorts one
-     element's scale: a button forced 36% wider than its icon-and-text content
-     needed (`minimumSize: Size(212, 36)`) still reads as "a button in the
-     right place" at a glance. Measure the element's width or height as a
-     **fraction of a stable parent** — a card, a row, the screen edge — in both
-     spec and build, since absolute pixels do not compare meaningfully across
-     differently scaled reference images. Flag a roughly >20% relative
-     divergence between the two fractions as worth a second look — that gap is
-     the signal a magic number was eyeballed rather than measured when the
-     widget was first built.
+   - **When a rendered element's own size is driven by an explicit numeric
+     constraint in its source — a `minimumSize`, a literal width or height, a
+     hardcoded padding value — or by a framework widget's own unstyled
+     default, verify its actual proportion, not just its screenshot
+     appearance.** Neither a legitimate design-system token nor the total
+     absence of any visible number exempts an element from this check: a
+     token can be correctly drawn from the spacing scale and still be the
+     wrong step of it, and a bare `TextButton`, `ElevatedButton`, or
+     `IconButton` carrying no `style:`/`minimumSize`/`padding` override
+     inherits Material's implicit minimum tap-target height — sizing the box
+     just as effectively as a hand-written literal, with nothing suspicious
+     anywhere in the source to point at. A screenshot comparison can pass —
+     color, structure, presence all read correct — while either one silently
+     distorts an element's scale: a button forced 36% wider than its
+     icon-and-text content needed (`minimumSize: Size(212, 36)`) still reads
+     as "a button in the right place" at a glance. Measure the element's
+     width or height as a **fraction of a stable parent** — a card, a row,
+     the screen edge — in both spec and build, since absolute pixels do not
+     compare meaningfully across differently scaled reference images. Flag a
+     roughly >20% relative divergence between the two fractions as worth a
+     second look — that gap is the signal a magic number was eyeballed, or a
+     default went unquestioned, rather than measured when the widget was
+     first built.
+
+     **Once a proportion defect is confirmed on a composite, multi-child
+     region, decompose it and measure each child's own contribution by
+     screenshot BEFORE consulting source to pick what to edit — do not let
+     "which source line has a number I can adjust" substitute for "which
+     child is actually occupying the excess space."** Crop each child's own
+     region (the crop hook above) and measure its share of the total,
+     exactly as the parent region was measured; only once the screenshots
+     themselves have named the dominant child does reading that child's
+     source make sense — to explain the delta already found, not to guess at
+     it. Treat a fix that only partially closes the gap on re-measurement as
+     confirmation this step was skipped, not as a smaller version of the
+     same success: a partial improvement means the diagnosed cause was real
+     but not dominant, and something else in the same composite is still
+     doing most of the work — re-measuring the same aggregate box a second
+     time will not find what decomposing it the first time would have. One
+     real case: a banner's fill measured 7.9% of screen height against the
+     spec's 3.75%; fixing the container's own vertical `padding` — the only
+     visible number in that widget's own source — moved it only to 6.83%.
+     The rebuilt screenshot showed the icon+text floating in the center of a
+     box still visibly taller than either needed, with no text wrapping to
+     explain it; the actual driver, findable by cropping and measuring each
+     child instead of reading source first, was two sibling `TextButton`s in
+     the same `Row`, unstyled and sized by Material's own default
+     tap-target height, stretching the `Row`'s cross-axis to match its
+     tallest child.
 
 3. **Decide the exit** (before any edit):
    - **Aligned** — no material deltas remain. Stop; report `ALIGNED` and the pass
