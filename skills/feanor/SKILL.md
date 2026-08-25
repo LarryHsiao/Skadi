@@ -157,6 +157,33 @@ it as a fraction of a stable parent in both images, per the compare step's
 proportion rule below (one such case measured the spec's padding at 18% of the
 item's height against the build's 7%).
 
+**"A stable parent" means a specific nearby element rendering at comparable,
+non-degenerate scale in both images — never the image or screen bounds
+themselves, unless spec and build are confirmed to share one capture
+scale.** "Percentage of the whole screenshot" quietly assumes the spec image
+and the build capture were taken at the same device, DPI, and export
+settings; when that assumption is untested, the number it produces can look
+precise while measuring nothing real. Two proportion checks on the same
+element — one against total image height, one against a specific nearby
+element's own height — can disagree outright, and when they do, the
+nearby-element check is the one to trust; the image-bounds one is answering
+a different, unasked question about relative scale. One real case: a
+banner's fill measured 3.90% of screen height in the build against the
+spec's 3.75% and read as matched; re-measured against a search box sitting
+right below the banner in both images instead, the banner:searchbox ratio
+came out 0.80 (build) against 1.25 (spec) — the opposite conclusion, because
+the spec was a 533px-tall mockup of unknown provenance and the build a real
+1640px-tall device capture, two different capture scales the screen-height
+check had no way to detect. This matters most for a
+**Flutter** target: there is no `--viewport` to align it to the spec's own
+scale (per *What it needs*), so nothing establishes that assumption by
+default — treat it as unverified until shown otherwise. And when the chosen
+reference element renders at only a handful of pixels in the smaller of the
+two images (roughly under 30px), the measurement is unreliable at that
+resolution regardless of which denominator was used — say so plainly, and
+fall back to the full-resolution holistic read as the actual verdict rather
+than reporting a precise-looking percentage that is not actually precise.
+
 **A gap being visibly non-zero is not the same claim as the gap being
 proportionally the right size — this applies doubly to an element's own
 outer edge margin against the screen or container boundary**, which is
@@ -175,7 +202,11 @@ bigger step of the same scale (`Sizes.p16`). Measure the element's own edge
 margin as a fraction of the capture width in both images and diff the
 fractions directly — not just its presence — the same discipline this
 section already requires for other spacing, applied here to an edge that
-borders nothing else to compare it against.
+borders nothing else to compare it against — the one case where the image
+bounds themselves are an unavoidable denominator. That makes the
+scale-matching caveat above apply in full, not as an exception to it: trust
+this specific measurement only when spec and build are known to share
+capture scale, and fall back to the holistic read otherwise.
 
 **Two parts at different points in the hierarchy that the layout implies should
 share an edge are a pair, not two independent checks — a correct padding value
@@ -290,8 +321,10 @@ For each pass `n` (1 to `--max`):
      distorts an element's scale: a button forced 36% wider than its
      icon-and-text content needed (`minimumSize: Size(212, 36)`) still reads
      as "a button in the right place" at a glance. Measure the element's
-     width or height as a **fraction of a stable parent** — a card, a row,
-     the screen edge — in both spec and build, since absolute pixels do not
+     width or height as a **fraction of a stable parent** — a specific
+     nearby element rendering at comparable scale in both images, never the
+     image bounds themselves, per the oracle section's stable-parent rule
+     above — in both spec and build, since absolute pixels do not
      compare meaningfully across differently scaled reference images. Flag a
      roughly >20% relative divergence between the two fractions as worth a
      second look — that gap is the signal a magic number was eyeballed, or a
