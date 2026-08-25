@@ -174,14 +174,22 @@ For each pass `n` (1 to `--max`):
      centers and only diverge at the boundary (a border, an inset margin, a
      rounding radius).
    - **When the spec comes from a design tool with an MCP, cross-check structure
-     there before trusting the screenshot alone.** For suspected structural
-     differences — insets, margins, container shape, sizing — prefer a
-     structured-layout read (e.g. Figma's `get_design_context`, which returns the
-     node tree with its actual layout classes/values, such as a wrapper carrying
-     `pb-[8px] px-[8px]` around a child with `rounded-[8px]`) over `get_metadata`
-     or the screenshot alone. Insets, margins, and rounding are stated there as
-     explicit values — exactly what a screenshot glance or a bare geometry dump
-     both under-report.
+     there as a routine part of every compare — not only when a structural
+     difference is already suspected.** Gating this on suspicion guarantees it
+     gets skipped exactly when it is needed: a holistic screenshot read is what
+     failed to raise the suspicion in the first place, the same blind spot the
+     pixel-sampling rule above exists to close for color. One review declared a
+     card's icon+title header row `ALIGNED` on a full side-by-side read, and
+     only surfaced its missing 16px inset when asked twice whether the padding
+     had been checked. So for insets, margins, container shape, and sizing,
+     pull a structured-layout read (e.g. Figma's `get_design_context`, which
+     returns the node tree with its actual layout classes/values, such as a
+     wrapper carrying `pb-[8px] px-[8px]` around a child with `rounded-[8px]`;
+     `get_metadata` alone is a thinner fallback) over the screenshot alone,
+     every pass a live node is available — and diff its stated values directly
+     against the same measurement taken from the build. Insets, margins, and
+     rounding are stated there as explicit values — exactly what a screenshot
+     glance or a bare geometry dump both under-report.
    - **When a rendered element's source carries an explicit numeric size
      constraint — a `minimumSize`, a literal width or height, a hardcoded
      padding value — that is not obviously derived from the design system's
