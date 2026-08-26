@@ -251,6 +251,26 @@ margin against that prediction — not merely against zero. Where calibration
 could not be established, the margin is one of the dimensional deltas that
 stays open; it does not revert to the eye, which is blind to exactly this.
 
+**A part with children to enumerate still owes its own outer margin —
+enumerating what is inside it never discharges the check on its edge.** A block
+with rich internal structure (a table's columns and rows, a list's items, a
+card's stacked contents) draws the enumeration into itself, and once every child
+carries a line the part reads as checked; but the part's inset from its
+container is a property of the part, not of any child, so no child's line can
+carry it. Give every block-level sibling the same one-line container-margin
+measurement regardless of how much it holds — a part with much to check
+internally is not thereby exempt from the one check that applies to it
+externally. One real case: a table's columns, header height, row height and
+per-cell content were each enumerated and measured, and the pass declared
+`ALIGNED`; the table's own left and right insets had been measured zero times,
+in a pass that enumerated everything else, and the miss surfaced only when a
+human asked whether the table's left and right had been looked at. Source showed
+why: a private `_cell()` helper padded each column's *content* by 16dp while the
+`TableWidget` itself, unlike the banner and filter row above it, carried no
+outer horizontal padding at all — so the header band's fill and the row dividers
+ran flush to the card edge where the spec inset the whole table by 16dp to match
+its siblings.
+
 **Two parts at different points in the hierarchy that the layout implies should
 share an edge are a pair, not two independent checks — a correct padding value
 against each one's own parent proves nothing about whether the two line up with
