@@ -151,14 +151,30 @@ Name the parts as the layout itself divides them, and write a line per part
 against **both** images at every level — independently of whatever delta already
 dominates the pass, and even where that line reads "matches". A part bearing no
 line was not checked. Where children carry semantic color, sample each one per
-the pixel-sampling rule above rather than assuming siblings match. Where a
-part's suspected delta is one of spacing or proportion the eye is at its
-weakest, so cut it out of both images and measure it rather than looking harder:
+the pixel-sampling rule above rather than assuming siblings match. And where a
+part's line concerns a dimension — a spacing, a margin, an extent, an inset —
+**measure it; do not look at it.** This is not gated on suspicion, for the same
+reason four other checks in this section shed that gate: the holistic read is
+what would have to raise the suspicion, and it is documented here as unable to
+judge these very properties, so a measurement that waits to be prompted is one
+that never runs. The banner margin that passed six separate checks and the
+header inset that surfaced only when a human asked twice were both deltas
+nobody suspected.
+
+    ~/.claude/hooks/feanor-measure.sh "<pass-or-spec.png>" row|col <index> [<tol>] [<min-run>]
+
+scans one row or column and reports each colour run as
+`<start> <end> <length> #RRGGBB`, in scan order. An element's extent is one
+run's length; an inset is the run standing between two others; a boundary is a
+run's own start. The card-to-banner inset that six passes could not settle
+reads straight off a single line of that output — `40 55 16 #FFFFFF` — which is
+the whole point of the hook: a measurement costing one call does not get
+deferred to the eye, and one costing a hand-rolled pipeline does.
 
     ~/.claude/hooks/feanor-crop.sh "<pass-or-spec.png>" <x> <y> <w> <h> "<out.png>"
 
-writes the region to its own PNG. Read at full resolution, a gap the whole-screen
-view rendered as a few pixels becomes a number — measure it in the spec, convert
+writes a region to its own PNG, for reading at full resolution what the
+whole-screen view rendered too small to see. Measure in the spec, convert
 through the factor set in *Calibrate the scale once*, and check the build's own
 measurement against that prediction (one such case measured the spec's padding
 at 18% of the item's height against the build's 7%).
@@ -239,8 +255,9 @@ share an edge are a pair, not two independent checks — a correct padding value
 against each one's own parent proves nothing about whether the two line up with
 each other.** Wherever the eye reads "these should line up" — a header's
 trailing label and a list row's trailing action, a column of right-aligned
-values — crop both regions (the crop hook above) and measure each edge's
-absolute position directly, then diff the two positions against **each other**.
+values — scan one line crossing both (the measure hook above: a `col` scan for
+a shared vertical edge, a `row` scan for a horizontal one), read each edge off
+as a run boundary, and diff the two positions against **each other**.
 One real case: a header's own inset checked correct, a row's own inset checked
 correct, and the two still landed 21pt apart against the spec's ~5pt — an extra
 `Padding` wrapper on the row shifted its edge without pushing its own padding
@@ -545,10 +562,11 @@ written all the same, and the loop never blocks on the window.
 - **Headless browser required.** The shot hook needs Chrome or Edge (Edge ships on
   Windows; Chrome on macOS). Absent both, set `FEANOR_BROWSER` to a binary, or the
   loop fails loud at the first render rather than aligning to a blank.
-- **ImageMagick required for pixel sampling and region crops.**
-  `feanor-sample-color.sh` and `feanor-crop.sh` both need `magick` (or the legacy
-  `convert`) on PATH. Absent both, set `FEANOR_MAGICK` to a binary, or each fails
-  loud rather than returning a guessed color or an empty crop.
+- **ImageMagick required for sampling, measuring, and region crops.**
+  `feanor-sample-color.sh`, `feanor-measure.sh`, and `feanor-crop.sh` all need
+  `magick` (or the legacy `convert`) on PATH. Absent both, set `FEANOR_MAGICK` to
+  a binary, or each fails loud rather than returning a guessed color, an
+  unmeasured scanline, or an empty crop.
 - **Perceptual, not pixel-perfect.** Vision closes structure, presence, and
   gross layout reliably, and colour across hue families — but it does not
   close proportion, spacing, or margin, which is why those route to
