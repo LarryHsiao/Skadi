@@ -30,16 +30,43 @@
 
 ## Compaction thresholds
 
-- **CLAUDE.md and the `@`-loaded style docs are the token budget.** When their
-  combined weight grows past ~35K characters, propose extracting the coldest
-  sections into referenced (non-`@`) docs. Mind the trap: only `@docs/...`
-  references auto-load — moving content to a plain path silently removes it
-  from every session's context. Move only what is genuinely read-on-demand.
+The always-loaded set is CLAUDE.md plus the `@`-loaded style docs. Mind the
+trap on any extraction: only `@docs/...` references auto-load — moving content
+to a plain path silently removes it from every session's context. Move only
+what is genuinely read-on-demand.
+
+- **Prune on evidence, not on a character count.** The risk guarded against is
+  degradation mode 1 — rules accreting until sessions skim them. That is an
+  *attention* cost, not a token one, and `/este` measures it directly. Prune
+  when its structural rows (`verify.test`, `verify.lint`) fall across several
+  consecutive runs while the always-loaded weight rose. Absent that signal, a
+  file that grew is not by itself a problem.
+  - Measured 2026-08-26 over 22 pulse runs since 2026-07-09: weight went
+    29,008 → 43,196 while overall adherence rose 52% → 73% (r = +0.70). Read
+    that as *the predicted harm did not appear*, *not* as *growth helps* — the
+    rubric's own denominator was mended three times in that window, and its
+    criterion says plainly that such mending lifts a rate with no change in
+    conduct. Re-run this correlation before leaning on it; it is a dated claim.
+- **~45,000 characters is a smell test, not a limit.** Past it, read the file
+  and ask which rules have stopped earning their weight. The previous ~35,000
+  was not derived from anything: it was the size on the day it was written
+  (2026-07-08, actual 35,532) — a status quo dressed as a budget. Do not treat
+  this number better than its predecessor deserved. If it is ever hit,
+  re-measure rather than obey.
 - **A single doc past ~200 lines** gets a table of contents or a split —
   whichever keeps a cold read under one screen of scanning.
 - **One in, one out (soft).** When adding a rule to an always-loaded file,
   look for a rule the new one obsoletes or a section that can defer to a hook
-  or referenced doc. Accretion without pruning is how the budget dies.
+  or referenced doc. Keep this for the discipline, not the arithmetic: it
+  forces a measurement, and measuring is what catches an estimate that was
+  wrong — a pruning pass on 2026-08-26 predicted 1,600 characters saved and
+  delivered 371, because it sized the section rather than the duplicated part
+  inside it. Size what will actually be deleted.
+- **In a skadi-rooted session the always-loaded set is charged twice** — once
+  as global instructions from the installed root, once as project instructions
+  from the repo, byte-identical. Any weight measured here is doubled in
+  exactly the sessions that edit these rules. The remedy is not obvious (the
+  repo copy is the install source), so this is recorded rather than solved.
 
 ## Authoring standard — writing for every future reader
 
