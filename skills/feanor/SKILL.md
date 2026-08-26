@@ -50,16 +50,22 @@ maps to an edit. That is what lets the loop converge instead of flail.
 What lives here is how sight itself fails, which binds any skill that looks at a
 picture — Manwë inherits these by naming this section rather than restating it.
 Rules about conducting one pass of the mend loop — ordering deltas for the edit,
-deciding the exit — live in *The loop* below and are Fëanor's alone.
+deciding the exit — live in *The loop* below and are Fëanor's alone. One step
+there is the exception: *Calibrate the scale once* sits in the loop for
+sequencing, since it runs before the first pass, but it is inherited with this
+section and not Fëanor's alone — no skill can measure a dimension across two
+images without it, so wherever this section sends a check to that step, a
+borrowing skill follows it there.
 
-**This section runs past this repo's own ~200-line soft-split guideline for a
+**This file runs past this repo's own ~200-line soft-split guideline for a
 single doc (`docs/workflow/maintenance.md`) and stays inline anyway, on
-purpose.** Every rule below exists because a version of Fëanor that lacked it
-produced a real, shipped miss, and each carries the concrete example that
-same doc's own authoring standard asks a judgment-shaped rule to carry.
-Moving
-this case-log to an optional-read reference would only be consulted if the
-loop remembered to reach for it — exactly the failure these rules were written
+purpose** — this section and the checks in *The loop* alike. Nearly every
+judgment-shaped rule in either exists because a version of Fëanor that lacked
+it produced a real, shipped miss, and carries the concrete example that same
+doc's own authoring standard asks such a rule to bear; the plainly mechanical
+steps around them need no such case. Moving this
+case-log to an optional-read reference would only be consulted if the loop
+remembered to reach for it — exactly the failure these rules were written
 to close. What *did* move out is what was genuinely conditional (Flutter
 targeting, now `flutter-target.md`, read only when the target is Flutter) and
 what was purely restated elsewhere (a Notes bullet trimmed to a pointer).
@@ -152,37 +158,63 @@ weakest, so cut it out of both images and measure it rather than looking harder:
     ~/.claude/hooks/feanor-crop.sh "<pass-or-spec.png>" <x> <y> <w> <h> "<out.png>"
 
 writes the region to its own PNG. Read at full resolution, a gap the whole-screen
-view rendered as a few pixels becomes a proportion statable as a number — measure
-it as a fraction of a stable parent in both images, per the compare step's
-proportion rule below (one such case measured the spec's padding at 18% of the
-item's height against the build's 7%).
+view rendered as a few pixels becomes a number — measure it in the spec, convert
+through the factor set in *Calibrate the scale once*, and check the build's own
+measurement against that prediction (one such case measured the spec's padding
+at 18% of the item's height against the build's 7%).
 
-**"A stable parent" means a specific nearby element rendering at comparable,
-non-degenerate scale in both images — never the image or screen bounds
-themselves, unless spec and build are confirmed to share one capture
-scale.** "Percentage of the whole screenshot" quietly assumes the spec image
-and the build capture were taken at the same device, DPI, and export
-settings; when that assumption is untested, the number it produces can look
-precise while measuring nothing real. Two proportion checks on the same
-element — one against total image height, one against a specific nearby
-element's own height — can disagree outright, and when they do, the
-nearby-element check is the one to trust; the image-bounds one is answering
-a different, unasked question about relative scale. One real case: a
-banner's fill measured 3.90% of screen height in the build against the
-spec's 3.75% and read as matched; re-measured against a search box sitting
-right below the banner in both images instead, the banner:searchbox ratio
-came out 0.80 (build) against 1.25 (spec) — the opposite conclusion, because
-the spec was a 533px-tall mockup of unknown provenance and the build a real
-1640px-tall device capture, two different capture scales the screen-height
-check had no way to detect. This matters most for a
-**Flutter** target: there is no `--viewport` to align it to the spec's own
-scale (per *What it needs*), so nothing establishes that assumption by
-default — treat it as unverified until shown otherwise. And when the chosen
-reference element renders at only a handful of pixels in the smaller of the
-two images (roughly under 30px), the measurement is unreliable at that
-resolution regardless of which denominator was used — say so plainly, and
-fall back to the full-resolution holistic read as the actual verdict rather
-than reporting a precise-looking percentage that is not actually precise.
+**A reference and the thing being measured are opposite roles, and only the
+reference must be large.** Every measurement converts through the reference, so
+its own relative error propagates into all of them; the measured element may be
+as small as it likes, since its size is the answer rather than the ruler. The
+image or screen bounds are not a valid reference unless spec and build are
+confirmed to share one capture scale — "percentage of the whole screenshot"
+quietly assumes both were taken at the same device, DPI, and export settings,
+and when that assumption goes untested the number it yields can look precise
+while measuring nothing real. This bites hardest on a **Flutter** target, where
+no `--viewport` exists to align the shot to the spec's own scale (per *What it
+needs*), so nothing establishes the assumption by default. Establish the factor
+once, up front, per *Calibrate the scale once* below, rather than choosing a
+denominator afresh at each measurement: two checks that pick different
+references can and did disagree outright — a banner's fill measured 3.90% of
+screen height against the spec's 3.75% and read as matched, while the same
+banner against a search box below it came out 0.80 to the spec's 1.25, the
+opposite verdict, because a 533px mockup and a 1640px device capture never
+shared a scale for the screen-height check to detect.
+
+**When the reference is too small to trust, escalate the reference — never
+downgrade the method.** Falling back to the holistic read for a spacing or
+edge-margin delta hands the verdict to the one faculty this section already
+documents as unable to judge it; a check may not terminate in a blindness it
+has already named. Climb the reference order in *Calibrate the scale once*
+instead, and where nothing on that list is available, say the check could not
+be performed and leave the delta open rather than passing it. One real case: an
+icon measuring 12px in a low-resolution spec was taken as the reference and its
+smallness read as grounds to defer to the eye — while the target's own width,
+larger than that icon by a factor of thirty, sat available from the first pass.
+The icon was the semantically obvious element to reach for; it was not the
+measurable one.
+
+**The landmark an inset is measured from comes from the spec's visual nesting,
+never from the source's coordinate frame.** Before measuring any inset, find in
+the *spec image* which container the element visually sits inside — the nearest
+enclosing colour or edge boundary drawn around it — then locate that same
+boundary in the build and measure both insets from it. A layout primitive's
+reference frame (`Positioned` off its `Stack`, CSS `absolute` off its positioned
+ancestor, a margin off the viewport) describes how the value is *computed*; it
+never states what the design is *about*. The two coincide only where nothing
+sits between the element and that frame's origin — precisely the assumption
+that fails without announcing itself. So **treat an exactly coincident (0px)
+edge as a suspected wrong pair rather than a tight fit**: a design rarely sets a
+floating overlay perfectly flush with the container it nests inside, so check
+whether the spec is coincident at that same pair before accepting it. One real
+case: a banner's margin was checked six separate times and passed every time,
+because `Positioned(left: Sizes.p8)` invited the question *"how far from the
+enclosing `Stack`?"* — 8px, non-zero, fine. The spec had never asked about the
+`Stack`. It specified the banner's inset from the white card it visually nests
+inside, and that card carried its own 8px inset from the same `Stack`, which
+consumed the banner's exactly: measured from the landmark the design actually
+names, the gap was 0.
 
 **A gap being visibly non-zero is not the same claim as the gap being
 proportionally the right size — this applies doubly to an element's own
@@ -192,21 +224,15 @@ exactly where the holistic read is weakest: a small edge inset reads as
 a real, non-zero gap exists. Nor does a legitimate design-system token
 exempt a value from this check — a token can be correctly drawn from the
 spacing scale and still be the wrong *step* of it, which reads no
-differently on a screenshot than a value picked out of thin air. One real
-case: a banner's `Positioned` overlay used `top/left/right: Sizes.p8` — a
-real spacing-scale token, not a magic number — and the 8px gap it produced
-genuinely existed in both spec and build, so a pixel check confirmed a
-non-zero margin and passed. But 8px against a 2360px-wide capture reads as
-covering the whole background at a glance; the spec actually called for a
-bigger step of the same scale (`Sizes.p16`). Measure the element's own edge
-margin as a fraction of the capture width in both images and diff the
-fractions directly — not just its presence — the same discipline this
-section already requires for other spacing, applied here to an edge that
-borders nothing else to compare it against — the one case where the image
-bounds themselves are an unavoidable denominator. That makes the
-scale-matching caveat above apply in full, not as an exception to it: trust
-this specific measurement only when spec and build are known to share
-capture scale, and fall back to the holistic read otherwise.
+differently on a screenshot than a value picked out of thin air. The banner
+case above is this failure as well as a landmark one: a real spacing token
+produced a gap that genuinely existed and passed on its existence, while the
+step the spec actually called for was the next one up. Measure the margin in
+the spec,
+convert it through the calibrated factor, and check the build's own measured
+margin against that prediction — not merely against zero. Where calibration
+could not be established, the margin is one of the dimensional deltas that
+stays open; it does not revert to the eye, which is blind to exactly this.
 
 **Two parts at different points in the hierarchy that the layout implies should
 share an edge are a pair, not two independent checks — a correct padding value
@@ -233,6 +259,51 @@ at the chosen viewport:
       "$HOME/.skadi/henneth/feanor-spec.png" "<WxH>"
 
 Read `feanor-spec.png`; this is the fixed light every pass measures against.
+
+### 0b. Calibrate the scale once — or name why you cannot
+
+Every dimensional check downstream converts through one scale factor, established
+here. Re-deriving a denominator at each measurement instead is what lets two
+checks on the same element reach opposite verdicts. Decide the case once:
+
+- **The spec is a live design node** (a Figma URL or node id — see the compare
+  step's structured-layout rule). Read its stated values directly; no image
+  measurement and no calibration are owed. Prefer this whenever a node exists —
+  it is both cheaper and exact.
+- **The spec is an image only.** Calibrate, below.
+- **The spec is an image and no adequate shared feature exists.** Dimensional
+  checks cannot be performed. Say so plainly, name what would make them possible
+  (a higher-resolution spec export, a design-tool node, the human's own eye on
+  the device), and leave every dimensional delta **open** — an unmeasurable
+  property is not a passing property. Color, presence, and structural checks
+  still run normally.
+
+To calibrate:
+
+1. Choose the **largest** feature present and unambiguously identical in both
+   images, in this order: the target element's own long dimension; a full-width
+   or full-height container shared by both; a mid-size nearby control; and only
+   if nothing above exists, a small glyph.
+2. Measure its pixel extent in both. `scale = build_px / spec_px`.
+3. **Verify against a second, independent feature.** If the two factors differ
+   by more than roughly 5%, the images do not share one consistent scale — a
+   different crop, a different aspect, a different device frame. Stop trusting
+   any conversion and fall to the third case above.
+4. Convert every later spec measurement through it:
+   `predicted_build_px = spec_px × scale`. Where the build's logical unit is
+   known (a Flutter device pixel ratio, CSS px against device px), carry the
+   result into logical units so the answer lands on the design system's own
+   token scale.
+
+What this buys is a **prediction to check against, not two ratios to weigh**.
+*"The spec's inset is 3px, which is 16.3 build px, or 8 logical px at this
+device's 2× ratio; the build measures 0"* is settled; *"the spec's gap looks
+about right"* is not. One real case: a banner's outer margin was judged by eye
+and by sampling six separate times across one session, passed every time as "a
+gap exists", and flipped between two token values on alternating impressions —
+calibration (a 401px spec width against the build's 2184px, factor 5.446)
+settled it in a single pass, the spec predicting 16.3px against candidates that
+measured 0px and 16px.
 
 ### 1..max — render, compare, mend
 
@@ -321,12 +392,11 @@ For each pass `n` (1 to `--max`):
      distorts an element's scale: a button forced 36% wider than its
      icon-and-text content needed (`minimumSize: Size(212, 36)`) still reads
      as "a button in the right place" at a glance. Measure the element's
-     width or height as a **fraction of a stable parent** — a specific
-     nearby element rendering at comparable scale in both images, never the
-     image bounds themselves, per the oracle section's stable-parent rule
-     above — in both spec and build, since absolute pixels do not
-     compare meaningfully across differently scaled reference images. Flag a
-     roughly >20% relative divergence between the two fractions as worth a
+     width or height in the spec, convert it through the factor set in
+     *Calibrate the scale once*, and check the build's own measurement
+     against that prediction — absolute pixels never compare across
+     differently scaled images, and two separately-derived ratios are worse
+     still. Flag a roughly >20% divergence from the prediction as worth a
      second look — that gap is the signal a magic number was eyeballed, or a
      default went unquestioned, rather than measured when the widget was
      first built.
@@ -346,9 +416,9 @@ For each pass `n` (1 to `--max`):
      but not dominant, and something else in the same composite is still
      doing most of the work — re-measuring the same aggregate box a second
      time will not find what decomposing it the first time would have. One
-     real case: a banner's fill measured 7.9% of screen height against the
-     spec's 3.75%; fixing the container's own vertical `padding` — the only
-     visible number in that widget's own source — moved it only to 6.83%.
+     real case: a banner's fill measured about 2.1× the spec's height;
+     fixing the container's own vertical `padding` — the only visible number
+     in that widget's own source — brought it only to about 1.8×.
      The rebuilt screenshot showed the icon+text floating in the center of a
      box still visibly taller than either needed, with no text wrapping to
      explain it; the actual driver, findable by cropping and measuring each
@@ -358,8 +428,13 @@ For each pass `n` (1 to `--max`):
      tallest child.
 
 3. **Decide the exit** (before any edit):
-   - **Aligned** — no material deltas remain. Stop; report `ALIGNED` and the pass
-     count.
+   - **Aligned** — no material deltas remain *and* no check was left
+     unperformed. Stop; report `ALIGNED` and the pass count.
+   - **Open** — calibration could not be established (per *Calibrate the scale
+     once*), so one or more dimensional checks were never performed. Their
+     deltas are unresolved, not absent, and `ALIGNED` may not be claimed over
+     them. Stop; report `OPEN`, naming each check that could not run and what
+     would let it.
    - **Stalled** — compare this pass's delta checklist against pass `n-1`'s (keep
      each pass's list in working context). Stalled when the count did **not** drop
      *and* no listed delta materially closed — the same gaps remain, or an edit
@@ -402,7 +477,12 @@ For each pass `n` (1 to `--max`):
 
 Report the verdict and **why** it stopped, never a bare "done":
 
-- `ALIGNED` (pass k of N) — the reflection matches; list nothing owed.
+- `ALIGNED` (pass k of N) — the reflection matches and every check ran; list
+  nothing owed.
+- `OPEN` (pass k of N) — **fail loud**: calibration could not be established, so
+  named dimensional checks never ran. List which, and what would let them run —
+  a higher-resolution spec export, a design-tool node, the human's own eye on
+  the device. An unmeasurable property is not a passing property.
 - `STALLED` (pass k of N) — name the deltas that would not close, so the user knows
   what the eye cannot mend automatically (often sub-pixel precision the oracle
   cannot perceive).
@@ -469,10 +549,12 @@ written all the same, and the loop never blocks on the window.
   `feanor-sample-color.sh` and `feanor-crop.sh` both need `magick` (or the legacy
   `convert`) on PATH. Absent both, set `FEANOR_MAGICK` to a binary, or each fails
   loud rather than returning a guessed color or an empty crop.
-- **Perceptual, not pixel-perfect.** Vision closes layout, proportion, and
-  presence reliably across hue families, but has real, specific blind spots —
-  see the oracle section above for what they are and the checks that close
-  them. The loop converges to *the eye's match*, which for a mockup is the
+- **Perceptual, not pixel-perfect.** Vision closes structure, presence, and
+  gross layout reliably, and colour across hue families — but it does not
+  close proportion, spacing, or margin, which is why those route to
+  measurement rather than to the eye. See the oracle section above for each
+  blind spot and the check that closes it. Where a delta is one the eye can
+  judge, the loop converges to *the eye's match*, which for a mockup is the
   true target — but do not expect a ruler-exact result.
 - **The cap fails loud, alignment does not.** A `CAP` exit always names what remains;
   an `ALIGNED` exit owes nothing. The verdict always carries its why.
