@@ -4,15 +4,7 @@ This repository tracks my personal Claude Code setup: global instructions, setti
 
 ## About This Repo
 
-- `CLAUDE.md` — this file, copied to `~/.claude/CLAUDE.md`
-- `settings.json` — global Claude settings, copied to `~/.claude/settings.json`
-- `skills/` — custom skills, copied into `~/.claude/skills/`
-- `hooks/` — hook scripts copied into `~/.claude/hooks/`
-- `docs/` — style, tool, and workflow guides, copied into `~/.claude/docs/`
-- `output-styles/` — output style definitions, copied into `~/.claude/output-styles/`
-- `statusline.sh` — status line script, copied to `~/.claude/statusline.sh`
-- `previews/henneth/skadi-theme.css` — shared preview stylesheet, copied beside the Henneth artifacts
-- `install.sh` — copies everything into `~/.claude/` (idempotent, safe to re-run)
+Each tracked path is described in `README.md`'s *What's Inside* table, which `session-readme.sh` injects at session start. Below is only what that table does not carry.
 
 **This repo is the source of truth for the live Claude config.** Every configured install root (see `install.sh`'s registry) is a copy, not a symlink — the same file lands in each byte-for-byte, so reading these instructions from a live copy looks identical to reading them from the source itself. Edits to any copy are silently overwritten on the next install run. Any change to the live config must be made in this repo first, then propagated by invoking the `/install` skill. Never edit a configured root directly — not even the one that happened to supply this file to the current session.
 
@@ -124,7 +116,7 @@ A third line, `Compliance Review: SKIPPED (reason: <one line>)`, replaces the re
 
 **When the dispatch is unavailable, the review is missed — not waived.** A harness restriction, a disabled Agent tool, or a sandbox that forbids subagents does not lower the bar. Do not write `PASS`: no reviewer earned it. Do not write `SKIPPED`: that waives the segment out of the measurement, and is reserved for the case above. Write **no verdict line at all** — then say plainly in the summary that a review was owed, that the dispatch was refused, and why, and ask for the restriction to be lifted. The segment scores as a miss, which is what happened. No new marker is needed: the scanner already reads an absent line as a review never run.
 
-The `compliance-review-reminder.sh` hook re-injects this review's trigger with every prompt, as `gate-reminder.sh` does for the Free-Form Gate; this section is its specification. It fires every turn rather than only on closing ones, because a hook can detect *about to mutate* from a tool call but not *about to claim done* from prose — the always-inject pattern is the one that has held. It also restates that the review needs an **agent dispatch**, not merely the verdict line: the pulse credits a segment only when an `Agent` call stands behind the marker, so a nudge toward typing the line unearned would corrupt the measure it was meant to protect.
+The `compliance-review-reminder.sh` hook re-injects this review's trigger with every prompt, as `gate-reminder.sh` does for the Free-Form Gate; this section is its specification. Why it fires every turn, and why it names the agent dispatch rather than the verdict line alone, is recorded in `docs/workflow/maintenance.md`.
 
 ## Cross-Workspace Edits
 

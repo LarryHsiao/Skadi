@@ -79,3 +79,25 @@
    line must be a checkable outcome with same-turn evidence; a review must
    name file:line or say PASS. Anything that cannot fail is not a check —
    delete it or sharpen it.
+
+## Why the reminder hooks are shaped as they are
+
+`gate-reminder.sh` and `compliance-review-reminder.sh` both re-inject their
+gate's trigger into *every* user prompt. Their specifications live in
+CLAUDE.md; this is the reasoning behind their shape, kept here so the
+always-loaded file carries the rule and not its defence.
+
+- **Why every turn, not only closing ones.** A hook can detect *about to
+  mutate* from a tool call, but not *about to claim done* from prose. There is
+  no reliable signal for the second, so the always-inject pattern is the one
+  that has held. It pays context on every turn to avoid missing the turn that
+  matters.
+- **Why the review reminder names the agent dispatch.** `pulse-rubric.json`'s
+  `rule.compliance-review` credits a segment only when an `Agent` call stands
+  behind the verdict line. A reminder nudging toward the literal marker alone
+  would teach it to be typed unearned — corrupting the very measure it exists
+  to protect. A reminder must never make the metric easier to satisfy than the
+  behaviour it stands for.
+- **Cost, when trimming.** These two hooks are charged per prompt, not per
+  task. A clause covering a rare branch does not belong in them; put it in the
+  CLAUDE.md section instead, which is charged once per session.
