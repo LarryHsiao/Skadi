@@ -194,6 +194,7 @@ def read_turns(path):
         print("pulse-scan: cannot open %s: %s" % (path, err), file=sys.stderr)
         return turns
     active_model = None
+    active_effort = None
     with fh:
         for line in fh:
             line = line.strip()
@@ -207,7 +208,12 @@ def read_turns(path):
             t = d.get("type")
             message = d.get("message", {})
             if t == "turn_context":
-                active_model = (d.get("payload") or {}).get("model") or active_model
+                payload = d.get("payload") or {}
+                active_model = payload.get("model") or active_model
+                # Codex writes effort only when it changes, so the last one
+                # named stands until another replaces it. Claude names it on
+                # every assistant entry and never reaches this branch.
+                active_effort = payload.get("effort") or active_effort
                 continue
             if t == "response_item":
                 runtime = "codex"
@@ -238,6 +244,7 @@ def read_turns(path):
                 "bash_commands": _bash_commands(message) if t == "assistant" else [],
                 "tool_results": _tool_results(message) if t == "user" else [],
                 "model": (message.get("model") or active_model) if t == "assistant" else None,
+                "effort": (d.get("effort") or active_effort) if t == "assistant" else None,
                 "ts": d.get("timestamp", ""),
                 "session": session,
                 "source": path,
@@ -376,6 +383,7 @@ def _gate_sites(turns):
             "gauge": turn["text"].strip(),
             "reply": _picked_option(turns, i) or _reply_after(turns, i),
             "model": _real_model(turn.get("model")),
+            "effort": turn.get("effort"),
             "date": (turn.get("ts") or "")[:10],
         })
     return sites
@@ -416,24 +424,57 @@ def _run_model(run):
     return None
 
 
-def _bump_model(by_model, model, complied):
-    """Tally one applied (and maybe complied) instance against its model."""
-    if model is None:
+def _run_effort(run):
+    """The reasoning effort this run was authored at, or None when it cannot be
+    pinned to one. Deliberately stricter than _run_model, which takes the first
+    model named and lets it stand: /effort is a cheap mid-session toggle, so a
+    run genuinely straddling two settings is commoner than one straddling two
+    models. Such a run is credited to neither — a misattributed run is worse
+    than an uncounted one — though it still counts toward the totals."""
+    seen = {turn["effort"] for turn in run
+            if turn["type"] == "assistant" and turn.get("effort")}
+    return seen.pop() if len(seen) == 1 else None
+
+
+def _bump_cut(bucket, key, complied):
+    """Tally one applied (and maybe complied) instance against one cut's key —
+    a model for the byModel split, an effort for byEffort. A None key is not
+    attributable and is dropped rather than bucketed under a placeholder."""
+    if key is None:
         return
-    bucket = by_model.setdefault(model, {"applied": 0, "complied": 0})
-    bucket["applied"] += 1
+    counts = bucket.setdefault(key, {"applied": 0, "complied": 0})
+    counts["applied"] += 1
     if complied:
-        bucket["complied"] += 1
+        counts["complied"] += 1
+
+
+def _new_cuts():
+    """The attribution splits every scorer tallies beside its own totals. Kept
+    as one container so a scorer's signature does not grow a slot per cut."""
+    return {"model": {}, "effort": {}}
+
+
+def _bump_cuts(cuts, model, effort, complied):
+    """Tally one instance against every cut at once."""
+    _bump_cut(cuts["model"], model, complied)
+    _bump_cut(cuts["effort"], effort, complied)
+
+
+def _bump_run(cuts, run, complied):
+    """_bump_cuts for the scorers that hold the run itself, rather than a model
+    already lifted out of a gate site or a cached verdict record."""
+    _bump_cuts(cuts, _run_model(run), _run_effort(run), complied)
 
 
 def score_workflow(turns, entry):
     """applied = invocations; complied = runs where the verdict token appears.
-    by_model tallies the same applied/complied split against each run's model."""
+    cuts tally the same applied/complied split against each run's model and,
+    separately, the reasoning effort it was authored at."""
     applies = re.compile(entry["applies"])
     complied_re = re.compile(entry["complied"])
     applied = 0
     complied = 0
-    by_model = {}
+    cuts = _new_cuts()
     i = 0
     n = len(turns)
     while i < n:
@@ -446,20 +487,21 @@ def score_workflow(turns, entry):
             ok = bool(complied_re.search(run_text))
             if ok:
                 complied += 1
-            _bump_model(by_model, _run_model(run), ok)
+            _bump_run(cuts, run, ok)
             i = j
             continue
         i += 1
-    return applied, complied, by_model
+    return applied, complied, cuts
 
 
 def score_grammar(turns, entry):
     """applied = genuine user prompts; complied = those whose run drew no grammar note.
-    by_model tallies the same applied/complied split against each run's model."""
+    cuts tally the same applied/complied split against each run's model and,
+    separately, the reasoning effort it was authored at."""
     marker = re.compile(entry["complied"])
     applied = 0
     complied = 0
-    by_model = {}
+    cuts = _new_cuts()
     i = 0
     n = len(turns)
     while i < n:
@@ -472,11 +514,11 @@ def score_grammar(turns, entry):
             ok = not marker.search(run_text)
             if ok:
                 complied += 1
-            _bump_model(by_model, _run_model(run), ok)
+            _bump_run(cuts, run, ok)
             i = j
             continue
         i += 1
-    return applied, complied, by_model
+    return applied, complied, cuts
 
 
 def _tool_result_for(turns, i, call_id):
@@ -632,16 +674,19 @@ def score_verify(turns, entry):
     exclude_re = re.compile(entry["exclude"]) if entry.get("exclude") else None
     applied = 0
     complied = 0
-    by_model = {}
+    cuts = _new_cuts()
     for seg in _task_segments(_prompt_runs(turns, entry.get("since", ""))):
-        verdict, model, _ = _first_check_run(_segment_turns(seg), match_re, exclude_re)
+        seg_turns = _segment_turns(seg)
+        verdict, model, _ = _first_check_run(seg_turns, match_re, exclude_re)
         if verdict is None:
             continue
         applied += 1
         if verdict:
             complied += 1
-        _bump_model(by_model, model, verdict)
-    return applied, complied, by_model
+        # The model is the one that ran the check; the effort is the segment's,
+        # which _run_effort leaves None unless the whole segment agrees.
+        _bump_cuts(cuts, model, _run_effort(seg_turns), verdict)
+    return applied, complied, cuts
 
 
 def _unmeasured_runs(sessions, entry):
@@ -746,7 +791,7 @@ def score_freeform_gate(turns, entry):
     gate = entry.get("gate")
     applied = 0
     complied = 0
-    by_model = {}
+    cuts = _new_cuts()
     i = 0
     n = len(turns)
     while i < n:
@@ -761,11 +806,11 @@ def score_freeform_gate(turns, entry):
                 ok = _gate_complies(gate, complied_re, pre_text)
                 if ok:
                     complied += 1
-                _bump_model(by_model, _run_model(run), ok)
+                _bump_run(cuts, run, ok)
             i = j
             continue
         i += 1
-    return applied, complied, by_model
+    return applied, complied, cuts
 
 
 def _prompt_runs(turns, since):
@@ -955,7 +1000,7 @@ def score_post_gate(turns, entry):
     review_times = _review_times(turns, complied_re, since)
     applied = 0
     complied = 0
-    by_model = {}
+    cuts = _new_cuts()
     for seg in _task_segments(_prompt_runs(turns, since)):
         seg_turns = _segment_turns(seg)
         if not _owes_review(seg_turns):
@@ -967,8 +1012,8 @@ def score_post_gate(turns, entry):
         ok = _segment_complies(seg_turns, complied_re, review_times)
         if ok:
             complied += 1
-        _bump_model(by_model, _run_model(seg_turns), ok)
-    return applied, complied, by_model
+        _bump_run(cuts, seg_turns, ok)
+    return applied, complied, cuts
 
 
 def _skipped_reviews(sessions, entry):
@@ -1116,11 +1161,12 @@ def score_review_verdict(turns, entry):
     passed_re = re.compile(entry["complied"])
     since = entry.get("since", "")
     author = _run_model(turns)
+    author_effort = _run_effort(turns)
     session = turns[0]["session"] if turns else ""
     mend_cache = _mend_verdicts()
     applied = 0
     complied = 0
-    by_model = {}
+    cuts = _new_cuts()
     for path in _review_transcripts(turns):
         verdict = _agent_verdict(read_turns(path), reviewed_re, since)
         if verdict is None:
@@ -1132,8 +1178,8 @@ def score_review_verdict(turns, entry):
             ok = mend_cache.get(key) == MENDED_VERDICT
         if ok:
             complied += 1
-        _bump_model(by_model, author, ok)
-    return applied, complied, by_model
+        _bump_cuts(cuts, author, author_effort, ok)
+    return applied, complied, cuts
 
 
 def score_review_recovered(turns, entry):
@@ -1150,10 +1196,11 @@ def score_review_recovered(turns, entry):
     review, mirroring score_review_verdict — the same per-session
     approximation, hence the same heuristic tier."""
     author = _run_model(turns)
+    author_effort = _run_effort(turns)
     mend_cache = _mend_verdicts()
     applied = 0
     complied = 0
-    by_model = {}
+    cuts = _new_cuts()
     for item in _review_fail_items(turns, entry):
         verdict = mend_cache.get(item["key"])
         if verdict not in (MENDED_VERDICT, UNMENDED_VERDICT):
@@ -1162,8 +1209,8 @@ def score_review_recovered(turns, entry):
         ok = verdict == MENDED_VERDICT
         if ok:
             complied += 1
-        _bump_model(by_model, author, ok)
-    return applied, complied, by_model
+        _bump_cuts(cuts, author, author_effort, ok)
+    return applied, complied, cuts
 
 
 def _unjudged_fails(sessions, entry):
@@ -1218,7 +1265,7 @@ def score_task_shot(turns, entry):
     threshold = entry.get("threshold", 0)
     applied = 0
     complied = 0
-    by_model = {}
+    cuts = _new_cuts()
     for seg in _task_segments(_prompt_runs(turns, entry.get("since", ""))):
         applied += 1
         reworks = sum(1 for prompt, _, is_mutating in seg[1:]
@@ -1226,8 +1273,8 @@ def score_task_shot(turns, entry):
         ok = reworks <= threshold
         if ok:
             complied += 1
-        _bump_model(by_model, _run_model(_segment_turns(seg)), ok)
-    return applied, complied, by_model
+        _bump_run(cuts, _segment_turns(seg), ok)
+    return applied, complied, cuts
 
 
 def _request_before(turns, index):
@@ -1303,7 +1350,8 @@ def _bug_gate_data(turns, since):
         if gate_ok or _segment_complies(seg_turns, COMPLIANCE_PASS_RE, review_times):
             proposed = _request_before(turns, chosen_gate["index"]) if gate_ok else None
             completions.append({"key": key, "summary": proposed or seg[0][0],
-                                 "model": _run_model(seg_turns), "index": i})
+                                 "model": _run_model(seg_turns),
+                                 "effort": _run_effort(seg_turns), "index": i})
     return completions, reports, len(segments)
 
 
@@ -1331,14 +1379,14 @@ def score_bug_gate(turns, entry):
             hit_targets.add(verdict["against"])
     applied = 0
     complied = 0
-    by_model = {}
+    cuts = _new_cuts()
     for c in eligible:
         applied += 1
         ok = c["key"] not in hit_targets
         if ok:
             complied += 1
-        _bump_model(by_model, c["model"], ok)
-    return applied, complied, by_model
+        _bump_cuts(cuts, c["model"], c.get("effort"), ok)
+    return applied, complied, cuts
 
 
 def _pulse_dir():
@@ -1397,13 +1445,13 @@ def score_plan_gate(turns, entry):
     counts a run that owed no gauge."""
     applied = 0
     complied = 0
-    by_model = {}
+    cuts = _new_cuts()
     for gate, ok in _judged_gates(turns):
         applied += 1
         if ok:
             complied += 1
-        _bump_model(by_model, gate["model"], ok)
-    return applied, complied, by_model
+        _bump_cuts(cuts, gate["model"], gate.get("effort"), ok)
+    return applied, complied, cuts
 
 
 def _gate_series(sessions):
@@ -1429,10 +1477,10 @@ def _gate_series(sessions):
             day["applied"] += 1
             if ok:
                 day["complied"] += 1
-            _bump_model(day["byModel"], gate["model"], ok)
+            _bump_cut(day["byModel"], gate["model"], ok)
     return {date: {"applied": day["applied"], "complied": day["complied"],
                    "rate": _rate(day["applied"], day["complied"]),
-                   "byModel": _rated_by_model(day["byModel"])}
+                   "byModel": _rated_cut(day["byModel"])}
             for date, day in sorted(series.items())}
 
 
@@ -1474,16 +1522,24 @@ def _rate(applied, complied):
     return round(100 * complied / applied) if applied else None
 
 
-def _rated_by_model(by_model):
-    """{model: {applied, complied}} → the same, each bucket carrying its rate."""
-    return {m: {**c, "rate": _rate(c["applied"], c["complied"])} for m, c in by_model.items()}
+def _rated_cut(bucket):
+    """{key: {applied, complied}} → the same, each bucket carrying its rate.
+    Keyed by model for byModel, by effort for byEffort — the arithmetic is the
+    same either way, which is why one function serves both."""
+    return {k: {**c, "rate": _rate(c["applied"], c["complied"])} for k, c in bucket.items()}
 
 
-def _merge_by_model(total, addition):
-    for model, counts in addition.items():
-        bucket = total.setdefault(model, {"applied": 0, "complied": 0})
+def _merge_cut(total, addition):
+    for key, counts in addition.items():
+        bucket = total.setdefault(key, {"applied": 0, "complied": 0})
         bucket["applied"] += counts["applied"]
         bucket["complied"] += counts["complied"]
+
+
+def _merge_cuts(total, addition):
+    """Fold one session's cuts into the running totals, cut by cut."""
+    for name, bucket in addition.items():
+        _merge_cut(total[name], bucket)
 
 
 def _all_models(sessions):
@@ -1497,6 +1553,23 @@ def _all_models(sessions):
             if model:
                 models.add(model)
     return sorted(models)
+
+
+# The ladder reasoning effort actually climbs. Sorting these alphabetically
+# would read high, low, max, medium, xhigh — an order that ranks nothing and
+# puts the cheapest setting in the middle.
+EFFORT_ORDER = ("low", "medium", "high", "xhigh", "max")
+
+
+def _all_efforts(sessions):
+    """Every reasoning effort seen authoring an assistant turn across the
+    scanned window — the effort chip roster, the byEffort counterpart to
+    _all_models. Anything off the known ladder is appended rather than dropped,
+    so a new setting still reaches the page instead of vanishing from it."""
+    efforts = {turn["effort"] for turns in sessions for turn in turns
+               if turn.get("effort")}
+    return ([e for e in EFFORT_ORDER if e in efforts]
+            + sorted(efforts.difference(EFFORT_ORDER)))
 
 
 JUDGE_PROMPT = """You are grading whether a proposed plan was accepted as proposed.
@@ -1841,25 +1914,27 @@ def apply_rubric(files, rubric):
         try:
             applied = complied = 0
             sweep_applied = sweep_complied = 0
-            by_model = {}
-            sweep_by_model = {}
+            cuts = _new_cuts()
+            sweep_cuts = _new_cuts()
             for turns, is_sweep in zip(sessions, session_is_sweep):
-                a, c, bm = scorers[kind](turns, entry)
+                a, c, session_cuts = scorers[kind](turns, entry)
                 if kind == "workflow" and is_sweep:
                     sweep_applied += a
                     sweep_complied += c
-                    _merge_by_model(sweep_by_model, bm)
+                    _merge_cuts(sweep_cuts, session_cuts)
                 else:
                     applied += a
                     complied += c
-                    _merge_by_model(by_model, bm)
+                    _merge_cuts(cuts, session_cuts)
             item = {**base, "applied": applied, "complied": complied,
                      "rate": _rate(applied, complied), "status": "ok",
-                     "byModel": _rated_by_model(by_model)}
+                     "byModel": _rated_cut(cuts["model"]),
+                     "byEffort": _rated_cut(cuts["effort"])}
             if kind == "workflow":
                 item["sweep"] = {"applied": sweep_applied, "complied": sweep_complied,
                                   "rate": _rate(sweep_applied, sweep_complied),
-                                  "byModel": _rated_by_model(sweep_by_model)}
+                                  "byModel": _rated_cut(sweep_cuts["model"]),
+                                  "byEffort": _rated_cut(sweep_cuts["effort"])}
             if kind == "plan-gate":
                 item["abandoned"] = _abandoned_gates(sessions)
                 item["byDate"] = _gate_series(sessions)
@@ -1878,7 +1953,7 @@ def apply_rubric(files, rubric):
             print("pulse-scan: %s matcher error: %s" % (entry["id"], err), file=sys.stderr)
             items.append({**base, "applied": None, "complied": None,
                           "rate": None, "status": "error"})
-    return items, _all_models(sessions)
+    return items, _all_models(sessions), _all_efforts(sessions)
 
 
 def _overall(items):
@@ -1973,13 +2048,14 @@ def _history_series(pulse_dir):
     return series
 
 
-def render_dashboard(items, models, pulse_dir, henneth_dir, now_iso):
+def render_dashboard(items, models, efforts, pulse_dir, henneth_dir, now_iso):
     """A self-contained Henneth page with the scorecard + trend inlined."""
     series = _history_series(pulse_dir)
     overall = _overall(items)
     if isinstance(overall, (int, float)):
         series = series + [{"ts": now_iso, "overall": overall, "items": items}]
-    data = json.dumps({"items": items, "series": series, "ts": now_iso, "models": models})
+    data = json.dumps({"items": items, "series": series, "ts": now_iso,
+                       "models": models, "efforts": efforts})
     html = _PAGE.replace("/*DATA*/", data)
     try:
         os.makedirs(henneth_dir, exist_ok=True)
@@ -2005,7 +2081,7 @@ _PAGE = """<meta charset="utf-8">
   tbody tr:nth-child(even){background:rgba(203,184,154,.12);}
   .tiergroup td{padding-top:.9rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#87795e;border-bottom:1px solid #cbb89a;}
   .badge{font-size:.6rem;text-transform:uppercase;border:1px solid #cbb89a;border-radius:999px;padding:.05rem .4rem;}
-  .badge.pending,.badge.no-sweep,.badge.no-data{border-color:#a99b7d;} .badge.error{border-color:#a33;color:#a33;}
+  .badge.pending,.badge.no-sweep,.badge.no-data,.badge.thin{border-color:#a99b7d;} .badge.error{border-color:#a33;color:#a33;}
   .pending{opacity:.5;} .meter{height:6px;background:#e2d6bb;border-radius:999px;overflow:hidden;margin-top:.25rem;}
   .meter i{display:block;height:100%;background:#7a5c2e;}
   .tabs{display:flex;gap:.4rem;margin:.6rem 0 .2rem;}
@@ -2046,6 +2122,7 @@ _PAGE = """<meta charset="utf-8">
   <button class="tabbtn" data-tab="sweep">Sweep</button>
 </div>
 <div class="modelchips" id="modelchips"></div>
+<div class="modelchips" id="effortchips"></div>
 <div class="tabnote" id="tabnote"></div>
 <div class="kpi" id="overall">—</div>
 <div class="trendlabel" id="trendlabel">trend, by run date</div>
@@ -2071,8 +2148,11 @@ const STRINGS = {
     colItem: "Item", colRate: "Rate", colN: "n",
     overall: "Overall",
     pending: "pending", error: "error", noSweep: "no sweep data", noData: "no data",
+    thin: "thin",
     infoTitle: "What counts as success / failure",
     modelNote: (m) => ` · showing only ${m}'s runs, recomputed independently.`,
+    effortNote: (e) => ` · showing only runs at ${e} effort, recomputed independently.`,
+    cutExclusive: "Model and effort are independent cuts — nothing records how they combine, so choosing one returns the other to Overall.",
     tabNotes: {
       direct: "workflow rows count sessions with no /loop or /amon-sul in them — a hand-typed command inside such a session is still counted as sweep.",
       sweep: "workflow rows only — grammar and free-form gate rows carry no sweep concept, so they're dropped from this tab.",
@@ -2094,8 +2174,11 @@ const STRINGS = {
     colItem: "項目", colRate: "比率", colN: "n",
     overall: "總體",
     pending: "待建", error: "錯誤", noSweep: "無掃描資料", noData: "無資料",
+    thin: "樣本過少",
     infoTitle: "什麼算通過／未通過",
     modelNote: (m) => `．僅顯示 ${m} 的執行紀錄，獨立重新計算。`,
+    effortNote: (e) => `．僅顯示 ${e} 推理強度的執行紀錄，獨立重新計算。`,
+    cutExclusive: "模型與推理強度是兩個獨立切面——沒有任何紀錄能說明兩者如何交互，因此選了其一，另一項便回到總體。",
     tabNotes: {
       direct: "workflow 類項目計入沒有 /loop 或 /amon-sul 的 session——這類 session 裡手動輸入的指令仍算作 sweep。",
       sweep: "只涵蓋 workflow 類項目——grammar 與 free-form gate 沒有 sweep 的概念，因此不列入這個分頁。",
@@ -2115,6 +2198,7 @@ let currentLang = (navigator.language || "en").toLowerCase().startsWith("zh") ? 
 const S = () => STRINGS[currentLang];
 const statusLabel = (status) => ({
   pending: S().pending, error: S().error, "no-sweep": S().noSweep, "no-data": S().noData,
+  thin: S().thin,
 }[status] || status);
 const tierLabel = (t) => S().tiers[t] || t;
 const itemLabel = (i) => (currentLang === "zh" && i.labelZh) ? i.labelZh : i.label;
@@ -2150,18 +2234,49 @@ function viewFor(items, tab) {
   });
 }
 
-function applyModel(items, model) {
-  if (model === "Overall") return items;
+// Below this many runs a cell reports "thin" instead of a percentage. The
+// effort cut makes the floor matter: xhigh and max are a twentieth of the
+// window between them, so several of their cells hold one or two runs, and a
+// rate off two runs is noise wearing a percent sign. It applies to the model
+// cut too — a rarely-used model earns the same caution.
+const THIN_N = 5;
+
+// One cut at a time, by construction. byModel and byEffort are independent
+// splits of the same totals; nothing records how they combine, so there is no
+// model-at-effort cell to show and the selectors reset each other.
+function applyCut(items, bucketName, key) {
+  if (key === "Overall") return items;
   return items.map(i => {
     if (i.status !== "ok") return i;
-    const bm = (i.byModel || {})[model];
-    if (!bm) return { ...i, rate: null, applied: 0, complied: 0, status: "no-data" };
-    return { ...i, rate: bm.rate, applied: bm.applied, complied: bm.complied };
+    const cell = (i[bucketName] || {})[key];
+    if (!cell) return { ...i, rate: null, applied: 0, complied: 0, status: "no-data" };
+    if (cell.applied < THIN_N) {
+      return { ...i, rate: null, applied: cell.applied, complied: cell.complied, status: "thin" };
+    }
+    return { ...i, rate: cell.rate, applied: cell.applied, complied: cell.complied };
   });
 }
 
-function overallFor(items, tab, model) {
-  const viewed = applyModel(viewFor(items, tab), model);
+function applyModel(items, model) {
+  return applyCut(items, "byModel", model);
+}
+
+function applyEffort(items, effort) {
+  return applyCut(items, "byEffort", effort);
+}
+
+// The selected cut, whichever it is. Branching rather than composing is the
+// point: applying both in turn would read byEffort off items already narrowed
+// by model, and that cell was never computed — the number it produced would be
+// wrong rather than empty. The selectors already reset each other; this makes
+// the invariant structural instead of merely conventional.
+function applySelection(items, model, effort) {
+  if (effort !== "Overall") return applyEffort(items, effort);
+  return applyModel(items, model);
+}
+
+function overallFor(items, tab, model, effort) {
+  const viewed = applySelection(viewFor(items, tab), model, effort);
   const rated = viewed.filter(i => typeof i.rate === "number");
   return rated.length ? Math.round(rated.reduce((a,i)=>a+i.rate,0)/rated.length) : null;
 }
@@ -2279,10 +2394,10 @@ function gateChart(item, model) {
   </div>`;
 }
 
-function renderTrend(tab, model) {
+function renderTrend(tab, model, effort) {
   const spark = document.getElementById("spark");
   const pts = (DATA.series || [])
-    .map(p => ({ ts: p.ts, overall: overallFor(p.items || [], tab, model) }))
+    .map(p => ({ ts: p.ts, overall: overallFor(p.items || [], tab, model, effort) }))
     .filter(p => typeof p.overall === "number");
   const W = 320, H = 60, PAD = 14;
   if (!pts.length) { spark.innerHTML = ""; return; }
@@ -2305,22 +2420,31 @@ function renderTrend(tab, model) {
 
 let currentTab = "direct";
 let currentModel = "Overall";
+let currentEffort = "Overall";
 
-function render(tab, model) {
+function render(tab, model, effort) {
   currentTab = tab;
   currentModel = model;
-  const modelNote = model === "Overall" ? "" : S().modelNote(modelLabel(model));
-  document.getElementById("tabnote").textContent = S().tabNotes[tab] + modelNote;
+  currentEffort = effort;
+  const cutNote = model !== "Overall" ? S().modelNote(modelLabel(model))
+    : effort !== "Overall" ? S().effortNote(effort) : "";
+  // The exclusivity note earns its place only once a cut is chosen — that is
+  // the moment the other row visibly resets and wants explaining.
+  document.getElementById("tabnote").textContent =
+    S().tabNotes[tab] + cutNote + (cutNote ? " " + S().cutExclusive : "");
   document.getElementById("modelchips").innerHTML = ["Overall", ...DATA.models].map(m =>
     `<button class="chip ${m === model ? "active" : ""}" data-model="${esc(m)}">${esc(modelLabel(m))}</button>`
   ).join("");
-  const items = applyModel(viewFor(DATA.items, tab), model);
+  document.getElementById("effortchips").innerHTML = ["Overall", ...DATA.efforts].map(e =>
+    `<button class="chip ${e === effort ? "active" : ""}" data-effort="${esc(e)}">${esc(e === "Overall" ? S().overall : e)}</button>`
+  ).join("");
+  const items = applySelection(viewFor(DATA.items, tab), model, effort);
   const rated = items.filter(i => typeof i.rate === "number");
   const overall = rated.length ? Math.round(rated.reduce((a,i)=>a+i.rate,0)/rated.length) : null;
   document.getElementById("overall").textContent = overall == null ? "—" : overall + "%";
   document.getElementById("trendlabel").textContent =
-    `${S().trend} · ${tab === "sweep" ? S().tabSweep : S().tabDirect} · ${modelLabel(model)}`;
-  renderTrend(tab, model);
+    `${S().trend} · ${tab === "sweep" ? S().tabSweep : S().tabDirect} · ${effort !== "Overall" ? effort : modelLabel(model)}`;
+  renderTrend(tab, model, effort);
 
   const groups = {};
   items.forEach(i => { (groups[i.tier] = groups[i.tier] || []).push(i); });
@@ -2356,13 +2480,21 @@ document.querySelectorAll(".tabbtn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tabbtn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
-    render(btn.dataset.tab, currentModel);
+    render(btn.dataset.tab, currentModel, currentEffort);
   });
 });
+// Each selector returns the other to Overall: the two cuts are independent
+// splits of the same totals, so a model-at-effort cell was never computed and
+// showing one selected beside the other would imply a filter that is not there.
 document.getElementById("modelchips").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip");
   if (!btn) return;
-  render(currentTab, btn.dataset.model);
+  render(currentTab, btn.dataset.model, "Overall");
+});
+document.getElementById("effortchips").addEventListener("click", (e) => {
+  const btn = e.target.closest(".chip");
+  if (!btn) return;
+  render(currentTab, "Overall", btn.dataset.effort);
 });
 document.getElementById("rows").addEventListener("click", (e) => {
   const btn = e.target.closest(".info");
@@ -2391,7 +2523,7 @@ document.getElementById("langSwitch").addEventListener("click", (e) => {
   if (!btn || btn.dataset.lang === currentLang) return;
   currentLang = btn.dataset.lang;
   applyChrome();
-  render(currentTab, currentModel);
+  render(currentTab, currentModel, currentEffort);
 });
 applyChrome();
 render("direct", "Overall");
@@ -2439,8 +2571,8 @@ def main():
     board_dir = os.environ.get("BOARD_DIR", os.path.expanduser("~/.skadi/board"))
     henneth_dir = os.environ.get("HENNETH_DIR", os.path.expanduser("~/.skadi/henneth"))
     files = session_files(_default_roots(), WINDOW_DAYS, now.timestamp())
-    items, models = apply_rubric(files, rubric)
-    door = render_dashboard(items, models, pulse_dir, henneth_dir, now_iso)
+    items, models, efforts = apply_rubric(files, rubric)
+    door = render_dashboard(items, models, efforts, pulse_dir, henneth_dir, now_iso)
     board_door = _copy_dashboard_to_board(henneth_dir, board_dir) if door else None
     write_outputs(items, pulse_dir, board_dir, now_iso, WINDOW_DAYS, board_door)
     _regenerate_board_manifest(board_dir)

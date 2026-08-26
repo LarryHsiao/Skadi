@@ -122,6 +122,36 @@ PY
 )
 check "read_turns extracts turns, skips torn line" "$expected_turns" "$actual_turns"
 
+# ── 2b · read_turns carries each assistant turn's reasoning effort ──
+# The two runtimes report it differently. Claude writes `effort` at the top level
+# of every assistant entry, beside requestId. Codex writes it into turn_context's
+# payload and only when it CHANGES, so it must be carried forward the way the
+# model already is — otherwise every turn after the first reads as unattributed.
+d=$(tmpdir)
+cat >"$d/claude.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-20T10:00:00Z","message":{"role":"user","content":"go"}}
+{"type":"assistant","timestamp":"2026-08-20T10:00:01Z","effort":"max","message":{"role":"assistant","model":"claude-opus-5","content":[{"type":"text","text":"one"}]}}
+{"type":"assistant","timestamp":"2026-08-20T10:00:02Z","effort":"high","message":{"role":"assistant","model":"claude-opus-5","content":[{"type":"text","text":"two"}]}}
+JSON
+cat >"$d/codex.jsonl" <<'JSON'
+{"timestamp":"2026-08-20T10:00:00Z","type":"turn_context","payload":{"model":"gpt-5.6-sol","effort":"high"}}
+{"timestamp":"2026-08-20T10:00:01Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"one"}]}}
+{"timestamp":"2026-08-20T10:00:02Z","type":"turn_context","payload":{"model":"gpt-5.6-sol"}}
+{"timestamp":"2026-08-20T10:00:03Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"two"}]}}
+{"timestamp":"2026-08-20T10:00:04Z","type":"turn_context","payload":{"model":"gpt-5.6-sol","effort":"low"}}
+{"timestamp":"2026-08-20T10:00:05Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"three"}]}}
+JSON
+expected_effort="claude=max,high|codex=high,high,low"
+actual_effort=$(python3 - "$SCAN" "$d/claude.jsonl" "$d/codex.jsonl" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+def efforts(path):
+    return ",".join(str(t.get("effort")) for t in m.read_turns(path) if t["type"] == "assistant")
+print("claude=%s|codex=%s" % (efforts(sys.argv[2]), efforts(sys.argv[3])))
+PY
+)
+check "read_turns carries effort, and carries Codex's forward" "$expected_effort" "$actual_effort"
+
 # ── 3 · workflow matcher: invoked+completed → 1/1; invoked+incomplete → 0/1 ──
 d=$(tmpdir)
 cat >"$d/done.jsonl" <<'JSON'
@@ -426,13 +456,47 @@ import importlib.util as u, sys
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 turns = m.read_turns(sys.argv[2])
 entry = {"applies": "<command-name>/glorfindel</command-name>", "complied": r"\b(STIRRED|QUIET)\b"}
-a, c, bm = m.score_workflow(turns, entry)
+a, c, cuts = m.score_workflow(turns, entry)
+bm = cuts["model"]
 o = bm.get("claude-opus-4-8", {"applied": 0, "complied": 0})
 s = bm.get("claude-sonnet-5", {"applied": 0, "complied": 0})
 print("opus:%d/%d|sonnet:%d/%d" % (o["applied"], o["complied"], s["applied"], s["complied"]))
 PY
 )
 check "score_workflow tallies applied/complied per model" "$expected_bymodel_unit" "$actual_bymodel_unit"
+
+# ── 16b · the same tally, cut by reasoning effort, with mixed runs dropped ──
+# /effort is a cheap mid-session toggle, far cheaper than switching model, so a
+# run straddling two settings is commoner than one straddling two models. Such a
+# run still counts toward the totals — it happened — but is credited to neither
+# effort, because a misattributed run is worse than an uncounted one.
+d=$(tmpdir)
+cat >"$d/effort.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-20T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-08-20T10:00:05Z","effort":"max","message":{"model":"claude-opus-5","content":[{"type":"text","text":"Glorfindel — STIRRED."}]}}
+{"type":"user","timestamp":"2026-08-20T10:01:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-08-20T10:01:05Z","effort":"high","message":{"model":"claude-opus-5","content":[{"type":"text","text":"still working"}]}}
+{"type":"user","timestamp":"2026-08-20T10:02:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-08-20T10:02:05Z","effort":"high","message":{"model":"claude-opus-5","content":[{"type":"text","text":"working"}]}}
+{"type":"assistant","timestamp":"2026-08-20T10:02:09Z","effort":"max","message":{"model":"claude-opus-5","content":[{"type":"text","text":"Glorfindel — QUIET."}]}}
+JSON
+expected_byeffort="total:3/2|max:1/1|high:1/0|mixed-dropped:yes"
+actual_byeffort=$(python3 - "$SCAN" "$d/effort.jsonl" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+turns = m.read_turns(sys.argv[2])
+entry = {"applies": "<command-name>/glorfindel</command-name>", "complied": r"\b(STIRRED|QUIET)\b"}
+a, c, cuts = m.score_workflow(turns, entry)
+be = cuts["effort"]
+g = lambda k: be.get(k, {"applied": 0, "complied": 0})
+counted = sum(v["applied"] for v in be.values())
+print("total:%d/%d|max:%d/%d|high:%d/%d|mixed-dropped:%s" % (
+    a, c, g("max")["applied"], g("max")["complied"],
+    g("high")["applied"], g("high")["complied"],
+    "yes" if counted == a - 1 else "no"))
+PY
+)
+check "score_workflow cuts by effort and drops the mixed run" "$expected_byeffort" "$actual_byeffort"
 
 # ── 17 · the board snapshot carries each item's per-model rate split ──
 d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir); hen=$(tmpdir)
@@ -462,6 +526,92 @@ have_roster=$(grep -qF '"models": ["claude-opus-4-8", "claude-sonnet-5"]' "$hen/
 have_chips=$(grep -q 'id="modelchips"' "$hen/adherence-pulse.html" && echo yes || echo no)
 actual_dashmodel="$have_roster/$have_chips"
 check "dashboard embeds model roster and chip container" "$expected_dashmodel" "$actual_dashmodel"
+
+# ── 18d · byEffort rides beside byModel, and the effort roster climbs its ladder ──
+# The roster must not be sorted alphabetically — that reads high, low, max,
+# medium, xhigh, which ranks nothing and buries the cheapest setting in the
+# middle. history.jsonl keeps its byModel shape untouched so past runs stay
+# comparable, which is why effort is a sibling cut and not a compound key.
+d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir); hen=$(tmpdir)
+mkdir -p "$d/r1/projects/p"
+cat >"$d/r1/projects/p/s.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-20T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-08-20T10:00:05Z","effort":"max","message":{"model":"claude-opus-5","content":[{"type":"text","text":"Glorfindel — STIRRED."}]}}
+{"type":"user","timestamp":"2026-08-20T10:01:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-08-20T10:01:05Z","effort":"low","message":{"model":"claude-opus-5","content":[{"type":"text","text":"still working"}]}}
+JSON
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" PULSE_RUBRIC="$FIXTURE_RUBRIC" python3 "$SCAN" >/dev/null 2>&1
+expected_byeffort_page="roster:low,max|max:1/1|low:1/0|byModel-intact:yes"
+actual_byeffort_page=$(python3 - "$hen/adherence-pulse.html" <<'PY'
+import re, json, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+data = json.loads(re.search(r"const DATA = (\{.*\});", html).group(1))
+item = next(i for i in data["items"] if i["id"] == "workflow.glorfindel")
+be = item["byEffort"]
+g = lambda k: be.get(k, {"applied": 0, "complied": 0})
+print("roster:%s|max:%d/%d|low:%d/%d|byModel-intact:%s" % (
+    ",".join(data["efforts"]),
+    g("max")["applied"], g("max")["complied"],
+    g("low")["applied"], g("low")["complied"],
+    "yes" if "claude-opus-5" in item["byModel"] else "no"))
+PY
+)
+check "byEffort reaches the page; effort roster climbs its ladder" "$expected_byeffort_page" "$actual_byeffort_page"
+
+# ── 18e · the page carries the effort chip row, the thin floor, and the reset ──
+# The two cuts are independent splits of the same totals — no model-at-effort
+# cell is ever computed — so each selector must return the other to Overall
+# rather than imply a filter the data cannot answer.
+expected_effortui="chips:yes|applyEffort:yes|thinN:yes|reset-model:yes|reset-effort:yes|thin-status:yes"
+actual_effortui=$(python3 - "$hen/adherence-pulse.html" <<'PY'
+import sys
+html = open(sys.argv[1], encoding="utf-8").read()
+def has(s): return "yes" if s in html else "no"
+print("chips:%s|applyEffort:%s|thinN:%s|reset-model:%s|reset-effort:%s|thin-status:%s" % (
+    has('id="effortchips"'),
+    has("function applyEffort"),
+    has("const THIN_N"),
+    has('render(currentTab, btn.dataset.model, "Overall")'),
+    has('render(currentTab, "Overall", btn.dataset.effort)'),
+    has('status: "thin"')))
+PY
+)
+check "dashboard carries the effort selector, thin floor, and mutual reset" "$expected_effortui" "$actual_effortui"
+
+# ── 18f · applyCut itself applies the floor — the page's own function, run ──
+# xhigh and max together are a twentieth of a real window, so their cells
+# routinely hold one or two runs, and a rate computed off those is noise. This
+# lifts applyCut out of the page and executes it rather than restating its rule
+# in Python, which would pass whatever the page actually did. Node is not a
+# dependency of this suite, so its absence skips the check aloud, never
+# silently — the rest of the suite still runs without it.
+if command -v node >/dev/null 2>&1; then
+  cutjs=$(python3 - "$SCAN" "$ROOT/applycut.js" <<'PY'
+import importlib.util as u, sys, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+page = m._PAGE
+thin = re.search(r"const THIN_N = \d+;", page).group(0)
+fn = re.search(r"function applyCut\(items, bucketName, key\) \{.*?\n\}", page, re.S).group(0)
+floor = int(re.search(r"\d+", thin).group(0))
+harness = """
+const item = (n) => ({ id: "x", status: "ok", byEffort: { max: { applied: n, complied: n, rate: 100 } } });
+const one = (n) => applyCut([item(n)], "byEffort", "max")[0];
+const gone = applyCut([item(99)], "byEffort", "low")[0];
+const under = one(%d), at = one(%d);
+console.log("under:" + under.status + "/" + under.rate
+  + "|at:" + at.status + "/" + at.rate
+  + "|missing:" + gone.status);
+""" % (floor - 1, floor)
+open(sys.argv[2], "w", encoding="utf-8").write(thin + "\n" + fn + "\n" + harness)
+print(sys.argv[2])
+PY
+)
+  expected_thin="under:thin/null|at:ok/100|missing:no-data"
+  actual_thin=$(node "$cutjs")
+  check "applyCut reports thin below the floor and the rate at it" "$expected_thin" "$actual_thin"
+else
+  echo "  skip · applyCut thin floor — node absent, JS not exercised"
+fi
 
 # ── 18b · every model id the pulse can name carries a label ──
 # MODEL_LABELS falls back to the raw id for anything it does not know, so a
@@ -1106,7 +1256,8 @@ import importlib.util as u, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
-a, c, bm = m.score_plan_gate(m.read_turns(sys.argv[3]), rubric["plan.accepted"])
+a, c, cuts = m.score_plan_gate(m.read_turns(sys.argv[3]), rubric["plan.accepted"])
+bm = cuts["model"]
 short = lambda k: "opus" if "opus" in k else "sonnet"
 parts = ["%d/%d" % (a, c)] + ["%s:%d/%d" % (short(k), v["applied"], v["complied"])
                               for k, v in sorted(bm.items())]
@@ -1522,7 +1673,8 @@ sys.stdout.reconfigure(encoding="utf-8")
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 rubric = {r["id"]: r for r in json.load(open(sys.argv[2], encoding="utf-8"))}
 turns = m.read_turns(sys.argv[3])
-a, c, bm = m.score_plan_gate(turns, rubric["plan.accepted"])
+a, c, cuts = m.score_plan_gate(turns, rubric["plan.accepted"])
+bm = cuts["model"]
 series = m._gate_series([turns])
 in_series = sum(len(day["byModel"]) for day in series.values())
 print("scored=%d/%d models=%d seriesModels=%d" % (c, a, len(bm), in_series))
@@ -1723,7 +1875,7 @@ import importlib.util as u, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 rubric = json.load(open(sys.argv[2], encoding="utf-8"))
-items, _ = m.apply_rubric([sys.argv[3]], rubric)
+items, _, _ = m.apply_rubric([sys.argv[3]], rubric)
 item = next(i for i in items if i["id"] == "plan.bug-reported")
 print("%s|%s|%s|%s" % (item["status"], item["applied"], item["complied"], item["rate"]))
 PY
@@ -1743,7 +1895,7 @@ import importlib.util as u, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 rubric = json.load(open(sys.argv[2], encoding="utf-8"))
-items, _ = m.apply_rubric([sys.argv[3]], rubric)
+items, _, _ = m.apply_rubric([sys.argv[3]], rubric)
 item = next(i for i in items if i["id"] == "plan.bug-reported")
 print("%s|%s|%s|%s|%s" % (item["status"], item["applied"], item["complied"],
                           item["rate"], item["unattributed"]))
@@ -1784,8 +1936,8 @@ import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 entry = json.load(open(sys.argv[2], encoding="utf-8"))
 turns = m.read_turns(sys.argv[3])
-a, c, by_model = m.score_review_verdict(turns, entry)
-print("%d/%d author:%s" % (a, c, ",".join(sorted(by_model))))
+a, c, cuts = m.score_review_verdict(turns, entry)
+print("%d/%d author:%s" % (a, c, ",".join(sorted(cuts["model"]))))
 PY
 )
 check "review-verdict scorer: PASS over the reviews actually run" "$expected_verdict" "$actual_verdict"
@@ -1894,7 +2046,7 @@ import importlib.util as u, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 rubric = [e for e in json.load(open(sys.argv[2], encoding="utf-8")) if e["id"] == "review.verdict"]
-items, _ = m.apply_rubric([sys.argv[3]], rubric)
+items, _, _ = m.apply_rubric([sys.argv[3]], rubric)
 item = items[0]
 print("%s|%s|%s|%s|silent:%d skipped:%d" % (item["status"], item["applied"], item["complied"],
       item["rate"], item["unreviewed"]["silent"], item["unreviewed"]["skipped"]))
@@ -1929,7 +2081,7 @@ import importlib.util as u, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 rubric = [e for e in json.load(open(sys.argv[2], encoding="utf-8")) if e["id"] == "rule.compliance-review"]
-items, _ = m.apply_rubric([sys.argv[3]], rubric)
+items, _, _ = m.apply_rubric([sys.argv[3]], rubric)
 item = items[0]
 print("%s|%s|%s|%s|skipped:%d" % (item["status"], item["applied"], item["complied"],
       item["rate"], item["skipped"]))
@@ -2122,7 +2274,7 @@ import importlib.util as u, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 rubric = json.load(open(sys.argv[2], encoding="utf-8"))
-items, _ = m.apply_rubric([sys.argv[3]], rubric)
+items, _, _ = m.apply_rubric([sys.argv[3]], rubric)
 item = next(i for i in items if i["id"] == "review.recovered")
 print("%s|%s|%s|%s|%s" % (item["status"], item["applied"], item["complied"], item["rate"], item["unjudged"]))
 PY
@@ -2135,7 +2287,7 @@ import importlib.util as u, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 rubric = json.load(open(sys.argv[2], encoding="utf-8"))
-items, _ = m.apply_rubric([sys.argv[3]], rubric)
+items, _, _ = m.apply_rubric([sys.argv[3]], rubric)
 item = next(i for i in items if i["id"] == "review.recovered")
 print("%s|%s|%s|%s|%s" % (item["status"], item["applied"], item["complied"], item["rate"], item["unjudged"]))
 PY
@@ -2502,7 +2654,7 @@ actual_verifylive=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-live.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 rubric = json.load(open(sys.argv[2], encoding="utf-8"))
-items, _ = m.apply_rubric([sys.argv[3]], rubric)
+items, _, _ = m.apply_rubric([sys.argv[3]], rubric)
 by_id = {i["id"]: i for i in items}
 t, l = by_id["verify.test"], by_id["verify.lint"]
 print("lint %s|%s|%s|%s|unmeasured=%s||test %s|%s|%s|%s|unmeasured=%s" % (
@@ -2581,7 +2733,7 @@ actual_excludelive=$(python3 - "$SCAN" "$RUBRIC" "$d/verify-exclude.jsonl" <<'PY
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 rubric = json.load(open(sys.argv[2], encoding="utf-8"))
-items, _ = m.apply_rubric([sys.argv[3]], rubric)
+items, _, _ = m.apply_rubric([sys.argv[3]], rubric)
 by_id = {i["id"]: i for i in items}
 t, l = by_id["verify.test"], by_id["verify.lint"]
 print("lint %s/%s|test %s/%s" % (l["applied"], l["complied"], t["applied"], t["complied"]))
