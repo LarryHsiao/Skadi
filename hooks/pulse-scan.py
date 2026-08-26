@@ -2120,13 +2120,23 @@ const tierLabel = (t) => S().tiers[t] || t;
 const itemLabel = (i) => (currentLang === "zh" && i.labelZh) ? i.labelZh : i.label;
 const itemCriterion = (i) => (currentLang === "zh" && i.criterionZh) ? i.criterionZh : i.criterion;
 
+// Order is load-bearing, not cosmetic: gateModels ranks the models a chart
+// actually saw by their position here, and gateSeries hands out hues by that
+// rank. So Opus 5 sits below Sonnet 5 rather than at the head where its
+// capability would put it — the two swapping places repaints both lines of
+// every gate chart, historical runs included, since hues are assigned at draw
+// time and never stored. An unlisted id falls back to itself and renders raw,
+// which is why superseded models keep their entries.
 const MODEL_LABELS = {
   "claude-opus-4-8": "Opus 4.8",
   "claude-sonnet-5": "Sonnet 5",
+  "claude-opus-5": "Opus 5",
+  "claude-sonnet-4-6": "Sonnet 4.6",
   "claude-fable-5": "Fable 5",
   "gpt-5.6-sol": "Codex Sol",
   "gpt-5.6-terra": "Codex Terra",
   "gpt-5.6-luna": "Codex Luna",
+  "gpt-5.2-codex": "Codex 5.2",
 };
 const modelLabel = (m) => m === "Overall" ? S().overall : (MODEL_LABELS[m] || m);
 

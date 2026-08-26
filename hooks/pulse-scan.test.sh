@@ -463,6 +463,46 @@ have_chips=$(grep -q 'id="modelchips"' "$hen/adherence-pulse.html" && echo yes |
 actual_dashmodel="$have_roster/$have_chips"
 check "dashboard embeds model roster and chip container" "$expected_dashmodel" "$actual_dashmodel"
 
+# ── 18b · every model id the pulse can name carries a label ──
+# MODEL_LABELS falls back to the raw id for anything it does not know, so a
+# roster left behind by a model rename renders "claude-opus-5" in the chip row
+# beside "Opus 4.8" — which is how it shipped for weeks before anyone looked.
+expected_labels="none-missing"
+actual_labels=$(python3 - "$hen/adherence-pulse.html" <<'PY'
+import re, sys
+# Ids the pulse has actually met across the six config roots. A new model joins
+# this list and the roster in the same change, so no bare id can reach the page.
+known = ["claude-opus-5", "claude-opus-4-8", "claude-sonnet-5", "claude-sonnet-4-6",
+         "claude-fable-5", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.2-codex"]
+html = open(sys.argv[1], encoding="utf-8").read()
+block = re.search(r"const MODEL_LABELS = \{(.*?)\};", html, re.S).group(1)
+labelled = set(re.findall(r'"([^"]+)"\s*:', block))
+missing = [m for m in known if m not in labelled]
+print(",".join(missing) if missing else "none-missing")
+PY
+)
+check "every known model id carries a label" "$expected_labels" "$actual_labels"
+
+# ── 18c · Sonnet 5 keeps its roster rank ahead of Opus 5 ──
+# gateModels assigns hues by roster order among the models actually seen, so
+# these two swapping places repaints both lines of every gate chart — including
+# every historical run, since hues are assigned at draw time and never stored.
+expected_order="claude-sonnet-5 before claude-opus-5"
+actual_order=$(python3 - "$hen/adherence-pulse.html" <<'PY'
+import re, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+block = re.search(r"const MODEL_LABELS = \{(.*?)\};", html, re.S).group(1)
+ids = re.findall(r'"([^"]+)"\s*:', block)
+if "claude-opus-5" not in ids:
+    print("claude-opus-5 absent from roster")
+else:
+    print("claude-sonnet-5 before claude-opus-5"
+          if ids.index("claude-sonnet-5") < ids.index("claude-opus-5")
+          else "claude-opus-5 before claude-sonnet-5")
+PY
+)
+check "roster keeps Sonnet 5 ahead of Opus 5 (gate-chart hues hold)" "$expected_order" "$actual_order"
+
 # ── 19 · trend series carries each run's items, so the client can recompute per tab/model ──
 d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir); hen=$(tmpdir)
 mkdir -p "$d/r1/projects/p"
