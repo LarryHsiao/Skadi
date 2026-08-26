@@ -29,7 +29,10 @@ does — it only looks, and says plainly what does not match.
    `~/.skadi/henneth/manwe-spec.png`.
 2. Shoot `<target>` once into `~/.skadi/henneth/manwe-shot.png`, via
    `feanor-shot.sh` (web) or `feanor-flutter-shot.sh` (Flutter). If the hook exits
-   non-zero, stop and fail loud — there is nothing to weigh.
+   non-zero, stop and fail loud — there is nothing to weigh. For a Flutter target
+   whose source has moved since the app was last reloaded, reload it first
+   (`~/.claude/hooks/flutter-daemon.sh reload`, the `/narya` skill) and shoot only
+   on a `0` — a verdict weighed against a stale binary is worse than none.
 3. Read both images and name the deltas — Fëanor's oracle (*"The oracle"* in
    `feanor/SKILL.md`): perceptual, not pixel diff; color, layout, proportion,
    spacing, presence, typography, ordered by how much each moves the eye.

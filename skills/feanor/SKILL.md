@@ -1,6 +1,6 @@
 ---
 name: feanor
-description: Use when the user wants to align a web page to a visual reference — whether phrased as /feanor <target> <spec> [--max N] [--viewport WxH], or in plain words such as "make this page match the mockup", "align this to the design", "get the page to look like this screenshot". Both a target page and a reference image must be in hand. Aligns a web page to a visual spec by an automatic render→compare→mend loop. <target> is the page being mended (a served http(s):// URL — a dev server or Henneth-served page — that renders from source in the working tree); <spec> is the ideal to match (a PNG, or an HTML page rendered to one). Each pass shoots the target to a PNG via headless Chrome/Edge, reads it beside the spec, names the visual deltas, and edits the source to close them. Exits early when aligned or when progress stalls; a hard --max (default 3) is the backstop, and hitting it fails loud with the remaining gaps. Renders into the Henneth window so convergence is watchable. Targets a web page (headless Chrome/Edge) or a Flutter app already running on a booted emulator/simulator — captured via feanor-flutter-shot, never auto-launched: you boot and navigate, it shoots and mends.
+description: Use when the user wants to align a web page to a visual reference — whether phrased as /feanor <target> <spec> [--max N] [--viewport WxH], or in plain words such as "make this page match the mockup", "align this to the design", "get the page to look like this screenshot". Both a target page and a reference image must be in hand. Aligns a web page to a visual spec by an automatic render→compare→mend loop. <target> is the page being mended (a served http(s):// URL — a dev server or Henneth-served page — that renders from source in the working tree); <spec> is the ideal to match (a PNG, or an HTML page rendered to one). Each pass shoots the target to a PNG via headless Chrome/Edge, reads it beside the spec, names the visual deltas, and edits the source to close them. Exits early when aligned or when progress stalls; a hard --max (default 3) is the backstop, and hitting it fails loud with the remaining gaps. Renders into the Henneth window so convergence is watchable. Targets a web page (headless Chrome/Edge) or a Flutter app already running on a booted emulator/simulator — captured via feanor-flutter-shot, never auto-launched: you boot and navigate, it shoots, mends, and hot-reloads the running app through the /narya daemon.
 purpose: Aligns a web page or app view to a visual reference through an automatic screenshot-compare-and-edit loop.
 user_invocable: true
 ---
@@ -28,8 +28,9 @@ that mends both Claude's, and a hard cap so it never runs away.
   booted emulator/simulator. **You** boot the device and navigate to the target
   screen; Fëanor captures it with `feanor-flutter-shot.sh` and **never launches a
   device**. The source it edits is the Dart in the working tree that builds that
-  screen. (Read `flutter-target.md` before your first pass — a different
-  hand-off dance, since Fëanor never drives your device.)
+  screen; between passes it reloads the running app through the `/narya` daemon,
+  so the screen you navigated to is kept. (Read `flutter-target.md` before your
+  first pass — the reload is Fëanor's, the device and the navigation yours.)
 - **`<spec>`** — the ideal to align to. A **PNG** (used as-is) or an **HTML page /
   URL** (shot to a PNG first, via the same hook).
 - **`--max N`** — the hard cap on passes. Default **3**. The cap is a backstop, not
@@ -484,11 +485,14 @@ For each pass `n` (1 to `--max`):
    - **Web** — a static `file://` page is already written (no wait); a dev server
      hot-reloads (a few seconds — if the next shot still shows the pre-edit state,
      wait briefly and re-shoot). Settle time is tunable via `FEANOR_SETTLE_MS`.
-   - **Flutter** — the running app must pick up the Dart change by **hot reload**
-     (your IDE on save, or `r` in your `flutter run`), and the device must be back
-     on the target screen. Fëanor does not drive your `flutter run` session — so
-     after the mend, prompt for the reload + navigate, then shoot. (See
-     `flutter-target.md`.)
+   - **Flutter** — the running app must pick up the Dart change by **hot reload**:
+     `~/.claude/hooks/flutter-daemon.sh reload`, whose exit code decides whether
+     the next shot is worth taking — `0` shoot, anything else do not, since a
+     screenshot of a stale binary reads as a mend that did nothing. A mend hot
+     reload cannot carry (main(), a static initializer, native code, assets) needs
+     a `restart` or a rebuild, and both lose the screen — ask for the navigation
+     back before shooting. Absent a daemon, prompt for the reload + navigate as
+     before. (See `flutter-target.md`.)
 
 ### Exit
 
@@ -578,4 +582,6 @@ written all the same, and the loop never blocks on the window.
   an `ALIGNED` exit owes nothing. The verdict always carries its why.
 - **Flutter never auto-launches.** The Flutter adapter only *captures* a device you
   have already booted and navigated — it never starts or kills one. Absent a booted
-  device it fails loud (boot one yourself) rather than aligning to nothing.
+  device it fails loud (boot one yourself) rather than aligning to nothing. It may
+  reload the app running on that device (`/narya`); it may not raise the device,
+  and it never drives a tap.
