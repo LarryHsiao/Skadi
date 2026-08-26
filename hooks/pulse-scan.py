@@ -2234,12 +2234,18 @@ function viewFor(items, tab) {
   });
 }
 
-// Below this many runs a cell reports "thin" instead of a percentage. The
-// effort cut makes the floor matter: xhigh and max are a twentieth of the
-// window between them, so several of their cells hold one or two runs, and a
-// rate off two runs is noise wearing a percent sign. It applies to the model
-// cut too — a rarely-used model earns the same caution.
-const THIN_N = 5;
+// Below this many runs a cell reports "thin" instead of a percentage. Measured
+// on the first real window rather than guessed: of 17 effort cells, 7 were
+// high — every one above 48 runs — and the largest of the other 10 held 7. At a
+// floor of 1 the page would have printed "xhigh 100%" off a single run; at 5 it
+// printed "max 40%" off five, a figure consistent with anything from roughly
+// 1% to 66%. Ten shows nothing outside high today, which is the honest report:
+// effort has barely varied yet. Cells become real as they cross it.
+//
+// Nothing is hidden by this — the n column still prints "2 / 5" beside the
+// word. Only the percentage, the part that would lie, is withheld. It guards
+// the model cut on the same terms; a rarely-used model earns the same caution.
+const THIN_N = 10;
 
 // One cut at a time, by construction. byModel and byEffort are independent
 // splits of the same totals; nothing records how they combine, so there is no
