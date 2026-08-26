@@ -18,6 +18,7 @@ rate_5h_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty
 rate_7d_raw=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty' 2>/dev/null)
 rate_7d_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty' 2>/dev/null)
 model_name=$(echo "$input" | jq -r '.model.display_name // empty' 2>/dev/null)
+effort_level=$(echo "$input" | jq -r '.effort.level // empty' 2>/dev/null)
 cwd=$(echo "$input" | jq -r '.cwd // "."' 2>/dev/null)
 git_branch=$(git -C "$cwd" rev-parse --abbrev-ref HEAD 2>/dev/null)
 git_dir=$(git -C "$cwd" rev-parse --git-dir 2>/dev/null)
@@ -299,10 +300,12 @@ printf "📁 %s  %s🌿 %s\n" "$project_label" "$worktree_segment" "$branch_labe
 # Line 2: branch info
 printf "✏️ %s  %s  %s  %s\n" "$lines_str" "$changed_str" "$unpushed_str" "$grammar_str"
 
-# Line 3: model + login badge + context gauge
+# Line 3: model + effort badge (when the model supports it) + login badge + context gauge
 IFS=$'\t' read -r account_emoji account_short <<< "$(account_badge)"
 account_short=$(ellipsize_end "$account_short" 12)
-printf "%s %s  %s %s  📊 %s\n" "$model_emoji" "$model_short" "$account_emoji" "$account_short" "$context_str"
+effort_segment=""
+[ -n "$effort_level" ] && effort_segment="🎚️ ${effort_level}  "
+printf "%s %s  %s%s %s  📊 %s\n" "$model_emoji" "$model_short" "$effort_segment" "$account_emoji" "$account_short" "$context_str"
 
 # Line 4: quota gauges (5h + 7d) — split off so the three bars don't overrun one line
 printf "⚡ %s  📅 %s\n" "$rate_5h_str" "$rate_7d_str"
