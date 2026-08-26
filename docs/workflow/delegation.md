@@ -77,6 +77,25 @@ Two implementation subagents on overlapping files race, and the merge is yours
 to untangle. Read-only investigations parallelize freely; when uncertain
 whether two tasks touch the same seam, dispatch them serially.
 
+## Separate concern, separate review
+
+Work discovered mid-flight — a dead-code chain stumbled on while wiring a
+feature, a stray lint fix, an unrelated tidy — is not always safe to fold into
+the branch in hand, even when nothing races the same file. The test is not
+*"could this run in parallel"* but *"would this want separate review"*: if the
+discovered work carries a different commit verb (`chore:` against `feat:`) and
+a reviewer could approve it without understanding the task at hand, stand it
+up on its own worktree, its own branch, its own PR/MR — folded into the
+feature diff, a thirty-second approval becomes a hunt through unrelated
+changes, and that tax lands on the human, not the machine.
+
+Small work that is genuinely entangled with the change in hand — a refactor's
+own cleanup, a rename it forces — stays as a separate commit on the same
+branch; the rule guards against mixing *concerns*, not against tidying what
+the current change itself disturbed. `isolation: "worktree"` on the Agent tool
+makes the separate-branch path cheap when the discovered work is also
+delegable; a plain `git worktree add` covers the case where it is not.
+
 ## Escalation ladder
 
 | Situation | Action |
