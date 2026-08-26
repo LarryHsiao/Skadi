@@ -1367,7 +1367,7 @@ def score_bug_gate(turns, entry):
     completions, reports, num_segments = _bug_gate_data(turns, since)
     eligible = [c for c in completions if c["index"] < num_segments - 1]
     if not eligible:
-        return 0, 0, {}
+        return 0, 0, _new_cuts()
     bug_verdicts = _bug_verdicts()
     hit_targets = set()
     for rep in reports:

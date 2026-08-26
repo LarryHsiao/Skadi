@@ -527,7 +527,7 @@ have_chips=$(grep -q 'id="modelchips"' "$hen/adherence-pulse.html" && echo yes |
 actual_dashmodel="$have_roster/$have_chips"
 check "dashboard embeds model roster and chip container" "$expected_dashmodel" "$actual_dashmodel"
 
-# ── 18d · byEffort rides beside byModel, and the effort roster climbs its ladder ──
+# ── 18b · byEffort rides beside byModel, and the effort roster climbs its ladder ──
 # The roster must not be sorted alphabetically — that reads high, low, max,
 # medium, xhigh, which ranks nothing and buries the cheapest setting in the
 # middle. history.jsonl keeps its byModel shape untouched so past runs stay
@@ -558,7 +558,7 @@ PY
 )
 check "byEffort reaches the page; effort roster climbs its ladder" "$expected_byeffort_page" "$actual_byeffort_page"
 
-# ── 18e · the page carries the effort chip row, the thin floor, and the reset ──
+# ── 18c · the page carries the effort chip row, the thin floor, and the reset ──
 # The two cuts are independent splits of the same totals — no model-at-effort
 # cell is ever computed — so each selector must return the other to Overall
 # rather than imply a filter the data cannot answer.
@@ -578,7 +578,7 @@ PY
 )
 check "dashboard carries the effort selector, thin floor, and mutual reset" "$expected_effortui" "$actual_effortui"
 
-# ── 18f · applyCut itself applies the floor — the page's own function, run ──
+# ── 18d · applyCut itself applies the floor — the page's own function, run ──
 # xhigh and max together are a twentieth of a real window, so their cells
 # routinely hold one or two runs, and a rate computed off those is noise. This
 # lifts applyCut out of the page and executes it rather than restating its rule
@@ -613,7 +613,7 @@ else
   echo "  skip · applyCut thin floor — node absent, JS not exercised"
 fi
 
-# ── 18b · every model id the pulse can name carries a label ──
+# ── 18e · every model id the pulse can name carries a label ──
 # MODEL_LABELS falls back to the raw id for anything it does not know, so a
 # roster left behind by a model rename renders "claude-opus-5" in the chip row
 # beside "Opus 4.8" — which is how it shipped for weeks before anyone looked.
@@ -633,7 +633,7 @@ PY
 )
 check "every known model id carries a label" "$expected_labels" "$actual_labels"
 
-# ── 18c · Sonnet 5 keeps its roster rank ahead of Opus 5 ──
+# ── 18f · Sonnet 5 keeps its roster rank ahead of Opus 5 ──
 # gateModels assigns hues by roster order among the models actually seen, so
 # these two swapping places repaints both lines of every gate chart — including
 # every historical run, since hues are assigned at draw time and never stored.
@@ -1718,6 +1718,26 @@ print("%d|%s|%d/%d" % (num_segments, ",".join(x["key"] for x in completions), a,
 PY
 )
 check "bug-gate: accepted gate and Compliance Review PASS each mark their own segment" "$expected_bugseg" "$actual_bugseg"
+
+# ── 50a · every scorer returns a well-formed cuts container, even on its early
+#          exit. score_bug_gate is the only scorer with a bail-out before the
+#          tally loop, so it is the only one that can return the container
+#          without building it — and it did, shipping a bare {} that merged as a
+#          no-op only because _merge_cuts iterates the addition's keys. Nothing
+#          broke, which is why nothing caught it. A direct read of cuts["model"]
+#          on that path would raise.
+expected_bugempty="model:yes effort:yes"
+actual_bugempty=$(PULSE_DIR="$(tmpdir)" python3 - "$SCAN" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+# No turns at all — no completions, so nothing is eligible and the scorer bails.
+a, c, cuts = m.score_bug_gate([], {"since": ""})
+assert (a, c) == (0, 0), "empty input should tally nothing, got %r" % ((a, c),)
+print("model:%s effort:%s" % ("yes" if "model" in cuts else "no",
+                              "yes" if "effort" in cuts else "no"))
+PY
+)
+check "score_bug_gate's early exit still returns both cuts" "$expected_bugempty" "$actual_bugempty"
 
 # ── 50b · bug-gate: a gate-proposed completion is summarized by the request the
 #          gate proposed, not by the word that approved it. A segment opens at a
