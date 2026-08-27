@@ -3,9 +3,10 @@
 #   bash flutter-daemon.test.sh
 #
 # No real Flutter, device or simulator is involved: a stub `flutter` speaks the
-# daemon protocol over the same fifo the true one would read, so the wiring under
-# test — the persistent writer that keeps the pipe from reaching EOF, the request
-# ids, the result parse — is exercised exactly as it will be in earnest.
+# daemon protocol over the same tail-fed pipe the true one would read, so the
+# wiring under test — the persistent writer that keeps the pipe from reaching
+# EOF, the request ids, the result parse — is exercised exactly as it will be
+# in earnest.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -36,11 +37,17 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$WORK/bin"
-# A narrow PATH keeping the utilities the hook leans on (python3, mkfifo, tail,
+# A narrow PATH keeping the utilities the hook leans on (python3, sh, tail,
 # awk, sed) while excluding wherever this machine's real flutter or fvm live —
 # so "neither is installed" below is a deterministic branch, not a bet on this
-# developer's toolchain.
-BARE_PATH="$WORK/bin:/usr/bin:/bin"
+# developer's toolchain. python3 on Windows/MSYS commonly resolves through a
+# WindowsApps execution-alias directory rather than /usr/bin or /bin, so its
+# real directory is discovered rather than assumed — appended last, since that
+# same directory also holds a broken `bash` alias (a WSL launcher stub) that
+# must never shadow the real /usr/bin/bash this whole script depends on.
+PY3_DIR=""
+command -v python3 >/dev/null 2>&1 && PY3_DIR="$(dirname "$(command -v python3)")"
+BARE_PATH="$WORK/bin:/usr/bin:/bin${PY3_DIR:+:$PY3_DIR}"
 
 STUB_LOG="$WORK/argv.log"
 export STUB_LOG
@@ -121,7 +128,7 @@ check "start exits 0" "0" "$st"
 check_has "start names the appId it learned" "started stub-app-1" "$out"
 
 dirA=$(echo "$SKADI_FLUTTER_ROOT"/appA-*)
-check "the fifo is laid down" "1" "$([[ -p "$dirA/fifo" ]] && echo 1 || echo 0)"
+check "the command file is laid down" "1" "$([[ -f "$dirA/cmds" ]] && echo 1 || echo 0)"
 check "the daemon pid is recorded" "1" "$([[ -s "$dirA/daemon.pid" ]] && echo 1 || echo 0)"
 check "the holder pid is recorded" "1" "$([[ -s "$dirA/holder.pid" ]] && echo 1 || echo 0)"
 check "the appId is persisted to meta" "stub-app-1" "$(sed -n 's/^appId=//p' "$dirA/meta")"
@@ -206,8 +213,8 @@ check "reload into a dead daemon writes nothing to the pipe" "0" "$(wc -l < "$ST
 PATH="$BARE_PATH" "$HOOK" stop --project "$projB" >/dev/null 2>&1
 
 # ── starting over a corpse reaps its pipe holder, not only its state ──
-# A holder left alive would sit on a fifo whose directory has been removed, and
-# one more would be stranded on every restart-after-death.
+# A holder left alive would sit on a command file whose directory has been
+# removed, and one more would be stranded on every restart-after-death.
 projF=$(new_project appF)
 export STUB_IN="$WORK/f.in"
 : > "$STUB_IN"
@@ -225,9 +232,10 @@ check "starting over a corpse raises a new holder" "1" \
 PATH="$BARE_PATH" "$HOOK" stop --project "$projF" >/dev/null 2>&1
 
 # ── a state directory bearing no log is not a daemon ──
-# A spawn that fails at mkfifo leaves exactly that shape behind. Every verb that
-# reads the log must answer "no daemon" rather than letting tail meet a file that
-# is not there and report a filesystem error in its place.
+# A spawn that fails to lay down its command file leaves exactly that shape
+# behind. Every verb that reads the log must answer "no daemon" rather than
+# letting tail meet a file that is not there and report a filesystem error in
+# its place.
 projG=$(new_project appG)
 export STUB_IN="$WORK/g.in"
 : > "$STUB_IN"

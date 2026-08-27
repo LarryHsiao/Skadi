@@ -9,10 +9,15 @@
 # the app comes back at its start screen — the navigation lost with it.
 #
 # `flutter run --machine` is the daemon protocol IDE plugins drive: newline-delimited
-# JSON in, newline-delimited JSON out. Point its stdin at a named pipe and any later
-# process can trigger a reload by writing one line. The pipe needs a *persistent
-# writer* (`tail -f /dev/null > fifo`) held open beside it — otherwise the first
-# writer's close sends the same EOF and kills the daemon exactly as before.
+# JSON in, newline-delimited JSON out. Its stdin is the read end of `tail -f` on a
+# plain command file: any later process triggers a reload by appending one line,
+# and `tail -f` never reaches EOF on its own, so the daemon's stdin never closes
+# under it. A named pipe (`mkfifo`) would do the same job on Linux and macOS, but
+# a native Windows process cannot read one as stdin — MSYS/Git Bash's `bin/flutter`
+# execs `flutter.bat` through `cmd.exe`, and `cmd.exe` handed an MSYS-emulated
+# fifo dies at once. The shell's own `|` is a real OS pipe on every platform,
+# `cmd.exe` included, so `tail -f cmds | flutter run --machine` is one code path
+# that holds everywhere.
 #
 # WHAT HOT RELOAD CANNOT CARRY
 # `reload` covers Dart source only. Changes to main(), top-level or static
@@ -32,8 +37,8 @@
 # One daemon per project directory. With no --project the project is the nearest
 # ancestor of $PWD bearing a pubspec.yaml, so `reload` from anywhere inside the tree
 # finds its own daemon. State lives under $SKADI_FLUTTER_ROOT (default
-# $HOME/.skadi/flutter)/<slug>/ — the fifo, the daemon's log, the two pids, and a
-# meta file naming the project, device, flavor, entry and appId.
+# $HOME/.skadi/flutter)/<slug>/ — the command file, the daemon's log, the two
+# pids, and a meta file naming the project, device, flavor, entry and appId.
 #
 # Device id, flavor and entry point are arguments, never baked in: this hook must
 # read true in any Flutter project on any machine.
@@ -56,7 +61,6 @@ set -u
 ROOT="${SKADI_FLUTTER_ROOT:-$HOME/.skadi/flutter}"
 START_TIMEOUT_DEFAULT=300
 POKE_TIMEOUT_DEFAULT=120
-WRITE_TIMEOUT=5
 LOG_LINES_DEFAULT=40
 
 usage() {
@@ -171,9 +175,9 @@ PY
 }
 
 # The log, not the directory, is the proof a daemon was ever raised here: a spawn
-# that fails at mkfifo leaves the directory behind with nothing in it, and every
-# verb below reads the log — `tail` on a file that is not there would answer with
-# a filesystem error where a plain "no daemon" belongs.
+# that fails to lay down its command file leaves the directory behind with nothing
+# in it, and every verb below reads the log — `tail` on a file that is not there
+# would answer with a filesystem error where a plain "no daemon" belongs.
 require_daemon() { # dir project
   [ -f "$1/log" ] && return 0
   echo "flutter-daemon: no daemon for $2 — start one first" >&2
@@ -196,24 +200,11 @@ resolve_appid() { # dir
   echo "$app"
 }
 
-# Writing to a fifo whose reader has died blocks forever, so the write is bounded
-# and a hang is reported as the dead daemon it means.
-fifo_write() { # dir line
-  local w waited=0 rc
-  ( printf '%s\n' "$2" > "$1/fifo" ) 2>/dev/null &
-  w=$!
-  while kill -0 "$w" 2>/dev/null; do
-    if [ "$waited" -ge $((WRITE_TIMEOUT * 5)) ]; then
-      kill "$w" 2>/dev/null
-      wait "$w" 2>/dev/null
-      return 1
-    fi
-    sleep 0.2
-    waited=$((waited + 1))
-  done
-  wait "$w" 2>/dev/null
-  rc=$?
-  return $rc
+# Appending to the command file never blocks — unlike the fifo write it replaces,
+# a plain file has no reader to wait for. A daemon that has stopped consuming
+# commands is instead caught downstream, by await_result's own timeout.
+send_command() { # dir line
+  printf '%s\n' "$2" >> "$1/cmds"
 }
 
 next_id() { # dir
@@ -226,26 +217,29 @@ next_id() { # dir
 }
 
 spawn_daemon() { # dir project
-  local holder daemon
-  mkdir -p "$1"
-  rm -f "$1/fifo"
-  mkfifo "$1/fifo" || return 1
+  local daemon
+  mkdir -p "$1" || return 1
+  : > "$1/cmds" || return 1
   : > "$1/log"
-  # The persistent writer first — it blocks until the daemon opens the read end,
-  # and outlives this script so the pipe never reaches EOF.
-  nohup tail -f /dev/null > "$1/fifo" 2>/dev/null &
-  holder=$!
-  disown 2>/dev/null || true
+  rm -f "$1/holder.pid"
   # shellcheck disable=SC2086
   # `flutter run` must be spoken from the project root, not from wherever the
   # caller stood; `exec` keeps the pid the subshell was given, so $! still names
   # the daemon itself. $fl splits "fvm flutter" into command + subcommand.
-  ( cd "$2" && exec nohup $fl run --machine \
-    ${device:+-d "$device"} ${flavor:+--flavor "$flavor"} ${entry:+-t "$entry"} \
-    ${extra[@]+"${extra[@]}"} < "$1/fifo" > "$1/log" 2>&1 ) &
+  #
+  # The left stage writes its own pid to holder.pid before exec'ing into
+  # `tail -f` — `$!` after a backgrounded pipeline names only its last stage,
+  # and a freshly invoked `sh -c` computes its own $$ correctly, where a bash
+  # `()` subshell would report the caller's pid instead. Its stderr is sent
+  # to /dev/null, not left inherited: `tail -f` never exits, so a caller that
+  # captures this script's own output via `$(...)` would wait forever for an
+  # EOF that an inherited fd on a process this long-lived would never send.
+  sh -c 'echo $$ > "$1"; exec tail -f "$2"' _ "$1/holder.pid" "$1/cmds" 2>/dev/null \
+    | ( cd "$2" && exec nohup $fl run --machine \
+      ${device:+-d "$device"} ${flavor:+--flavor "$flavor"} ${entry:+-t "$entry"} \
+      ${extra[@]+"${extra[@]}"} ) > "$1/log" 2>&1 &
   daemon=$!
   disown 2>/dev/null || true
-  printf '%s\n' "$holder" > "$1/holder.pid"
   printf '%s\n' "$daemon" > "$1/daemon.pid"
   : > "$1/meta"
   meta_set "$1" project "$2"
@@ -255,9 +249,10 @@ spawn_daemon() { # dir project
   meta_set "$1" started "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 
-# Tear a daemon down whole. The pipe holder goes first — closing the last writer
-# is the very EOF the daemon exits on, the death that made a backgrounded
-# `flutter run` useless, put to work as the shutdown. Both `stop` and a `start`
+# Tear a daemon down whole. The pipe holder (`tail -f`) goes first — closing it
+# closes the pipe's only write end, the very EOF the daemon exits on, the death
+# that made a backgrounded `flutter run` useless, put to work as the shutdown.
+# Both `stop` and a `start`
 # that finds a corpse come through here: a holder outliving its state directory
 # would sit on a pipe that no longer has a name, and one more would be stranded
 # on every restart-after-death.
@@ -322,10 +317,10 @@ poke() { # dir reload|restart
   }
   id="$(next_id "$1")"
   offset="$(wc -c < "$1/log" | tr -d ' ')"
-  # A wedged pipe wears the same exit code as a corpse because the cure is the
+  # A write failure wears the same exit code as a corpse because the cure is the
   # same: `start` alone would find this daemon alive and do nothing for it.
-  fifo_write "$1" "[{\"id\":$id,\"method\":\"app.restart\",\"params\":{\"appId\":\"$app\",\"fullRestart\":$full,\"pause\":false,\"reason\":\"manual\"}}]" || {
-    echo "flutter-daemon: the daemon lives but nothing reads its pipe — stop it, then start it again" >&2
+  send_command "$1" "[{\"id\":$id,\"method\":\"app.restart\",\"params\":{\"appId\":\"$app\",\"fullRestart\":$full,\"pause\":false,\"reason\":\"manual\"}}]" || {
+    echo "flutter-daemon: the command file could not be written — stop it, then start it again" >&2
     return 5
   }
   await_result "$1" "$offset" "$id" "$timeout" "$2"
@@ -340,7 +335,7 @@ cmd_start() { # dir project
     fi
   else
     [ -d "$1" ] && reap "$1"
-    spawn_daemon "$1" "$2" || { echo "flutter-daemon: could not open the pipe under $1" >&2; return 1; }
+    spawn_daemon "$1" "$2" || { echo "flutter-daemon: the pipe could not be laid down under $1" >&2; return 1; }
   fi
   # app.started in the log proves the app once ran, not that it still does — a
   # daemon that died in that same breath must not be reported as a success.
@@ -370,7 +365,7 @@ cmd_stop() { # dir project
   local app
   [ -d "$1" ] || { echo "none $2 — no daemon"; return 4; }
   app="$(resolve_appid "$1")" && \
-    fifo_write "$1" "[{\"id\":$(next_id "$1"),\"method\":\"app.stop\",\"params\":{\"appId\":\"$app\"}}]"
+    send_command "$1" "[{\"id\":$(next_id "$1"),\"method\":\"app.stop\",\"params\":{\"appId\":\"$app\"}}]"
   reap "$1"
   echo "stopped $2"
 }
