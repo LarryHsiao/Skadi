@@ -222,6 +222,10 @@ stops on conflicts.
 
 When a needed command is missing on the current shell, do not reach for a different terminal to escape the gap — no spawning bash from PowerShell, no calling PowerShell from bash to borrow its cmdlets. Name the missing tool plainly and ask the user to install it (e.g. `zip` absent from Git Bash). If a native substitute exists in the current shell (`tar`, `Compress-Archive`), use that instead.
 
+## Flutter Hot Reload
+
+In any Flutter project, default to `/narya` (`~/.claude/hooks/flutter-daemon.sh`) over a plain `flutter run` relaunch when driving the app to show an edit. The rebuild-install-launch cost is paid once at `start`; every edit after that is a `reload` (or `restart`, when the edit needs it) in under a second, with the app never dropping back to its first screen. `narya/SKILL.md` carries the full verb table and the judgment for choosing among `reload` / `restart` / a real rebuild — read it before the first use in a session. Reach for a full rebuild only when that table says one is owed (native code, `pubspec.yaml` dependencies, assets or fonts, anything under `ios/` or `android/`).
+
 ## Code Style
 
 Always loaded:
