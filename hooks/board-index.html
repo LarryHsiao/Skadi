@@ -283,6 +283,32 @@
         flex-direction: column;
         gap: 0.35rem;
       }
+      /* Spend rows are name · bar · amount, which .srow's four-column grid does
+         not fit; forcing them into it would bend one shape around another. The
+         bar itself reuses .meter rather than defining a second one. */
+      .costrows {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+      }
+      .costrow {
+        display: grid;
+        grid-template-columns: 11rem 1fr 4.5rem;
+        align-items: center;
+        gap: 0.55rem;
+        font-size: 0.72rem;
+      }
+      /* .nm is styled only as a descendant of .srow and .rrow, so a bare one
+         here would carry the class and none of its look. */
+      .costrow .nm {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .costamt {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
       .attnrows {
         margin-bottom: 0.9rem;
       }
@@ -345,6 +371,7 @@
         </div>
       </div>
       <div class="sweepband" id="sweeps"></div>
+      <div class="costband" id="cost"></div>
     </div>
 
     <script>
@@ -449,10 +476,12 @@
         const stabilityChannels = channels.filter(
           (c) => c.channel === "stability",
         );
+        const cost = channels.find((c) => c.channel === "cost");
         renderStrip(tickets, growth, sweeps, pulse, stabilityChannels);
         renderAttention(attention);
         renderBody(tickets);
         renderSweeps(sweeps);
+        renderCost(cost);
       }
 
       // Sweep verdict → an existing pill class + its label.
@@ -721,6 +750,92 @@
 
       function renderAttention(items) {
         document.getElementById("attention").innerHTML = attentionBandHtml(items);
+      }
+
+      // A model id may carry a dated snapshot suffix (claude-haiku-4-5-20251001);
+      // the date is noise in a one-line footnote.
+      const trimModel = (m) =>
+        String(m)
+          .replace(/-\d{8}$/, "")
+          .replace(/^claude-/, "");
+
+      // The spend band. Every figure here is one the harness settled itself —
+      // nothing on this band is priced or estimated by us — so the only thing
+      // the render must not do is imply more coverage than there is. Hence the
+      // denominator in the header AND the sentence beneath: a bare total reads
+      // as "this is what I spent", and it is not.
+      function costBandHtml(cost) {
+        if (!cost) return "";
+        const settled = cost.transcripts_settled;
+        const seen = cost.transcripts_in_window;
+        const head = `<div class="banddiv">spend · ${esc(cost.window_days)}d · ${esc(settled)} of ${esc(seen)} transcripts settled</div>`;
+        // Null total, not zero: an empty band and a zero-spend band are
+        // different claims, and only one of them is ever true here.
+        if (cost.total_usd == null) {
+          return (
+            head +
+            `<div class="muted" style="padding:0.3rem 0.1rem">No settled sessions in the window — cost is read only from a session's own record, and nothing is estimated.</div>`
+          );
+        }
+        return (
+          head +
+          `<div class="costrows">${costRows(cost.by_project || [])}</div>
+    <div class="muted" style="margin-top: 0.4rem">${costCuts(cost)}</div>
+    <div class="muted">${costRatios(cost)}</div>
+    <div class="muted" style="color: var(--accent)">covers ${esc(settled)} of ${esc(seen)} transcripts in window — not a total for the period</div>
+    ${formatMovedHtml(cost)}`
+        );
+      }
+
+      // One money figure, formatted the one way. Written out at four call sites
+      // before it was lifted — rows, roots, models, ratios.
+      const usd = (n) => "$" + esc(n.toFixed(2));
+
+      function costRows(projects) {
+        // Bars scale to the largest row, not to the total: the question a
+        // reader asks of this band is which repo led, not what share of a
+        // number they cannot see each one holds.
+        const top = projects.length ? projects[0].usd : 0;
+        return projects
+          .map(
+            (p) => `<div class="costrow">
+      <span class="nm">${esc(p.name)}</span>
+      <span class="meter"><i style="width:${top ? Math.round((100 * p.usd) / top) : 0}%"></i></span>
+      <span class="costamt">${usd(p.usd)}</span></div>`,
+          )
+          .join("");
+      }
+
+      function costCuts(cost) {
+        return [
+          (cost.by_root || []).map((r) => `${esc(r.name)} ${usd(r.usd)}`).join(" · "),
+          (cost.by_model || []).map((m) => `${esc(trimModel(m.name))} ${usd(m.usd)}`).join(" · "),
+        ]
+          .filter(Boolean)
+          .join(" &nbsp;·&nbsp; ");
+      }
+
+      function costRatios(cost) {
+        return [
+          cost.per_session_usd != null ? `${usd(cost.per_session_usd)} / session` : "",
+          cost.per_changed_line_usd != null
+            ? `$${esc(cost.per_changed_line_usd.toFixed(3))} / changed line`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+      }
+
+      // cost-state is an undocumented internal shape. When it moves, this band
+      // says so rather than quietly reporting a total short by whatever it
+      // could no longer read.
+      function formatMovedHtml(cost) {
+        if (cost.format_ok) return "";
+        return `<div class="muted" style="color: var(--red); margin-top: 0.3rem">${esc(cost.malformed)} record(s) did not match the shape this reader expects — the format moved, and the total above is short by whatever they held.</div>`;
+      }
+
+      function renderCost(cost) {
+        document.getElementById("cost").innerHTML = costBandHtml(cost);
       }
 
       function renderBody(tickets) {
