@@ -97,9 +97,7 @@ what is genuinely read-on-demand.
     mirrors Effective Dart's upstream section names. `previews.md` runs Title
     Case and its section names are cited by prose elsewhere
     (`skills/galadriel/SKILL.md` names *Visual Review*), so retitling would mean
-    chasing citations. `tracker-authorship.md` also runs Title Case, but nothing
-    cites its sections — that one is unpaid debt, safe to retitle whenever
-    someone passes through.
+    chasing citations.
 - **When a hook enforces a behavior, prose defers to the hook.** State only
   what the hook does not carry, and name the hook (the Grammar Check section
   is the pattern).

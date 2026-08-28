@@ -4,11 +4,11 @@
 > Authorship* section states the rule (assign to the author at creation time);
 > this file carries the per-surface how and the reasoning.
 
-## PR/MR Authorship
+## PR/MR authorship
 
 When opening a pull request or merge request — through a skill, a hook, or a free-form `gh` / `glab` call — assign it to the user (the author) by default. An unassigned PR/MR drifts: no one bears the next step, and reviewers cannot tell who drives it to merge. Pass `--assignee @me` to `gh pr create` and `glab mr create` unless the user names another assignee, or explicitly says to leave it bare.
 
-## Issue Tracker Authorship
+## Issue tracker authorship
 
 When opening a ticket in any issue tracker — Jira, YouTrack, Linear, GitHub Issues, GitLab Issues, and the like — through a hook, the tracker's CLI, or a REST/GraphQL call, assign it to the user (the author) by default. The shape of the harm is the same as an unassigned PR/MR: the queue cannot tell who drives the work, the ticket drifts unattended, and a notification stream grows around an artifact no one owns.
 
