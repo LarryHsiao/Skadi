@@ -622,12 +622,104 @@ print("chips:%s|applyEffort:%s|thinN:%s|reset-model:%s|reset-effort:%s|thin-stat
     has('id="effortchips"'),
     has("function applyEffort"),
     has("const THIN_N"),
-    has('render(currentTab, btn.dataset.model, "Overall")'),
-    has('render(currentTab, "Overall", btn.dataset.effort)'),
+    has('render(currentTab, btn.dataset.model, "Overall", "All")'),
+    has('render(currentTab, "Overall", btn.dataset.effort, "All")'),
     has('status: "thin"')))
 PY
 )
-check "dashboard carries the effort selector, thin floor, and mutual reset" "$expected_effortui" "$actual_effortui"
+check "dashboard carries the effort selector, thin floor, and mutual reset (now three-way)" "$expected_effortui" "$actual_effortui"
+
+# ── 18e2 · the window selector is present, wired, and returns the other two ──
+# Three cuts now, and none composes with another: byDate holds no model split,
+# byModel holds no days. A selector that left another standing would imply a
+# filter the data cannot answer.
+expected_winui="chips:yes|apply:yes|listener:yes|resets:yes|strings:yes"
+actual_winui=$(python3 - "$hen/adherence-pulse.html" <<'PY'
+import sys
+html = open(sys.argv[1], encoding="utf-8").read()
+def has(s):
+    return "yes" if s in html else "no"
+print("chips:%s|apply:%s|listener:%s|resets:%s|strings:%s" % (
+    has('id="windowchips"'),
+    has("function applyWindow"),
+    has('getElementById("windowchips").addEventListener'),
+    has('render(currentTab, "Overall", "Overall", btn.dataset.window)'),
+    "yes" if ("windowNote" in html and "windowAll" in html) else "no"))
+PY
+)
+check "dashboard carries the window selector, wired and mutually exclusive" "$expected_winui" "$actual_winui"
+
+# ── 18e3 · the window never reaches the historical trend ──
+# Two time axes, and only one belongs to this chart: its x-axis is the date each
+# pulse RAN, while a window asks about the days work HAPPENED. Applying one to
+# the other asks a three-week-old run how it did over the last seven days — a
+# question with no answer. Measured against the real 52-point series, a 7-day
+# window left 3 points standing and a 1-day window left 1, which is not a line.
+expected_trendwin="renderTrend:3-args|call:no-days|label:says-so"
+actual_trendwin=$(python3 - "$SCAN" <<'PY'
+import importlib.util as u, sys, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+page = m._PAGE
+sig = re.search(r"function renderTrend\(([^)]*)\)", page).group(1)
+call = re.search(r"\n  renderTrend\(([^)]*)\);", page).group(1)
+print("renderTrend:%s|call:%s|label:%s" % (
+    "3-args" if len([a for a in sig.split(",") if a.strip()]) == 3 else "has-days",
+    "no-days" if "days" not in call else "passes-days",
+    "says-so" if "trendWholeScan" in page else "silent"))
+PY
+)
+check "the window is not applied to the run-date trend" "$expected_trendwin" "$actual_trendwin"
+
+# ── 18e4 · the Sweep view carries its own cuts, all three of them ──
+# viewFor spreads the Direct row and overrides the sweep figures. It overrode
+# byModel and nothing else, so a window or an effort chip on the Sweep tab
+# summed the Direct population — a plausible number, no error, no visual cue
+# that the row had answered for a different set of sessions. The writer must
+# also emit sweep.byDate; a view that swaps a cut the item never carried swaps
+# in an empty one.
+if command -v node >/dev/null 2>&1; then
+  sweepjs="$ROOT/sweepview.js"
+  python3 - "$SCAN" "$sweepjs" <<'PY'
+import importlib.util as u, sys, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+page = m._PAGE
+src = re.search(r"function viewFor\(.*?\n\}", page, re.S).group(0)
+harness = """
+const direct = {
+  id: "x", kind: "workflow", status: "ok",
+  applied: 100, complied: 90, rate: 90,
+  byModel: { m: { applied: 100, complied: 90, rate: 90 } },
+  byEffort: { high: { applied: 100, complied: 90, rate: 90 } },
+  byDate: { "2026-01-01": { applied: 100, complied: 90, rate: 90 } },
+  sweep: {
+    applied: 4, complied: 1, rate: 25,
+    byModel: { m: { applied: 4, complied: 1, rate: 25 } },
+    byEffort: { high: { applied: 4, complied: 1, rate: 25 } },
+    byDate: { "2026-02-02": { applied: 4, complied: 1, rate: 25 } },
+  },
+};
+const v = viewFor([direct], "sweep")[0];
+const one = (b) => Object.values(b || {})[0] || {};
+console.log("A:" + one(v.byModel).applied + "/" + one(v.byEffort).applied +
+            "/" + one(v.byDate).applied);
+console.log("B:" + Object.keys(v.byDate || {})[0]);
+// A row whose writer emitted no sweep cuts must swap in empty ones, never
+// leave the Direct histograms standing.
+const bare = { ...direct, sweep: { applied: 2, complied: 1, rate: 50 } };
+const b = viewFor([bare], "sweep")[0];
+console.log("C:" + Object.keys(b.byDate || {}).length +
+            "/" + Object.keys(b.byEffort || {}).length);
+"""
+open(sys.argv[2], "w", encoding="utf-8").write(src + "\n" + harness)
+PY
+  sout=$(node "$sweepjs")
+  sg() { printf '%s\n' "$sout" | grep "^$1:" | cut -d: -f2-; }
+  check "the Sweep view swaps byModel, byEffort and byDate alike" "4/4/4" "$(sg A)"
+  check "the Sweep view's days are the sweep's own" "2026-02-02" "$(sg B)"
+  check "a row with no sweep cuts gets empty ones, not the Direct set" "0/0" "$(sg C)"
+else
+  echo "  skip · sweep view cuts — node absent, JS not exercised"
+fi
 
 # ── 18d · applyCut itself applies the floor — the page's own function, run ──
 # xhigh and max together are a twentieth of a real window, so their cells
@@ -730,6 +822,72 @@ print("%s/%d" % ("all-have-bydate" if not missing else ",".join(missing), len(wf
 PY
 )
 check "every scored row carries byDate" "$expected_rowdates" "$actual_rowdates"
+
+# ── 18h · the window selector narrows a row to a span of its own days ──
+# The page has no DOM harness, so applyWindow is lifted out and run in node —
+# the same approach the applyCut thin-floor test takes, and for the same reason:
+# the assertion must hit the shipped source. Node is not a dependency of this
+# suite, so its absence skips the check aloud.
+if command -v node >/dev/null 2>&1; then
+  winjs="$ROOT/applywindow.js"
+  python3 - "$SCAN" "$winjs" <<'PY'
+import importlib.util as u, sys, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+page = m._PAGE
+# Both constants the lifted functions close over. MS_PER_DAY was added when
+# windowCutoff's literal was named, and a slice that took only THIN_N left
+# every window test with an empty result rather than a loud error.
+parts = [re.search(r"const THIN_N = \d+;", page).group(0),
+         re.search(r"const MS_PER_DAY = \d+;", page).group(0)]
+for fn in ("applyCut", "windowCutoff", "applyWindow"):
+    parts.append(re.search(r"function %s\(.*?\n\}" % fn, page, re.S).group(0))
+harness = """
+// Two days of runs: one four days back, one today. A 1-day window must see
+// only today's; a 30-day window must see both, summed.
+const older = new Date(Date.now() - 4 * 86400000).toISOString().slice(0, 10);
+const today = new Date().toISOString().slice(0, 10);
+const item = {
+  id: "x", status: "ok", applied: 30, complied: 21, rate: 70,
+  byDate: {
+    [older]: { applied: 20, complied: 12, rate: 60 },
+    [today]: { applied: 10, complied: 9, rate: 90 },
+  },
+};
+const at = (d) => applyWindow([item], d)[0];
+const all = applyWindow([item], "All")[0];
+console.log("A:" + all.applied + "/" + all.complied + "/" + all.rate);
+const w30 = at("30");
+console.log("B:" + w30.applied + "/" + w30.complied + "/" + w30.rate);
+const w1 = at("1");
+console.log("C:" + w1.applied + "/" + w1.complied + "/" + w1.rate);
+// The edge itself: yesterday is outside a 1-day span and inside a 2-day one.
+// Without this the boundary was only ever exercised four days out, where an
+// off-by-one would not show.
+const yday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+const edge = { ...item, byDate: { [yday]: { applied: 40, complied: 20, rate: 50 } } };
+console.log("F:" + applyWindow([edge], "1")[0].status +
+            "/" + applyWindow([edge], "2")[0].applied);
+// A span whose days hold fewer than the floor reports thin, not a percentage
+// decided by one or two runs.
+const thin = applyWindow([{ ...item, byDate: { [today]: { applied: 2, complied: 2, rate: 100 } } }], "1")[0];
+console.log("D:" + thin.status + "/" + thin.rate);
+// A row with no days in the span says no-data rather than borrowing the total.
+const none = applyWindow([{ ...item, byDate: {} }], "1")[0];
+console.log("E:" + none.status + "/" + none.applied);
+"""
+open(sys.argv[2], "w", encoding="utf-8").write("\n".join(parts) + "\n" + harness)
+PY
+  out=$(node "$winjs")
+  g() { printf '%s\n' "$out" | grep "^$1:" | cut -d: -f2-; }
+  check "All leaves the row's own totals untouched" "30/21/70" "$(g A)"
+  check "a 30-day span sums every day inside it" "30/21/70" "$(g B)"
+  check "a 1-day span sees only today" "10/9/90" "$(g C)"
+  check "a span below the floor reports thin" "thin/null" "$(g D)"
+  check "a row with no days in the span reports no-data" "no-data/0" "$(g E)"
+  check "yesterday falls outside a 1-day span and inside a 2-day one" "no-data/40" "$(g F)"
+else
+  echo "  skip · window selector — node absent, JS not exercised"
+fi
 
 # ── 19 · trend series carries each run's items, so the client can recompute per tab/model ──
 d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir); hen=$(tmpdir)

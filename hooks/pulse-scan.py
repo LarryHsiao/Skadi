@@ -1957,7 +1957,8 @@ def apply_rubric(files, rubric):
                 item["sweep"] = {"applied": sweep_applied, "complied": sweep_complied,
                                   "rate": _rate(sweep_applied, sweep_complied),
                                   "byModel": _rated_cut(sweep_cuts["model"]),
-                                  "byEffort": _rated_cut(sweep_cuts["effort"])}
+                                  "byEffort": _rated_cut(sweep_cuts["effort"]),
+                                  "byDate": _rated_cut(sweep_cuts["date"])}
             if kind == "plan-gate":
                 item["abandoned"] = _abandoned_gates(sessions)
                 # The same days, from the same walk over the same gates, with
@@ -2151,6 +2152,7 @@ _PAGE = """<meta charset="utf-8">
 </div>
 <div class="modelchips" id="modelchips"></div>
 <div class="modelchips" id="effortchips"></div>
+<div class="modelchips" id="windowchips"></div>
 <div class="tabnote" id="tabnote"></div>
 <div class="kpi" id="overall">—</div>
 <div class="trendlabel" id="trendlabel">trend, by run date</div>
@@ -2180,7 +2182,10 @@ const STRINGS = {
     infoTitle: "What counts as success / failure",
     modelNote: (m) => ` · showing only ${m}'s runs, recomputed independently.`,
     effortNote: (e) => ` · showing only runs at ${e} effort, recomputed independently.`,
-    cutExclusive: "Model and effort are independent cuts — nothing records how they combine, so choosing one returns the other to Overall.",
+    windowNote: (d) => ` · showing only the last ${d} days, summed from each row's own days.`,
+    windowAll: "All",
+    trendWholeScan: "whole scan",
+    cutExclusive: "Model, effort and window are independent cuts — nothing records how they combine, so choosing one returns the others. A span also omits any run whose transcript carried no date; only All counts those.",
     tabNotes: {
       direct: "workflow rows count sessions with no /loop or /amon-sul in them — a hand-typed command inside such a session is still counted as sweep.",
       sweep: "workflow rows only — grammar and free-form gate rows carry no sweep concept, so they're dropped from this tab.",
@@ -2206,7 +2211,10 @@ const STRINGS = {
     infoTitle: "什麼算通過／未通過",
     modelNote: (m) => `．僅顯示 ${m} 的執行紀錄，獨立重新計算。`,
     effortNote: (e) => `．僅顯示 ${e} 推理強度的執行紀錄，獨立重新計算。`,
-    cutExclusive: "模型與推理強度是兩個獨立切面——沒有任何紀錄能說明兩者如何交互，因此選了其一，另一項便回到總體。",
+    windowNote: (d) => `．僅顯示最近 ${d} 天，由各列自己的逐日明細加總而來。`,
+    windowAll: "全部",
+    trendWholeScan: "整段掃描",
+    cutExclusive: "模型、推理強度與時間窗口是三個獨立切面——沒有任何紀錄能說明它們如何交互，因此選了其一，其餘便回到總體。此外，轉錄檔未帶日期的執行不屬於任何一段時間窗口，只有「全部」會計入它們。",
     tabNotes: {
       direct: "workflow 類項目計入沒有 /loop 或 /amon-sul 的 session——這類 session 裡手動輸入的指令仍算作 sweep。",
       sweep: "只涵蓋 workflow 類項目——grammar 與 free-form gate 沒有 sweep 的概念，因此不列入這個分頁。",
@@ -2256,9 +2264,15 @@ function viewFor(items, tab) {
   if (tab !== "sweep") return items;
   return items.filter(i => i.kind === "workflow").map(i => {
     if (i.status !== "ok") return i;
-    const sw = i.sweep || { applied: 0, complied: 0, rate: null, byModel: {} };
+    const sw = i.sweep ||
+      { applied: 0, complied: 0, rate: null, byModel: {}, byEffort: {}, byDate: {} };
+    // EVERY cut is swapped, not just byModel. A spread that carries one of them
+    // over from the Direct view leaves that chip and the window summing the
+    // wrong population — silently, since the number is plausible and the row
+    // shows no sign it answered for a different set of sessions.
     return { ...i, rate: sw.rate, applied: sw.applied, complied: sw.complied,
-             byModel: sw.byModel || {}, status: sw.applied ? "ok" : "no-sweep" };
+             byModel: sw.byModel || {}, byEffort: sw.byEffort || {},
+             byDate: sw.byDate || {}, status: sw.applied ? "ok" : "no-sweep" };
   });
 }
 
@@ -2299,18 +2313,59 @@ function applyEffort(items, effort) {
   return applyCut(items, "byEffort", effort);
 }
 
+// The oldest day a span still includes, as the YYYY-MM-DD its byDate keys use.
+// A declaration, not a const arrow: the test lifts this out of _PAGE by
+// matching `function <name>(`, as it does for every other function it exercises.
+const MS_PER_DAY = 86400000;
+
+// A span of N days counts today as the first, so it reaches back N-1.
+function windowCutoff(days) {
+  return new Date(Date.now() - (Number(days) - 1) * MS_PER_DAY).toISOString().slice(0, 10);
+}
+
+// A span, not a split. byDate is summed across the days inside it — which is
+// why a window is not composable with the model or effort chips: those hold no
+// per-day breakdown, and the interaction was never computed.
+//
+// A span is also never quite "All", even at the scan's own width: a run whose
+// transcript line carried no timestamp scores in the totals but joins no day,
+// so it is present in All and absent from every span. That is the honest
+// reading — it happened, but it cannot be placed on a time axis.
+function applyWindow(items, days) {
+  if (days === "All") return items;
+  const cutoff = windowCutoff(days);
+  return items.map(i => {
+    if (i.status !== "ok") return i;
+    const inSpan = Object.entries(i.byDate || {}).filter(([d]) => d >= cutoff);
+    if (!inSpan.length) {
+      return { ...i, rate: null, applied: 0, complied: 0, status: "no-data" };
+    }
+    const applied = inSpan.reduce((a, [, c]) => a + c.applied, 0);
+    const complied = inSpan.reduce((a, [, c]) => a + c.complied, 0);
+    if (applied < THIN_N) {
+      return { ...i, rate: null, applied, complied, status: "thin" };
+    }
+    return { ...i, applied, complied, rate: Math.round((100 * complied) / applied) };
+  });
+}
+
 // The selected cut, whichever it is. Branching rather than composing is the
 // point: applying both in turn would read byEffort off items already narrowed
 // by model, and that cell was never computed — the number it produced would be
 // wrong rather than empty. The selectors already reset each other; this makes
 // the invariant structural instead of merely conventional.
-function applySelection(items, model, effort) {
+// The spans the window chips offer. "All" is the scan's own width and is not a
+// span: it alone includes runs that carry no date.
+const WINDOWS = ["All", "1", "7", "30", "90"];
+
+function applySelection(items, model, effort, days) {
+  if (days && days !== "All") return applyWindow(items, days);
   if (effort !== "Overall") return applyEffort(items, effort);
   return applyModel(items, model);
 }
 
-function overallFor(items, tab, model, effort) {
-  const viewed = applySelection(viewFor(items, tab), model, effort);
+function overallFor(items, tab, model, effort, days) {
+  const viewed = applySelection(viewFor(items, tab), model, effort, days);
   const rated = viewed.filter(i => typeof i.rate === "number");
   return rated.length ? Math.round(rated.reduce((a,i)=>a+i.rate,0)/rated.length) : null;
 }
@@ -2428,6 +2483,13 @@ function gateChart(item, model) {
   </div>`;
 }
 
+// The window is deliberately NOT passed down here. This chart's x-axis is the
+// date each pulse RAN; a window asks about the days work HAPPENED. Applying one
+// to the other asks each historical run how it did over the last few days —
+// a question with no meaning and, for an older run, no answer: measured against
+// the real series, a 7-day window left 3 of 52 points standing and a 1-day
+// window left 1, which is not a line. Two time axes stacked is one too many, so
+// the trend keeps answering for the whole scan and the label says so.
 function renderTrend(tab, model, effort) {
   const spark = document.getElementById("spark");
   const pts = (DATA.series || [])
@@ -2455,12 +2517,15 @@ function renderTrend(tab, model, effort) {
 let currentTab = "direct";
 let currentModel = "Overall";
 let currentEffort = "Overall";
+let currentWindow = "All";
 
-function render(tab, model, effort) {
+function render(tab, model, effort, days) {
   currentTab = tab;
   currentModel = model;
   currentEffort = effort;
-  const cutNote = model !== "Overall" ? S().modelNote(modelLabel(model))
+  currentWindow = days;
+  const cutNote = days !== "All" ? S().windowNote(days)
+    : model !== "Overall" ? S().modelNote(modelLabel(model))
     : effort !== "Overall" ? S().effortNote(effort) : "";
   // The exclusivity note earns its place only once a cut is chosen — that is
   // the moment the other row visibly resets and wants explaining.
@@ -2472,12 +2537,15 @@ function render(tab, model, effort) {
   document.getElementById("effortchips").innerHTML = ["Overall", ...DATA.efforts].map(e =>
     `<button class="chip ${e === effort ? "active" : ""}" data-effort="${esc(e)}">${esc(e === "Overall" ? S().overall : e)}</button>`
   ).join("");
-  const items = applySelection(viewFor(DATA.items, tab), model, effort);
+  document.getElementById("windowchips").innerHTML = WINDOWS.map(w =>
+    `<button class="chip ${w === days ? "active" : ""}" data-window="${esc(w)}">${esc(w === "All" ? S().windowAll : S().day(Number(w)))}</button>`
+  ).join("");
+  const items = applySelection(viewFor(DATA.items, tab), model, effort, days);
   const rated = items.filter(i => typeof i.rate === "number");
   const overall = rated.length ? Math.round(rated.reduce((a,i)=>a+i.rate,0)/rated.length) : null;
   document.getElementById("overall").textContent = overall == null ? "—" : overall + "%";
   document.getElementById("trendlabel").textContent =
-    `${S().trend} · ${tab === "sweep" ? S().tabSweep : S().tabDirect} · ${effort !== "Overall" ? effort : modelLabel(model)}`;
+    `${S().trend} · ${tab === "sweep" ? S().tabSweep : S().tabDirect} · ${days !== "All" ? S().trendWholeScan : effort !== "Overall" ? effort : modelLabel(model)}`;
   renderTrend(tab, model, effort);
 
   const groups = {};
@@ -2514,7 +2582,7 @@ document.querySelectorAll(".tabbtn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tabbtn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
-    render(btn.dataset.tab, currentModel, currentEffort);
+    render(btn.dataset.tab, currentModel, currentEffort, currentWindow);
   });
 });
 // Each selector returns the other to Overall: the two cuts are independent
@@ -2523,12 +2591,17 @@ document.querySelectorAll(".tabbtn").forEach(btn => {
 document.getElementById("modelchips").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip");
   if (!btn) return;
-  render(currentTab, btn.dataset.model, "Overall");
+  render(currentTab, btn.dataset.model, "Overall", "All");
 });
 document.getElementById("effortchips").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip");
   if (!btn) return;
-  render(currentTab, "Overall", btn.dataset.effort);
+  render(currentTab, "Overall", btn.dataset.effort, "All");
+});
+document.getElementById("windowchips").addEventListener("click", (e) => {
+  const btn = e.target.closest(".chip");
+  if (!btn) return;
+  render(currentTab, "Overall", "Overall", btn.dataset.window);
 });
 document.getElementById("rows").addEventListener("click", (e) => {
   const btn = e.target.closest(".info");
@@ -2557,10 +2630,10 @@ document.getElementById("langSwitch").addEventListener("click", (e) => {
   if (!btn || btn.dataset.lang === currentLang) return;
   currentLang = btn.dataset.lang;
   applyChrome();
-  render(currentTab, currentModel, currentEffort);
+  render(currentTab, currentModel, currentEffort, currentWindow);
 });
 applyChrome();
-render("direct", "Overall");
+render("direct", "Overall", "Overall", "All");
 </script>
 """
 
