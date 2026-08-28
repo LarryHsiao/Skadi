@@ -81,6 +81,25 @@ what is genuinely read-on-demand.
   (escalate, second opinion, ask — `judgment.md` §5).
 - **Plain voice in machine-facing docs.** The Tolkien cadence belongs to chat;
   these files are read by models under token pressure.
+- **Heading case follows the doc family.** Match the file you stand in, not the
+  last doc you read; never mix both cases inside one file.
+  - A name keeps its own casing wherever it falls in a heading, and outranks
+    both cases: `# jq`, `# iOS Simulator`, `Text Overflow in CSS`,
+    `Initializing useState with a Typed Empty Container`.
+  - H1 titles are Title Case in every doc.
+  - `docs/style/*` — `##` headings are Title Case: principal words capped,
+    articles and short prepositions and conjunctions lowercase (`Domain Objects
+    as Abstractions`), both halves of a hyphenated compound capped
+    (`Main-Thread Discipline`).
+  - `docs/workflow/*` and `docs/tools/*` — `##` headings are sentence case
+    (`When to delegate — and when not`, `Debugging line separators`).
+  - Standing exemptions, each for its own reason: `docs/style/dart-official.md`
+    mirrors Effective Dart's upstream section names. `previews.md` runs Title
+    Case and its section names are cited by prose elsewhere
+    (`skills/galadriel/SKILL.md` names *Visual Review*), so retitling would mean
+    chasing citations. `tracker-authorship.md` also runs Title Case, but nothing
+    cites its sections — that one is unpaid debt, safe to retitle whenever
+    someone passes through.
 - **When a hook enforces a behavior, prose defers to the hook.** State only
   what the hook does not carry, and name the hook (the Grammar Check section
   is the pattern).
