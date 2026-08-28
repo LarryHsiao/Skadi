@@ -114,6 +114,7 @@ case "$cmd" in
         || echo "board: attention $surface refresh failed (skipped)" >&2
     done
     "$DIR/board-growth.sh" || echo "board: growth refresh failed (skipped)" >&2
+    python3 "$DIR/board-cost.py" || echo "board: cost refresh failed (skipped)" >&2
     "$DIR/board-henneth.sh" || echo "board: henneth link refresh failed (skipped)" >&2
     "$DIR/board-galadriel.sh" || echo "board: galadriel link refresh failed (skipped)" >&2
     python3 "$DIR/skills-cheatsheet-render.py" "$CLAUDE_SKILLS_DIR" "$SKILLS_CHEATSHEET_DEST" \
