@@ -498,6 +498,57 @@ PY
 )
 check "score_workflow cuts by effort and drops the mixed run" "$expected_byeffort" "$actual_byeffort"
 
+# ── 16c · the same tally, cut by the day each run happened ──
+# byDate is what lets the dashboard answer a narrower span than the scan's own
+# window. It rides in the same cuts container as model and effort, filled on the
+# same single walk, so a per-day figure and the headline it belongs to cannot
+# disagree — the failure a separately-walked series invites.
+d=$(tmpdir)
+cat >"$d/dates.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-20T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-08-20T10:00:05Z","message":{"model":"claude-opus-5","content":[{"type":"text","text":"Glorfindel — STIRRED."}]}}
+{"type":"user","timestamp":"2026-08-21T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-08-21T10:00:05Z","message":{"model":"claude-opus-5","content":[{"type":"text","text":"still working"}]}}
+{"type":"user","timestamp":"2026-08-21T11:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-08-21T11:00:05Z","message":{"model":"claude-opus-5","content":[{"type":"text","text":"Glorfindel — QUIET."}]}}
+JSON
+expected_bydate="total:3/2|08-20:1/1|08-21:2/1"
+actual_bydate=$(python3 - "$SCAN" "$d/dates.jsonl" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+turns = m.read_turns(sys.argv[2])
+entry = {"applies": "<command-name>/glorfindel</command-name>", "complied": r"\b(STIRRED|QUIET)\b"}
+a, c, cuts = m.score_workflow(turns, entry)
+bd = cuts["date"]
+g = lambda k: bd.get(k, {"applied": 0, "complied": 0})
+print("total:%d/%d|08-20:%d/%d|08-21:%d/%d" % (
+    a, c,
+    g("2026-08-20")["applied"], g("2026-08-20")["complied"],
+    g("2026-08-21")["applied"], g("2026-08-21")["complied"]))
+PY
+)
+check "score_workflow cuts by the day each run happened" "$expected_bydate" "$actual_bydate"
+
+# ── 16d · a run with no timestamp scores, but lands on no day ──
+# It happened, so the headline counts it; it cannot be placed on a time axis,
+# and an empty date key would sort ahead of every real one.
+d=$(tmpdir)
+cat >"$d/nodate.jsonl" <<'JSON'
+{"type":"user","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","message":{"model":"claude-opus-5","content":[{"type":"text","text":"Glorfindel — STIRRED."}]}}
+JSON
+expected_nodate="1/1|days:0"
+actual_nodate=$(python3 - "$SCAN" "$d/nodate.jsonl" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+turns = m.read_turns(sys.argv[2])
+entry = {"applies": "<command-name>/glorfindel</command-name>", "complied": r"\b(STIRRED|QUIET)\b"}
+a, c, cuts = m.score_workflow(turns, entry)
+print("%d/%d|days:%d" % (a, c, len(cuts["date"])))
+PY
+)
+check "an undated run scores but joins no day" "$expected_nodate" "$actual_nodate"
+
 # ── 17 · the board snapshot carries each item's per-model rate split ──
 d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir); hen=$(tmpdir)
 mkdir -p "$d/r1/projects/a" "$d/r1/projects/b"
@@ -652,6 +703,33 @@ else:
 PY
 )
 check "roster keeps Sonnet 5 ahead of Opus 5 (gate-chart hues hold)" "$expected_order" "$actual_order"
+
+# ── 18g · every rubric row carries a day histogram ──
+# The window selector reads byDate off whichever row it is drawing, so a row
+# without one silently answers every span with its widest number. plan-gate's
+# is the richer per-model series the trend chart needs — a superset of the same
+# days, from the same walk, so one field serves both readers.
+d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir); hen=$(tmpdir)
+mkdir -p "$d/r1/projects/p"
+cat >"$d/r1/projects/p/s.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-20T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-08-20T10:00:05Z","message":{"model":"claude-opus-5","content":[{"type":"text","text":"Glorfindel — STIRRED."}]}}
+{"type":"user","timestamp":"2026-08-21T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-08-21T10:00:05Z","message":{"model":"claude-opus-5","content":[{"type":"text","text":"Glorfindel — QUIET."}]}}
+JSON
+PULSE_ROOTS="$d/r1" PULSE_DIR="$pulse" BOARD_DIR="$board" HENNETH_DIR="$hen" PULSE_RUBRIC="$FIXTURE_RUBRIC" python3 "$SCAN" >/dev/null 2>&1
+expected_rowdates="all-have-bydate/2"
+actual_rowdates=$(python3 - "$hen/adherence-pulse.html" <<'PY'
+import re, json, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+data = json.loads(re.search(r"const DATA = (\{.*\});", html).group(1))
+scored = [i for i in data["items"] if i.get("status") == "ok"]
+missing = [i["id"] for i in scored if "byDate" not in i]
+wf = next(i for i in scored if i["id"] == "workflow.glorfindel")
+print("%s/%d" % ("all-have-bydate" if not missing else ",".join(missing), len(wf["byDate"])))
+PY
+)
+check "every scored row carries byDate" "$expected_rowdates" "$actual_rowdates"
 
 # ── 19 · trend series carries each run's items, so the client can recompute per tab/model ──
 d=$(tmpdir); pulse=$(tmpdir); board=$(tmpdir); hen=$(tmpdir)

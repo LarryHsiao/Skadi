@@ -438,8 +438,10 @@ def _run_effort(run):
 
 def _bump_cut(bucket, key, complied):
     """Tally one applied (and maybe complied) instance against one cut's key —
-    a model for the byModel split, an effort for byEffort. A None key is not
-    attributable and is dropped rather than bucketed under a placeholder."""
+    a model for byModel, an effort for byEffort, a date for byDate. A None key
+    is not attributable and is dropped rather than bucketed under a
+    placeholder; for a date that means an undated run still scores in the
+    headline, because it happened, but joins no day on the time axis."""
     if key is None:
         return
     counts = bucket.setdefault(key, {"applied": 0, "complied": 0})
@@ -451,19 +453,32 @@ def _bump_cut(bucket, key, complied):
 def _new_cuts():
     """The attribution splits every scorer tallies beside its own totals. Kept
     as one container so a scorer's signature does not grow a slot per cut."""
-    return {"model": {}, "effort": {}}
+    return {"model": {}, "effort": {}, "date": {}}
 
 
-def _bump_cuts(cuts, model, effort, complied):
+def _bump_cuts(cuts, model, effort, date, complied):
     """Tally one instance against every cut at once."""
     _bump_cut(cuts["model"], model, complied)
     _bump_cut(cuts["effort"], effort, complied)
+    _bump_cut(cuts["date"], date, complied)
+
+
+def _run_date(run):
+    """The day this run happened, as YYYY-MM-DD, or None when no turn in it
+    carries a timestamp. Filed under the day the work happened rather than the
+    day the pulse ran — the latter redraws a near-flat line no matter what
+    changed, since every run rescores the whole window."""
+    for turn in run:
+        stamp = turn.get("ts") or ""
+        if stamp:
+            return stamp[:10]
+    return None
 
 
 def _bump_run(cuts, run, complied):
     """_bump_cuts for the scorers that hold the run itself, rather than a model
     already lifted out of a gate site or a cached verdict record."""
-    _bump_cuts(cuts, _run_model(run), _run_effort(run), complied)
+    _bump_cuts(cuts, _run_model(run), _run_effort(run), _run_date(run), complied)
 
 
 def score_workflow(turns, entry):
@@ -683,9 +698,10 @@ def score_verify(turns, entry):
         applied += 1
         if verdict:
             complied += 1
-        # The model is the one that ran the check; the effort is the segment's,
-        # which _run_effort leaves None unless the whole segment agrees.
-        _bump_cuts(cuts, model, _run_effort(seg_turns), verdict)
+        # The model is the one that ran the check; the effort and the day are
+        # the segment's, which _run_effort leaves None unless the whole
+        # segment agrees.
+        _bump_cuts(cuts, model, _run_effort(seg_turns), _run_date(seg_turns), verdict)
     return applied, complied, cuts
 
 
@@ -1162,6 +1178,7 @@ def score_review_verdict(turns, entry):
     since = entry.get("since", "")
     author = _run_model(turns)
     author_effort = _run_effort(turns)
+    author_date = _run_date(turns)
     session = turns[0]["session"] if turns else ""
     mend_cache = _mend_verdicts()
     applied = 0
@@ -1178,7 +1195,7 @@ def score_review_verdict(turns, entry):
             ok = mend_cache.get(key) == MENDED_VERDICT
         if ok:
             complied += 1
-        _bump_cuts(cuts, author, author_effort, ok)
+        _bump_cuts(cuts, author, author_effort, author_date, ok)
     return applied, complied, cuts
 
 
@@ -1197,6 +1214,7 @@ def score_review_recovered(turns, entry):
     approximation, hence the same heuristic tier."""
     author = _run_model(turns)
     author_effort = _run_effort(turns)
+    author_date = _run_date(turns)
     mend_cache = _mend_verdicts()
     applied = 0
     complied = 0
@@ -1209,7 +1227,7 @@ def score_review_recovered(turns, entry):
         ok = verdict == MENDED_VERDICT
         if ok:
             complied += 1
-        _bump_cuts(cuts, author, author_effort, ok)
+        _bump_cuts(cuts, author, author_effort, author_date, ok)
     return applied, complied, cuts
 
 
@@ -1351,7 +1369,8 @@ def _bug_gate_data(turns, since):
             proposed = _request_before(turns, chosen_gate["index"]) if gate_ok else None
             completions.append({"key": key, "summary": proposed or seg[0][0],
                                  "model": _run_model(seg_turns),
-                                 "effort": _run_effort(seg_turns), "index": i})
+                                 "effort": _run_effort(seg_turns),
+                                 "date": _run_date(seg_turns), "index": i})
     return completions, reports, len(segments)
 
 
@@ -1385,7 +1404,7 @@ def score_bug_gate(turns, entry):
         ok = c["key"] not in hit_targets
         if ok:
             complied += 1
-        _bump_cuts(cuts, c["model"], c.get("effort"), ok)
+        _bump_cuts(cuts, c["model"], c.get("effort"), c.get("date"), ok)
     return applied, complied, cuts
 
 
@@ -1450,7 +1469,7 @@ def score_plan_gate(turns, entry):
         applied += 1
         if ok:
             complied += 1
-        _bump_cuts(cuts, gate["model"], gate.get("effort"), ok)
+        _bump_cuts(cuts, gate["model"], gate.get("effort"), gate.get("date"), ok)
     return applied, complied, cuts
 
 
@@ -1929,7 +1948,11 @@ def apply_rubric(files, rubric):
             item = {**base, "applied": applied, "complied": complied,
                      "rate": _rate(applied, complied), "status": "ok",
                      "byModel": _rated_cut(cuts["model"]),
-                     "byEffort": _rated_cut(cuts["effort"])}
+                     "byEffort": _rated_cut(cuts["effort"]),
+                     # Every row carries its own day histogram, which is what
+                     # lets the dashboard answer a span narrower than the scan's
+                     # own window without a second, slower scan.
+                     "byDate": _rated_cut(cuts["date"])}
             if kind == "workflow":
                 item["sweep"] = {"applied": sweep_applied, "complied": sweep_complied,
                                   "rate": _rate(sweep_applied, sweep_complied),
@@ -1937,6 +1960,11 @@ def apply_rubric(files, rubric):
                                   "byEffort": _rated_cut(sweep_cuts["effort"])}
             if kind == "plan-gate":
                 item["abandoned"] = _abandoned_gates(sessions)
+                # The same days, from the same walk over the same gates, with
+                # a per-model split added for the trend chart's lines. A
+                # superset of the cut above, so the window selector reads it
+                # unchanged — the two cannot disagree, since neither invents a
+                # gate the other misses.
                 item["byDate"] = _gate_series(sessions)
             if kind == "bug-gate":
                 item["unattributed"] = _unattributed_bugs(sessions, entry)
