@@ -752,92 +752,6 @@
         document.getElementById("attention").innerHTML = attentionBandHtml(items);
       }
 
-      // A model id may carry a dated snapshot suffix (claude-haiku-4-5-20251001);
-      // the date is noise in a one-line footnote.
-      const trimModel = (m) =>
-        String(m)
-          .replace(/-\d{8}$/, "")
-          .replace(/^claude-/, "");
-
-      // The spend band. Every figure here is one the harness settled itself —
-      // nothing on this band is priced or estimated by us — so the only thing
-      // the render must not do is imply more coverage than there is. Hence the
-      // denominator in the header AND the sentence beneath: a bare total reads
-      // as "this is what I spent", and it is not.
-      function costBandHtml(cost) {
-        if (!cost) return "";
-        const settled = cost.transcripts_settled;
-        const seen = cost.transcripts_in_window;
-        const head = `<div class="banddiv">spend · ${esc(cost.window_days)}d · ${esc(settled)} of ${esc(seen)} transcripts settled</div>`;
-        // Null total, not zero: an empty band and a zero-spend band are
-        // different claims, and only one of them is ever true here.
-        if (cost.total_usd == null) {
-          return (
-            head +
-            `<div class="muted" style="padding:0.3rem 0.1rem">No settled sessions in the window — cost is read only from a session's own record, and nothing is estimated.</div>`
-          );
-        }
-        return (
-          head +
-          `<div class="costrows">${costRows(cost.by_project || [])}</div>
-    <div class="muted" style="margin-top: 0.4rem">${costCuts(cost)}</div>
-    <div class="muted">${costRatios(cost)}</div>
-    <div class="muted" style="color: var(--accent)">covers ${esc(settled)} of ${esc(seen)} transcripts in window — not a total for the period</div>
-    ${formatMovedHtml(cost)}`
-        );
-      }
-
-      // One money figure, formatted the one way. Written out at four call sites
-      // before it was lifted — rows, roots, models, ratios.
-      const usd = (n) => "$" + esc(n.toFixed(2));
-
-      function costRows(projects) {
-        // Bars scale to the largest row, not to the total: the question a
-        // reader asks of this band is which repo led, not what share of a
-        // number they cannot see each one holds.
-        const top = projects.length ? projects[0].usd : 0;
-        return projects
-          .map(
-            (p) => `<div class="costrow">
-      <span class="nm">${esc(p.name)}</span>
-      <span class="meter"><i style="width:${top ? Math.round((100 * p.usd) / top) : 0}%"></i></span>
-      <span class="costamt">${usd(p.usd)}</span></div>`,
-          )
-          .join("");
-      }
-
-      function costCuts(cost) {
-        return [
-          (cost.by_root || []).map((r) => `${esc(r.name)} ${usd(r.usd)}`).join(" · "),
-          (cost.by_model || []).map((m) => `${esc(trimModel(m.name))} ${usd(m.usd)}`).join(" · "),
-        ]
-          .filter(Boolean)
-          .join(" &nbsp;·&nbsp; ");
-      }
-
-      function costRatios(cost) {
-        return [
-          cost.per_session_usd != null ? `${usd(cost.per_session_usd)} / session` : "",
-          cost.per_changed_line_usd != null
-            ? `$${esc(cost.per_changed_line_usd.toFixed(3))} / changed line`
-            : "",
-        ]
-          .filter(Boolean)
-          .join(" · ");
-      }
-
-      // cost-state is an undocumented internal shape. When it moves, this band
-      // says so rather than quietly reporting a total short by whatever it
-      // could no longer read.
-      function formatMovedHtml(cost) {
-        if (cost.format_ok) return "";
-        return `<div class="muted" style="color: var(--red); margin-top: 0.3rem">${esc(cost.malformed)} record(s) did not match the shape this reader expects — the format moved, and the total above is short by whatever they held.</div>`;
-      }
-
-      function renderCost(cost) {
-        document.getElementById("cost").innerHTML = costBandHtml(cost);
-      }
-
       function renderBody(tickets) {
         const bento = document.getElementById("bento");
         if (!tickets.length) {
@@ -900,6 +814,139 @@
       <a class="enter" href="${esc(t.url)}" target="_blank" rel="noopener">Enter ↵</a>
     </div>`;
       }
+
+      // A model id may carry a dated snapshot suffix (claude-haiku-4-5-20251001);
+      // the date is noise in a one-line footnote.
+      const trimModel = (m) =>
+        String(m)
+          .replace(/-\d{8}$/, "")
+          .replace(/^claude-/, "");
+
+      // The spend band. Every figure here is one the harness settled itself —
+      // nothing on this band is priced or estimated by us — so the only thing
+      // the render must not do is imply more coverage than there is. Hence the
+      // denominator in the header AND the sentence beneath: a bare total reads
+      // as "this is what I spent", and it is not.
+      // `days` picks which span to draw. Every span the writer produced rides
+      // in one channel — the scan is what costs, and it is already paid — so
+      // switching is a redraw, never a fetch. A channel written before windows
+      // existed has none, and the top level still answers for it.
+      // The span to draw, and the picker that names it. `view` is the writer's
+      // window when one is chosen, else the top-level channel — which still
+      // describes the default span, so a channel from before windows existed
+      // resolves here too.
+      function costWindow(cost, days) {
+        const spans = cost.windows || null;
+        const chosen = spans && spans[String(days)] ? String(days) : null;
+        const view = chosen ? spans[chosen] : cost;
+        return { view, picker: windowPicker(spans, chosen || String(view.window_days)) };
+      }
+
+      function costBandHtml(cost, days) {
+        if (!cost) return "";
+        // Everything below reads `view`, never the outer channel, so a picked
+        // span cannot show another's numbers.
+        const { view, picker } = costWindow(cost, days);
+        const settled = view.transcripts_settled;
+        const seen = view.transcripts_in_window;
+        const head = `<div class="banddiv">spend · ${picker} · ${esc(settled)} of ${esc(seen)} transcripts settled</div>`;
+        // Null total, not zero: an empty band and a zero-spend band are
+        // different claims, and only one of them is ever true here.
+        if (view.total_usd == null) {
+          return (
+            head +
+            `<div class="muted" style="padding:0.3rem 0.1rem">No settled sessions in the window — cost is read only from a session's own record, and nothing is estimated.</div>`
+          );
+        }
+        return (
+          head +
+          `<div class="costrows">${costRows(view.by_project || [])}</div>
+    <div class="muted" style="margin-top: 0.4rem">${costCuts(view)}</div>
+    <div class="muted">${costRatios(view)}</div>
+    <div class="muted" style="color: var(--accent)">covers ${esc(settled)} of ${esc(seen)} transcripts in window — not a total for the period</div>
+    ${formatMovedHtml(view)}`
+        );
+      }
+
+      // A channel from before windows existed gets plain text where the select
+      // would be, rather than a one-option control that cannot be changed.
+      function windowPicker(spans, chosen) {
+        if (!spans) return `${esc(chosen)}d`;
+        const options = Object.keys(spans)
+          .map(Number)
+          .sort((a, b) => a - b)
+          .map(
+            (d) =>
+              `<option value="${esc(d)}"${String(d) === String(chosen) ? " selected" : ""}>${esc(d)}d</option>`,
+          )
+          .join("");
+        return `<select class="app-pick" id="costWindowPick">${options}</select>`;
+      }
+
+      // One money figure, formatted the one way. Written out at four call sites
+      // before it was lifted — rows, roots, models, ratios.
+      const usd = (n) => "$" + esc(n.toFixed(2));
+
+      function costRows(projects) {
+        // Bars scale to the largest row, not to the total: the question a
+        // reader asks of this band is which repo led, not what share of a
+        // number they cannot see each one holds.
+        const top = projects.length ? projects[0].usd : 0;
+        return projects
+          .map(
+            (p) => `<div class="costrow">
+      <span class="nm">${esc(p.name)}</span>
+      <span class="meter"><i style="width:${top ? Math.round((100 * p.usd) / top) : 0}%"></i></span>
+      <span class="costamt">${usd(p.usd)}</span></div>`,
+          )
+          .join("");
+      }
+
+      function costCuts(cost) {
+        return [
+          (cost.by_root || []).map((r) => `${esc(r.name)} ${usd(r.usd)}`).join(" · "),
+          (cost.by_model || []).map((m) => `${esc(trimModel(m.name))} ${usd(m.usd)}`).join(" · "),
+        ]
+          .filter(Boolean)
+          .join(" &nbsp;·&nbsp; ");
+      }
+
+      function costRatios(cost) {
+        return [
+          cost.per_session_usd != null ? `${usd(cost.per_session_usd)} / session` : "",
+          cost.per_changed_line_usd != null
+            ? `$${esc(cost.per_changed_line_usd.toFixed(3))} / changed line`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+      }
+
+      // cost-state is an undocumented internal shape. When it moves, this band
+      // says so rather than quietly reporting a total short by whatever it
+      // could no longer read.
+      function formatMovedHtml(cost) {
+        if (cost.format_ok) return "";
+        return `<div class="muted" style="color: var(--red); margin-top: 0.3rem">${esc(cost.malformed)} record(s) did not match the shape this reader expects — the format moved, and the total above is short by whatever they held.</div>`;
+      }
+
+      // The span the reader picked, kept across the poll's re-renders — the band
+      // is rebuilt wholesale every few seconds, so without this the select would
+      // snap back to the default while they were reading it.
+      let currentCostWindow = null;
+
+      function renderCost(cost) {
+        document.getElementById("cost").innerHTML = costBandHtml(cost, currentCostWindow);
+      }
+
+      // The band is rebuilt wholesale each render, so a listener bound to the
+      // select itself would be lost with it — delegate on the container, as the
+      // strip already does for the Stability dropdown.
+      document.getElementById("cost").addEventListener("change", (e) => {
+        if (e.target.id !== "costWindowPick") return;
+        currentCostWindow = e.target.value;
+        render();
+      });
 
       // Click a non-hero card to promote it — the board's one write. The Enter
       // link keeps its own job (opening the ticket), so a click on it is let by.

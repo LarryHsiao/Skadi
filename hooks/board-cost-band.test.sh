@@ -105,6 +105,36 @@ console.log("G:" + (bad.includes("var(--red)") ? "red" : "plain") +
 
 // 8 · an absent channel renders nothing rather than an empty frame
 console.log("H:" + (costBandHtml(null) === "" ? "empty" : "something"));
+
+// 9 · the window picker offers every span the writer produced, and reuses the
+// page's own .app-pick select rather than inventing a second control
+const windowed = {
+  ...full,
+  windows: {
+    "1": { ...full, window_days: 1, total_usd: 15.34, transcripts_settled: 4,
+           transcripts_in_window: 13, by_project: [{ name: "Minerva", usd: 15.34 }] },
+    "7": { ...full, window_days: 7 },
+    "30": { ...full, window_days: 30 },
+    "60": { ...full, window_days: 60 },
+    "90": { ...full, window_days: 90 },
+  },
+};
+const picked = costBandHtml(windowed);
+console.log("J:" + (picked.includes('class="app-pick"') ? "reuses" : "invents") +
+            "/" + (picked.match(/<option /g) || []).length);
+
+// 10 · selecting a window redraws from THAT window's numbers, coverage included
+const one = costBandHtml(windowed, 1);
+console.log("K:" + (one.includes("Minerva") ? "yes" : "no") +
+            "/" + (one.includes("4 of 13") ? "coverage" : "stale") +
+            "/" + (one.includes("$15.34") ? "amount" : "wrong"));
+
+// 11 · the chosen span stays chosen across a redraw
+console.log("L:" + (/<option value="1" selected/.test(one) ? "kept" : "lost"));
+
+// 12 · a channel written before windows existed still renders
+console.log("M:" + (costBandHtml(full).includes("$16.00") ? "renders" : "broken") +
+            "/" + (costBandHtml(full).includes("app-pick") ? "picker" : "no-picker"));
 JS
 )
 
@@ -119,6 +149,37 @@ check "nothing settled explains itself and shows no zero" "no-zero/explains" "$(
 check "a moved format is named in red, with its count" "red/counts" "$(get G)"
 check "an absent channel renders nothing" "empty" "$(get H)"
 check "the coverage caveat is accented, not a muted footnote" "accented" "$(get I)"
+check "the picker reuses .app-pick and offers every window" "reuses/5" "$(get J)"
+check "picking a window redraws from that window's numbers" "yes/coverage/amount" "$(get K)"
+check "the chosen span stays selected across a redraw" "kept" "$(get L)"
+check "a channel with no windows key still renders, without a picker" "renders/no-picker" "$(get M)"
+
+# ── 13 · the picker is wired, not merely drawn ──
+# costBandHtml's own tests prove the redraw picks the right span; none of them
+# can prove anything calls it. That is the exact gap board-cost.py fell into —
+# tested, installed, and never invoked — so the listener gets its own check.
+#
+# What these four assertions do and do not cover. They read the source, so they
+# prove the listener is bound, reads the picker, stores the choice and redraws.
+# The event path itself was exercised for real against a running board — a
+# `change` dispatched on the live select redrew the band to that window's
+# numbers and kept the choice across the poll's next render.
+#
+# What remains unverified anywhere: a physical mouse click opening the native
+# dropdown and picking a row. A select's popup is an OS-level widget that
+# synthetic mouse and key events do not reach, so no automation available here
+# can drive it. Dispatching the event is not the same claim as clicking, and
+# this file will not pretend otherwise.
+wiring=$(awk '/getElementById\("cost"\).addEventListener/{f=1} f{print} f&&/^      \}\);/{exit}' "$PAGE")
+check "a change listener is delegated on the band container" "yes" \
+  "$(printf '%s' "$wiring" | grep -q 'addEventListener("change"' && echo yes || echo no)"
+check "it acts only on the window picker" "yes" \
+  "$(printf '%s' "$wiring" | grep -q 'costWindowPick' && echo yes || echo no)"
+check "it stores the pick, then redraws" "yes" \
+  "$(printf '%s' "$wiring" | grep -q 'currentCostWindow = e.target.value' \
+     && printf '%s' "$wiring" | grep -q 'render()' && echo yes || echo no)"
+check "renderCost passes the stored span back in" "yes" \
+  "$(grep -q 'costBandHtml(cost, currentCostWindow)' "$PAGE" && echo yes || echo no)"
 
 echo ""
 echo "── $pass passed, $fail failed ──"

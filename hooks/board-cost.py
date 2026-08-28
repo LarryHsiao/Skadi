@@ -42,6 +42,16 @@ import time
 SECONDS_PER_DAY = 86400
 WINDOW_DAYS = int(os.environ.get("COST_WINDOW_DAYS", "90"))
 
+# The spans the band offers. The widest is scanned; the rest are buckets filled
+# on the same pass, because reading the tree is the whole cost and answering
+# five questions from one read is very nearly free.
+#
+# The default is folded in rather than assumed present: COST_WINDOW_DAYS is a
+# seam the tests steer by, and a value off this list once asked the tallies for
+# a span they had never built — a KeyError in a seam that predated these
+# windows and that nothing in this change touched.
+WINDOWS = tuple(sorted({1, 7, 30, 60, 90, WINDOW_DAYS}))
+
 # Every field this reader leans on. A record lacking one is malformed: the
 # shape moved under us, and the tile must say so rather than count a zero.
 REQUIRED = ("sessionId", "totalCostUSD", "modelUsage")
@@ -60,17 +70,22 @@ def roots():
 
 
 def transcripts(cutoff_ms):
-    """Every transcript touched inside the window, as (path, root, project)."""
+    """Every transcript touched inside the window, as (path, root, project, mtime_ms).
+
+    The mtime rides along so a single pass can drop each file into every window
+    it falls inside, rather than walking the tree once per window."""
     found = []
     for root in roots():
         pattern = os.path.join(os.path.expanduser(root), "projects", "*", "*.jsonl")
         for path in glob.glob(pattern):
             try:
-                if os.path.getmtime(path) * 1000 < cutoff_ms:
+                mtime_ms = os.path.getmtime(path) * 1000
+                if mtime_ms < cutoff_ms:
                     continue
             except OSError:
                 continue
-            found.append((path, root_label(root), os.path.basename(os.path.dirname(path))))
+            found.append((path, root_label(root),
+                          os.path.basename(os.path.dirname(path)), mtime_ms))
     return found
 
 
@@ -201,10 +216,9 @@ class Tally:
             self.unknown += 1
 
 
-def read_transcript(tally, path, root, project):
-    """Fold one transcript into the tally."""
+def fold(tally, records, root, project):
+    """Fold one transcript's already-parsed records into one window's tally."""
     tally.transcripts += 1
-    records = cost_records(path)
     good = [r for r in records if is_well_formed(r)]
     tally.malformed += len(records) - len(good)
     by_session, multi = settle(good)
@@ -220,14 +234,30 @@ def read_transcript(tally, path, root, project):
         tally.add(record, project, root)
 
 
-def collect(cutoff_ms):
-    tally = Tally()
-    for path, root, project in transcripts(cutoff_ms):
-        read_transcript(tally, path, root, project)
-    return channel(tally)
+def collect(now_ms):
+    """One pass over the tree, every window answered from it.
+
+    A transcript is parsed once and folded into each window it falls inside —
+    parsing is the expensive part, and the windows are nested, so the widest
+    scan already holds every narrower one's files."""
+    cutoffs = {days: now_ms - days * SECONDS_PER_DAY * 1000 for days in WINDOWS}
+    tallies = {days: Tally() for days in WINDOWS}
+    widest = min(cutoffs.values())
+
+    for path, root, project, mtime_ms in transcripts(widest):
+        records = cost_records(path)
+        for days, cutoff in cutoffs.items():
+            if mtime_ms >= cutoff:
+                fold(tallies[days], records, root, project)
+
+    out = channel(tallies[WINDOW_DAYS], WINDOW_DAYS)
+    # The default window also answers at the top level, so a render written
+    # against the old shape keeps working while the new one arrives.
+    out["windows"] = {str(days): channel(tallies[days], days) for days in WINDOWS}
+    return out
 
 
-def channel(tally):
+def channel(tally, window_days):
     """The board channel a filled tally describes.
 
     Coverage is counted in TRANSCRIPTS on both sides. Sessions are a different
@@ -236,7 +266,7 @@ def channel(tally):
     where per_session_usd needs it."""
     return {
         "channel": "cost",
-        "window_days": WINDOW_DAYS,
+        "window_days": window_days,
         # None, not 0.0, when nothing settled: an empty tile and a zero-cost
         # tile are different claims, and the board renders them differently.
         "total_usd": round(tally.total, 4) if tally.sessions else None,
@@ -266,9 +296,7 @@ def channel(tally):
 def main():
     board = os.environ.get("BOARD_DIR", os.path.expanduser("~/.skadi/board"))
     os.makedirs(board, exist_ok=True)
-    cutoff_ms = (time.time() - WINDOW_DAYS * SECONDS_PER_DAY) * 1000
-
-    channel = collect(cutoff_ms)
+    channel = collect(time.time() * 1000)
     channel["updated"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     path = os.path.join(board, "cost.json")

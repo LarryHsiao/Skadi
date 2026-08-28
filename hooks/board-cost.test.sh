@@ -274,6 +274,64 @@ expected_zero="null"
 actual_zero=$(jq -r '.per_changed_line_usd' "$b/cost.json")
 check "zero changed lines yields null, not a crash" "$expected_zero" "$actual_zero"
 
+# ── 14 · one scan yields every window, and each counts only its own span ──
+# The scan is the whole cost; bucketing a transcript into each window it falls
+# inside is nearly free. Reading the tree five times to answer five questions
+# would be the wasteful shape.
+d=$(tmpdir); b=$(tmpdir)
+age_file() { # file days-ago — the window is timed by mtime, so the fixture must be
+  touch -t "$(python3 -c "
+import datetime as dt
+print((dt.datetime.now() - dt.timedelta(days=$2)).strftime('%Y%m%d%H%M'))")" "$1"
+}
+f1=$(session "$d/.claude-personal" "$HOME_FLAT-alpha" "s1")
+costline s1 1.00 claude-opus-5 100 200 10 4 "$(days_ago_ms 0)" >> "$f1"
+f2=$(session "$d/.claude-personal" "$HOME_FLAT-alpha" "s2")
+costline s2 2.00 claude-opus-5 100 200 10 4 "$(days_ago_ms 3)" >> "$f2"; age_file "$f2" 3
+f3=$(session "$d/.claude-personal" "$HOME_FLAT-alpha" "s3")
+costline s3 4.00 claude-opus-5 100 200 10 4 "$(days_ago_ms 45)" >> "$f3"; age_file "$f3" 45
+COST_ROOTS="$d/.claude-personal" BOARD_DIR="$b" python3 "$COST" >/dev/null 2>&1
+expected_windows="1.0/3.0/3.0/7.0/7.0"
+actual_windows=$(jq -r '"\(.windows["1"].total_usd)/\(.windows["7"].total_usd)/\(.windows["30"].total_usd)/\(.windows["60"].total_usd)/\(.windows["90"].total_usd)"' "$b/cost.json")
+check "one scan fills every window, each holding only its own span" "$expected_windows" "$actual_windows"
+
+# ── 14b · each window carries its own coverage, not the widest one's ──
+expected_wincov="1/1/2/2/3/3"
+actual_wincov=$(jq -r '"\(.windows["1"].transcripts_settled)/\(.windows["1"].transcripts_in_window)/\(.windows["7"].transcripts_settled)/\(.windows["7"].transcripts_in_window)/\(.windows["90"].transcripts_settled)/\(.windows["90"].transcripts_in_window)"' "$b/cost.json")
+check "coverage is computed per window" "$expected_wincov" "$actual_wincov"
+
+# ── 14c · the top level still answers for the default window ──
+# The band reads the top level today. Adding windows beneath must not move the
+# ground under it — the render and the data ship in separate commits.
+expected_compat="7.0/3/3/90"
+actual_compat=$(jq -r '"\(.total_usd)/\(.transcripts_settled)/\(.transcripts_in_window)/\(.window_days)"' "$b/cost.json")
+check "top-level fields still describe the default window" "$expected_compat" "$actual_compat"
+
+# ── 14d · an override outside the fixed set is honoured, not fatal ──
+# COST_WINDOW_DAYS is the seam the tests above steer by. Once five fixed windows
+# arrived it named a span that need not be among them, and asking the tallies
+# for one they had never built raised KeyError — a seam that had worked since
+# the writer's first commit, broken by a change that never touched it.
+d=$(tmpdir); b=$(tmpdir)
+f=$(session "$d/.claude-personal" "$HOME_FLAT-alpha" "s1")
+costline s1 2.50 claude-opus-5 100 200 10 4 "$(days_ago_ms 1)" >> "$f"
+COST_ROOTS="$d/.claude-personal" BOARD_DIR="$b" COST_WINDOW_DAYS=45 python3 "$COST" >/dev/null 2>&1
+rc=$?
+expected_odd="0/45/2.5/yes"
+actual_odd="$rc/$(jq -r '"\(.window_days)/\(.total_usd)/\(if .windows["45"] then "yes" else "no" end)"' "$b/cost.json" 2>/dev/null)"
+check "an off-list window override still runs and is offered" "$expected_odd" "$actual_odd"
+
+# ── 14e · a window's cuts are its own ──
+d=$(tmpdir); b=$(tmpdir)
+f1=$(session "$d/.claude-personal" "$HOME_FLAT-alpha" "s1")
+costline s1 1.00 claude-opus-5 100 200 10 4 "$(days_ago_ms 0)" >> "$f1"
+f2=$(session "$d/.claude-work" "$HOME_FLAT-beta" "s2")
+costline s2 5.00 claude-sonnet-5 100 200 10 4 "$(days_ago_ms 45)" >> "$f2"; age_file "$f2" 45
+COST_ROOTS="$d/.claude-personal:$d/.claude-work" BOARD_DIR="$b" python3 "$COST" >/dev/null 2>&1
+expected_wincuts="alpha/1/beta/2"
+actual_wincuts=$(jq -r '"\(.windows["1"].by_project[0].name)/\(.windows["1"].by_project | length)/\(.windows["90"].by_project[0].name)/\(.windows["90"].by_project | length)"' "$b/cost.json")
+check "each window's project cut holds only its own sessions" "$expected_wincuts" "$actual_wincuts"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
