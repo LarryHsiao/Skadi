@@ -1,6 +1,6 @@
 # React Style Guide
 
-## Hook dependency arrays
+## Hook Dependency Arrays
 
 The dependency array of `useEffect`, `useCallback`, `useMemo`, `useImperativeHandle`, and `useLayoutEffect` carries one duty: declare the reactive values the body reads, so the hook re-fires only when those values change. The opposite duty — listing values whose identity *cannot* change between renders — earns nothing. The hook will not re-fire on a stable value; naming it in the array is line noise that misleads the next reader into thinking the hook depends on it.
 
@@ -17,7 +17,7 @@ Omit them. The lint rule `react-hooks/exhaustive-deps` already hard-codes these 
 
 When a reviewer — human or bot — suggests adding a stable setter to the array, point at this rule and at the React docs; do not add it. Where a bot's reasoning rests on "the linter will warn", verify the project's `eslint.config.js` actually enables `react-hooks/exhaustive-deps` before acting on the advice — the bot may be reasoning against a config the project does not run.
 
-## Initializing useState with a typed empty container
+## Initializing useState with a Typed Empty Container
 
 A `useState([])` returning an empty literal infers `useState<never[]>`. The first read of an element — `xs[0]` — types as `never`, and downstream property access either fails to compile or forces a redundant coercion (`String(item.id)` to "rescue" the value back to `string`). The rescue line hides the real flaw: the state was never named.
 
@@ -37,7 +37,7 @@ The same care applies to other empty initializers:
 
 The rule generalizes to one principle: **when the initial value is a blank slate, the slate cannot speak for the type it will hold**. Name the type yourself, or the inferred `never` (or `unknown`, or `null`) will leak through every subsequent read.
 
-## Text overflow in CSS
+## Text Overflow in CSS
 
 [`general.md`](general.md)'s *Text Overflow* decides **what** should happen at a field's boundary; this is how CSS is made to do it.
 
