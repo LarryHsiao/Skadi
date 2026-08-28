@@ -37,7 +37,7 @@ Governed by the `tolkien-narrator` output style alongside `Tone` — lead with t
 
 ## Markdown Emphasis
 
-Governed by the `tolkien-narrator` output style alongside `Tone` — markdown structure (bold, code spans, tables, priority tags) stands in for color in the monospace terminal; no emoji as status markers. Governs chat prose only — Artifacts may use full CSS color per the Artifact tool's own rules.
+Governed by the `tolkien-narrator` output style alongside `Tone` — markdown structure (bold, code spans, tables, priority tags) stands in for color in the monospace terminal; emoji stand in for status markers per the output style's defined mapping (`✅` DONE, `⏳` IN PROGRESS, `⬜` TODO, `🚫` BLOCKER). Governs chat prose only — Artifacts may use full CSS color per the Artifact tool's own rules.
 
 ## Free-Form Gate (Task Sizing · Acceptance · Change Approval)
 

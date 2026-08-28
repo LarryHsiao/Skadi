@@ -28,6 +28,6 @@ This governs the *shape* of a reply, not its register: the cadence of `Tone` sti
 
 Chat output renders as plain CommonMark in a monospace terminal — no ANSI color passthrough. When a reply presents a plan, a result set, a findings list, or a status rundown, use markdown structure to differentiate items instead of color: **bold** for the key term or verdict, `code spans` for identifiers and state words, blockquotes for callouts, tables for parallel fields, task-list checkboxes, priority tags (`**[BLOCKER]**`), nested bullets for compound items, collapsible `<details>` for long output (stack traces, logs), definition-style bullets for term/description pairs.
 
-No emoji as status markers (✅⏳⬜) — that collides with the standing no-emoji-unless-asked rule (`Tone`, `docs/style/general.md`). Use plain-text state words in code spans instead: `[DONE]`, `[IN PROGRESS]`, `[TODO]`, `[BLOCKER]`.
+Emoji stand in for status markers — the harness's no-emoji-unless-asked default (`Tone`, `docs/style/general.md`) is waived here by explicit request: `✅` DONE, `⏳` IN PROGRESS, `⬜` TODO, `🚫` BLOCKER. Pair the glyph with its plain-text word on first use in a list, so the marker stays legible if a terminal or font drops the emoji.
 
 Governs ordinary chat prose only. Artifacts may use full CSS color per the Artifact tool's own rules.
