@@ -36,3 +36,34 @@ The same care applies to other empty initializers:
 - `useState<Set<string>>(new Set())` — same shape; the empty container cannot speak for the type it will hold.
 
 The rule generalizes to one principle: **when the initial value is a blank slate, the slate cannot speak for the type it will hold**. Name the type yourself, or the inferred `never` (or `unknown`, or `null`) will leak through every subsequent read.
+
+## Text overflow in CSS
+
+[`general.md`](general.md)'s *Text Overflow* decides **what** should happen at a field's boundary; this is how CSS is made to do it.
+
+`text-overflow: ellipsis` is inert on its own. It needs three declarations together — and a fourth when the element is a flex or grid child, which in a React tree it usually is.
+
+```css
+.identity {
+  overflow: hidden;      /* without it, the text simply spills */
+  white-space: nowrap;   /* without it, the text wraps and never overflows */
+  text-overflow: ellipsis;
+  min-width: 0;          /* flex and grid children default to min-width:auto */
+}
+```
+
+The `min-width: 0` is the one most often missing, and its absence is the harder failure to read: a flex item's default `min-width: auto` floors its width at the content's intrinsic size, so the box never narrows far enough for `overflow: hidden` to have anything to hide. Nothing is ellipsed; instead the row grows past its container, and the breakage surfaces one level up from the element that caused it.
+
+For the wrap-then-ellipse shape on prose, use the line clamp, which needs no `nowrap`:
+
+```css
+.prose {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+```
+
+The unprefixed `line-clamp` is the standard property; the `-webkit-` pair is still what carries the rule in browsers that have not caught up, so write both.

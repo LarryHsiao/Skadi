@@ -211,7 +211,7 @@ lower-tier model cannot quietly drop them. Chapter I of the handbook
 graph TD
     A["1 · gauge<br/>reach · depth · reversibility"] --> B["2 · acceptance<br/>observable outcomes, not actions"]
     B --> C{"3 · the gate<br/>await the user's word"}
-    C -->|"approved"| D["4 · previews<br/>wireframe first, both data states"]
+    C -->|"approved"| D["4 · previews<br/>wireframe first, three data states"]
     C -->|"no gate owed: read-only · slash-invoked"| D
     D --> E["5 · implementation loop<br/>one step, one named verification"]
     E -->|"diverges → the code"| E

@@ -22,7 +22,17 @@ When a section calls for a visual preview — a wireframe or UML diagram (Visual
 
 When a change touches UI layout (a new screen, a rearranged panel, a rethought component) or calls for a UML diagram (class, sequence, state machine, ER model), render the sketch alongside the summary, so the shape of the thing can be judged before a line of code is written. Keep it simple — boxes, labels, proportions for a wireframe; classes, methods, relations, cardinalities for a diagram. One sketch per distinct layout or concern. The same session-level opt-out as the Free-Form Gate applies.
 
-**Both data states (UI only).** When the sketch is a UI layout that holds data — a list, a table, a panel, a screen — render two states, not one: the **populated** state, dense with representative data (a long list, a crowded table, counters run high), and the **empty** state, where no data has yet arrived (the placeholder, the zero-count, the first-run screen). A layout judged only in its comfortable middle hides its two hardest cases — the overflow and the void. Both ride in the same response, side by side or as two frames. UML diagrams are exempt; they bear no data states.
+**Three data states (UI only).** When the sketch is a UI layout that holds data — a list, a table, a panel, a screen — render three states, not one. A layout judged only in its comfortable middle hides its hardest cases: the void, the crowd, and the value that will not fit.
+
+- **Populated** — *cardinality at its high end.* Dense with representative data: a long list, a crowded table, counters run high.
+- **Empty** — *cardinality at zero.* No data has yet arrived — the placeholder, the zero-count, the first-run screen.
+- **Overflow** — *extent at its high end.* Every variable-length field bearing the longest value it could plausibly hold: the sixty-character name in a row meant for twelve, the untruncatable address in a chip, the seven-digit counter in a badge sized for two.
+
+Cardinality and extent are different axes, and a layout passes one while failing the other. A hundred short rows and one long row break in different places; the populated frame reaches only the first, which is why the overflow frame is drawn separately rather than folded into it. Where the project carries l10n, fill the overflow frame from the longest real locale — German and French run some 30% longer than English, and CJK runs shorter but offers no spaces to wrap on — rather than an invented string of repeated letters.
+
+The overflow frame is owed only where the layout holds variable-length data: user-supplied names, server strings, translated text. A layout bearing fixed labels alone has no extent to test, and a third frame there is ceremony.
+
+Every owed frame rides in the same response, side by side or as separate frames. UML diagrams are exempt; they bear no data states. What the overflow frame is judged *against* — ellipsis, wrap, or neither — stands in [`docs/style/general.md`](../style/general.md)'s *Text Overflow*.
 
 **Primary path.** Write it as HTML under the previews directory and serve it per the Local Preview rules above. HTML/CSS handles boxes and proportions natively; Mermaid (via `<script type="module">`) renders class, sequence, state, and ER diagrams from terse text; inline SVG covers what either strains at.
 

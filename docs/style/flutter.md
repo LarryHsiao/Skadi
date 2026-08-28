@@ -55,3 +55,27 @@ The common slip: a nested `Navigator` raised inside a page to handle in-page tra
 A second slip: a page that listens for the current path by string-matching a hardcoded literal — `if (location == '/home/settings')`, `if (uri.path.startsWith('/cart'))`. The literal binds the page to one mount point; move the route under a parent, rename a segment, or reuse the page elsewhere, and the listener falls silent — no warning, just dead behaviour. Read the page's own route from the router's context (`GoRouterState.of(context).matchedLocation`, `context.routeData`, or the equivalent the project stands on), or watch for the change you care about, not the path that happens to carry it.
 
 When the router already supports the shape, lean on it; when it does not, extend the router rather than forking a private navigator inside a page.
+
+## Text Overflow
+
+[`general.md`](general.md)'s *Text Overflow* decides **what** should happen at a field's boundary; this is how Flutter is made to do it.
+
+`TextOverflow.ellipsis` needs a bounded width. A `Text` sitting bare in a `Row` has none — the row hands its children unbounded space along the main axis, so the text lays out to its full intrinsic width and what appears is the yellow-and-black overflow stripe. The `overflow` argument was never consulted; it governs how a constraint is met, and no constraint was given.
+
+```dart
+// Wrong — unbounded width. The ellipsis never fires; the stripe does.
+Row(children: [
+  Text(user.name, overflow: TextOverflow.ellipsis),
+  const Icon(Icons.chevron_right),
+])
+
+// Right — Expanded bounds the width, so the ellipsis has an edge to sit at.
+Row(children: [
+  Expanded(child: Text(user.name, overflow: TextOverflow.ellipsis)),
+  const Icon(Icons.chevron_right),
+])
+```
+
+`Flexible` serves where the text should take only what it needs; `Expanded` where it should claim the remaining space. Either bounds the child, which is the part that matters.
+
+For prose, `maxLines: 2` alongside the same `overflow` gives the wrap-then-ellipse shape. For a value that must not be truncated, reach for `FittedBox(fit: BoxFit.scaleDown)` — it shrinks the glyphs rather than eating them, so the number stays whole.

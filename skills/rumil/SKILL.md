@@ -242,7 +242,7 @@ The page shows each screen as a box and each transition as a labelled arrow — 
 
 **Attach the actual image wherever one can be had — this is the default, not a nicety to skip when inconvenient.** A screen already screenshotted this round is always embedded, never left as a node-ID citation in prose alone; and when a screen central to the flow has not yet been screenshotted, take the `get_screenshot` call rather than describing it secondhand. Save the PNG under `<plans-folder>/assets/`, then embed it as a base64 `<img>` in `flow-<slug>.html` and/or the Henneth wireframe (a relative `src` dangles the same way a linked stylesheet does — no base URL under `srcdoc`). Also name the asset path in plain text in the wiring bullets; image markdown itself silently breaks — `/galadriel`'s overview parser only supports code/bold/italic. A node ID alone makes the reader take the screen on faith; the picture is what lets them judge it.
 
-**The wireframes.** Per CLAUDE.md's *Previews (Henneth)*, a screen that holds data is sketched in **both states** — populated and empty. Render these into the Henneth folder per `docs/workflow/previews.md`; read that file before writing any of them.
+**The wireframes.** Per CLAUDE.md's *Previews (Henneth)*, a screen that holds data is sketched in **three states** — populated, empty, and overflow (every variable-length field bearing the longest value it could plausibly hold, which is the **Overflow** row of 3b drawn rather than merely asked). Render these into the Henneth folder per `docs/workflow/previews.md`; read that file before writing any of them.
 
 ### 7. Write the concept
 

@@ -46,6 +46,21 @@ Code is read more often than written. These rules guard the next reader against 
 
 - **Guard every index access against an empty container.** Before `xs[0]`, `xs.first`, `xs.last`, or `xs[i]`, check the length or use a safe accessor (`xs.firstOrNull`, `xs.elementAtOrNull(i)`, pattern destructuring with a fallback). The empty list is the common pitfall — `xs[0]` on `[]` raises, not returns null. The same care applies to map lookups, regex match groups, and argument arrays.
 
+## Text Overflow
+
+A field's width is fixed when the layout is drawn; the value it will hold is not. Decide what happens at that boundary before the boundary is met — the default is an **ellipsis**, but three kinds of field want three different answers.
+
+- **Identity — names, titles, labels, row text, chips.** Ellipsis on one line. The prefix identifies the thing; the tail is decoration.
+- **Prose — descriptions, messages, error text.** Wrap, then ellipsis at two or three lines. An ellipsed sentence loses its meaning outright, so it must be given room to say what it means first.
+- **Exact values — money, identifiers, codes, dates, counts.** Never truncate; shrink the glyphs, wrap, or scroll. `$1,234,5…` does not read as *cut* — it reads as a smaller number, and a wrong answer is a correctness bug wearing a layout bug's clothes.
+
+Two conditions bind the ellipsis wherever it is used:
+
+- **The full value stays reachable** — a tooltip on the web, a long-press or a detail screen on mobile. An ellipsis with no escape is data deleted, not data folded.
+- **Never a bare clip.** A hard cut with no marker tells the reader nothing was removed, so a truncated value reads as the whole one. The three dots exist to say *there is more*.
+
+The mechanics that make the default actually fire differ by framework — Flutter's in [`flutter.md`](flutter.md), CSS's in [`react.md`](react.md). The wireframe that tests this before a line is written is the overflow frame in [`docs/workflow/previews.md`](../workflow/previews.md).
+
 ## Lists
 
 - **Hanging-indent wrapped list lines.** A dash or numbered list item that wraps in a narrow terminal reads as a fresh bullet unless the continuation line is indented under the marker (2 spaces for `-`, matching the marker's width for a numbered list). Apply this to every list rendered narrow — plan output, gate blocks, findings, prose — not just code.
