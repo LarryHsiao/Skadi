@@ -3011,6 +3011,43 @@ PY
 )
 check "verify.lint's exclude does not catch the repo's own lint.sh gate" "$expected_excludenotlint" "$actual_excludenotlint"
 
+# ── 75 · gateSeries sorts its dates before building points — the polyline draws
+#         them in this same order, so an unsorted list zigzags across the chart
+#         instead of tracing a left-to-right trend. byDate's own key order is
+#         scan order, not date order, so gateSeries must not trust it as given ──
+if command -v node >/dev/null 2>&1; then
+  gsjs="$ROOT/gateseries.js"
+  python3 - "$SCAN" "$gsjs" <<'PY'
+import importlib.util as u, sys, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+page = m._PAGE
+models_fn = re.search(r"function gateModels\(.*?\n\}", page, re.S).group(0)
+series_fn = re.search(r"function gateSeries\(.*?\n\}", page, re.S).group(0)
+harness = """
+const modelLabel = (m) => m;     // stub — label text plays no part in point order
+const MODEL_LABELS = {};
+const GATE_HUES = ["h1", "h2", "h3"];
+const GATE_OTHER = "ho";
+const GATE_INK = "ink";
+// Insertion order deliberately out of date order, matching how byDate is
+// actually built (scan order, not date order).
+const item = { byDate: {
+  "2026-08-30": { applied: 1, complied: 1, rate: 100 },
+  "2026-08-02": { applied: 1, complied: 0, rate: 0 },
+  "2026-08-15": { applied: 1, complied: 1, rate: 100 },
+} };
+const overall = gateSeries(item).find(s => s.model === null);
+console.log(overall.points.map(p => p.date).join(","));
+"""
+open(sys.argv[2], "w", encoding="utf-8").write(models_fn + "\n" + series_fn + "\n" + harness)
+PY
+  expected_gateseries="2026-08-02,2026-08-15,2026-08-30"
+  actual_gateseries=$(node "$gsjs")
+  check "gateSeries sorts points by date, not by byDate's insertion order" "$expected_gateseries" "$actual_gateseries"
+else
+  echo "  skip · gateSeries date order — node absent, JS not exercised"
+fi
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

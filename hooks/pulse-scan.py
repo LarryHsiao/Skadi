@@ -2391,7 +2391,10 @@ function gateModels(byDate, dates) {
 }
 
 function gateSeries(item) {
-  const dates = Object.keys(item.byDate || {});
+  // Sorted, not raw insertion order: `points` below feeds the polyline
+  // directly, and an out-of-order date list draws a line that zigzags
+  // across the chart instead of tracing a left-to-right trend.
+  const dates = Object.keys(item.byDate || {}).sort();
   if (!dates.length) return [];
   const models = gateModels(item.byDate, dates);
   const at = (d, m) => m === null ? item.byDate[d] : (item.byDate[d].byModel || {})[m];
