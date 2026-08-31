@@ -375,6 +375,23 @@ Claude retains its scripted weather/diff status line. Codex uses its native
 `/statusline` picker for model, reasoning, context, rate limits, directory, and
 Git branch because Codex does not execute a custom status-line program.
 
+### Machine-local state
+
+`~/.skadi/` holds runtime state that `install.sh` does not create and git does
+not track — sweep cursors, the handoff mailbox, per-project routing. Most of it
+regenerates on demand and costs nothing to lose.
+
+One file does not. **`~/.skadi/tone-external.md`** sets the register for every
+PR/MR and tracker comment and description Skadi writes; the *External posts*
+rule in `output-styles/tolkien-narrator.md` reads it. Its presence changes that
+default, its absence means plain human tone. It is written by hand, no install
+run recreates it, and nothing versions it — a lost disk takes it with it, so
+keep a copy somewhere private.
+
+It is kept out of this repo **deliberately**: it describes a personal
+communication register, and this repo is public. Do not "fix" the gap by
+committing it.
+
 ## License
 
 MIT
