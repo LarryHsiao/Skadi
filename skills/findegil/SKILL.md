@@ -69,6 +69,10 @@ fine. So is starting with "And" or "But".
 
 Where the notes leave something unsettled, leave it unsettled on the page —
 "I think", "not sure yet", "this might be wrong". Don't resolve it for me.
+That covers what I left open, not what you could not follow. Never mention
+the notes inside the post — the reader has never seen them. If something in
+them is unclear to you, keep it out of the post and name it in the gaps list
+instead. Never guess at it on the page, and never drop it silently.
 
 Never write: Furthermore. Moreover. Firstly. In conclusion. Delve. Leverage.
 Landscape. Testament to. It's worth noting. At the end of the day.
@@ -97,7 +101,10 @@ thought ends — no summary paragraph, no call to action.
 用「其實」「反正」「結果」這種口語轉折就用。
 
 筆記裡沒想清楚的地方，就讓它留在那裡不要收尾 ——「我覺得」「應該吧」
-「還不確定」「可能是我搞錯了」。不要幫我把話講滿。
+「還不確定」「可能是我搞錯了」。不要幫我把話講滿。這指的是我自己沒想清楚
+的事，不是你看不懂的地方。文章裡不要提到「筆記」，讀者沒看過那份東西；
+你看不懂的地方不要寫進文章，改列到後面的缺口清單，不要在文章裡猜，
+也不要就這樣默默丟掉。
 
 不要出現這些詞：首先、其次、再者、綜上所述、總而言之、值得一提的是、
 隨著⋯⋯的發展、在當今⋯⋯的時代、賦能、打造、助力、深耕、閉環、抓手、
@@ -128,12 +135,27 @@ them rebuilt; do not "correct" the Chinese back toward the English.
 The two rules that carry the most weight — invent nothing, and the specifics
 are the post — are language-independent and stand identical in both.
 
+## Why this banlist differs from the chat style
+
+`output-styles/tolkien-narrator.md` bans machine-prose phrases too, but
+deliberately does **not** ban 首先／其次／再者 or 顆粒度. In conversation those
+read as ordinary formal Chinese — closer to plain "first, second, third" than
+to a tic — and banning them there would suppress normal structured writing
+rather than machine prose.
+
+In a blog post the mechanical 首先／其次 enumeration *is* the tell, so this
+rule bans them and the chat style does not. Same words, opposite verdicts,
+different surfaces. Keep them apart; a future reader tidying one list to match
+the other would break whichever surface they moved.
+
 ## Gaps, not filler
 
 The no-invention rule only holds if a thin patch in the notes has somewhere to
 go other than the page. After the post, list every place the notes ran out —
 a claim with no number behind it, a step whose outcome was never recorded, a
-name left blank.
+name left blank — and every passage you could not interpret, such as a figure
+whose units did not resolve. Both kinds belong on this list; neither belongs
+in the post.
 
 Keep it to a few lines, in the ordinary chat register:
 
