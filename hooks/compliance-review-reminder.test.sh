@@ -2,7 +2,7 @@
 # Offline tests for the Compliance Review reminder hook. The contract: the hook
 # emits valid UserPromptSubmit JSON whose reminder carries the exact verdict
 # tokens the pulse scorer matches, names the agent dispatch the rubric demands
-# behind them, and nudges the two conditional checks a real session missed.
+# behind them, and nudges the three conditional checks a real session missed.
 # Run: bash compliance-review-reminder.test.sh
 set -uo pipefail
 
@@ -62,7 +62,7 @@ PY
 )
 check "reminder names the agent dispatch behind the verdict" "$expected_agent" "$actual_agent"
 
-# ── 4 · the two conditional checks the observed miss involved ──
+# ── 4 · the two earlier conditional checks the observed miss involved ──
 expected_checks="sibling:yes manwe:yes"
 actual_checks=$(python3 - "$hook_out" <<'PY'
 import json, sys
@@ -73,7 +73,17 @@ PY
 )
 check "reminder nudges the sibling-string check and the /manwe render weigh" "$expected_checks" "$actual_checks"
 
-# ── 5 · it tells the model not to mention the reminder ──
+# ── 5 · the third conditional check: DI/provider wiring (PSG-4716) ──
+expected_wiring="yes"
+actual_wiring=$(python3 - "$hook_out" <<'PY'
+import json, sys
+ctx = json.load(open(sys.argv[1], encoding="utf-8"))["hookSpecificOutput"]["additionalContext"].lower()
+print("yes" if "provider" in ctx and "entry point" in ctx else "no")
+PY
+)
+check "reminder nudges the DI/provider entry-point wiring check" "$expected_wiring" "$actual_wiring"
+
+# ── 6 · it tells the model not to mention the reminder ──
 # Every sibling reminder carries this; without it the nudge leaks into the
 # user-facing reply as process chatter.
 expected_quiet="yes"
