@@ -1,7 +1,7 @@
 ---
 name: findegil
-description: Use when the user runs /findegil <notes> [--en|--zh], or asks in plain words to turn notes into a blog post. Rewrites a set of notes into a blog post that reads as the author typing late at night rather than a press release — short average sentence length with wide variance, an oblique opening, uncertainty left unresolved, and a banlist of the phrases that mark machine prose. Carries two rules: an English one and a Traditional Chinese port (not a translation — the And/But rule and the banlist are language-specific and were rebuilt). Language defaults to the language the notes are written in. Renders to chat; never writes a file. Its defining constraint is that it invents nothing — no anecdote, feeling, or number absent from the notes — and closes by naming where the notes ran thin instead of filling the gap itself.
-purpose: Rewrites notes into a blog post in the author's late-night voice, in English or Chinese, without inventing anything.
+description: Use when the user runs /findegil <notes> [--en|--zh], or asks in plain words to turn notes into a blog post. Rewrites a set of notes into a blog post that reads as the author thinking out loud rather than a press release — short average sentence length with wide variance, an oblique opening, uncertainty left unresolved, and a banlist of the phrases that mark machine prose. Carries two rules: an English one and a Traditional Chinese port (not a translation — the And/But rule and the banlist are language-specific and were rebuilt). Language defaults to the language the notes are written in. Renders to chat; never writes a file. Its defining constraint is that it invents nothing — no anecdote, feeling, or number absent from the notes — and closes by naming where the notes ran thin instead of filling the gap itself.
+purpose: Rewrites notes into a blog post in the author's own unpolished voice, in English or Chinese, without inventing anything.
 user_invocable: true
 args: "<notes> [--en|--zh]"
 ---
@@ -52,8 +52,9 @@ the ordinary register.
 ```
 Rewrite these notes into a blog post.
 
-Voice: me, late at night, thinking out loud, a bit tired. Not a press
-release — and not a LinkedIn post doing an impression of casual, either.
+Voice: mine, thinking out loud — unpolished, a little loose, the way
+writing sounds before it has been tidied. Not a press release, and not a
+LinkedIn post doing an impression of casual.
 
 Keep every specific from the notes: names, numbers, dates, the exact command,
 the thing that broke. The specifics are the post. If a fact isn't in the
@@ -82,8 +83,8 @@ thought ends — no summary paragraph, no call to action.
 ```
 把以下筆記改寫成一篇部落格文章。
 
-語氣：像我自己深夜邊想邊打字，有點累。不是新聞稿，也不是那種假裝很隨性
-的貼文。
+語氣：我自己邊想邊打字 —— 沒修過，有點鬆，像還沒整理過的那個樣子。不是
+新聞稿，也不是那種假裝很隨性的貼文。
 
 筆記裡的細節全部保留 —— 名字、數字、日期、指令、壞掉的那個東西。細節就
 是文章本身。筆記裡沒有的事實不要自己補：不要編故事，不要寫我沒有的情緒，
