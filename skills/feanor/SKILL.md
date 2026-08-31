@@ -304,6 +304,33 @@ Every dimensional check downstream converts through one scale factor, establishe
 here. Re-deriving a denominator at each measurement instead is what lets two
 checks on the same element reach opposite verdicts. Decide the case once:
 
+**Resolve an image spec to its node before deciding which case applies.**
+The three cases below key on what the spec *is*, and a PNG handed in is
+not yet known to be "an image only" — it is an image whose node has not
+been looked for. Before measuring anything, check whether a live node
+stands behind it: the plan doc under `docs/plans/`, the asset's own
+name, the source's `Figma \`123:456\`` doc comments. Where one exists,
+the image becomes a thumbnail for orientation and the node becomes the
+spec; raster measurement is the fallback for a spec that genuinely has
+no node, never the default when one does. Two cautions travel with
+this:
+
+- **Resolve by name, not by cached id.** A file's ids rot on duplicate
+  or restructure — one real file shifted `57:*` → `90:*` → `147:*` →
+  `215:*` across a single feature's life, and the code's own cited id
+  was stale by the time it was read. The plan doc that recorded the
+  rename is the source; the comment that predates it is not.
+- **Drill to the leaf.** A container's stated size is not its child's.
+  One action bar reported 1008 wide; the button inside it was 280. Read
+  the element being checked, not the frame that holds it.
+
+One real case: a form's primary button passed two `ALIGNED` passes on
+raster measurement while its file key and current node id sat one grep
+away in the plan doc. The button was rendering at ~7% of the card's
+width against the spec's ~28% — caught only when a human asked whether
+the width matched, and settled in one query once the node was read
+(`Button/Contained`, 280×36).
+
 - **The spec is a live design node** (a Figma URL or node id — see the compare
   step's structured-layout rule). Read its stated values directly; no image
   measurement and no calibration are owed. Prefer this whenever a node exists —
@@ -342,6 +369,39 @@ gap exists", and flipped between two token values on alternating impressions —
 calibration (a 401px spec width against the build's 2184px, factor 5.446)
 settled it in a single pass, the spec predicting 16.3px against candidates that
 measured 0px and 16px.
+
+#### Which values to take literally
+
+A node's stated numbers are exact, but not every number transfers to
+the build as written. Sort each property before applying it:
+
+- **Intrinsic** — an element's own width and height, a radius, a font
+  size, a fixed inset. Take the literal value. These do not scale with
+  the screen: 280×36 on a 1024pt reference frame is 280×36 on an
+  1180pt device.
+- **Relative** — a column's share of its row, a table's fill, a gap
+  that flexes with its container. Take the *relationship* (a flex
+  ratio, a token step), not the pixel. A literal 616 for a two-thirds
+  pane is correct on the reference frame and wrong on any other width;
+  `flex: 2` is what the design means.
+
+The reference frame and the device rarely share a width, so this split
+is what makes a literal value right in one class and wrong in the
+other — it does not depend on whether the widget is shared.
+
+**Shared widgets take the literal value at the call site, not inside
+themselves.** A general-purpose button, field, or chip must stay
+general; the design decision lands where the caller sizes it (a
+`SizedBox` around the shared widget, the pattern `SaveButton` /
+`EditButton` already use in one codebase). "Cannot modify the shared
+widget" therefore rarely blocks the literal value — it only forbids
+baking it into the shared source.
+
+The genuine exception is narrower: a shared component whose intrinsic
+geometry is fixed for every caller (a table's row height, a dropdown's
+built-in padding), where a one-caller change would ripple. There, name
+the delta and the reason and leave it as a knowing exception in the
+report — never a silent "close enough".
 
 ### 1..max — render, compare, mend
 
