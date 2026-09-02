@@ -31,6 +31,53 @@ For a flow/sequence section, prefer a real diagram over a text arrow-list
 so flag this explicitly to the user after writing, and be ready to revert to
 the text-arrow form if it doesn't render.
 
+Two diagrams, divided by the question each answers. They are not
+interchangeable and one does not stand in for the other.
+
+**A sequence diagram carries the API path** — who calls whom, in what order,
+carrying what. Every participant is a real class or service boundary, never a
+vague "App" or "Backend". Every message names the data shape it carries, not
+just a verb. This is where the flow's entry points and the exact moment data
+lands in local storage are read.
+
+```mermaid
+sequenceDiagram
+    participant UI as MeasureScreen
+    participant Repo as MeasureRepository
+    participant Local as LocalStore
+    participant Api as MeasureApiClient
+    UI->>Repo: submit(Measurement)
+    Repo->>Local: save(Measurement)
+    Repo->>Api: upload(MeasurementDto)
+    Api-->>Repo: MeasureResponse | error
+```
+
+**A flowchart carries the decision paths** — under what condition each branch
+is taken: each API error code's own handling, what survives when the app is
+killed mid-flow, what triggers recovery on the next launch, when a retry fires
+and under what bound. A sequence diagram's `alt`/`else` collapses once branches
+multiply and converge; a flowchart carries them.
+
+```mermaid
+flowchart TD
+    A[upload] --> B{response}
+    B -->|200| C[markSynced]
+    B -->|409| D[markDuplicate]
+    B -->|5xx / timeout| E[keepPending]
+    E --> F{next launch or network back}
+    F -->|yes| A
+```
+
+A single "failure" arrow is the shape to avoid — it collapses behaviours the
+reviewer needs to tell apart. Each error code earns its own branch.
+
+Every participant, message, and branch obeys the sourcing rule: a real
+`file:line` for the code behind it. A branch you go looking for and cannot
+find is not drawn as though it exists — an unhandled error code, an endpoint
+nothing calls, a recovery path absent from the code. Those are absences, and
+they belong in the gaps section under the scoping rule below, never in the
+descriptive flow.
+
 ## Code citations
 
 Class/type name only — drop inheritance chains ("extends X") unless
