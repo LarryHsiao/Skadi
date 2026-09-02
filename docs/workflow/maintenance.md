@@ -28,6 +28,57 @@
   a one-off exception threaded into a skill's prose. The container is the
   point (`docs/style/universal.md`).
 
+## Escalation ladder — memory, doc, skill, hook
+
+*Lesson write-back* above covers the first climb, memory into a doc. Past that
+lie two more rungs, and each buys reliability in a different currency.
+
+| Rung | Who triggers it | What it costs |
+|---|---|---|
+| Memory entry | this project, this machine | nothing |
+| `docs/workflow/*.md` | the model, on recognising the activity — a **soft** trigger | attention, when read |
+| `skills/*/SKILL.md` | the user, by typing `/name` | nothing until invoked |
+| `hooks/*.sh` | nobody — it fires on its own | tokens on **every** prompt |
+
+**Doc → skill: does the rule still apply when nobody invokes it?** A doc
+constrains an activity you were already doing; a skill *is* the doing. Climb
+when the guidance carries an ordered procedure, drives tools or hooks, or must
+be startable by name mid-session.
+
+- *Climb:* `/board` — the content is "run these hooks in this order, print the
+  URL". The steps are the substance, and prose cannot execute them.
+- *Stay:* `outline-review-doc.md` — constraints on a document the user already
+  asked for. A skill would add an invocation to remember, and the constraints
+  must hold on the turns nobody remembers it.
+
+**Skill or doc → hook: is it missed in practice, and missed silently?**
+Promote on evidence, never on anticipation — a `/este` rubric row low across
+several consecutive runs, or the same omission recurring. A hook is the only
+rung that fires unbidden, and the only one charged whether or not the activity
+occurs. Reach for a *blocking* hook when the harm is irreversible
+(`dir-guard.sh`), a *reminding* one when the failure is an omission.
+
+- *Climb:* `compliance-review-reminder.sh` — owed on every task-closing turn,
+  with no prose-detectable "about to claim done" signal, and the miss left no
+  trace. Its shape is defended under *Why the reminder hooks are shaped as they
+  are* below.
+- *Stay:* a clause covering a rare branch. Charged per prompt, collected once a
+  month — it belongs in the CLAUDE.md section, charged once per session.
+
+**Descent: remove it and watch the row.** No rung is permanent. The test that
+promoted a rule, read backwards, demotes it: take it out, watch its `/este` row
+across several runs, restore it if the row falls. Nothing here has been demoted
+yet — this records the method, not a pending case.
+
+- *Demote:* a hook whose rule the config keeps without it, measured that way.
+- *Do not:* demote because no incident has occurred under the guard. Absence of
+  failure while guarded is not evidence the guard is idle.
+
+`/este` is the evidence for both directions, but it reaches only rules bearing
+a `pulse-rubric.json` row. For one that does not, the evidence is a counted
+recurrence in transcripts — name how many and over what span, rather than
+climbing on a feeling.
+
 ## Compaction thresholds
 
 The always-loaded set is CLAUDE.md plus the `@`-loaded style docs. Mind the

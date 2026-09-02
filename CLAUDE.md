@@ -261,7 +261,7 @@ Read when the activity is in play (not auto-loaded):
 - Delegating to subagents: `docs/workflow/delegation.md` — roster, effort, escalation ladder, report contract; read before any dispatch beyond a trivial lookup
 - Judgment rubrics: `docs/workflow/judgment.md` — wrong-direction signals, when to escalate or ask, what "done" means; read when a task wavers
 - Dispatch templates: `docs/workflow/dispatch-templates.md` — fill-in prompts for search / implement / refactor / research / review
-- Maintaining this config: `docs/workflow/maintenance.md` — edit covenant, lesson graduation, compaction thresholds; read before changing skadi's rules
+- Maintaining this config: `docs/workflow/maintenance.md` — edit covenant, lesson graduation and the doc→skill→hook ladder, compaction thresholds; read before changing skadi's rules
 - Technical review docs (Outline): `docs/workflow/outline-review-doc.md` — Seshat MCP usage, sourcing discipline, language matching, sequence-vs-flowchart division, section structure; read before writing or updating a review doc on jubo.getoutline.com
 
 ## Grammar Check
