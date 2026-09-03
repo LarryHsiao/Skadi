@@ -1,6 +1,6 @@
 ---
 name: narvi
-description: Use when the user runs /narvi <pr-or-mr-url> [--dry-run]. Picks up every unresolved comment on a GitHub PR or GitLab MR — both inline review-thread comments anchored to a diff line and overview comments at the PR's top level (Mithrandir's verdicts, free-form review-body notes) — asks once before touching the branch, dispatches the smith subagent comment-by-comment (one commit per comment, each referencing the comment URL in its footer), verifies the branch once every comment is addressed (the project's detected test and lint commands), then pushes the branch so the forge updates. De-duplicates across re-runs by grepping the branch's commit log for the trail marker. Host-agnostic; routes to GitHub or GitLab from the URL. Does not resolve review threads — the human eyeballs the work and resolves.
+description: Use when the user runs /narvi <pr-or-mr-url> [--dry-run]. Picks up every unresolved comment on a GitHub PR or GitLab MR — both inline review-thread comments anchored to a diff line and overview comments at the PR's top level (Mithrandir's verdicts, free-form review-body notes) — asks once before touching the branch, dispatches the smith subagent comment-by-comment (one commit per comment, each referencing the comment URL in its footer), verifies the branch once every comment is addressed (the project's detected test and lint commands), weighs its own amendments by Mithrandir's axes before pushing — a standing Blocker halts the run rather than handing the reviewer fresh grounds for comment — then pushes the branch so the forge updates. De-duplicates across re-runs by grepping the branch's commit log for the trail marker. Host-agnostic; routes to GitHub or GitLab from the URL. Does not resolve review threads — the human eyeballs the work and resolves.
 purpose: Picks up unresolved comments on a PR or MR and answers each with a commit.
 user_invocable: true
 ---
@@ -156,7 +156,17 @@ e. **Acquire the isolated workspace.** Invoke the read hook (`<read-hook> <url>`
 
    The human's source-repo checkout is **not** disturbed by any of this — the worktree (or temp clone) is its own isolated tree, and the human may keep editing, building, or running tests in the source repo while Narvi works. There is no pre-flight clean-tree gate on the source repo for the same reason: the source repo's working state is irrelevant to Narvi's commits.
 
-   Hold the workspace path and the resolved `base` for steps 2 through 9.
+f. **Mark the pre-amendment tip.** Immediately after the pull, before any smith runs, record the workspace's HEAD:
+
+   ```bash
+   git -C <workspace> rev-parse HEAD
+   ```
+
+   Call this sha `<pre>`. It is the remote tip of the head branch — and so exactly the code the reviewer has already read and commented on. Every commit after it is Narvi's own hand, and step 7b weighs `<pre>..HEAD` on that basis.
+
+   Capture it explicitly here rather than deriving it later from `origin/<head>`. That ref names the same commit at this moment, but it is not a dependable record of it: any fetch during the run may move it, and in clone-fallback mode the helper re-points origin at the source repo's remote during acquire. A sha held in hand cannot drift.
+
+   Hold the workspace path, the resolved `base`, and `<pre>` for steps 2 through 10 — the workspace is needed to the end, since step 10 is where it is released or kept.
 
 ### 2. Fetch every comment
 
@@ -281,7 +291,7 @@ d. After each dispatch, run `git -C <workspace> status --porcelain` and pass the
 
 The smith's own test run (`narvi.md`, *What you may do*) is self-graded and conditional — it fires only "if the project has an obvious test command and your change touches tested code." Before any push, the skill body runs its own gate on the branch as it now stands, once, independent of what the smith did or didn't run.
 
-If no entry returned `[FORGED]`, skip this step — there is nothing new to verify — and fall through to step 8, which skips the push in that case too.
+If no entry returned `[FORGED]`, skip this step — there is nothing new to verify. Step 7b skips for the same reason, and step 8 skips the push.
 
 Otherwise, resolve the project's commands from the workspace — the same detection `/argonath` uses:
 
@@ -296,11 +306,81 @@ cd <workspace> && ~/.claude/hooks/argonath-run.sh Tests <test-command...>
 cd <workspace> && ~/.claude/hooks/argonath-run.sh Lint <lint-command...>
 ```
 
-- **Both `ok: true` (or empty/skipped)** — proceed to step 8.
+- **Both `ok: true` (or empty/skipped)** — proceed to step 7b.
 - **Either `ok: false`** — the run halts, the same as a step 6d scope-miss: do not push, do not release the workspace. Surface the failing command, its summary, and the log path in the report (step 10). The commits already made stand in the workspace, untouched, for the human to inspect.
-- **Both commands empty** (`stack: unknown`, or the stack carries neither) — nothing to run; proceed to step 8, and note in the report that verification was skipped for lack of a command. This is not a pass — it is the same "no command" honesty `/argonath` renders as `⚪ skipped`.
+- **Both commands empty** (`stack: unknown`, or the stack carries neither) — nothing to run; proceed to step 7b, and note in the report that verification was skipped for lack of a command. This is not a pass — it is the same "no command" honesty `/argonath` renders as `⚪ skipped`.
 
 This step verifies the branch **once, after every comment is addressed** — not per-comment. One project-wide run stands in for however many (or few) per-comment runs the smith made on its own, and catches an amendment that broke something the smith's own test pass never touched.
+
+### 7b. Weigh the amendments
+
+Tests and lint prove the branch still runs; neither asks whether the smith's own code is *good*. A reviewer returning to a mended PR reads what Narvi wrote, and a fresh flaw there earns a fresh comment — which Narvi would then be summoned to answer. This step weighs the amendment before it reaches the forge, so the mend does not become the next thing to mend.
+
+Skip it when no entry returned `[FORGED]` — there is nothing new to weigh. Step 7's halt never reaches here.
+
+**Weigh only what the smith wrote.** The range is `<pre>..HEAD`, with `<pre>` the sha captured in pre-flight step 1f:
+
+```bash
+git -C <workspace> diff <pre>..HEAD
+```
+
+Never `<base>..HEAD`. That range carries the original PR work the reviewer has already accepted; findings on it are noise, and acting on them would widen the very diff the reviewer must read a second time.
+
+Weigh that diff by Mithrandir's axis pass — the thirteen axes, the close per-symbol read, and the `## To pass` list grouped by severity (`skills/mithrandir/SKILL.md`, read-path step 4). Run the weighing in-skill against the captured diff; do not invoke a forge-writing verb, and render no verdict to chat — only the findings feed this gate.
+
+Neither `--verify` nor `--deep` rides here, and the reasons differ:
+
+- **`--verify`** convenes its panel over findings the pass has already named, so it can only drop or downgrade one — never raise a flaw the pass missed. Against a gate that exists to catch new flaws it buys nothing, at three opus calls per finding.
+- **`--deep`** cures the dilution of one reader's attention across many files. An amendment diff — one comment, one narrow mend — does not suffer it.
+
+**Blockers only.** Take the `## To pass` rows graded `Blocker`; leave `Nice to have` and `Nit` where they lie. A nit Mithrandir would raise is not necessarily one the human reviewer will, and chasing them turns a mend into a rewrite — which enlarges the reviewer's next read rather than sparing it. Name the untaken rows in the report all the same, so the human sees what was weighed and passed over.
+
+- **No Blocker** — proceed to step 8.
+- **Any Blocker** — one mend round, and one only.
+
+#### The mend round
+
+A Blocker in Narvi's own code is a flaw Narvi can answer, so it tries once before giving the work back:
+
+a. **Dispatch the smith per Blocker**, in order. Load the same `<skill-dir>/narvi.md` prompt as step 6, and build this tail block:
+
+```
+## Blocker to close
+
+- PR/MR URL: <url>
+- Kind: mend
+- Repo root: <workspace-path>
+- Branch: <head>
+- Base: <base>
+- Amendment range: <pre>..HEAD
+
+### The finding
+
+- Axis: <the axis the To-pass row wounds>
+- Where: <path>:<line>
+- Blocker: <the To-pass row's text, verbatim>
+
+### The amendment diff (truncated to first 200 lines)
+
+<first 200 lines of `git -C <workspace> diff <pre>..HEAD`>
+
+Close this blocker. Commit it. Return [FORGED] or [ABORT].
+```
+
+   Dispatch via the Agent tool, `subagent_type: general-purpose`, **`model: opus` — passed explicitly on every call**, exactly as step 6b does. Omit it and the smith silently inherits the session's model; under a `/durin` or `/moria` sweep running lighter, the very dispatch meant to close a Blocker would be the weakest of the run, and nothing in the report would say so.
+
+   Each mend lands its own commit, as every Narvi commit does — no amending, no rebasing. A `[ABORT]` here is not a failure of the run; it means that Blocker stands unmended, and it is carried into (d).
+
+b. **Re-run the porcelain gate** after each mend dispatch, exactly as step 6d does, drift filter and all. A mend that leaves real work uncommitted halts the run the same way a scope-miss does.
+
+c. **Re-run step 7** — a mend is code, and it earns the same tests and lint the amendments did. A failure halts the run as step 7's failure halts.
+
+d. **Re-weigh `<pre>..HEAD` once.** The range is unchanged; the mend commits now fall inside it, so the weigh reads the amendment as the reviewer will finally see it.
+
+- **Clean** — proceed to step 8. The report names how many Blockers the round closed.
+- **Any Blocker still standing** — whether unmended, mended badly, or newly raised by the mend itself — halt exactly as step 7's failure halts: do not push, do not release the workspace. Name each in the step-10 report with its axis, `path:line`, and text. The commits stand in the workspace for the human to finish by their own hand.
+
+**The cap is one round, and it is not negotiable by judgment.** Do not weigh a third time, however close the second came. Narvi runs unattended under `/durin` and `/moria`, where a loop that mends its own mends has no one to stop it; `/feanor`'s `--max` backstop is the same reasoning, and its failure is the same failure — loud, with the remaining gaps named. A second standing Blocker is the signal that this amendment wants a human, not another agent.
 
 ### 8. Push
 
@@ -371,15 +451,40 @@ Narvi at <url> — <branch>
 | 2 | overview | (whole-PR) by @<author>     | forged | <sha7> — <summary> | failed (<error>) |
 | 3 | inline   | <path>:<line> by @<author>  | aborted | <reason> | — |
 
+Weighed: <one of the five below>
 Pushed: yes / no (<reason>)
 Workspace: released / kept at <path> (<reason>)
 ```
+
+The `Weighed:` row takes exactly one of five values, and between them they cover every way step 7b can be left. Naming the state precisely is what lets `/durin` tell a `weigh-failed` outcome from a `verify-failed` one:
+
+| Value | Means |
+|---|---|
+| `sound` | Weighed on the first pass, no Blocker. |
+| `sound after mend (<N> closed)` | A Blocker stood, the one mend round closed it, the re-weigh came back clean. |
+| `<N> blocker(s) standing` | A Blocker survived the mend round, or the round could not run. The push was halted here. |
+| `skipped (nothing forged)` | No entry returned `[FORGED]`; there was no amendment to weigh. |
+| `not reached (<reason>)` | Something forged, but the run halted before the weigh — step 7's verification failed, or a mend's own re-verification did. Name which. |
+
+When step 7b left Blockers standing, render them beneath, so the human sees what halted the push without re-weighing by hand:
+
+```
+Blockers standing after the weigh:
+
+| Axis | Where | Finding |
+|---|---|---|
+| correctness | lib/foo.dart:51 | <the To-pass row's text> |
+```
+
+When the mend round closed any Blocker, name what closed it in the same shape under `Closed by mend:` — with the commit `<sha7>` as a markdown link to the forge. A count alone tells the human that something was mended but not what, leaving them a `git log` to run before they can judge it.
+
+When the weigh named `Nice to have` or `Nit` rows, list them in the same shape under `Passed over:` — they did not halt the run, and the human may still want them before a reviewer does.
 
 Each comment-cell is a markdown link to the comment URL. Each forged-row's `<sha7>` is a markdown link to the commit on the forge (compose the URL from the PR/MR base — `<repo-url>/commit/<sha>` for GitHub, `<repo-url>/-/commit/<sha>` for GitLab).
 
 After rendering, decide the workspace fate:
 
-- **Release on the success path.** If verification passed (or was skipped for lack of a command), the push succeeded, and no scope-miss tripped the post-dispatch porcelain gate, release the workspace:
+- **Release on the success path.** If verification passed (or was skipped for lack of a command), the weigh left no Blocker standing, the push succeeded, and no scope-miss tripped the post-dispatch porcelain gate, release the workspace:
 
   ```bash
   ~/.claude/hooks/skadi-worktree.sh release <workspace>
@@ -387,13 +492,13 @@ After rendering, decide the workspace fate:
 
   The helper handles both worktree and temp-clone modes silently. The `Workspace:` row reads `released`.
 
-- **Keep on abort or failure.** If step 6d found scope-miss, step 7's verification failed, or step 8's push failed, leave the workspace intact under `$TMPDIR` and name the reason. The human can inspect, recover any salvageable work, and release by hand with the same helper verb when done. The `Workspace:` row reads `kept at <path> (<reason>)`. (A pre-flight `pull --ff-only` rejection is a separate, earlier failure — pre-flight step 1e already releases that workspace itself, since it holds no smith work yet; the run never reaches step 10 in that case.)
+- **Keep on abort or failure.** If step 6d found scope-miss, step 7's verification failed, step 7b halted for any of its three reasons (a Blocker still standing, a mend's porcelain trip, or a mend's failing re-verification), or step 8's push failed, leave the workspace intact under `$TMPDIR` and name the reason. The human can inspect, recover any salvageable work, and release by hand with the same helper verb when done. The `Workspace:` row reads `kept at <path> (<reason>)`. (A pre-flight `pull --ff-only` rejection is a separate, earlier failure — pre-flight step 1e already releases that workspace itself, since it holds no smith work yet; the run never reaches step 10 in that case.)
 
 ## After Narvi
 
 The threads remain open on the forge; the overview comments remain on the page. Narvi leaves only the one terse ack per addressed comment (a short confirmation in the thread's language plus the commit link, e.g. *`Done in [`<sha7>`](<url>)`* / *`已處理 [`<sha7>`](<url>)`*); it does not resolve, does not react, does not start a conversation. The reviewer eyeballs each amendment with their own hand. Two next steps stand:
 
-- **Re-weigh.** Once the branch settles, `/mithrandir bless <url>` (alias `/mithrandir recheck <url>`) re-weighs the PR/MR fresh, finds Mithrandir's prior counsel on the thread, and threads a follow-up — *All resolve*, *Partial okay*, or counsel withheld. Built exactly for amended PRs.
+- **Re-weigh.** Once the branch settles, `/mithrandir bless <url>` (alias `/mithrandir recheck <url>`) re-weighs the PR/MR fresh, finds Mithrandir's prior counsel on the thread, and threads a follow-up — *All resolve*, *Partial okay*, or counsel withheld. Built exactly for amended PRs. This is not step 7b twice over: 7b weighs the amendment alone, privately, to guard what Narvi pushes; `bless` weighs the whole PR and speaks on the forge. One is a gate, the other a verdict.
 - **Resolve.** The reviewer walks each thread, eyeballs the amendment against their note, and clicks `Resolve` (GitHub) or `Resolve thread` (GitLab) by hand. Overview comments on GitHub have no forge-side resolution; the per-thread ack and the trail marker (`See: <url>` in the commit footer) are the records.
 
 Narvi does not auto-invoke either. The verbs stay separate so the human chooses when to re-summon.
@@ -408,7 +513,8 @@ Narvi does not auto-invoke either. The verbs stay separate so the human chooses 
 - Narvi never resolves a review thread, never reacts. The single per-thread ack after a successful push is the only forge-write beyond the push itself. Reply-hook failures are recorded but do not roll back commits — the trail-marker footer remains the canonical record.
 - An abort on one comment does not stop the run. Other comments still get their turn; the report names which succeeded and which did not.
 - If the smith leaves real work uncommitted (after the environment-drift filter), the run halts without resetting or cleaning the workspace. The commits already on the branch stay; nothing is pushed; the workspace is **kept**, not released, exactly as the smith left it, so the human can inspect the stray edits directly.
-- The workspace is **released on the success path** (verification passed or was skipped, push succeeded, no scope-miss) and **kept on any abort or failure**. The release verb is idempotent; the human may re-run it at any time to clean up a kept workspace.
+- The workspace is **released on the success path** (verification passed or was skipped, the weigh left no Blocker, push succeeded, no scope-miss) and **kept on any abort or failure**. The release verb is idempotent; the human may re-run it at any time to clean up a kept workspace.
 - Before any push, the branch is verified once via the same detection hooks `/argonath` uses (`argonath-detect.sh` + `argonath-run.sh`, tests and lint). A failing command halts the run exactly like a scope-miss: no push, workspace kept, the failure named in the report. No detected command is not a failure — it is named `skipped`, the same honesty `/argonath` renders for an absent command.
+- Before any push, the smith's own code is weighed once by Mithrandir's axes over `<pre>..HEAD` — the amendment alone, never the whole branch. A standing `Blocker` halts the run like a failing test; `Nice to have` and `Nit` rows are reported and passed over. The gate guards the reviewer's next read: a flaw Narvi introduces would earn a fresh comment, and Narvi would be summoned to answer its own leavings.
 - Do not surface forge tokens in logs, responses, or saved files.
 - Aborts are first-class outcomes, not failures. Name the flaw plainly; do not retry.

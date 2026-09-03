@@ -135,7 +135,8 @@ Moria — STIRRED   (or)   Moria — QUIET
 Decide the verdict:
 
 - **STIRRED** if any repo's Durin landed a commit — any per-URL outcome `forged N/N`,
-  `forged M/N`, `verify-failed`, or `push-failed` on any PR/MR in any hall.
+  `forged M/N`, `verify-failed`, `weigh-failed`, or `push-failed` on any PR/MR in any
+  hall.
 - **QUIET** if every hall was quiet — no unaddressed comments anywhere, or only
   `dry-run` / `error` rows with no commit landed.
 
