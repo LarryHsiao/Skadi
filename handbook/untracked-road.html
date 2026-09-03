@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Untracked Road</title>
+    <link rel="stylesheet" href="../previews/henneth/skadi-theme.css" />
+    <style>
+      .flow {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .backnav {
+        max-width: 1100px;
+        margin: 0 auto 0.6rem;
+      }
+      .backnav a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 0.9rem;
+      }
+      .backnav a:hover {
+        text-decoration: underline;
+      }
+      .diagram {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 1rem 0.6rem;
+        margin: 0.6rem 0 1.2rem;
+        overflow-x: auto;
+      }
+      .diagram pre {
+        margin: 0;
+      }
+      .small {
+        font-size: 0.85rem;
+        color: #6b5d44;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="backnav"><a href="index.html">← Skadi Handbook</a></div>
+
+    <div class="flow">
+      <h1>The Untracked Road</h1>
+      <p class="sub">
+        One diagram, top to bottom — PRD and mockups to a merged change —
+        drawn without an issue tracker in the loop.
+      </p>
+
+      <p class="note">
+        Chapter II tells the same road with a ticket at its centre — every
+        gate a comment on a Jira or YouTrack thread. This chapter strips that
+        out: no tracker, no ticket, no bracketed gate token. Where Chapter II
+        names <span class="name">/council</span>,
+        <span class="name">/glorfindel</span>,
+        <span class="name">/working</span>,
+        <span class="name">/celebrimbor</span>,
+        <span class="name">/aule</span> and the sweep layer
+        (<span class="name">/anduin</span>,
+        <span class="name">/rhovanion</span>,
+        <span class="name">/amon-sul</span>) as the engine driving Plan and
+        Forge, this chapter has no engine to name — a human writes the plan,
+        opens the branch, and drives the implementation by hand. Reach for
+        this road when there is no tracker to summon, or when the shape of
+        the whole arc matters more than which skill drives which step.
+      </p>
+
+      <p class="small" style="margin-top: 0">
+        Rendered in the browser by mermaid, fetched from a CDN — offline it
+        falls back to its plain source, which still reads.
+      </p>
+
+      <h2>Input to merge</h2>
+      <div class="diagram">
+        <pre class="mermaid">
+graph TD
+    PRD(["PRD"]):::input
+    FIG(["Figma mockups"]):::input
+
+    PRD --> MERGE["combine into<br/>requirements + visual spec"]
+    FIG --> MERGE
+
+    subgraph PLAN["I. PLAN"]
+      direction TB
+      DESIGNTOOL["figma:figma-design-to-code<br/>figma:figma-generate-diagram<br/>mockup to structure"] --> PLANDOC["write the implementation plan"]
+      PLANDOC --> GALA["/galadriel<br/>plan mirror &amp; progress board"]
+    end
+
+    subgraph FORGE["II. FORGE"]
+      direction TB
+      BRANCH["open a branch"] --> IMPL["implement per the plan"]
+      IMPL -.-> NARYA["/narya<br/>hot reload — continuous through implementation"]
+      PR["open a PR/MR"]
+    end
+
+    subgraph LOOP["The Implementation Loop — inside &ldquo;implement per the plan&rdquo;"]
+      direction TB
+      STEP["one step at a time<br/>layered, never sliced horizontally"] --> STEPCHECK{"this step's<br/>verification passes?"}
+      STEPCHECK -->|"yes — next step"| STEP
+      STEPCHECK -->|"scope drifted"| RESIZE["re-render the size gauge<br/>wait for the human's word"] -.-> STEP
+      STEPCHECK -->|"all steps done"| COMPLY["Compliance Review<br/>spec compliance → code quality"]
+      COMPLY --> FRESH["fresh verification<br/>static analysis &amp; tests, rerun this turn"]
+    end
+
+    subgraph GATE["Pre-commit gate"]
+      direction TB
+      NAZGUL["/nazgul<br/>nine checks, one by one"] --> ARGO["/argonath<br/>diff &amp; merge-risk sweep"]
+      ARGO --> COMMIT["/commit<br/>compose the message, commit"]
+    end
+
+    subgraph REVIEW["III. REVIEW &amp; MEND"]
+      direction TB
+      MITH["/mithrandir<br/>multi-axis verdict"] --> MAND["/mandos<br/>is this the right thing"]
+      MAND --> NARVI["/narvi<br/>one commit per comment"]
+      NARVI --> DURIN["/durin<br/>repo-wide comment sweep"]
+      DURIN --> MORIA["/moria<br/>cross-repo mend patrol"]
+    end
+
+    MERGE_STEP["/celebrant<br/>merge, push, prune the branch"]
+
+    subgraph OPS["Daily / upkeep"]
+      direction LR
+      PREFLIGHT["/preflight<br/>periodic maintenance checklist"]
+      EOD["/eod<br/>check for uncommitted work before signing off"]
+      CLEANUP["/cleanup-dev<br/>clear dev caches"]
+    end
+
+    MERGE --> PLANDOC
+    GALA -.-> BRANCH
+    IMPL --> STEP
+    FRESH --> PR
+    PR --> GATE
+    GATE --> COMMIT
+    COMMIT --> MITH
+    MITH -->|"merge verdict"| MERGE_STEP
+    MAND -->|"fixed"| MERGE_STEP
+    MERGE_STEP --> DONE(["merged"]):::done
+
+    DONE ~~~ PREFLIGHT
+
+    classDef input fill:#c9a97a,stroke:#8a6d4a,color:#2a2113
+    classDef done fill:#7d9bae,stroke:#4a6e82,color:#0f1c22
+    class PRD,FIG input
+    class DONE done
+    style PLAN fill:#ece0c3,stroke:#cdbfa0
+    style FORGE fill:#dfeade,stroke:#cdbfa0
+    style LOOP fill:#f6efe0,stroke:#cdbfa0
+    style GATE fill:#f4ecd9,stroke:#cdbfa0
+    style REVIEW fill:#dde7f0,stroke:#cdbfa0
+    style OPS fill:#f4ecd9,stroke:#cdbfa0
+        </pre>
+      </div>
+
+      <h2>Reading it</h2>
+      <ul>
+        <li>
+          <b>Input</b> — the PRD and the Figma mockups fold into one
+          requirements-plus-visual-spec;
+          <span class="name">figma:figma-design-to-code</span> and
+          <span class="name">figma:figma-generate-diagram</span> turn the
+          mockup into a structured description the plan can cite.
+        </li>
+        <li>
+          <b>Plan</b> — the plan is written by hand against that spec;
+          <span class="name">/galadriel</span> renders the plan file into a
+          progress mirror.
+        </li>
+        <li>
+          <b>Forge</b> — a branch opens, implementation follows the plan;
+          <span class="name">/narya</span> hot-reloads continuously through
+          it; the PR/MR opens only once the Implementation Loop below has run
+          its course.
+        </li>
+        <li>
+          <b>The Implementation Loop</b> — the rhythm inside &ldquo;implement
+          per the plan&rdquo;: one step at a time, each layered on what
+          already runs rather than sliced horizontally; each step carries its
+          own verification, and a step that fails or a scope that has grown
+          past its gauge stops the loop rather than pushing through. Once
+          every step closes, Compliance Review weighs spec compliance then
+          code quality, and a fresh verification — this turn's own run of the
+          static analysis and test suite — closes the loop before the PR
+          opens.
+        </li>
+        <li>
+          <b>Pre-commit gate</b> — <span class="name">/nazgul</span> walks
+          its nine checks; <span class="name">/argonath</span> weighs the
+          diff and the merge risk together;
+          <span class="name">/commit</span> composes the message and
+          commits.
+        </li>
+        <li>
+          <b>Review &amp; Mend</b> — <span class="name">/mithrandir</span>
+          renders the multi-axis verdict;
+          <span class="name">/mandos</span> checks the direction is right;
+          <span class="name">/narvi</span> answers each comment with its own
+          commit; <span class="name">/durin</span> and
+          <span class="name">/moria</span> carry that sweep across a repo and
+          across repos.
+        </li>
+        <li>
+          <b>Merge</b> — <span class="name">/celebrant</span> completes a
+          <code>--no-ff</code> merge, pushes, and prunes the branch.
+        </li>
+        <li>
+          <b>Daily / upkeep</b> — <span class="name">/preflight</span>,
+          <span class="name">/eod</span>, and
+          <span class="name">/cleanup-dev</span> keep the environment sound,
+          running alongside the feature road rather than on it.
+        </li>
+      </ul>
+
+      <p class="small">
+        See Chapter I for the Implementation Loop's own long form — Task
+        Sizing, Acceptance, Approval, Compliance, Verification — and Chapter
+        II for the same arc with a tracker at its centre.
+      </p>
+    </div>
+
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "base",
+        themeVariables: {
+          fontFamily: "Iowan Old Style, Palatino Linotype, Georgia, serif",
+          primaryColor: "#fbf6ea",
+          primaryBorderColor: "#cdbfa0",
+          primaryTextColor: "#2b2419",
+          lineColor: "#7a5a2e",
+          actorBkg: "#fbf6ea",
+          actorBorder: "#7a5a2e",
+          actorTextColor: "#2b2419",
+          actorLineColor: "#cdbfa0",
+          signalColor: "#7a5a2e",
+          signalTextColor: "#2b2419",
+          noteBkgColor: "#f6efe0",
+          noteBorderColor: "#7a5a2e",
+          noteTextColor: "#2b2419",
+          sequenceNumberColor: "#fbf6ea",
+          labelBoxBkgColor: "#ece0c3",
+          labelBoxBorderColor: "#cdbfa0",
+          labelTextColor: "#2b2419",
+        },
+      });
+    </script>
+  </body>
+</html>
