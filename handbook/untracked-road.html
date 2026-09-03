@@ -84,7 +84,7 @@ graph TD
 
     subgraph PLAN["I. PLAN"]
       direction TB
-      DESIGNTOOL["figma:figma-design-to-code<br/>figma:figma-generate-diagram<br/>mockup to structure"] --> PLANDOC["write the implementation plan"]
+      PLANDOC["write the implementation plan<br/>by hand, against the merged spec"]
       PLANDOC --> GALA["/galadriel<br/>plan mirror &amp; progress board"]
     end
 
@@ -157,10 +157,8 @@ graph TD
       <ul>
         <li>
           <b>Input</b> — the PRD and the Figma mockups fold into one
-          requirements-plus-visual-spec;
-          <span class="name">figma:figma-design-to-code</span> and
-          <span class="name">figma:figma-generate-diagram</span> turn the
-          mockup into a structured description the plan can cite.
+          requirements-plus-visual-spec, read by hand — this road names no
+          tool for that step.
         </li>
         <li>
           <b>Plan</b> — the plan is written by hand against that spec;
