@@ -269,6 +269,10 @@
           },
           {
             "type": "command",
+            "command": "~/.claude/hooks/worklog-reminder.sh"
+          },
+          {
+            "type": "command",
             "command": "~/.claude/hooks/handoff-poll.sh"
           },
           {
