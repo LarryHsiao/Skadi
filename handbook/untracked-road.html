@@ -88,6 +88,8 @@ graph TD
       PLANDOC --> GALA["/galadriel<br/>plan mirror &amp; progress board"]
     end
 
+    FFGATE["Free-Form Gate<br/>Size · Acceptance · Non-goals<br/>human confirms before Forge begins"]
+
     subgraph FORGE["II. FORGE"]
       direction TB
       BRANCH["open a branch"] --> IMPL["implement per the plan"]
@@ -97,7 +99,7 @@ graph TD
 
     subgraph LOOP["The Implementation Loop — inside &ldquo;implement per the plan&rdquo;"]
       direction TB
-      STEP["one step at a time<br/>layered, never sliced horizontally"] --> STEPCHECK{"this step's<br/>verification passes?"}
+      STEP["one step at a time<br/>its unit test lands with it<br/>layered, never sliced horizontally"] --> STEPCHECK{"step's test passes,<br/>and any Acceptance line<br/>it closes checks out?"}
       STEPCHECK -->|"yes — next step"| STEP
       STEPCHECK -->|"scope drifted"| RESIZE["re-render the size gauge<br/>wait for the human's word"] -.-> STEP
       STEPCHECK -->|"all steps done"| COMPLY["Compliance Review<br/>spec compliance → code quality"]
@@ -128,7 +130,10 @@ graph TD
     end
 
     MERGE --> PLANDOC
-    GALA -.-> BRANCH
+    GALA --> FFGATE
+    FFGATE --> BRANCH
+    FFGATE -.-> STEPCHECK
+    FFGATE -.-> COMPLY
     IMPL --> STEP
     FRESH --> PR
     PR --> GATE
@@ -166,6 +171,16 @@ graph TD
           progress mirror.
         </li>
         <li>
+          <b>The Free-Form Gate</b> — before Forge begins, the human is shown
+          the work's size, its Acceptance lines (the observable outcomes a
+          test or an eye can check), and its Non-goals, and confirms before
+          anything is touched. This is where Acceptance Criteria live — not
+          inside the plan document, but in this one gate the human renders
+          judgment on. Every step's verification in the Loop below, and
+          Compliance Review's spec-compliance pass, both check their work
+          against the lines drawn here.
+        </li>
+        <li>
           <b>Forge</b> — a branch opens, implementation follows the plan;
           <span class="name">/narya</span> hot-reloads continuously through
           it; the PR/MR opens only once the Implementation Loop below has run
@@ -174,11 +189,15 @@ graph TD
         <li>
           <b>The Implementation Loop</b> — the rhythm inside &ldquo;implement
           per the plan&rdquo;: one step at a time, each layered on what
-          already runs rather than sliced horizontally; each step carries its
-          own verification, and a step that fails or a scope that has grown
-          past its gauge stops the loop rather than pushing through. Once
-          every step closes, Compliance Review weighs spec compliance then
-          code quality, and a fresh verification — this turn's own run of the
+          already runs rather than sliced horizontally. This is where the
+          unit test is written — new code lands with its test in the same
+          step, never as a follow-up. Each step's verification checks both
+          the test and, where the step closes one, an Acceptance line from
+          the Gate; a step that fails either, or a scope that has grown past
+          its gauge, stops the loop rather than pushing through. Once every
+          step closes, Compliance Review weighs spec compliance — reading
+          the Gate's Acceptance lines as what was promised — then code
+          quality, and a fresh verification — this turn's own run of the
           static analysis and test suite — closes the loop before the PR
           opens.
         </li>
