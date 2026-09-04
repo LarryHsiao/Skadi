@@ -13,6 +13,9 @@
       .backnav {
         max-width: 1100px;
         margin: 0 auto 0.6rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
       }
       .backnav a {
         color: var(--accent);
@@ -21,6 +24,24 @@
       }
       .backnav a:hover {
         text-decoration: underline;
+      }
+      .langtoggle button {
+        font: inherit;
+        font-size: 0.85rem;
+        padding: 0.15rem 0.65rem;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--ink);
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .langtoggle button + button {
+        margin-left: 0.3rem;
+      }
+      .langtoggle button.active {
+        background: var(--accent);
+        color: var(--bg);
+        border-color: var(--accent);
       }
       .diagram {
         background: var(--panel);
@@ -40,46 +61,89 @@
     </style>
   </head>
   <body>
-    <div class="backnav"><a href="index.html">← Skadi Handbook</a></div>
+    <div class="backnav">
+      <a href="index.html">← Skadi Handbook</a>
+      <div class="langtoggle">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="zh">繁中</button>
+      </div>
+    </div>
 
     <div class="flow">
-      <h1>The Untracked Road</h1>
-      <p class="sub">
-        One diagram, top to bottom — PRD and mockups to a merged change —
-        drawn without an issue tracker in the loop.
-      </p>
+      <div class="lang-en">
+        <h1>The Untracked Road</h1>
+        <p class="sub">
+          One diagram, top to bottom — PRD and mockups to a merged change —
+          drawn without an issue tracker in the loop.
+        </p>
 
-      <p class="note">
-        Chapter II tells the same road with a ticket at its centre — every
-        gate a comment on a Jira or YouTrack thread. This chapter strips that
-        out: no tracker, no ticket, no bracketed gate token. Where Chapter II
-        names <span class="name">/council</span>,
-        <span class="name">/glorfindel</span>,
-        <span class="name">/working</span>,
-        <span class="name">/celebrimbor</span>,
-        <span class="name">/aule</span> and the sweep layer
-        (<span class="name">/anduin</span>,
-        <span class="name">/rhovanion</span>,
-        <span class="name">/amon-sul</span>) as the engine driving Plan and
-        Forge — all of them ticket-bound — this chapter strips every one out.
-        Forge is left with no skill to put in their place: a human opens the
-        branch and drives the implementation by hand. Plan is not quite
-        empty, though — <span class="name">/rumil</span> reads a spec and its
-        mockups directly and writes the plan itself, needing no ticket and
-        no tracker to run, so it keeps its place here where the tracker-bound
-        <span class="name">/council</span> could not. Reach for this road
-        when there is no tracker to summon, or when the shape of the whole
-        arc matters more than which skill drives which step.
-      </p>
+        <p class="note">
+          Chapter II tells the same road with a ticket at its centre — every
+          gate a comment on a Jira or YouTrack thread. This chapter strips
+          that out: no tracker, no ticket, no bracketed gate token. Where
+          Chapter II names <span class="name">/council</span>,
+          <span class="name">/glorfindel</span>,
+          <span class="name">/working</span>,
+          <span class="name">/celebrimbor</span>,
+          <span class="name">/aule</span> and the sweep layer
+          (<span class="name">/anduin</span>,
+          <span class="name">/rhovanion</span>,
+          <span class="name">/amon-sul</span>) as the engine driving Plan and
+          Forge — all of them ticket-bound — this chapter strips every one
+          out. Forge is left with no skill to put in their place: a human
+          opens the branch and drives the implementation by hand. Plan is
+          not quite empty, though — <span class="name">/rumil</span> reads a
+          spec and its mockups directly and writes the plan itself, needing
+          no ticket and no tracker to run, so it keeps its place here where
+          the tracker-bound <span class="name">/council</span> could not.
+          Reach for this road when there is no tracker to summon, or when
+          the shape of the whole arc matters more than which skill drives
+          which step.
+        </p>
 
-      <p class="small" style="margin-top: 0">
-        Rendered in the browser by mermaid, fetched from a CDN — offline it
-        falls back to its plain source, which still reads.
-      </p>
+        <p class="small" style="margin-top: 0">
+          Rendered in the browser by mermaid, fetched from a CDN — offline
+          it falls back to its plain source, which still reads.
+        </p>
+      </div>
+      <div class="lang-zh" hidden>
+        <h1>未追蹤之路</h1>
+        <p class="sub">
+          一張圖，從頭到尾——PRD 與 Figma 設計稿到合併的變更——不倚賴任何
+          issue tracker。
+        </p>
 
-      <h2>Input to merged change</h2>
-      <div class="diagram">
-        <pre class="mermaid">
+        <p class="note">
+          Chapter II 講的是同一條路，但把 ticket 擺在正中央——每一關都是
+          Jira 或 YouTrack 討論串上的一則留言。這一章把它整個拿掉：沒有
+          tracker、沒有 ticket、沒有括號包起來的關卡代號。Chapter II
+          點名的 <span class="name">/council</span>、
+          <span class="name">/glorfindel</span>、
+          <span class="name">/working</span>、
+          <span class="name">/celebrimbor</span>、
+          <span class="name">/aule</span> 以及巡邏層
+          （<span class="name">/anduin</span>、
+          <span class="name">/rhovanion</span>、
+          <span class="name">/amon-sul</span>）——全都綁死在 tracker
+          上——這一章把它們全部拿掉。Forge 因此沒有替代的 skill 可用：由人
+          親自開分支、動手實作。但 Plan 並非完全空白——
+          <span class="name">/rumil</span>
+          直接讀規格與設計稿，不需要 ticket 也不需要 tracker，所以它留在
+          這裡，而綁死 tracker 的 <span class="name">/council</span>
+          留不住。沒有 tracker 可以召喚時，或整條路的形狀比哪個 skill
+          驅動哪一步更重要時，就走這條路。
+        </p>
+
+        <p class="small" style="margin-top: 0">
+          由瀏覽器端的 mermaid 從 CDN 抓取渲染——離線時會退回顯示純文字
+          原始碼，仍然讀得懂。
+        </p>
+      </div>
+
+      <div class="lang-en">
+        <h2>Input to merged change</h2>
+        <div class="diagram">
+          <pre class="mermaid">
 graph TD
     PRD(["PRD"]):::input
     FIG(["Figma mockups"]):::input
@@ -160,89 +224,247 @@ graph TD
     style REVIEW fill:#dde7f0,stroke:#cdbfa0
     style OPS fill:#f4ecd9,stroke:#cdbfa0
         </pre>
+        </div>
+      </div>
+      <div class="lang-zh" hidden>
+        <h2>輸入到合併後的變更</h2>
+        <div class="diagram">
+          <pre class="mermaid">
+graph TD
+    PRD(["PRD"]):::input
+    FIG(["Figma 設計稿"]):::input
+
+    subgraph PLAN["I. PLAN"]
+      direction TB
+      RUMIL["/rumil<br/>把 PRD 與設計稿放在一起讀<br/>寫出計畫、提出待答問題"]
+      RUMIL --> GALA["/galadriel<br/>plan 鏡像與進度板"]
+    end
+
+    PRD --> RUMIL
+    FIG --> RUMIL
+
+    FFGATE["Free-Form Gate<br/>規模・Acceptance・Non-goals<br/>人在 Forge 開始前確認"]
+
+    subgraph FORGE["II. FORGE"]
+      direction TB
+      BRANCH["開一個分支"] --> IMPL["依計畫實作"]
+      IMPL -.-> NARYA["/narya<br/>熱重載——實作期間持續"]
+      PR["開出 PR/MR"]
+    end
+
+    subgraph LOOP["Implementation Loop——「依計畫實作」內部節奏"]
+      direction TB
+      STEP["一次一個步驟<br/>unit test 跟著同一步落地<br/>層層疊加，絕不橫向切片"] --> STEPCHECK{"這步的測試通過，<br/>且它收尾的 Acceptance<br/>線也成立？"}
+      STEPCHECK -->|"通過——下一步"| STEP
+      STEPCHECK -->|"規模走樣"| RESIZE["重新出示規模判定<br/>等人的一句話"] -.-> STEP
+      STEPCHECK -->|"全部步驟收尾"| COMPLY["Compliance Review<br/>規格相符 → 程式碼品質"]
+      COMPLY --> FRESH["新鮮驗證<br/>當輪重跑靜態分析與測試"]
+    end
+
+    subgraph GATE["提交前把關"]
+      direction TB
+      NAZGUL["/nazgul<br/>九項 checks 逐一驗證"] --> ARGO["/argonath<br/>diff 與合併風險綜合把關"]
+      ARGO --> COMMIT["/commit<br/>寫訊息並提交"]
+    end
+
+    subgraph REVIEW["III. REVIEW &amp; MEND"]
+      direction TB
+      MITH["/mithrandir<br/>多軸判定"] --> MAND["/mandos<br/>方向是否正確"]
+      MAND --> NARVI["/narvi<br/>一留言一 commit"]
+      NARVI --> DURIN["/durin<br/>整倉庫留言掃描"]
+      DURIN --> MORIA["/moria<br/>跨倉庫 mend 巡邏"]
+    end
+
+    MERGE_STEP["/celebrant<br/>合併、推送、清理分支"]
+
+    subgraph OPS["日常／維運"]
+      direction LR
+      PREFLIGHT["/preflight<br/>週期性維護清單"]
+      EOD["/eod<br/>收工前檢查未提交工作"]
+      CLEANUP["/cleanup-dev<br/>清開發快取"]
+    end
+
+    GALA --> FFGATE
+    FFGATE --> BRANCH
+    FFGATE -.-> STEPCHECK
+    FFGATE -.-> COMPLY
+    IMPL --> STEP
+    FRESH --> PR
+    PR --> GATE
+    GATE --> COMMIT
+    COMMIT --> MITH
+    MITH -->|"合併判定"| MERGE_STEP
+    MAND -->|"已修正"| MERGE_STEP
+    MERGE_STEP --> DONE(["已合併"]):::done
+
+    DONE ~~~ PREFLIGHT
+
+    classDef input fill:#c9a97a,stroke:#8a6d4a,color:#2a2113
+    classDef done fill:#7d9bae,stroke:#4a6e82,color:#0f1c22
+    class PRD,FIG input
+    class DONE done
+    style PLAN fill:#ece0c3,stroke:#cdbfa0
+    style FORGE fill:#dfeade,stroke:#cdbfa0
+    style LOOP fill:#f6efe0,stroke:#cdbfa0
+    style GATE fill:#f4ecd9,stroke:#cdbfa0
+    style REVIEW fill:#dde7f0,stroke:#cdbfa0
+    style OPS fill:#f4ecd9,stroke:#cdbfa0
+        </pre>
+        </div>
       </div>
 
-      <h2>Reading it</h2>
-      <ul>
-        <li>
-          <b>Input &amp; Plan</b> — <span class="name">/rumil</span> takes the
-          PRD and the Figma mockups together, wires the text's rules to the
-          mockups' screens, raises what falls out as questions rather than
-          settling them quietly, and writes the plan itself;
-          <span class="name">/galadriel</span> renders that plan file into a
-          progress mirror. See Chapter IV, &ldquo;The Rúmil Road&rdquo;, for
-          this step's own long form.
-        </li>
-        <li>
-          <b>The Free-Form Gate</b> — before Forge begins, the human is shown
-          the work's size, its Acceptance lines (the observable outcomes a
-          test or an eye can check), and its Non-goals, and confirms before
-          anything is touched. This is where Acceptance Criteria live — not
-          inside the plan document, but in this one gate the human renders
-          judgment on. Every step's verification in the Loop below, and
-          Compliance Review's spec-compliance pass, both check their work
-          against the lines drawn here.
-        </li>
-        <li>
-          <b>Forge</b> — a branch opens, implementation follows the plan;
-          <span class="name">/narya</span> hot-reloads continuously through
-          it; the PR/MR opens only once the Implementation Loop below has run
-          its course.
-        </li>
-        <li>
-          <b>The Implementation Loop</b> — the rhythm inside &ldquo;implement
-          per the plan&rdquo;: one step at a time, each layered on what
-          already runs rather than sliced horizontally. This is where the
-          unit test is written — new code lands with its test in the same
-          step, never as a follow-up. Each step's verification checks both
-          the test and, where the step closes one, an Acceptance line from
-          the Gate; a step that fails either, or a scope that has grown past
-          its gauge, stops the loop rather than pushing through. Once every
-          step closes, Compliance Review weighs spec compliance — reading
-          the Gate's Acceptance lines as what was promised — then code
-          quality, and a fresh verification — this turn's own run of the
-          static analysis and test suite — closes the loop before the PR
-          opens.
-        </li>
-        <li>
-          <b>Pre-commit gate</b> — <span class="name">/nazgul</span> walks
-          its nine checks; <span class="name">/argonath</span> weighs the
-          diff and the merge risk together;
-          <span class="name">/commit</span> composes the message and
-          commits.
-        </li>
-        <li>
-          <b>Review &amp; Mend</b> — <span class="name">/mithrandir</span>
-          renders the multi-axis verdict;
-          <span class="name">/mandos</span> checks the direction is right;
-          <span class="name">/narvi</span> answers each comment with its own
-          commit; <span class="name">/durin</span> and
-          <span class="name">/moria</span> carry that sweep across a repo and
-          across repos.
-        </li>
-        <li>
-          <b>Merge</b> — <span class="name">/celebrant</span> completes a
-          <code>--no-ff</code> merge, pushes, and prunes the branch.
-        </li>
-        <li>
-          <b>Daily / upkeep</b> — <span class="name">/preflight</span>,
-          <span class="name">/eod</span>, and
-          <span class="name">/cleanup-dev</span> keep the environment sound,
-          running alongside the feature road rather than on it.
-        </li>
-      </ul>
+      <div class="lang-en">
+        <h2>Reading it</h2>
+        <ul>
+          <li>
+            <b>Input &amp; Plan</b> — <span class="name">/rumil</span> takes
+            the PRD and the Figma mockups together, wires the text's rules to
+            the mockups' screens, raises what falls out as questions rather
+            than settling them quietly, and writes the plan itself;
+            <span class="name">/galadriel</span> renders that plan file into
+            a progress mirror. See Chapter IV, &ldquo;The Rúmil
+            Road&rdquo;, for this step's own long form.
+          </li>
+          <li>
+            <b>The Free-Form Gate</b> — before Forge begins, the human is
+            shown the work's size, its Acceptance lines (the observable
+            outcomes a test or an eye can check), and its Non-goals, and
+            confirms before anything is touched. This is where Acceptance
+            Criteria live — not inside the plan document, but in this one
+            gate the human renders judgment on. Every step's verification in
+            the Loop below, and Compliance Review's spec-compliance pass,
+            both check their work against the lines drawn here.
+          </li>
+          <li>
+            <b>Forge</b> — a branch opens, implementation follows the plan;
+            <span class="name">/narya</span> hot-reloads continuously
+            through it; the PR/MR opens only once the Implementation Loop
+            below has run its course.
+          </li>
+          <li>
+            <b>The Implementation Loop</b> — the rhythm inside
+            &ldquo;implement per the plan&rdquo;: one step at a time, each
+            layered on what already runs rather than sliced horizontally.
+            This is where the unit test is written — new code lands with
+            its test in the same step, never as a follow-up. Each step's
+            verification checks both the test and, where the step closes
+            one, an Acceptance line from the Gate; a step that fails either,
+            or a scope that has grown past its gauge, stops the loop rather
+            than pushing through. Once every step closes, Compliance Review
+            weighs spec compliance — reading the Gate's Acceptance lines as
+            what was promised — then code quality, and a fresh verification
+            — this turn's own run of the static analysis and test suite —
+            closes the loop before the PR opens.
+          </li>
+          <li>
+            <b>Pre-commit gate</b> — <span class="name">/nazgul</span> walks
+            its nine checks; <span class="name">/argonath</span> weighs the
+            diff and the merge risk together;
+            <span class="name">/commit</span> composes the message and
+            commits.
+          </li>
+          <li>
+            <b>Review &amp; Mend</b> — <span class="name">/mithrandir</span>
+            renders the multi-axis verdict;
+            <span class="name">/mandos</span> checks the direction is right;
+            <span class="name">/narvi</span> answers each comment with its
+            own commit; <span class="name">/durin</span> and
+            <span class="name">/moria</span> carry that sweep across a repo
+            and across repos.
+          </li>
+          <li>
+            <b>Merge</b> — <span class="name">/celebrant</span> completes a
+            <code>--no-ff</code> merge, pushes, and prunes the branch.
+          </li>
+          <li>
+            <b>Daily / upkeep</b> — <span class="name">/preflight</span>,
+            <span class="name">/eod</span>, and
+            <span class="name">/cleanup-dev</span> keep the environment
+            sound, running alongside the feature road rather than on it.
+          </li>
+        </ul>
 
-      <p class="small">
-        See Chapter I for the Implementation Loop's own long form — Task
-        Sizing, Acceptance, Approval, Compliance, Verification — and Chapter
-        II for the same arc with a tracker at its centre.
-      </p>
+        <p class="small">
+          See Chapter I for the Implementation Loop's own long form — Task
+          Sizing, Acceptance, Approval, Compliance, Verification — and
+          Chapter II for the same arc with a tracker at its centre.
+        </p>
+      </div>
+      <div class="lang-zh" hidden>
+        <h2>逐段導讀</h2>
+        <ul>
+          <li>
+            <b>輸入與 Plan</b> — <span class="name">/rumil</span>
+            把 PRD 與 Figma 設計稿放在一起讀，把文字裡的規則跟設計稿裡的
+            畫面互相接上，把兜不攏的地方變成問題提出來、而不是悄悄自己
+            決定，並直接寫出計畫本身；<span class="name">/galadriel</span>
+            把那份計畫檔渲染成進度鏡像。這一步的完整長文版見
+            Chapter IV「The Rúmil Road」。
+          </li>
+          <li>
+            <b>Free-Form Gate</b> — Forge 開始之前，人會看到這件工作的
+            規模、它的 Acceptance 清單（測試或肉眼能核對的具體結果），
+            以及 Non-goals，確認過才動手。Acceptance Criteria 就活在這一
+            關——不是活在計畫文件裡，而是活在人親自把關的這一關。下面
+            Loop 裡每一步的驗證、以及 Compliance Review 的規格相符檢查，
+            兩者都是拿這裡畫下的線在核對。
+          </li>
+          <li>
+            <b>Forge</b> — 開一個分支，依計畫實作；
+            <span class="name">/narya</span> 在過程中持續熱重載；PR/MR
+            要等下面的 Implementation Loop 走完一輪才開。
+          </li>
+          <li>
+            <b>Implementation Loop</b> — 「依計畫實作」內部的節奏：一次
+            一個步驟，每一步疊加在已經能跑的東西上，而不是橫向切片。
+            unit test 就是在這裡寫出來的——新程式碼跟它的測試同一個步驟
+            落地，絕不是事後補。每一步的驗證同時核對測試、以及（若這步
+            驟剛好收尾了某條 Acceptance 線）那條線是否成立；測試沒過、
+            或規模已經走樣超出原本的判定，就停下來，不會硬推過去。全部
+            步驟收尾後，Compliance Review 先權衡規格是否相符——把 Gate
+            的 Acceptance 清單當成當初承諾的東西來讀——再看程式碼品質，
+            接著跑一次新鮮驗證——當輪重新跑一次靜態分析與測試——才讓
+            Loop 收尾、PR 開出。
+          </li>
+          <li>
+            <b>提交前把關</b> — <span class="name">/nazgul</span>
+            逐項走完九項 checks；<span class="name">/argonath</span>
+            一併權衡 diff 與合併風險；<span class="name">/commit</span>
+            寫訊息並提交。
+          </li>
+          <li>
+            <b>Review &amp; Mend</b> — <span class="name">/mithrandir</span>
+            出具多軸判定；<span class="name">/mandos</span>
+            檢視方向是否正確；<span class="name">/narvi</span>
+            逐則留言、各自回應各自的 commit；<span class="name">/durin</span>
+            與 <span class="name">/moria</span>
+            把這套掃描擴大到整個倉庫、乃至跨倉庫。
+          </li>
+          <li>
+            <b>合併</b> — <span class="name">/celebrant</span>
+            完成一次 <code>--no-ff</code> 合併、推送，並清掉分支。
+          </li>
+          <li>
+            <b>日常／維運</b> — <span class="name">/preflight</span>、
+            <span class="name">/eod</span>、<span class="name"
+              >/cleanup-dev</span
+            >
+            維持環境健康，跟功能這條路平行運作，而不是走在它上面。
+          </li>
+        </ul>
+
+        <p class="small">
+          Implementation Loop 完整的長文版見 Chapter I——Task Sizing、
+          Acceptance、Approval、Compliance、Verification；同一條路搭配
+          tracker 的版本見 Chapter II。
+        </p>
+      </div>
     </div>
 
     <script type="module">
       import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
       mermaid.initialize({
-        startOnLoad: true,
+        startOnLoad: false,
         theme: "base",
         themeVariables: {
           fontFamily: "Iowan Old Style, Palatino Linotype, Georgia, serif",
@@ -265,6 +487,59 @@ graph TD
           labelTextColor: "#2b2419",
         },
       });
+
+      const KEY = "skadi-handbook-lang";
+
+      function applyLang(lang) {
+        document
+          .querySelectorAll(".lang-en")
+          .forEach((el) => (el.hidden = lang !== "en"));
+        document
+          .querySelectorAll(".lang-zh")
+          .forEach((el) => (el.hidden = lang !== "zh"));
+        document.querySelectorAll(".langtoggle button").forEach((b) => {
+          b.classList.toggle("active", b.dataset.lang === lang);
+        });
+        document.documentElement.lang = lang === "zh" ? "zh-Hant" : "en";
+        try {
+          localStorage.setItem(KEY, lang);
+        } catch (e) {
+          /* private mode or storage disabled — the toggle still works this visit */
+        }
+      }
+
+      async function boot() {
+        // mermaid measures text by laying the SVG out in the DOM — a
+        // hidden (display:none) container collapses that measurement to
+        // 0, so the inactive language's diagram must be revealed for the
+        // run and only re-hidden once rendering has actually finished.
+        const zhBlocks = document.querySelectorAll(".lang-zh");
+        const wasHidden = new Map();
+        zhBlocks.forEach((el) => {
+          wasHidden.set(el, el.hidden);
+          el.hidden = false;
+        });
+
+        await mermaid.run();
+
+        zhBlocks.forEach((el) => {
+          el.hidden = wasHidden.get(el);
+        });
+
+        document.querySelectorAll(".langtoggle button").forEach((b) => {
+          b.addEventListener("click", () => applyLang(b.dataset.lang));
+        });
+
+        let saved = "en";
+        try {
+          saved = localStorage.getItem(KEY) || "en";
+        } catch (e) {
+          /* private mode or storage disabled — default to en */
+        }
+        applyLang(saved);
+      }
+
+      boot();
     </script>
   </body>
 </html>
