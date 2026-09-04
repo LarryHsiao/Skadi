@@ -61,10 +61,15 @@
         (<span class="name">/anduin</span>,
         <span class="name">/rhovanion</span>,
         <span class="name">/amon-sul</span>) as the engine driving Plan and
-        Forge, this chapter has no engine to name — a human writes the plan,
-        opens the branch, and drives the implementation by hand. Reach for
-        this road when there is no tracker to summon, or when the shape of
-        the whole arc matters more than which skill drives which step.
+        Forge — all of them ticket-bound — this chapter strips every one out.
+        Forge is left with no skill to put in their place: a human opens the
+        branch and drives the implementation by hand. Plan is not quite
+        empty, though — <span class="name">/rumil</span> reads a spec and its
+        mockups directly and writes the plan itself, needing no ticket and
+        no tracker to run, so it keeps its place here where the tracker-bound
+        <span class="name">/council</span> could not. Reach for this road
+        when there is no tracker to summon, or when the shape of the whole
+        arc matters more than which skill drives which step.
       </p>
 
       <p class="small" style="margin-top: 0">
@@ -72,21 +77,21 @@
         falls back to its plain source, which still reads.
       </p>
 
-      <h2>Input to merge</h2>
+      <h2>Input to merged change</h2>
       <div class="diagram">
         <pre class="mermaid">
 graph TD
     PRD(["PRD"]):::input
     FIG(["Figma mockups"]):::input
 
-    PRD --> MERGE["combine into<br/>requirements + visual spec"]
-    FIG --> MERGE
-
     subgraph PLAN["I. PLAN"]
       direction TB
-      PLANDOC["write the implementation plan<br/>by hand, against the merged spec"]
-      PLANDOC --> GALA["/galadriel<br/>plan mirror &amp; progress board"]
+      RUMIL["/rumil<br/>reads the PRD + mockups together<br/>writes the plan &amp; raises open questions"]
+      RUMIL --> GALA["/galadriel<br/>plan mirror &amp; progress board"]
     end
+
+    PRD --> RUMIL
+    FIG --> RUMIL
 
     FFGATE["Free-Form Gate<br/>Size · Acceptance · Non-goals<br/>human confirms before Forge begins"]
 
@@ -129,7 +134,6 @@ graph TD
       CLEANUP["/cleanup-dev<br/>clear dev caches"]
     end
 
-    MERGE --> PLANDOC
     GALA --> FFGATE
     FFGATE --> BRANCH
     FFGATE -.-> STEPCHECK
@@ -161,14 +165,13 @@ graph TD
       <h2>Reading it</h2>
       <ul>
         <li>
-          <b>Input</b> — the PRD and the Figma mockups fold into one
-          requirements-plus-visual-spec, read by hand — this road names no
-          tool for that step.
-        </li>
-        <li>
-          <b>Plan</b> — the plan is written by hand against that spec;
-          <span class="name">/galadriel</span> renders the plan file into a
-          progress mirror.
+          <b>Input &amp; Plan</b> — <span class="name">/rumil</span> takes the
+          PRD and the Figma mockups together, wires the text's rules to the
+          mockups' screens, raises what falls out as questions rather than
+          settling them quietly, and writes the plan itself;
+          <span class="name">/galadriel</span> renders that plan file into a
+          progress mirror. See Chapter IV, &ldquo;The Rúmil Road&rdquo;, for
+          this step's own long form.
         </li>
         <li>
           <b>The Free-Form Gate</b> — before Forge begins, the human is shown
