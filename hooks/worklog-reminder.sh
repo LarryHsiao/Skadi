@@ -8,14 +8,31 @@
 # Two silent no-ops, by design:
 #   - No ~/.skadi/worklog-repo.md pointer yet -> the feature isn't configured;
 #     say nothing rather than nag or guess a path.
-#   - CLAUDE_PROJECT_DIR isn't under ~/work/ -> this is a personal-repo
+#   - CLAUDE_PROJECT_DIR isn't under the work root -> this is a personal-repo
 #     session; the worklog records work tasks only.
+#
+# Unlike the repo-location pointer above, the work root has a sane default
+# (~/work) rather than being off until configured — the boundary just moves
+# for the rare machine where work projects live somewhere else. Precedence:
+# WORKLOG_WORK_ROOT env var (tests) > ~/.skadi/worklog-work-root.md pointer,
+# same shape as worklog-repo.md above > the ~/work default.
 POINTER="${WORKLOG_REPO_POINTER:-$HOME/.skadi/worklog-repo.md}"
 [ -s "$POINTER" ] || exit 0
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 RESOLVED=$(cd "$PROJECT_DIR" 2>/dev/null && pwd || echo "$PROJECT_DIR")
-WORK_ROOT="${WORKLOG_WORK_ROOT:-$HOME/work}"
+
+if [ -n "${WORKLOG_WORK_ROOT:-}" ]; then
+  WORK_ROOT="$WORKLOG_WORK_ROOT"
+else
+  ROOT_POINTER="${WORKLOG_WORK_ROOT_POINTER:-$HOME/.skadi/worklog-work-root.md}"
+  if [ -s "$ROOT_POINTER" ]; then
+    WORK_ROOT="$(head -n 1 "$ROOT_POINTER")"
+  else
+    WORK_ROOT="$HOME/work"
+  fi
+fi
+
 case "$RESOLVED" in
   "$WORK_ROOT"|"$WORK_ROOT"/*) ;;
   *) exit 0 ;;

@@ -71,6 +71,33 @@ out=$(WORKLOG_REPO_POINTER="$POINTER" WORKLOG_WORK_ROOT="$WORK_ROOT" \
   CLAUDE_PROJECT_DIR="$WORK_ROOT" bash "$HOOK")
 check_has "the bare work root itself still fires the reminder" "/handoff send worklog" "$out"
 
+# ── 7 · a configured work-root pointer file relocates the boundary ──
+# No WORKLOG_WORK_ROOT here — this exercises the pointer-file tier, not the
+# env-var override every test above relied on.
+ALT_ROOT="$WORK/elsewhere"
+mkdir -p "$ALT_ROOT/some-project"
+ROOT_POINTER="$WORK/worklog-work-root.md"
+printf '%s\n' "$ALT_ROOT" > "$ROOT_POINTER"
+
+out=$(WORKLOG_REPO_POINTER="$POINTER" WORKLOG_WORK_ROOT_POINTER="$ROOT_POINTER" \
+  CLAUDE_PROJECT_DIR="$ALT_ROOT/some-project" bash "$HOOK")
+check_has "a relocated work root fires for a project under it" "/handoff send worklog" "$out"
+
+out=$(WORKLOG_REPO_POINTER="$POINTER" WORKLOG_WORK_ROOT_POINTER="$ROOT_POINTER" \
+  CLAUDE_PROJECT_DIR="$WORK_ROOT/vitallink-ca" bash "$HOOK")
+check "a relocated work root stays silent for the old default location" "" "$out"
+
+# ── 8 · with no override at all, the true default is ~/work ──
+# HOME is scoped to this one call so the real machine's ~/work is never
+# touched; WORKLOG_WORK_ROOT_POINTER points at a file that doesn't exist,
+# so resolution genuinely falls through to the hardcoded $HOME/work default.
+FAKE_HOME="$WORK/fakehome"
+mkdir -p "$FAKE_HOME/work/some-project"
+out=$(HOME="$FAKE_HOME" WORKLOG_REPO_POINTER="$POINTER" \
+  WORKLOG_WORK_ROOT_POINTER="$FAKE_HOME/.skadi/worklog-work-root.md" \
+  CLAUDE_PROJECT_DIR="$FAKE_HOME/work/some-project" bash "$HOOK")
+check_has "with nothing configured, the default is \$HOME/work" "/handoff send worklog" "$out"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

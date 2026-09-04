@@ -222,11 +222,13 @@ stops on conflicts.
 
 ## Worklog
 
-A separate repo — never Minerva, never a project's own tree — records work-task activity: what was done, why, and the outcome, one entry per completed task. Only sessions rooted under `~/work/` write to it; a personal repo (skadi included) never does, and `hooks/worklog-reminder.sh` enforces that boundary itself rather than leaving it to judgment.
+A separate repo — never Minerva, never a project's own tree — records work-task activity: what was done, why, and the outcome, one entry per completed task. Only sessions rooted under the work tree write to it; a personal repo (skadi included) never does, and `hooks/worklog-reminder.sh` enforces that boundary itself rather than leaving it to judgment.
 
 **Locating the repo.** Read `~/.skadi/worklog-repo.md` for this machine's pointer, the same shape as `~/.skadi/memory-repo.md` above. If it does not exist, the feature is simply not configured on this machine — the reminder hook stays silent, and no session should ask the user for a path or invent one.
 
-**Sending an entry.** When a turn in a `~/work/`-rooted session will report work as done or complete — the same moment `Compliance Review` above fires — send a fuller paragraph summary via `/handoff send worklog <summary>` before the final report. This is best-effort: a failed send is named plainly in the summary, never a reason to withhold or delay the actual completion report.
+**Where the work tree itself lives.** Unlike the repo pointer above, this one is not off-until-configured — `~/work` is the default. A machine whose work projects live elsewhere overrides it with `~/.skadi/worklog-work-root.md`, one absolute path, same shape again.
+
+**Sending an entry.** When a turn in a work-tree-rooted session will report work as done or complete — the same moment `Compliance Review` above fires — send a fuller paragraph summary via `/handoff send worklog <summary>` before the final report. This is best-effort: a failed send is named plainly in the summary, never a reason to withhold or delay the actual completion report.
 
 **The repo itself never reads or writes another repo's files.** Its own standing session picks up entries from the `worklog` handoff channel and files them under `logs/YYYY-MM-DD.md`; nothing about this rule asks any other session to touch that repo directly — `protected-repo-guard.sh`'s registration in `~/.skadi/protected_repos.md` blocks that outright, the same as it does for Minerva.
 
