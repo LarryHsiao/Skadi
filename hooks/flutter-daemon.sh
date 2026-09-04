@@ -28,17 +28,31 @@
 # Usage:
 #   flutter-daemon.sh start [--project <dir>] [-d <device>] [--flavor <f>]
 #                           [-t <entry>] [--timeout <s>] [-- <extra flutter args>]
-#   flutter-daemon.sh reload  [--project <dir>] [--timeout <s>]   # hot reload
-#   flutter-daemon.sh restart [--project <dir>] [--timeout <s>]   # hot restart
-#   flutter-daemon.sh status  [--project <dir>]
-#   flutter-daemon.sh stop    [--project <dir>]
-#   flutter-daemon.sh log     [--project <dir>] [-n <lines>]
+#   flutter-daemon.sh reload  [--project <dir>] [-d <device>] [--timeout <s>]   # hot reload
+#   flutter-daemon.sh restart [--project <dir>] [-d <device>] [--timeout <s>]   # hot restart
+#   flutter-daemon.sh status  [--project <dir>] [-d <device>]
+#   flutter-daemon.sh stop    [--project <dir>] [-d <device>]
+#   flutter-daemon.sh log     [--project <dir>] [-d <device>] [-n <lines>]
 #
-# One daemon per project directory. With no --project the project is the nearest
-# ancestor of $PWD bearing a pubspec.yaml, so `reload` from anywhere inside the tree
-# finds its own daemon. State lives under $SKADI_FLUTTER_ROOT (default
-# $HOME/.skadi/flutter)/<slug>/ — the command file, the daemon's log, the two
-# pids, and a meta file naming the project, device, flavor, entry and appId.
+# One daemon per (project, device) pair. With no --project the project is the
+# nearest ancestor of $PWD bearing a pubspec.yaml. `start -d <device>` names
+# which slot to raise or resume; an unqualified `start` resumes the project's
+# one standing daemon exactly as before, and — only when none stands yet —
+# raises the project's own default slot. Naming a device `start` has never
+# raised yet always adds a sibling alongside the others, so one project can
+# hold several simulators at once. Once two or more already stand, an
+# unqualified `start` refuses rather than guess which to resume or add a third
+# unlabeled one — name one with -d.
+#
+# Every other verb, given an explicit -d, speaks to that one slot only. Left
+# unqualified: with a single slot standing it behaves exactly as a one-device
+# project always has; with two or more, `reload`/`restart`/`status`/`stop` act
+# on every one of them, one line per device (prefixed "[<device>] "), and `log`
+# refuses rather than interleave several transcripts — name one with -d.
+#
+# State lives under $SKADI_FLUTTER_ROOT (default $HOME/.skadi/flutter)/
+# <slug>/<device-slug>/ — the command file, the daemon's log, the two pids, and
+# a meta file naming the project, device, flavor, entry and appId.
 #
 # Device id, flavor and entry point are arguments, never baked in: this hook must
 # read true in any Flutter project on any machine.
@@ -48,12 +62,16 @@
 #   1 — the state directory or its pipe could not be laid down
 #   2 — bad arguments
 #   3 — flutter not found (neither `flutter` nor `fvm flutter`)
-#   4 — no daemon for this project (or, for start, no pubspec.yaml there)
+#   4 — no daemon for this project/device (or, for start, no pubspec.yaml there)
 #   5 — the daemon cannot be reached: either the process is gone, or it lives and
 #       nothing reads its pipe. `stop` clears both, and `start` raises a new one —
 #       `start` alone would find the wedged one alive and do nothing
 #   6 — the daemon lives, but the app has not reached app.started yet
 #   7 — the reload/restart failed, or went unanswered — the app is stale either way
+#
+# A fanned-out reload/restart/status/stop (no -d, more than one device standing)
+# returns 0 only if every targeted device reported 0; otherwise the worst code
+# seen, with 7 taking priority — that is the one a caller must never read past.
 #
 # Runs under macOS bash 3.2 — no declare -A, no mapfile, no ${var,,}.
 set -u
@@ -67,11 +85,15 @@ usage() {
   cat >&2 <<'USAGE'
 usage: flutter-daemon.sh <verb> [flags]
   start   [--project <dir>] [-d <device>] [--flavor <f>] [-t <entry>] [--timeout <s>] [-- <flutter args>]
-  reload  [--project <dir>] [--timeout <s>]
-  restart [--project <dir>] [--timeout <s>]
-  status  [--project <dir>]
-  stop    [--project <dir>]
-  log     [--project <dir>] [-n <lines>]
+  reload  [--project <dir>] [-d <device>] [--timeout <s>]
+  restart [--project <dir>] [-d <device>] [--timeout <s>]
+  status  [--project <dir>] [-d <device>]
+  stop    [--project <dir>] [-d <device>]
+  log     [--project <dir>] [-d <device>] [-n <lines>]
+
+A second 'start' with a different -d raises a sibling daemon for the same
+project. Every other verb, left unqualified, acts on all of them once more
+than one stands (log requires -d then, to avoid interleaving transcripts).
 USAGE
 }
 
@@ -98,10 +120,40 @@ resolve_project() {
   echo "$PWD"
 }
 
-state_dir() { # project
+project_dir() { # project
   local sum
   sum="$(printf '%s' "$1" | cksum | awk '{print $1}')"
   echo "$ROOT/$(basename "$1")-$sum"
+}
+
+# A bare device string turned into a safe directory component. Flutter device
+# ids (emulator-5554, an iOS simulator UUID, macos, chrome) are already mostly
+# filesystem-safe; this only guards the rare stray character. Unset or empty
+# names the project's own default slot — the one a single-device project has
+# always used.
+device_slug() { # device (possibly empty)
+  printf '%s' "${1:-default}" | tr -c 'A-Za-z0-9._-' '_'
+}
+
+# One daemon lives at project_dir/device_slug — a project's default slot when
+# device is empty, a sibling slot per additional device otherwise. This is a
+# pure function of its two arguments: it names where a daemon for that pair
+# WOULD live, whether or not one has ever been raised there.
+state_dir() { # project device
+  printf '%s/%s\n' "$(project_dir "$1")" "$(device_slug "$2")"
+}
+
+# Every device slot for a project that has ever seen `start` succeed — a log
+# file is the same proof require_daemon leans on below: a spawn that never got
+# that far leaves a directory with nothing worth polling. Prints one slug per
+# line; silent (not an error) when the project has never been started at all.
+list_device_dirs() { # proj_dir
+  local d
+  [ -d "$1" ] || return 0
+  for d in "$1"/*/; do
+    [ -f "${d}log" ] || continue
+    basename "$d"
+  done
 }
 
 meta_get() { # dir key
@@ -370,8 +422,53 @@ cmd_stop() { # dir project
   echo "stopped $2"
 }
 
+# Fan-out across every live device slot for a project, for the verbs a bare
+# (no -d) call reaches once more than one stands. Each targets its own slot
+# through the same single-device path (poke/cmd_status/cmd_stop) — a dead or
+# not-yet-started sibling reports its own code without blocking the rest.
+
+# Folds one more device's exit code into a running worst-so-far: unchanged
+# once nonzero, except a 7 (stale) always wins — the one code a caller must
+# never miss. Shared by every fanout_* below, so the "0 only if every device
+# succeeded, else the worst" contract is honored identically by all of them.
+worse_of() { # worst-so-far new-code
+  if [ "$2" = "0" ]; then echo "$1"; return; fi
+  if [ "$2" = "7" ] || [ "$1" = "0" ]; then echo "$2"; else echo "$1"; fi
+}
+
+fanout_poke() { # proj_dir slugs verb
+  local slug d label out code worst=0
+  for slug in $2; do
+    d="$1/$slug"
+    label="$(meta_get "$d" device)"
+    out="$(poke "$d" "$3" 2>&1)"; code=$?
+    printf '%s\n' "$out" | sed "s/^/[$label] /"
+    worst="$(worse_of "$worst" "$code")"
+  done
+  return "$worst"
+}
+
+fanout_status() { # proj_dir slugs project
+  local slug worst=0
+  for slug in $2; do
+    cmd_status "$1/$slug" "$3"
+    worst="$(worse_of "$worst" "$?")"
+  done
+  return "$worst"
+}
+
+fanout_stop() { # proj_dir slugs project
+  local slug worst=0
+  for slug in $2; do
+    cmd_stop "$1/$slug" "$3"
+    worst="$(worse_of "$worst" "$?")"
+  done
+  return "$worst"
+}
+
 project=""
 device=""
+device_given=0
 flavor=""
 entry=""
 timeout=""
@@ -387,7 +484,7 @@ while [ $# -gt 0 ]; do
       [ $# -ge 2 ] || { echo "flutter-daemon: $1 needs a value" >&2; usage; exit 2; }
       case "$1" in
         --project) project="$2" ;;
-        -d|--device) device="$2" ;;
+        -d|--device) device="$2"; device_given=1 ;;
         --flavor) flavor="$2" ;;
         -t|--target) entry="$2" ;;
         --timeout) timeout="$2" ;;
@@ -405,7 +502,26 @@ case "$verb" in
 esac
 
 proj="$(resolve_project)" || exit 2
-dir="$(state_dir "$proj")"
+proj_dir="$(project_dir "$proj")"
+
+# Every verb, given an explicit -d, targets that one slot — for `start`, the
+# device to raise or resume; for the rest, the device to speak to. Left
+# unqualified: a single live slot is targeted exactly as a one-device project
+# always has ($slugs left empty signals "no fan-out"/"no ambiguity" below);
+# two or more leaves $slugs holding every slug — the case block below fans
+# reload/restart/status/stop across all of them, and refuses an unqualified
+# `start` or `log` outright, since neither can address "all of them" at once.
+slugs=""
+if [ "$device_given" = "1" ]; then
+  dir="$(state_dir "$proj" "$device")"
+else
+  slugs="$(list_device_dirs "$proj_dir")"
+  count="$(printf '%s\n' "$slugs" | grep -c '^.')"
+  if [ "$count" -le 1 ]; then
+    dir="$proj_dir/${slugs:-$(device_slug "")}"
+    slugs=""
+  fi
+fi
 
 case "$verb" in
   start)
@@ -417,22 +533,47 @@ case "$verb" in
       echo "flutter-daemon: flutter not found — install Flutter or fvm" >&2
       exit 3
     }
+    if [ -n "$slugs" ]; then
+      echo "flutter-daemon: several devices already run for $proj — name one with -d <device> to resume it, or a new one to add another:" >&2
+      for slug in $slugs; do
+        echo "  $(meta_get "$proj_dir/$slug" device)" >&2
+      done
+      exit 2
+    fi
     : "${timeout:=$START_TIMEOUT_DEFAULT}"
     cmd_start "$dir" "$proj"
     ;;
-  reload)
-    require_daemon "$dir" "$proj" || exit 4
+  reload|restart)
     : "${timeout:=$POKE_TIMEOUT_DEFAULT}"
-    poke "$dir" reload
-    ;;
-  restart)
+    if [ -n "$slugs" ]; then
+      fanout_poke "$proj_dir" "$slugs" "$verb"
+      exit $?
+    fi
     require_daemon "$dir" "$proj" || exit 4
-    : "${timeout:=$POKE_TIMEOUT_DEFAULT}"
-    poke "$dir" restart
+    poke "$dir" "$verb"
     ;;
-  status) cmd_status "$dir" "$proj" ;;
-  stop) cmd_stop "$dir" "$proj" ;;
+  status)
+    if [ -n "$slugs" ]; then
+      fanout_status "$proj_dir" "$slugs" "$proj"
+      exit $?
+    fi
+    cmd_status "$dir" "$proj"
+    ;;
+  stop)
+    if [ -n "$slugs" ]; then
+      fanout_stop "$proj_dir" "$slugs" "$proj"
+      exit $?
+    fi
+    cmd_stop "$dir" "$proj"
+    ;;
   log)
+    if [ -n "$slugs" ]; then
+      echo "flutter-daemon: multiple devices running for $proj — name one with -d <device>:" >&2
+      for slug in $slugs; do
+        echo "  $(meta_get "$proj_dir/$slug" device)" >&2
+      done
+      exit 2
+    fi
     require_daemon "$dir" "$proj" || exit 4
     tail -n "$lines" "$dir/log"
     ;;

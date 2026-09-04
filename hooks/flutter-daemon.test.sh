@@ -29,7 +29,7 @@ export SKADI_FLUTTER_ROOT="$WORK/state"
 
 cleanup() {
   local p
-  for p in "$SKADI_FLUTTER_ROOT"/*/holder.pid "$SKADI_FLUTTER_ROOT"/*/daemon.pid; do
+  for p in "$SKADI_FLUTTER_ROOT"/*/*/holder.pid "$SKADI_FLUTTER_ROOT"/*/*/daemon.pid; do
     [[ -f "$p" ]] && kill "$(cat "$p")" 2>/dev/null
   done
   rm -rf "$WORK"
@@ -127,7 +127,7 @@ out=$(PATH="$BARE_PATH" "$HOOK" start --project "$projA" -d stub-device \
 check "start exits 0" "0" "$st"
 check_has "start names the appId it learned" "started stub-app-1" "$out"
 
-dirA=$(echo "$SKADI_FLUTTER_ROOT"/appA-*)
+dirA=$(echo "$SKADI_FLUTTER_ROOT"/appA-*/*)
 check "the command file is laid down" "1" "$([[ -f "$dirA/cmds" ]] && echo 1 || echo 0)"
 check "the daemon pid is recorded" "1" "$([[ -s "$dirA/daemon.pid" ]] && echo 1 || echo 0)"
 check "the holder pid is recorded" "1" "$([[ -s "$dirA/holder.pid" ]] && echo 1 || echo 0)"
@@ -201,7 +201,7 @@ projB=$(new_project appB)
 export STUB_IN="$WORK/b.in"
 : > "$STUB_IN"
 PATH="$BARE_PATH" "$HOOK" start --project "$projB" --timeout 20 >/dev/null 2>&1
-dirB=$(echo "$SKADI_FLUTTER_ROOT"/appB-*)
+dirB=$(echo "$SKADI_FLUTTER_ROOT"/appB-*/*)
 kill "$(cat "$dirB/daemon.pid")" 2>/dev/null
 sleep 0.5
 out=$(PATH="$BARE_PATH" "$HOOK" status --project "$projB" 2>&1); st=$?
@@ -219,7 +219,7 @@ projF=$(new_project appF)
 export STUB_IN="$WORK/f.in"
 : > "$STUB_IN"
 PATH="$BARE_PATH" "$HOOK" start --project "$projF" --timeout 20 >/dev/null 2>&1
-dirF=$(echo "$SKADI_FLUTTER_ROOT"/appF-*)
+dirF=$(echo "$SKADI_FLUTTER_ROOT"/appF-*/*)
 holderF=$(cat "$dirF/holder.pid")
 kill "$(cat "$dirF/daemon.pid")" 2>/dev/null
 sleep 0.5
@@ -240,7 +240,7 @@ projG=$(new_project appG)
 export STUB_IN="$WORK/g.in"
 : > "$STUB_IN"
 PATH="$BARE_PATH" "$HOOK" start --project "$projG" --timeout 20 >/dev/null 2>&1
-dirG=$(echo "$SKADI_FLUTTER_ROOT"/appG-*)
+dirG=$(echo "$SKADI_FLUTTER_ROOT"/appG-*/*)
 rm -f "$dirG/log"
 for verb in log reload restart; do
   out=$(PATH="$BARE_PATH" "$HOOK" "$verb" --project "$projG" 2>&1); st=$?
@@ -280,6 +280,77 @@ out=$(STUB_DIE_AFTER_START=1 PATH="$BARE_PATH" "$HOOK" start --project "$projE" 
 check "a daemon that dies right after app.started exits 5" "5" "$st"
 check_has "that death is named rather than reported as a start" "then the daemon died" "$out"
 PATH="$BARE_PATH" "$HOOK" stop --project "$projE" >/dev/null 2>&1
+
+# ── multi-device: a second start with a DIFFERENT -d raises a sibling ──
+projH=$(new_project appH)
+export STUB_IN="$WORK/h1.in"
+: > "$STUB_IN"
+PATH="$BARE_PATH" "$HOOK" start --project "$projH" -d simA --timeout 20 >/dev/null 2>&1
+dirH_A=$(echo "$SKADI_FLUTTER_ROOT"/appH-*/simA)
+wasA=$(cat "$dirH_A/daemon.pid")
+
+export STUB_IN="$WORK/h2.in"
+: > "$STUB_IN"
+out=$(PATH="$BARE_PATH" "$HOOK" start --project "$projH" -d simB --timeout 20 2>&1); st=$?
+check "a second device's start exits 0" "0" "$st"
+check_has "the second device is reported as started, not alive" "started stub-app-1" "$out"
+dirH_B=$(echo "$SKADI_FLUTTER_ROOT"/appH-*/simB)
+check "the second device gets its own state dir" "1" "$([[ -d "$dirH_B" ]] && echo 1 || echo 0)"
+check "the first device's daemon is untouched" "$wasA" "$(cat "$dirH_A/daemon.pid")"
+
+# ── an unqualified start refuses once two devices already stand ──
+out=$(PATH="$BARE_PATH" "$HOOK" start --project "$projH" --timeout 20 2>&1); st=$?
+check "an unqualified start with two devices already up exits 2" "2" "$st"
+check_has "it names the ambiguity rather than guessing" "several devices already run" "$out"
+
+# ── status with no -d lists every live device once more than one stands ──
+out=$(PATH="$BARE_PATH" "$HOOK" status --project "$projH" 2>&1); st=$?
+check "multi-device status exits 0" "0" "$st"
+check_has "multi-device status names simA" "device simA" "$out"
+check_has "multi-device status names simB" "device simB" "$out"
+
+# ── reload with no -d reaches every live device ──
+out=$(PATH="$BARE_PATH" "$HOOK" reload --project "$projH" --timeout 20 2>&1); st=$?
+check "multi-device reload exits 0" "0" "$st"
+check_has "multi-device reload reports simA" "[simA] reloaded" "$out"
+check_has "multi-device reload reports simB" "[simB] reloaded" "$out"
+check_has "simA's own daemon received the reload" '"method":"app.restart"' "$(cat "$WORK/h1.in")"
+check_has "simB's own daemon received the reload" '"method":"app.restart"' "$(cat "$WORK/h2.in")"
+
+# ── an explicit -d targets one device only, leaving the other's pipe untouched ──
+before_b="$(wc -l < "$WORK/h2.in" | tr -d ' ')"
+out=$(PATH="$BARE_PATH" "$HOOK" reload --project "$projH" -d simA --timeout 20 2>&1); st=$?
+check "an explicit -d reload exits 0" "0" "$st"
+check_has "it names only that device, not both" "reloaded stub-app-1" "$out"
+after_b="$(wc -l < "$WORK/h2.in" | tr -d ' ')"
+check "it leaves the other device's pipe untouched" "$before_b" "$after_b"
+
+# ── log with no -d refuses to interleave several transcripts ──
+out=$(PATH="$BARE_PATH" "$HOOK" log --project "$projH" 2>&1); st=$?
+check "log with no -d exits 2 once two devices stand" "2" "$st"
+check_has "it names the ambiguity" "multiple devices running" "$out"
+out=$(PATH="$BARE_PATH" "$HOOK" log --project "$projH" -d simA -n 20 2>&1); st=$?
+check "log with an explicit -d exits 0" "0" "$st"
+
+# ── multi-device status/stop propagate the worst code, not a blanket 0 ──
+# A fan-out must not paper over one device having died just because the
+# others are fine — the exit code is the contract, per the hook's own header.
+kill "$(cat "$dirH_B/daemon.pid")" 2>/dev/null
+sleep 0.5
+out=$(PATH="$BARE_PATH" "$HOOK" status --project "$projH" 2>&1); st=$?
+check "multi-device status exits the worst code once one device died" "5" "$st"
+check_has "the dead device is still named dead" "dead" "$out"
+check_has "the live device is still named alive" "alive stub-app-1" "$out"
+
+# ── stop with no -d tears down every device ──
+holderH_A=$(cat "$dirH_A/holder.pid")
+holderH_B=$(cat "$dirH_B/holder.pid")
+out=$(PATH="$BARE_PATH" "$HOOK" stop --project "$projH" 2>&1); st=$?
+check "multi-device stop exits 0" "0" "$st"
+check "multi-device stop removes simA's state dir" "0" "$([[ -d "$dirH_A" ]] && echo 1 || echo 0)"
+check "multi-device stop removes simB's state dir" "0" "$([[ -d "$dirH_B" ]] && echo 1 || echo 0)"
+check "multi-device stop kills simA's pipe holder" "1" "$(kill -0 "$holderH_A" 2>/dev/null; echo $?)"
+check "multi-device stop kills simB's pipe holder" "1" "$(kill -0 "$holderH_B" 2>/dev/null; echo $?)"
 
 echo ""
 echo "── $pass passed, $fail failed ──"

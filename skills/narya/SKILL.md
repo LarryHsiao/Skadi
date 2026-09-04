@@ -31,11 +31,13 @@ Every verb runs through one hook:
 | `log` | The daemon's own transcript — where a failed build explains itself. |
 
 Flags: `--project <dir>` (default: the nearest ancestor of the cwd bearing a
-`pubspec.yaml`), and on `start` also `-d <device>`, `--flavor <f>`, `-t <entry>`,
-`--timeout <s>`, and anything after `--` passed to `flutter run` verbatim.
+`pubspec.yaml`), `-d <device>` on every verb, and on `start` also `--flavor <f>`,
+`-t <entry>`, `--timeout <s>`, and anything after `--` passed to `flutter run`
+verbatim.
 
-One daemon per project directory, so a bare `/narya reload` from anywhere inside
-the tree finds its own.
+One daemon per (project, device) pair, so a bare `/narya reload` from anywhere
+inside the tree finds its own — and, once more than one simulator is running
+for the same project, finds all of them. See *Multiple simulators* below.
 
 ## Choosing the verb — the judgment the hook cannot make
 
@@ -63,6 +65,30 @@ name the device when more than one is attached (`flutter devices` lists them):
 The first build is the slow one; report the wait plainly rather than letting it
 look like a hang. If it outlasts `--timeout` the daemon is left standing, and a
 later `status` picks the app up once it starts.
+
+## Multiple simulators
+
+One project can hold several daemons at once — one per device — rather than
+the single slot a project used to be limited to. `start -d <device>` names
+which one: the project's own default slot when a device has never been
+started, a fresh sibling when it names one that hasn't stood before, or the
+existing daemon for that device when it has.
+
+Every other verb, called with no `-d`, adapts to how many devices already
+stand for the project:
+
+- **One** — behaves exactly as a single-device project always has.
+- **Two or more** — `reload`, `restart`, `status`, and `stop` reach every one
+  of them, one line per device (prefixed `[<device>] `). `log` refuses
+  instead of interleaving several transcripts — name one with `-d`. An
+  unqualified `start` refuses the same way, rather than guessing which to
+  resume or silently raising an unlabeled third.
+
+Name a device explicitly (`-d <device>`) on any verb to speak to that one
+slot alone, whatever else is running for the project. A fanned-out
+`reload`/`restart` exits 0 only if every targeted device answered 0;
+otherwise it reports the worst code seen, preferring `7` (stale) — the one a
+caller must never read past.
 
 ## Reading the outcome
 
