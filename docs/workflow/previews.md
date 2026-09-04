@@ -16,7 +16,11 @@ When a section calls for a visual preview — a wireframe or UML diagram (Visual
 
 **Shared theme.** Previews wear one parchment look — the shared stylesheet `skadi-theme.css`, which `install.sh` lays alongside the artifacts in the Henneth folder. Link it co-located at the top of every preview — `<link rel="stylesheet" href="skadi-theme.css">` — and lean on its utility classes (`.wrap`, `.panel`, `.gauge`, `.badge`, `.note`, `.open`, `.prec`, `.name`; see the file's header for the full vocabulary). Keep only page-specific tweaks in a small inline `<style>`. The theme evolves in that one file, so every preview moves with it. When a preview is opened off the server (no `skadi-theme.css` beside it), inline the theme instead — the link would dangle.
 
+**Pick a class by its documented shape, not its name.** Read the theme file's own header comment before reaching for a class — it states what each one actually is, not what it sounds like. `.gauge` is `white-space: pre` for a task-size bar that is already split into lines; it does not wrap. `.prec` is the mono call-out that does wrap. A single unbroken sentence dropped into `.gauge` because the text happens to start with "Size" overflows its panel instead of wrapping — the fix is `.prec`, not a rewrite of the theme.
+
 **Fallback.** When the port cannot bind or Python is absent on PATH, fall through to the ASCII sketch named in each section below. The preview lands in the same response either way; the absence of a server must never block the working flow.
+
+**Verify by looking, not by status code.** A `curl -o /dev/null -w '%{http_code}'` check proves the server answered; it proves nothing about the render. Before calling a preview finished, load it in a real browser (the `claude-in-chrome` tools, when connected) and look at it. A misapplied class, an overflowing line, an unrendered mermaid block are all invisible to a status-code check and obvious in one screenshot. When the browser extension will not connect, say so plainly rather than substituting a curl check for it — a degraded verification reported as a full one is worse than an honest "not checked yet."
 
 ## Visual Review (UI & UML)
 
