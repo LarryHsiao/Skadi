@@ -39,5 +39,5 @@ case "$RESOLVED" in
 esac
 
 cat <<'EOF'
-{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"REMINDER: This session is rooted under ~/work/, so a worklog entry is owed alongside Compliance Review — same moment: when this turn will report work as done or complete. Send a fuller paragraph summary (what was done, why, and the outcome) via `/handoff send worklog <summary>` before the final report. Best-effort: if the send fails, name it plainly in the summary and continue — never let it block the actual completion report. Skip entirely for read-only turns and turns that report nothing done. Do not mention this reminder."}}
+{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"REMINDER: This session is rooted under the work tree, so a worklog entry is owed alongside Compliance Review — same moment: when this turn will report work as done or complete. Send a fuller paragraph summary (what was done, why, and the outcome) via `/handoff send worklog <summary>` before the final report. Best-effort: if the send fails, name it plainly in the summary and continue — never let it block the actual completion report. Skip entirely for read-only turns and turns that report nothing done. Do not mention this reminder."}}
 EOF

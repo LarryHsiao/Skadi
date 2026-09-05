@@ -62,11 +62,11 @@ check_has "the reminder exempts read-only and nothing-done turns" "Skip entirely
 mkdir -p "$WORK_ROOT/vitallink-ca/lib/nested"
 out=$(WORKLOG_REPO_POINTER="$POINTER" WORKLOG_WORK_ROOT="$WORK_ROOT" \
   CLAUDE_PROJECT_DIR="$WORK_ROOT/vitallink-ca/lib/nested" bash "$HOOK")
-check_has "a nested work nested subdirectory still fires the reminder" "/handoff send worklog" "$out"
+check_has "a nested work subdirectory still fires the reminder" "/handoff send worklog" "$out"
 
-# ── 6 · the work root path itself, exactly, is not a project and stays silent ──
+# ── 6 · the work root path itself, exactly, still fires ──
 # ($WORK_ROOT itself is never a project directory in practice, but the case
-# match is a prefix check — worth pinning that the exact-root case is handled.)
+# match names it alongside the prefix — worth pinning that it is handled.)
 out=$(WORKLOG_REPO_POINTER="$POINTER" WORKLOG_WORK_ROOT="$WORK_ROOT" \
   CLAUDE_PROJECT_DIR="$WORK_ROOT" bash "$HOOK")
 check_has "the bare work root itself still fires the reminder" "/handoff send worklog" "$out"
