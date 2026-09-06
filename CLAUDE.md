@@ -222,13 +222,20 @@ stops on conflicts.
 
 ## Worklog
 
-A separate repo — never Minerva, never a project's own tree — records work-task activity: what was done, why, and the outcome, one entry per completed task. Only sessions rooted under the work tree write to it; a personal repo (skadi included) never does, and `hooks/worklog-reminder.sh` enforces that boundary itself rather than leaving it to judgment.
+A separate repo — never Minerva, never a project's own tree — records activity: what was done, why, and the outcome, one entry per completed task. **Every session writes to it, whatever repo it stands in.** What varies is not *whether* an entry is made but how it is *labelled*: the repo is private to you, so work and personal activity may share one tree without handing anything to anyone. `hooks/worklog-reminder.sh` raises the reminder everywhere and supplies both defaults, so the label is a choice made rather than a question forgotten.
 
-**Locating the repo.** Read `~/.skadi/worklog-repo.md` for this machine's pointer, the same shape as `~/.skadi/memory-repo.md` above. If it does not exist, the feature is simply not configured on this machine — the reminder hook stays silent, and no session should ask the user for a path or invent one.
+The boundary a location gate would draw is the wrong trade. A mislabelled entry is a debt on a schedule — re-file it and it is settled. An entry never written is not a debt at all; it is a hole, and the hours in it are gone.
 
-**Where the work tree itself lives.** Unlike the repo pointer above, this one is not off-until-configured — `~/work` is the default. A machine whose work projects live elsewhere overrides it with `~/.skadi/worklog-work-root.md`, one absolute path, same shape again.
+**Locating the repo.** Read `~/.skadi/worklog-repo.md` for this machine's pointer, the same shape as `~/.skadi/memory-repo.md` above. If it does not exist, the feature is simply not configured on this machine — the reminder hook stays silent, and no session should ask the user for a path or invent one. This is the hook's only silent no-op.
 
-**Sending an entry.** When a turn in a work-tree-rooted session will report work as done or complete — the same moment `Compliance Review` above fires — send a fuller paragraph summary via `/handoff send worklog <summary>` before the final report. This is best-effort: a failed send is named plainly in the summary, never a reason to withhold or delay the actual completion report.
+**Two fields per entry**, carried on a `[<category>] <project>` header line:
+
+- **`project`** is a *fact* — the basename of the session's project directory, supplied by the hook. A session rooted below a repo root names that subdirectory rather than the repo; correct it when it reads false.
+- **`category`** is a *judgment*, drawn from a closed set of two: `work` when the session served a work task, `personal` for everything else, your own projects included.
+
+**Where the defaults come from.** The work tree no longer decides whether an entry is written — it supplies the default category: `work` beneath it, `personal` elsewhere. `~/work` is the default root, and a machine whose work projects live elsewhere overrides it with `~/.skadi/worklog-work-root.md`, one absolute path, same shape again. Two categories are the whole set: a third bucket for the leftovers would collect exactly what nobody would later unpick, so an entry that is not `work` is `personal`, plainly. Both defaults are the session's to correct — the hook knows a path, not what the work was for, and work done inside a personal tree is still `work`.
+
+**Sending an entry.** When a turn will report work as done or complete — the same moment `Compliance Review` above fires — send a fuller paragraph summary via `/handoff send worklog <summary>`, opening it with that header line, before the final report. Correct a default that reads false, but never skip the entry to dodge the choice. This is best-effort: a failed send is named plainly in the summary, never a reason to withhold or delay the actual completion report.
 
 **The repo itself never reads or writes another repo's files.** Its own standing session picks up entries from the `worklog` handoff channel and files them under `logs/YYYY-MM-DD.md`; nothing about this rule asks any other session to touch that repo directly — `protected-repo-guard.sh`'s registration in `~/.skadi/protected_repos.md` blocks that outright, the same as it does for Minerva.
 
