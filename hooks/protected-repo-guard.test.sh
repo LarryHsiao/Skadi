@@ -162,6 +162,37 @@ check "glued key=value bash advised" '"additionalContext"' "$(caught "$out")"
 out=$(cd "$OUTSIDE" && bash_payload "cp x --target-directory=../$(basename "$PROTECTED")" | CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
 check "glued --flag=value bash advised" '"additionalContext"' "$(caught "$out")"
 
+# 19. An unbalanced quote must not silence the guard. shlex knows nothing of
+#     heredoc syntax, so an apostrophe inside a heredoc body reads as an
+#     unterminated quote and raises ValueError; swallowing that left the token
+#     list empty and the hook mute for a command that plainly reaches into the
+#     repo -- the advice went missing exactly where the command was knottiest.
+#     bash_payload interpolates raw and cannot carry a newline inside a JSON
+#     string, so this case builds its payload with json.dumps.
+json_bash_payload() { # command
+  python3 -c 'import json,sys; sys.stdout.write(json.dumps({"tool_input":{"command":sys.argv[1]}}))' "$1"
+}
+APOSTROPHE_HEREDOC=$(printf "cat <<'EOF'\ndidn't work\nEOF\ncat %s/CLAUDE.md" "$PROTECTED")
+out=$(json_bash_payload "$APOSTROPHE_HEREDOC" | CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "an unbalanced quote still advises" '"additionalContext"' "$(caught "$out")"
+check "the fallback still names the channel" "1" "$(printf '%s' "$out" | grep -c 'mychan')"
+
+# 20. The fallback is a substring scan, so it must not fire on a command that
+#     never mentions a protected repo at all -- silence is still correct there.
+UNRELATED_UNPARSABLE=$(printf "cat <<'EOF'\ndidn't work\nEOF\ncat %s/elsewhere.md" "$OUTSIDE")
+out=$(json_bash_payload "$UNRELATED_UNPARSABLE" | CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "an unbalanced quote touching no protected repo stays silent" "" "$(caught "$out")"
+
+# 21. The fallback must catch a RELATIVE reference too. A command that says
+#     ../protected-repo/f.md never contains the repo's absolute path, so
+#     matching only that missed the very shape these commands most often take
+#     -- the token walk resolves relatives against the cwd, and the fallback,
+#     having no tokens, has nothing to resolve. Matching the repo's basename
+#     between separators covers it.
+REL_UNPARSABLE=$(printf "cat <<'EOF'\ndidn't work\nEOF\ncat ../%s/CLAUDE.md" "$(basename "$PROTECTED")")
+out=$(cd "$OUTSIDE" && json_bash_payload "$REL_UNPARSABLE" | CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "an unparsable relative reference still advises" '"additionalContext"' "$(caught "$out")"
+
 if [ "$fail" -eq 0 ]; then
   echo "--- all green ---"
 else
