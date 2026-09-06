@@ -47,9 +47,10 @@ SESSION_ROOT=$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" 2>/dev/null && pwd)
 - **If `$SESSION_ROOT` is `$MEMORY_REPO_ROOT` or nested under it** — proceed with
   Steps 1–5 below exactly as written; every file and git operation targets
   `$MEMORY_REPO_ROOT`.
-- **Otherwise** — this session is rooted outside the knowledge-base repo, and a
-  direct write would be blocked by `protected-repo-guard.sh` anyway. Skip
-  straight to **Step 0b** below instead of Steps 1, 4, and 5.
+- **Otherwise** — this session is rooted outside the knowledge-base repo, so a
+  direct write is `dir-guard.sh`'s to refuse, and `protected-repo-guard.sh`
+  names the channel to route through instead. Skip straight to **Step 0b**
+  below instead of Steps 1, 4, and 5.
 
 All paths named below (`work/…`, `personal/…`) are **relative to
 `$MEMORY_REPO_ROOT`**. Read, write, and commit against the absolute path;

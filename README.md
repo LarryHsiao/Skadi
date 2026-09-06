@@ -196,7 +196,7 @@ installed workflow as `$name`.
 - **ping-pong** — Answer a bare "ping" with "pong"
 - **henneth-group** — Group the gallery artifacts for `/henneth`
 - **skadi-worktree**, **worktree-guard** — Create or enter an isolated git worktree and block strays outside it
-- **protected-repo-guard** — Block writes and commits against protected repositories
+- **protected-repo-guard** — Name the workflow that owns a protected repository, and the handoff channel to route a change through; advisory, not a block
 - **daily-mark-run**, **triage-mark-run** — Record the last-run timestamp for `/daily` and `/triage`
 
 ## The work loop

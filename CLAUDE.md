@@ -126,6 +126,12 @@ The `compliance-review-reminder.sh` hook re-injects this review's trigger with e
 
 Name the blocked path plainly, then advise the user to open a second Claude Code session rooted at that target path themselves. Once that session stands, hand off the change to it: `/handoff send <target-repo> <the change>` (or `/handoff send <target-repo>` with no message, for baton mode, when a fuller context transfer is warranted), naming the channel after the target repo's directory — that session already auto-joined a channel of that name at its own start, so the baton lands live on its next turn with nothing further to run. `/handoff read <target-repo>` remains there for an on-demand check. The second session then applies the change locally, where dir-guard permits it.
 
+**`protected-repo-guard.sh` advises; it does not bar.** The repos registered in `~/.skadi/protected_repos.md` each answer to a workflow — the worklog's sync script files its own `logs/`, Minerva's session keeps its own note discipline, skadi propagates through `/install` — and the guard's whole job is to name that workflow and the channel to route through. It emits `additionalContext` and no `permissionDecision`, so the permission flow proceeds untouched. dir-guard is the lock; this one is the signpost beside it.
+
+The reason it stopped barring: a session opened at a shared ancestor of those repos (`~/phantom`, say) has declared that scope on purpose, and a guard overruling its own user's explicit choice is friction, not safety. Two cases fall outside dir-guard's reach — that one, and a widened `CLAUDE_DEV_DIRS` — and they are the only ones where barring was this guard's own doing rather than dir-guard's. Everywhere else the deny was a second lock on a door already shut.
+
+**Two consequences accepted knowingly, recorded so they are not rediscovered as bugs.** First, `CLAUDE_DEV_DIRS` now behaves the same way: widen it to include a protected repo's parent and those repos keep only the advice, with nothing left to stop the write. That is a real widening, and the earlier `protected means protected` promise no longer holds — it is tolerated because the variable is a deliberate edit to `settings.json`, not something set by accident, and locking that door would mean code guarding a door nobody walks through. Second, the guard still fires on read-only Bash commands, not only mutating ones; that predates this change and stands unfixed.
+
 ## Delegation Discipline
 
 When a task warrants a subagent — research that would clutter the main context, parallel investigations, a code-review pass against the diff — observe the rules that keep delegation honest. The subagent is a stranger walking into the room: it has not seen this conversation, it does not know why the task matters, and its report describes what it *intended* to do, not what it *did*.
@@ -237,7 +243,7 @@ The boundary a location gate would draw is the wrong trade. A mislabelled entry 
 
 **Sending an entry.** When a turn will report work as done or complete — the same moment `Compliance Review` above fires — send a fuller paragraph summary via `/handoff send worklog <summary>`, opening it with that header line, before the final report. Correct a default that reads false, but never skip the entry to dodge the choice. This is best-effort: a failed send is named plainly in the summary, never a reason to withhold or delay the actual completion report.
 
-**The repo itself never reads or writes another repo's files.** Its own standing session picks up entries from the `worklog` handoff channel and files them under `logs/YYYY-MM-DD.md`; nothing about this rule asks any other session to touch that repo directly — `protected-repo-guard.sh`'s registration in `~/.skadi/protected_repos.md` blocks that outright, the same as it does for Minerva.
+**The repo itself never reads or writes another repo's files.** Its own standing session picks up entries from the `worklog` handoff channel and files them under `logs/YYYY-MM-DD.md`; nothing about this rule asks any other session to touch that repo directly. `dir-guard.sh` bars the ordinary cross-repo reach, and `protected-repo-guard.sh`'s registration in `~/.skadi/protected_repos.md` names the channel to route through instead — advice rather than a bar, the same as it does for Minerva.
 
 ## Shell Compatibility
 

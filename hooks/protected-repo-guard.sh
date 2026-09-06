@@ -1,14 +1,19 @@
 #!/bin/bash
 # PreToolUse hook (Bash, Write|Edit|MultiEdit|NotebookEdit):
-# Block a session rooted OUTSIDE a protected repo from mutating files inside
-# it. Complements dir-guard.sh (home/project bounds) and worktree-guard.sh
-# (same-repo cross-worktree) — this hook's one concern: "this repo is
-# someone else's business unless you're already standing in it."
+# Notice when a session rooted OUTSIDE a protected repo reaches into it, and
+# name the workflow that owns that repo along with the handoff channel to
+# route the change through. It advises; it does not bar.
+#
+# The barring is dir-guard.sh's job (home/project bounds), and worktree-guard.sh
+# covers same-repo cross-worktree. Neither carries the one thing this hook
+# knows: which repo answers to which channel. A session opened at an ancestor
+# of these repos, or one whose CLAUDE_DEV_DIRS admits them, has declared that
+# scope on purpose — refusing it there would overrule the user's own explicit
+# choice, so the note stands in place of the refusal.
 #
 # Protected repos come from a global flat file, NOT auto-memory — auto-memory
 # is scoped per project directory and would be invisible to a session rooted
 # elsewhere (the same problem /moria solved for mend_repos.md).
-# No CLAUDE_DEV_DIRS escape hatch: protected means protected.
 
 LIST="${PROTECTED_REPOS_FILE:-$HOME/.skadi/protected_repos.md}"
 [ -f "$LIST" ] || exit 0
@@ -67,8 +72,25 @@ under() {
   return 1
 }
 
-deny() {
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Blocked: %s is protected -- run `/handoff send %s <your change>` instead."}}' "$1" "$1"
+# Advise, do not bar. A session opened at an ancestor of these repos has
+# declared that scope deliberately, and a guard that overrules its own user's
+# explicit choice is friction, not safety. dir-guard remains the lock on the
+# ordinary case — a session rooted in one repo still cannot reach another —
+# so what is left for this hook is the knowledge dir-guard does not carry:
+# which workflow owns this repo, and the channel to route a change through.
+#
+# No `permissionDecision` is emitted, deliberately. `allow` would auto-approve
+# the write and bypass the normal permission prompt, which is stronger than
+# not blocking; omitting the field leaves that flow exactly as it was and adds
+# only the note. `additionalContext` is the documented field that reaches the
+# model (`message`, which a sibling hook emits, is not one at all).
+advise() {
+  # The format string must be single-quoted — printf, not the shell, does the
+  # substituting — and its backticks are literal text the reading model sees
+  # as a code span, never command substitution. SC2016 reads them as an
+  # expansion that will not expand; here that is exactly the intent.
+  # shellcheck disable=SC2016
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"This path belongs to a repo owned by another workflow. Prefer `/handoff send %s <your change>` over editing it from here, so the owning session applies it under its own rules."}}' "$1"
   exit 0
 }
 
@@ -79,7 +101,7 @@ check_path() {
   while [ "$i" -lt "${#REPOS[@]}" ]; do
     local repo="${REPOS[$i]}" chan="${CHANNELS[$i]}"
     if under "$repo" "$target" && ! under "$repo" "$PROJECT_DIR"; then
-      deny "$chan"
+      advise "$chan"
     fi
     i=$((i+1))
   done
