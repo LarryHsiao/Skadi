@@ -166,6 +166,19 @@ fi
 # in a chain gets this — not just the first word of the whole string — so
 # `cmd1 && /opt/homebrew/bin/git status` is covered too.
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command' 2>/dev/null)
+# Strip carriage returns before anything reads the command. A CR is never part
+# of a shell command — it is what jq emits for a newline on Windows/MSYS — but
+# the heredoc stripper below splits on \n and compares each line against the
+# opener's delimiter, so a closing "EOF\r" never matches "EOF". The heredoc
+# then reads as unterminated, the drop-the-rest fallback fires, and every path
+# after it disappears before shlex is reached: dir-guard failed open for any
+# command containing a heredoc. Normalising here fixes it once for every
+# reader of $CMD rather than teaching each comparison to tolerate CR. It does
+# not reach $FILE_PATH below, which comes from its own jq call and never runs
+# through the heredoc stripper; a trailing CR there is absorbed by command
+# substitution along with the newline, so it has no live bug to fix — but that
+# rests on the shell's behaviour, not on anything asserted here.
+CMD=${CMD//$'\r'/}
 if [ -n "$CMD" ]; then
   # Keep the heredoc outside command substitution itself. Bash 3.2 parses
   # `$()` bodies before honoring a quoted heredoc delimiter, so Python text

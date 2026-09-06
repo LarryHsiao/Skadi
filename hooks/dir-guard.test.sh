@@ -239,6 +239,17 @@ y
 A
 cat /etc/passwd')"
 
+# ── a command whose lines end CRLF must still be scanned. The heredoc
+# stripper splits on \n and compares each line to the opener's delimiter, so
+# with CRLF the closing line reads "EOF\r" and never matches "EOF": the
+# heredoc looks unterminated, the drop-the-rest fallback fires, and every
+# path after it vanishes before shlex ever sees it. jq on Windows/MSYS emits
+# CRLF, which made this a live bypass there while the LF-only cases above
+# stayed green everywhere else — so the line endings are spelled out here
+# rather than left to whatever the local jq happens to produce ──
+CRLF_HEREDOC_CMD=$(printf 'cat <<EOF\r\njust data\r\nEOF\r\ncat /etc/passwd')
+check "a CRLF heredoc does not hide a later outside path" "deny" "$(run_cmd "$CRLF_HEREDOC_CMD")"
+
 # Runs the hook from inside the repo (a known-allowed cwd) as a Write/Edit-style
 # call — tool_input carries file_path instead of command — and reports whether
 # the result denies. An optional third arg sets CLAUDE_DEV_DIRS for the call.
