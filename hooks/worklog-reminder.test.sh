@@ -58,7 +58,7 @@ print('%s/%s' % (out['hookEventName'], 'yes' if out.get('additionalContext') els
 check "a work-tree project dir emits valid UserPromptSubmit JSON" "UserPromptSubmit/yes" "$shape"
 check_has "a work-tree project defaults to the work category" 'default category is `work`' "$out"
 check_has "the reminder names the project directory it came from" 'default project is `vitallink-ca`' "$out"
-check_has "the reminder names the handoff send target" "/handoff send worklog" "$out"
+check_has "the reminder names the handoff send target" "/handoff send worklog-inbox" "$out"
 check_has "the reminder names the closed set of categories" '`work`, `personal`' "$out"
 check_has "the reminder forbids skipping the entry to dodge the choice" "never skip the entry" "$out"
 check_has "the reminder says to fail soft, never block the report" "never let it block the actual completion report" "$out"
@@ -69,7 +69,7 @@ check_has "the reminder exempts read-only and nothing-done turns" "Skip entirely
 # the entry outright. Now the entry is written and merely labelled differently.
 out=$(WORKLOG_REPO_POINTER="$POINTER" WORKLOG_WORK_ROOT="$WORK_ROOT" \
   CLAUDE_PROJECT_DIR="$WORK/skadi" bash "$HOOK")
-check_has "a personal-repo project dir still fires the reminder" "/handoff send worklog" "$out"
+check_has "a personal-repo project dir still fires the reminder" "/handoff send worklog-inbox" "$out"
 check_has "a personal-repo project defaults to the personal category" 'default category is `personal`' "$out"
 check_has "a personal-repo project is named in the reminder" 'default project is `skadi`' "$out"
 
@@ -104,7 +104,7 @@ check_has "a relocated work root defaults to work for a project under it" 'defau
 # The old location is no longer work — but it still logs, now as personal.
 out=$(WORKLOG_REPO_POINTER="$POINTER" WORKLOG_WORK_ROOT_POINTER="$ROOT_POINTER" \
   CLAUDE_PROJECT_DIR="$WORK_ROOT/vitallink-ca" bash "$HOOK")
-check_has "the old location still logs once the root moves" "/handoff send worklog" "$out"
+check_has "the old location still logs once the root moves" "/handoff send worklog-inbox" "$out"
 check_has "the old location defaults to personal once the root moves" 'default category is `personal`' "$out"
 
 # ── 8 · with no override at all, the true default root is ~/work ──
