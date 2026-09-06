@@ -31,11 +31,26 @@ run_cmd() { # command
     | CLAUDE_PROJECT_DIR="$REPO" "$HOOK_BASH" "$HOOK" \
     | python3 -c "
 import json, sys
-d = json.load(sys.stdin)['hookSpecificOutput']
-print('deny' if d.get('permissionDecision') == 'deny' else 'allow')
+raw = sys.stdin.read()
+# Silence is the allow signal: with no permissionDecision the harness runs the
+# call normally, and on that path the hook prints nothing at all.
+if not raw.strip():
+    print('allow')
+else:
+    d = json.loads(raw)['hookSpecificOutput']
+    print('deny' if d.get('permissionDecision') == 'deny' else 'allow')
 ")
   printf '%s' "$decision"
 }
+
+# ── the allow path says nothing at all ──
+# A PreToolUse hook reaches the model only through documented fields, and the
+# one this line used to print — `message` — is not among them, so it travelled
+# nowhere while firing on every allowed call. Silence is the correct allow
+# signal; this pins it so the dead field cannot creep back.
+allow_raw=$(cd "$REPO" && printf '{"tool_input":{"command":"ls"}}' \
+  | CLAUDE_PROJECT_DIR="$REPO" "$HOOK_BASH" "$HOOK")
+check "the allow path emits nothing at all" "" "$allow_raw"
 
 # ── the four dev sinks are allowed, even though they're absolute paths outside the project ──
 for sink in /dev/null /dev/stdout /dev/stderr /dev/tty; do
@@ -234,8 +249,14 @@ run_write() { # file_path [dev_dirs]
     | CLAUDE_PROJECT_DIR="$REPO" CLAUDE_DEV_DIRS="${2:-}" "$HOOK_BASH" "$HOOK" \
     | python3 -c "
 import json, sys
-d = json.load(sys.stdin)['hookSpecificOutput']
-print('deny' if d.get('permissionDecision') == 'deny' else 'allow')
+raw = sys.stdin.read()
+# Silence is the allow signal: with no permissionDecision the harness runs the
+# call normally, and on that path the hook prints nothing at all.
+if not raw.strip():
+    print('allow')
+else:
+    d = json.loads(raw)['hookSpecificOutput']
+    print('deny' if d.get('permissionDecision') == 'deny' else 'allow')
 ")
   printf '%s' "$decision"
 }

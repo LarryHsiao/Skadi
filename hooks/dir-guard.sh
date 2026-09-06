@@ -482,5 +482,10 @@ if [ -n "$FILE_PATH" ]; then
   fi
 fi
 
-# All checks passed — log cwd as informational message
-printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","message":"cwd: %s"}}' "$CWD"
+# All checks passed — say nothing. A PreToolUse hook reaches the model only
+# through documented fields, and the `message` this line used to print is not
+# one of them, so it travelled nowhere while firing on every allowed call. The
+# documented field that would arrive, `additionalContext`, is the wrong remedy
+# here: it would bury the context under one `cwd:` line per tool call. Silence
+# is the allow signal — the harness runs the call when no decision is returned.
+exit 0
