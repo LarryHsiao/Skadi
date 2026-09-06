@@ -130,31 +130,31 @@ except ValueError:
 PYEOF
 )
 
-if [ "$TOKENS" = "ERROR:unparsable" ]; then
-  # Fall back to a plain substring scan of the raw command. Cruder than the
-  # token walk below -- a repo path merely quoted inside prose will match --
-  # but this hook only advises, so a false positive costs one extra sentence
-  # while silence costs the advice altogether. dir-guard, which does bar,
-  # carries a real heredoc stripper for the same input; duplicating those 250
-  # lines here for a second caller would be the worse trade.
-  # The basename arm carries its weight: a command that says
-  # `../protected-repo/f.md` never contains the repo's absolute path, and
-  # relative references are the shape these commands most often take. The
-  # token walk resolves them against the cwd; the fallback has no tokens to
-  # resolve, so it matches the repo's own directory name between separators
-  # instead.
-  norm_cmd=$(normalize "$CMD")
-  i=0
-  while [ "$i" -lt "${#REPOS[@]}" ]; do
-    repo="${REPOS[$i]}"
-    base="${repo##*/}"
-    case "$norm_cmd" in
-      *"$repo"*|*"/$base/"*|"$base/"*) advise "${CHANNELS[$i]}" ;;
-    esac
-    i=$((i+1))
-  done
-  exit 0
-fi
+  if [ "$TOKENS" = "ERROR:unparsable" ]; then
+    # Fall back to a plain substring scan of the raw command. Cruder than the
+    # token walk below -- a repo path merely quoted inside prose will match --
+    # but this hook only advises, so a false positive costs one extra sentence
+    # while silence costs the advice altogether. dir-guard, which does bar,
+    # carries a real heredoc stripper for the same input; duplicating those 250
+    # lines here for a second caller would be the worse trade.
+    # The basename arm carries its weight: a command that says
+    # `../protected-repo/f.md` never contains the repo's absolute path, and
+    # relative references are the shape these commands most often take. The
+    # token walk resolves them against the cwd; the fallback has no tokens to
+    # resolve, so it matches the repo's own directory name between separators
+    # instead.
+    norm_cmd=$(normalize "$CMD")
+    i=0
+    while [ "$i" -lt "${#REPOS[@]}" ]; do
+      repo="${REPOS[$i]}"
+      base="${repo##*/}"
+      case "$norm_cmd" in
+        *"$repo"*|*"/$base/"*|"$base/"*) advise "${CHANNELS[$i]}" ;;
+      esac
+      i=$((i+1))
+    done
+    exit 0
+  fi
   while IFS= read -r TOKEN; do
     # Strip a leading redirection operator (>, >>, <, <<, or an fd-prefixed
     # form like 2>, 2>>) glued to its target with no space -- e.g.
