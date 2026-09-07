@@ -13,6 +13,17 @@ ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT
 tmpdir() { mktemp -d "$ROOT/d.XXXXXX"; }
 
+# A path a native Windows python3 can actually open. Git Bash rewrites a POSIX
+# path handed to a native binary — as an argument, or bare in an env var — so
+# most of this suite needs nothing, PULSE_DIR and its kin included. What it will
+# NOT rewrite is a path buried inside a larger string, the way PULSE_JUDGE_CMD's
+# "python3 <path>" buries one; Windows then reads the surviving /tmp/... against
+# the current drive as C:\tmp\..., where mktemp wrote nothing. Off Windows there
+# is no cygpath and the path is already right.
+winpath() {
+  if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s\n' "$1"; fi
+}
+
 # A reviewer's own filed verdict, written beside a session fixture where the
 # harness puts one: <session>/subagents/agent-*.jsonl. _segment_complies takes
 # no bare Agent tool_use as proof that a review happened — an unrelated search
@@ -1416,11 +1427,7 @@ with open(os.environ["FAKE_JUDGE_CALLS"], "a", encoding="utf-8") as fh:
 print('[{"key":"s1:2","verdict":"accepted"},{"key":"s1:9","verdict":"altered"}]')
 PY
 : >"$d/calls"
-# PULSE_JUDGE_CMD travels as an env var, so MSYS does not convert the path
-# inside it the way it converts a direct argument — hand the stand-in a native
-# path, or Windows Python reads /tmp/... as C:\tmp\...
-dwin="$d"
-command -v cygpath >/dev/null 2>&1 && dwin="$(cygpath -m "$d")"
+dwin="$(winpath "$d")"
 expected_judge="accepted|altered|1|accepted|altered|1"
 actual_judge=$(FAKE_JUDGE_CALLS="$dwin/calls" PULSE_JUDGE_CMD="python3 $dwin/fakejudge.py" \
   python3 - "$SCAN" "$d" "$d/calls" <<'PY'
@@ -1768,8 +1775,7 @@ if os.path.exists(marker):
 open(marker, "w").close()
 print('[{"key":"h:1","verdict":"accepted"}]')
 PY
-dwin="$d"
-command -v cygpath >/dev/null 2>&1 && dwin="$(cygpath -m "$d")"
+dwin="$(winpath "$d")"
 expected_ckpt="h:1=accepted"
 actual_ckpt=$(HALF_MARKER="$dwin/marker" PULSE_JUDGE_CMD="python3 $dwin/halfjudge.py" \
   python3 - "$SCAN" "$d/pulse" <<'PY'
@@ -2147,6 +2153,7 @@ cat >"$d/bug1.jsonl" <<'JSON'
 JSON
 mkdir -p "$d/pulse"
 echo '{"bug1:1":"accepted"}' >"$d/pulse/verdicts.json"
+dwin="$(winpath "$d")"
 cat >"$d/fakebugjudge.py" <<'PY'
 # Stands in for `claude -p`: every candidate report is judged unrelated, so
 # this test proves the wiring (pending -> ok, a real rate) without asserting
@@ -2157,7 +2164,7 @@ keys = re.findall(r"--- key: (\S+)", raw)
 print(json.dumps([{"key": k, "verdict": "unrelated", "against": None} for k in keys]))
 PY
 expected_wired="ok|1|1|100"
-actual_wired=$(PULSE_DIR="$d/pulse" PULSE_JUDGE_CMD="python3 $d/fakebugjudge.py" python3 - "$SCAN" "$RUBRIC" "$d/bug1.jsonl" <<'PY'
+actual_wired=$(PULSE_DIR="$d/pulse" PULSE_JUDGE_CMD="python3 $dwin/fakebugjudge.py" python3 - "$SCAN" "$RUBRIC" "$d/bug1.jsonl" <<'PY'
 import importlib.util as u, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
@@ -2177,7 +2184,7 @@ check "bug-gate wired into apply_rubric: plan.bug-reported flips pending -> ok" 
 #          here: an absent target and one naming no candidate in that list. ──
 echo '{"bug1:7":{"verdict":"bug","against":null},"bug1:11":{"verdict":"bug","against":"nonexistent:99"}}' >"$d/pulse/bug-verdicts.json"
 expected_bugunattr="ok|1|1|100|2"
-actual_bugunattr=$(PULSE_DIR="$d/pulse" PULSE_JUDGE_CMD="python3 $d/fakebugjudge.py" python3 - "$SCAN" "$RUBRIC" "$d/bug1.jsonl" <<'PY'
+actual_bugunattr=$(PULSE_DIR="$d/pulse" PULSE_JUDGE_CMD="python3 $dwin/fakebugjudge.py" python3 - "$SCAN" "$RUBRIC" "$d/bug1.jsonl" <<'PY'
 import importlib.util as u, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
@@ -2425,8 +2432,7 @@ with open(os.environ["FAKE_JUDGE_CALLS"], "a", encoding="utf-8") as fh:
 print('[{"key":"s1:agent-a1.jsonl","verdict":"mended"}]')
 PY
 : >"$d/calls"
-dwin="$d"
-command -v cygpath >/dev/null 2>&1 && dwin="$(cygpath -m "$d")"
+dwin="$(winpath "$d")"
 expected_mendjudge="mended|1|mended|1"
 actual_mendjudge=$(FAKE_JUDGE_CALLS="$dwin/calls" PULSE_JUDGE_CMD="python3 $dwin/fakemendjudge.py" \
   python3 - "$SCAN" "$d" "$d/calls" <<'PY'
@@ -2555,8 +2561,9 @@ keys = re.findall(r"--- key: (\S+)", raw)
 print(json.dumps([{"key": k, "verdict": "mended"} for k in keys]))
 PY
 mkdir -p "$d/pulse"
+dwin="$(winpath "$d")"
 expected_recoveredlive="ok|1|1|100|0"
-actual_recoveredlive=$(PULSE_DIR="$d/pulse" PULSE_JUDGE_CMD="python3 $d/fakemendjudge2.py" python3 - "$SCAN" "$RUBRIC" "$d/live-recovered.jsonl" <<'PY'
+actual_recoveredlive=$(PULSE_DIR="$d/pulse" PULSE_JUDGE_CMD="python3 $dwin/fakemendjudge2.py" python3 - "$SCAN" "$RUBRIC" "$d/live-recovered.jsonl" <<'PY'
 import importlib.util as u, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
@@ -2569,7 +2576,7 @@ PY
 check "review.recovered wired through apply_rubric with the live rubric" "$expected_recoveredlive" "$actual_recoveredlive"
 
 rm -f "$d/fakemendjudge2.py"  # if the second pass calls the judge again, this fails loudly instead of silently
-actual_recoveredlive2=$(PULSE_DIR="$d/pulse" PULSE_JUDGE_CMD="python3 $d/fakemendjudge2.py" python3 - "$SCAN" "$RUBRIC" "$d/live-recovered.jsonl" <<'PY'
+actual_recoveredlive2=$(PULSE_DIR="$d/pulse" PULSE_JUDGE_CMD="python3 $dwin/fakemendjudge2.py" python3 - "$SCAN" "$RUBRIC" "$d/live-recovered.jsonl" <<'PY'
 import importlib.util as u, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
