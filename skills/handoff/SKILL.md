@@ -18,16 +18,18 @@ channel without a `read`. Sessions are turn-based — there is no instant push �
 "live" means the message lands the next time the receiving session takes a turn.
 
 **The repo's own channel needs no subscribing.** At session start the
-`handoff-autosub.sh` hook joins this session to a channel named for the git
-toplevel it stands in — a session in `~/phantom/skadi` lands on `skadi` — so two
-sessions in one repo are already live to each other with nothing typed. A session
-standing outside any repo has no repo to name and joins nothing. Reach for the
-`subscribe` verb only to join a channel *outside* the current repo, or to trade
-the default identity for a chosen name.
+`handoff-autosub.sh` hook joins this session to a channel named for the repo it
+stands in — a session in `~/phantom/skadi` lands on `skadi` — so two sessions in
+one repo are already live to each other with nothing typed. It resolves that
+name from the git common dir's parent rather than the toplevel, so every
+worktree of a repo shares the one channel instead of each being stranded on its
+own. A session standing outside any repo has no repo to name and joins nothing.
+Reach for the `subscribe` verb only to join a channel *outside* the current
+repo, or to trade the default identity for a chosen name.
 
 **Sending to a session in another repo: name the channel after that repo.** A
-session rooted elsewhere already auto-joined the channel named for its own
-toplevel, sanitized the same way `send` sanitizes it — so `send <target-repo>
+session rooted elsewhere already auto-joined the channel named for its own repo,
+sanitized the same way `send` sanitizes it — so `send <target-repo>
 <message>` lands on a channel the target session is already watching, and the
 baton shows up live on its next turn with no `subscribe` or `read` required on
 that end. This only holds when the target stands in a repo; a target outside

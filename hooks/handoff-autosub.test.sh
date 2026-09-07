@@ -47,7 +47,9 @@ expected_ident="from: 01234567"
 check "identity is the session slice, not the repo" "$expected_ident" \
   "$(grep '^from:' "$profile" 2>/dev/null || true)"
 
-# 3. A subdirectory of the repo resolves to the same channel (git toplevel).
+# 3. A subdirectory of the repo resolves to the same channel — the common dir's
+#    parent is the repo root from anywhere inside it. (Test 9 below is the case
+#    where that differs from `--show-toplevel`; here the two agree.)
 SID2="fedcba9876543210"
 sub="$REPO/lib/deep"
 mkdir -p "$sub"
