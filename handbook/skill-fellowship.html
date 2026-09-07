@@ -1,0 +1,1139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Fellowship of Skills</title>
+    <link rel="stylesheet" href="../previews/henneth/skadi-theme.css" />
+    <style>
+      .flow {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .backnav {
+        max-width: 1100px;
+        margin: 0 auto 0.6rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .backnav a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 0.9rem;
+      }
+      .backnav a:hover {
+        text-decoration: underline;
+      }
+      .langtoggle button {
+        font: inherit;
+        font-size: 0.85rem;
+        padding: 0.15rem 0.65rem;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--ink);
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .langtoggle button + button {
+        margin-left: 0.3rem;
+      }
+      .langtoggle button.active {
+        background: var(--accent);
+        color: var(--bg);
+        border-color: var(--accent);
+      }
+      .diagram {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 1rem 0.6rem;
+        margin: 0.6rem 0 1.2rem;
+        overflow-x: auto;
+      }
+      .diagram pre {
+        margin: 0;
+      }
+      .small {
+        font-size: 0.85rem;
+        color: #6b5d44;
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem 1.4rem;
+        margin: 0.4rem 0 1rem;
+        font-size: 0.88rem;
+      }
+      .legend span b {
+        color: var(--accent);
+      }
+      .legend .mend b {
+        color: var(--red);
+      }
+      table.band {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0.4rem 0 1rem;
+        font-size: 0.92rem;
+      }
+      table.band th,
+      table.band td {
+        border: 1px solid var(--line);
+        padding: 0.35rem 0.6rem;
+        text-align: left;
+        vertical-align: top;
+      }
+      table.band th {
+        background: var(--th);
+      }
+      table.band td.stage {
+        white-space: nowrap;
+        width: 1%;
+      }
+      table.band tr.bare td {
+        color: #6b5d44;
+        font-style: italic;
+      }
+      .netbox {
+        position: relative;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        margin: 0.6rem 0 1rem;
+      }
+      .netbox svg {
+        display: block;
+        width: 100%;
+        height: 620px;
+        cursor: grab;
+      }
+      .netbox svg:active {
+        cursor: grabbing;
+      }
+      .netbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.3rem 0.45rem;
+        padding: 0.5rem 0.6rem;
+        border-bottom: 1px solid var(--line);
+        font-size: 0.82rem;
+      }
+      .netbar button {
+        font: inherit;
+        font-size: 0.82rem;
+        padding: 0.1rem 0.5rem;
+        border: 1px solid var(--line);
+        background: var(--bg);
+        color: var(--ink);
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .netbar button:hover,
+      .netbar button.on {
+        background: var(--raise);
+        border-color: var(--accent);
+      }
+      .netbar .sw {
+        display: inline-block;
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 50%;
+        margin-right: 0.3rem;
+      }
+      .netbar .spacer {
+        flex: 1;
+      }
+      .nettip {
+        position: absolute;
+        pointer-events: none;
+        background: var(--panel);
+        border: 1px solid var(--accent);
+        border-radius: 4px;
+        padding: 0.15rem 0.45rem;
+        font-size: 0.82rem;
+        white-space: nowrap;
+        opacity: 0;
+        transition: opacity 0.1s;
+      }
+      .netfall {
+        padding: 0.9rem;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="backnav">
+      <a href="index.html">← Skadi Handbook</a>
+      <div class="langtoggle">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="zh">繁中</button>
+      </div>
+    </div>
+
+    <div class="flow">
+      <div class="lang-en">
+        <h1>The Fellowship of Skills</h1>
+        <p class="sub">
+          One map of all fifty-three skills — where each stands on the arc of
+          the work, and which of them call which.
+        </p>
+
+        <p class="note">
+          Two things are drawn here at once, and they are kept apart on
+          purpose. <b>Position</b> carries the workflow: a skill’s lane is the
+          stage of the work it serves, read left to right, Intake through
+          Watch. <b>Arrows</b> carry one thing only — a real dispatch, one
+          skill invoking another. Nothing is drawn between lanes merely because
+          one stage follows another; the lanes already say that. So an arrow
+          you see is a call that genuinely happens.
+        </p>
+
+        <p class="note">
+          Chapter I walks the Work Loop’s eight stages and names no skills;
+          Chapter II draws the ticket arc and names a handful. This chapter is
+          neither — it is the whole roster, and the arrows that bind it. Where
+          you want the reasoning behind a stage rather than its cast, follow
+          the link back to I or II.
+        </p>
+
+        <p class="small" style="margin-top: 0">
+          Rendered in the browser by mermaid, fetched from a CDN — offline it
+          falls back to its plain source, which still reads. That source is
+          authored with both languages in each lane title; the toggle above
+          picks one and redraws, so only one language is ever on screen.
+        </p>
+      </div>
+
+      <div class="lang-zh" hidden>
+        <h1>技藝之網</h1>
+        <p class="sub">
+          五十三個 skill 的全圖——各自站在工作流程的哪一段，以及誰會呼叫誰。
+        </p>
+
+        <p class="note">
+          這張圖同時畫了兩件事，而且刻意分開表達。<b>位置</b>承載流程：一個
+          skill 所在的欄位，就是它服務的工作階段，由左至右，從 Intake 到
+          Watch。<b>箭頭</b>只承載一件事——真正的 dispatch，也就是某個 skill
+          確實會去呼叫另一個。不會只因為某階段接在另一階段後面就畫線——因為欄位
+          本身已經把順序說明了。所以你看到的每一支箭頭，都是真的會發生的呼叫。
+        </p>
+
+        <p class="note">
+          Chapter I 走過 Work Loop 的八個階段，但一個 skill 都沒點名；Chapter II
+          畫出 ticket 的路徑，點名了幾個。這一章兩者皆非——它是完整的名冊，以及把
+          名冊綁起來的那些箭頭。若你想看的是某個階段背後的道理而非它的卡司，請回
+          頭讀 I 或 II。
+        </p>
+
+        <p class="small" style="margin-top: 0">
+          由瀏覽器端的 mermaid 從 CDN 抓取渲染——離線時會退回顯示純文字原始碼，
+          仍然讀得懂。原始碼裡每個欄位標題都同時寫了兩種語言；上方的切換鈕挑一種
+          重畫，所以畫面上一次只會出現一種語言。
+        </p>
+      </div>
+
+      <div class="legend lang-en">
+        <span><b>──▶</b> dispatch — A invokes B</span>
+        <span><b>╌╌▶</b> companion — named, not called</span>
+        <span class="mend"><b>══▶</b> the mend cycle</span>
+        <span><b>⌐ ¬</b> dashed border — calls nothing, called by nothing</span>
+      </div>
+      <div class="legend lang-zh" hidden>
+        <span><b>──▶</b> dispatch — A 呼叫 B</span>
+        <span><b>╌╌▶</b> companion — 點名但不呼叫</span>
+        <span class="mend"><b>══▶</b> 修補迴路</span>
+        <span><b>⌐ ¬</b> 虛線邊框 — 不呼叫誰，也不被誰呼叫</span>
+      </div>
+
+      <div class="diagram">
+        <pre class="mermaid">
+graph LR
+    subgraph VIGIL["⟳ VIGIL — timers that ride a sweep · 巡守 — 按時驅動掃描"]
+      direction TB
+      AMONSUL["/amon-sul"]
+      RHOV["/rhovanion"]
+      ANDUIN["/anduin"]
+      MORIA["/moria"]
+      DURIN["/durin"]
+    end
+
+    subgraph INTAKE["I. INTAKE — what brings work in · 進料 — 工作從何而來"]
+      direction TB
+      JIRA["/jira"]
+      DAILY["/daily"]
+      TRIAGE["/triage"]
+      VOR["/vor"]
+      GWAIHIR["/gwaihir"]
+      BELEG["/beleg"]
+    end
+
+    subgraph PLAN["II. PLAN · 規劃"]
+      direction TB
+      RUMIL["/rumil"]
+      COUNCIL["/council"]
+      GLOR["/glorfindel"]
+      GALA["/galadriel"]
+    end
+
+    subgraph FORGE["III. FORGE · 鍛造"]
+      direction TB
+      WORKING["/working"]
+      BRANCH["/branch"]
+      AULE["/aule"]
+      CELEBR["/celebrimbor"]
+      NARVI["/narvi"]
+      NARYA["/narya"]
+      FEANOR["/feanor"]
+      MANWE["/manwe"]
+      STAGE["/stage"]
+      SUMMARY["/summary"]
+      COMMIT["/commit"]
+    end
+
+    subgraph WEIGH["IV. WEIGH · 衡量"]
+      direction TB
+      NAZGUL["/nazgul"]
+      ARGONATH["/argonath"]
+      MITH["/mithrandir"]
+      LINDIR["/lindir"]
+      MANDOS["/mandos"]
+      AMONDIN["/amon-din"]
+    end
+
+    subgraph MERGE["V. MERGE &amp; SHIP · 合流"]
+      direction TB
+      CELEBRANT["/celebrant"]
+      PUBLISH["/publish"]
+      PUBMAC["/publish-macos"]
+    end
+
+    subgraph WATCH["VI. WATCH · 守望"]
+      direction TB
+      MINUIAL["/minuial"]
+      HENNETH["/henneth"]
+      BOARD["/board"]
+      ESTE["/este"]
+      GROWTH["/growth"]
+      FIDELITY["/fidelity"]
+      PALANTIR["/palantir"]
+      PRS["/prs"]
+      MRS["/mrs"]
+    end
+
+    subgraph DESK["Off the arc — the desk · 案頭 — 不在主線上的雜務"]
+      direction TB
+      PREFLIGHT["/preflight"]
+      CLEANUP["/cleanup-dev"]
+      EOD["/eod"]
+      RESET["/reset"]
+      HANDOFF["/handoff"]
+      REMEMBER["/remember"]
+      FOCUS["/focus"]
+      FINDEGIL["/findegil"]
+      SCRIBE["/scribe"]
+    end
+
+    AMONSUL --> RHOV
+    AMONSUL --> ANDUIN
+    AMONSUL --> GLOR
+    AMONSUL --> AULE
+    AMONSUL --> MORIA
+    RHOV --> ANDUIN
+    ANDUIN --> GLOR
+    ANDUIN --> AULE
+    GLOR --> COUNCIL
+    AULE --> CELEBR
+    RUMIL --> GALA
+    WORKING --> JIRA
+    FEANOR --> MANWE
+    FEANOR --> NARYA
+    MANWE --> NARYA
+    SUMMARY --> STAGE
+    ARGONATH --> NAZGUL
+    ARGONATH --> MITH
+    CELEBRANT --> ARGONATH
+    CELEBRANT --> BRANCH
+    CELEBRANT --> COMMIT
+    PUBMAC --> COMMIT
+    PUBMAC --> PUBLISH
+    MINUIAL --> HENNETH
+    MINUIAL --> BOARD
+    MINUIAL --> GALA
+    MINUIAL --> ESTE
+    BOARD --> BELEG
+    BOARD --> GROWTH
+    ESTE --> HENNETH
+    GROWTH --> HENNETH
+    FIDELITY --> HENNETH
+    PREFLIGHT --> CLEANUP
+    PREFLIGHT --> DAILY
+    PREFLIGHT --> TRIAGE
+    PREFLIGHT --> NAZGUL
+    PREFLIGHT --> PALANTIR
+    EOD --> COMMIT
+    REMEMBER --> HANDOFF
+
+    MITH -.-> LINDIR
+    MANDOS -.-> COUNCIL
+    FIDELITY -.-> MANDOS
+    GWAIHIR -.-> TRIAGE
+    GWAIHIR -.-> VOR
+    CELEBR -.-> COUNCIL
+    BELEG -.-> AMONDIN
+    PALANTIR -.-> PRS
+    PALANTIR -.-> MRS
+
+    MITH -.->|"comments left standing"| MORIA
+    MORIA --> DURIN
+    DURIN --> NARVI
+    NARVI -->|"weighed again before push"| MITH
+
+    classDef isolate stroke-dasharray:4 3,stroke:#9a3b2e;
+    class FINDEGIL,FOCUS,SCRIBE isolate;
+
+    linkStyle 48,49,50,51 stroke:#9a3b2e,stroke-width:2px;
+</pre>
+      </div>
+
+      <div class="lang-en">
+        <h2>The one true cycle</h2>
+        <p>
+          Every other arrow on the map runs forward, or sideways into a
+          dashboard. One runs backwards, and it is drawn in red because of it.
+          A change that has been forged, weighed and opened as a PR can still
+          draw comments — and <span class="name">/moria</span> sweeps every
+          repo for them, <span class="name">/durin</span> narrows that to one
+          repo, <span class="name">/narvi</span> answers a single comment with
+          code. That code re-enters the Forge lane, and
+          <span class="name">/narvi</span> weighs its own amendments by
+          Mithrandir’s axes before it pushes — so the ring closes back on
+          <span class="name">/mithrandir</span>, where it began.
+        </p>
+        <p class="note">
+          This is why a standing <span class="name">/mithrandir</span> Blocker
+          halts a Narvi run rather than pushing past it: a loop that mends its
+          own mends has nothing to stop it. The red ring is the only place in
+          the whole system where a skill can hand work back to an earlier stage
+          with no human in between, and it is fenced accordingly.
+        </p>
+
+        <h2>The Work Loop, and which skills serve it</h2>
+        <p>
+          Chapter I’s eight stages are mostly <i>rules</i>, not skills — the
+          gauge, the acceptance lines, the approval are things you write, not
+          things you call. Only five of the eight have a skill standing in them
+          at all. Naming that plainly is more useful than drawing an
+          eight-spoked ring half of which would be empty.
+        </p>
+        <table class="band">
+          <tr>
+            <th>Work Loop stage</th>
+            <th>Skills that serve it</th>
+          </tr>
+          <tr class="bare">
+            <td class="stage">1. Task Sizing</td>
+            <td>none — the gauge is written, not called</td>
+          </tr>
+          <tr class="bare">
+            <td class="stage">2. Acceptance</td>
+            <td>none — outcomes named in the gate block</td>
+          </tr>
+          <tr class="bare">
+            <td class="stage">3. Change Approval</td>
+            <td>none — the human’s word</td>
+          </tr>
+          <tr>
+            <td class="stage">4. Previews</td>
+            <td>
+              <span class="name">/henneth</span> serves them,
+              <span class="name">/galadriel</span> mirrors a plan,
+              <span class="name">/rumil</span> writes the plan being mirrored
+            </td>
+          </tr>
+          <tr>
+            <td class="stage">5. Implementation Loop</td>
+            <td>
+              <span class="name">/narya</span> keeps the app alive,
+              <span class="name">/feanor</span> mends against a spec,
+              <span class="name">/manwe</span> weighs a single render
+            </td>
+          </tr>
+          <tr>
+            <td class="stage">6. Compliance Review</td>
+            <td>
+              a spawned read-only agent —
+              <span class="name">/nazgul</span> where a rubric fits the check
+            </td>
+          </tr>
+          <tr>
+            <td class="stage">7. Verification</td>
+            <td>
+              <span class="name">/argonath</span> gathers the toolchain,
+              <span class="name">/nazgul</span> audits the tree
+            </td>
+          </tr>
+          <tr>
+            <td class="stage">8. Done</td>
+            <td>
+              <span class="name">/commit</span>,
+              <span class="name">/celebrant</span> to merge,
+              <span class="name">/handoff</span> for the worklog entry
+            </td>
+          </tr>
+        </table>
+        <p class="small">
+          The full reasoning for each stage is Chapter I —
+          <a href="work-loop.html">The Skadi Work Loop</a>. The ticket-bound
+          version of the same arc is Chapter II —
+          <a href="plan-forge-review.html">Plan · Forge · Review</a>.
+        </p>
+
+        <h2>Three that stand alone</h2>
+        <p>
+          <span class="name">/findegil</span>,
+          <span class="name">/focus</span> and
+          <span class="name">/scribe</span> dispatch to no skill, and no skill
+          dispatches to them — drawn with a dashed border. They are not orphans
+          in need of wiring; each answers a need the arc does not touch.
+          Findegil rewrites notes into prose, Focus keeps a Pomodoro clock,
+          Scribe files a document. A skill earns an arrow by needing another
+          skill’s work, and these three do not. Erestor’s notes name
+          <span class="name">/scribe</span> once, as one way an issue might be
+          carved — but naming is not calling, which is the whole point of the
+          two arrow kinds above.
+        </p>
+      </div>
+
+      <div class="lang-zh" hidden>
+        <h2>唯一真正的迴路</h2>
+        <p>
+          圖上其他每一支箭頭要嘛往前走，要嘛橫向流進某個儀表板。只有一條是往回走
+          的，所以它畫成紅色。一個已經鍛造、衡量、開成 PR 的變更，仍然可能收到留
+          言——<span class="name">/moria</span> 掃過所有 repo 找這些留言，
+          <span class="name">/durin</span> 把範圍收斂到單一 repo，
+          <span class="name">/narvi</span> 則用程式碼回應單一則留言。那份程式碼重
+          新進入 Forge 欄位，而 <span class="name">/narvi</span> 在 push 之前會先
+          用 Mithrandir 的準則衡量自己的修補——於是這個環回到
+          <span class="name">/mithrandir</span>，也就是它出發的地方。
+        </p>
+        <p class="note">
+          這也是為什麼一個尚未解除的 <span class="name">/mithrandir</span>
+          Blocker 會讓 Narvi 停下、而不是硬推過去：一個會修補自己修補的迴路，沒有
+          東西攔得住它。這條紅環是整個系統裡唯一一處，skill 可以在沒有人介入的情
+          況下把工作交還給更早的階段，因此圍籬也下得特別重。
+        </p>
+
+        <h2>Work Loop，以及服務它的 skill</h2>
+        <p>
+          Chapter I 的八個階段大多是<i>規則</i>而非 skill——量尺、驗收條件、核可都
+          是你寫下來的東西，不是你呼叫的東西。八個階段裡只有五個真的有 skill 站在
+          裡面。把這件事講清楚，比畫一個八根輻條、其中一半是空的環要有用。
+        </p>
+        <table class="band">
+          <tr>
+            <th>Work Loop 階段</th>
+            <th>服務它的 skill</th>
+          </tr>
+          <tr class="bare">
+            <td class="stage">1. Task Sizing</td>
+            <td>無——量尺是寫出來的，不是呼叫出來的</td>
+          </tr>
+          <tr class="bare">
+            <td class="stage">2. Acceptance</td>
+            <td>無——在 gate 區塊裡點名的可觀察結果</td>
+          </tr>
+          <tr class="bare">
+            <td class="stage">3. Change Approval</td>
+            <td>無——由人開口</td>
+          </tr>
+          <tr>
+            <td class="stage">4. Previews</td>
+            <td>
+              <span class="name">/henneth</span> 負責供稿，
+              <span class="name">/galadriel</span> 映出計畫，
+              <span class="name">/rumil</span> 寫出被映出的那份計畫
+            </td>
+          </tr>
+          <tr>
+            <td class="stage">5. Implementation Loop</td>
+            <td>
+              <span class="name">/narya</span> 讓 app 保持存活，
+              <span class="name">/feanor</span> 對著 spec 修補，
+              <span class="name">/manwe</span> 衡量單一畫面
+            </td>
+          </tr>
+          <tr>
+            <td class="stage">6. Compliance Review</td>
+            <td>
+              另外派出的唯讀 agent——若某條 rubric 對得上，則用
+              <span class="name">/nazgul</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="stage">7. Verification</td>
+            <td>
+              <span class="name">/argonath</span> 匯集整套工具鏈，
+              <span class="name">/nazgul</span> 稽核整棵樹
+            </td>
+          </tr>
+          <tr>
+            <td class="stage">8. Done</td>
+            <td>
+              <span class="name">/commit</span>、合併用
+              <span class="name">/celebrant</span>、worklog 用
+              <span class="name">/handoff</span>
+            </td>
+          </tr>
+        </table>
+        <p class="small">
+          每個階段完整的道理見 Chapter I——<a href="work-loop.html"
+            >The Skadi Work Loop</a
+          >。同一條路綁上 tracker 的版本見 Chapter II——<a
+            href="plan-forge-review.html"
+            >Plan · Forge · Review</a
+          >。
+        </p>
+
+        <h2>三個獨行者</h2>
+        <p>
+          <span class="name">/findegil</span>、
+          <span class="name">/focus</span> 與
+          <span class="name">/scribe</span>
+          既不 dispatch 任何 skill，也不被任何 skill dispatch——因此邊框畫成虛線。
+          它們不是等著被接線的孤兒；每一個回應的都是這條路徑碰不到的需求。Findegil
+          把筆記改寫成文章，Focus 顧著番茄鐘，Scribe 歸檔文件。一個 skill 是因為需
+          要另一個 skill 的成果才長出箭頭，而這三個不需要。Erestor 的筆記裡確實提
+          過一次 <span class="name">/scribe</span>，說那是開票的其中一種途徑——但
+          「提到」不等於「呼叫」，這正是上面兩種箭頭要分開的理由。
+        </p>
+      </div>
+
+      <div class="lang-en">
+        <h2>The same web, without the lanes</h2>
+        <p>
+          The map above imposes an order the skills themselves do not have. Here
+          the same fifty-three are turned loose: no stage, no left-to-right, only
+          pull and repulsion. Skills that call each other draw together; skills
+          that call nothing drift to the edge. <b>Scroll to zoom, drag the
+          canvas to pan, drag a node to pull it free</b> — release it and the
+          web settles again.
+        </p>
+        <p class="note">
+          Nothing here is new data. The network is read from the very same
+          mermaid source printed above — one edge list, two drawings, so they
+          cannot drift apart. Colour carries a coarse band rather than the eight
+          lanes, because eight hues cannot be told apart reliably when any two
+          may land side by side; the lane itself is on every node’s tooltip, and
+          the buttons single one out.
+        </p>
+      </div>
+      <div class="lang-zh" hidden>
+        <h2>同一張網，拿掉欄位</h2>
+        <p>
+          上面那張圖強加了一種 skill 本身並不具備的順序。這裡把同樣的五十三個放
+          開：沒有階段、沒有左到右，只有牽引與排斥。互相呼叫的會靠攏，誰都不呼叫
+          的則漂到邊緣。<b>滾輪縮放、拖曳畫布平移、拖曳節點把它拉開</b>——放手之
+          後，網會自己重新安定下來。
+        </p>
+        <p class="note">
+          這裡沒有任何新資料。這張網是直接讀上面那份 mermaid 原始碼建出來的——一
+          份邊清單、兩種畫法，所以它們不可能各說各話。顏色承載的是較粗的分帶而非
+          八個欄位，因為當任兩種顏色都可能並排出現時，八種色調無法可靠地分辨；欄
+          位本身寫在每個節點的提示上，按鈕則可以單獨標出其中一欄。
+        </p>
+      </div>
+
+      <div class="netbox">
+        <div class="netbar" id="netbar"></div>
+        <svg
+          id="net"
+          role="img"
+          aria-label="Force-directed network of the 53 skills: the calls between them, the mentions that are not calls, and the one mend cycle. The lane map above carries the same graph."
+        ></svg>
+        <div class="nettip" id="nettip"></div>
+      </div>
+    </div>
+
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "base",
+        flowchart: { nodeSpacing: 26, rankSpacing: 60, padding: 8 },
+        themeVariables: {
+          fontFamily: "Iowan Old Style, Palatino Linotype, Georgia, serif",
+          primaryColor: "#fbf6ea",
+          primaryBorderColor: "#cdbfa0",
+          primaryTextColor: "#2b2419",
+          lineColor: "#7a5a2e",
+          clusterBkg: "#f6efe0",
+          clusterBorder: "#cdbfa0",
+          edgeLabelBackground: "#f4ecd9",
+          labelBoxBkgColor: "#ece0c3",
+          labelBoxBorderColor: "#cdbfa0",
+          labelTextColor: "#2b2419",
+        },
+      });
+
+      const KEY = "skadi-handbook-lang";
+      const RESET_LABEL = { en: "Reset view", zh: "重設視圖" };
+      const NET_ARIA = {
+        en: "Force-directed network of the 53 skills: the calls between them, the mentions that are not calls, and the one mend cycle. The lane map above carries the same graph.",
+        zh: "五十三個 skill 的力導向關係網：彼此之間的呼叫、只是提到而非呼叫的關係，以及唯一的修補迴路。上方的欄位圖承載同一份圖。",
+      };
+
+      // The two views answer a language change differently: the mermaid map is
+      // redrawn from fresh source, while the network is only re-labelled, so a
+      // node the reader dragged somewhere deliberate stays put. Either way the
+      // language has to outlive applyLang — these are how a toggle reaches both
+      // after they are already on screen.
+      let curLang = "en";
+      let onLang = () => {};
+
+      function applyLang(lang) {
+        document
+          .querySelectorAll(".lang-en")
+          .forEach((el) => (el.hidden = lang !== "en"));
+        document
+          .querySelectorAll(".lang-zh")
+          .forEach((el) => (el.hidden = lang !== "zh"));
+        document.querySelectorAll(".langtoggle button").forEach((b) => {
+          b.classList.toggle("active", b.dataset.lang === lang);
+        });
+        document.documentElement.lang = lang === "zh" ? "zh-Hant" : "en";
+        curLang = lang;
+        onLang(lang);
+        try {
+          localStorage.setItem(KEY, lang);
+        } catch (e) {
+          /* private mode or storage disabled — the toggle still works this visit */
+        }
+      }
+
+      // Which coarse band each lane is painted in. Eight lanes cannot each
+      // hold their own hue: in a force layout any two may land side by side,
+      // and no eight-colour set clears the all-pairs separation floor. Three
+      // validated hues plus a neutral "other" do, and the lane itself stays
+      // legible on every node's tooltip and in the bar above the canvas.
+      const LANE_BAND = {
+        VIGIL: "make",
+        PLAN: "make",
+        FORGE: "make",
+        WEIGH: "judge",
+        MERGE: "judge",
+        INTAKE: "see",
+        WATCH: "see",
+        DESK: "other",
+      };
+      const BAND_COLOR = {
+        make: "#2166ba",
+        judge: "#c2571a",
+        see: "#7a3a86",
+        other: "#6b5d44",
+      };
+
+      // A lane title is authored as "<prefix><English> · <中文>" — one string
+      // holding both, so the plain source stays readable offline and nothing
+      // needs a parallel translation table. The prefix (a numeral, or Vigil's
+      // ring) belongs to the lane, not to either language, so it is kept apart
+      // and put back only where the map wants it.
+      const TITLE_SEP = " · ";
+      const DESC_SEP = " — ";
+      function splitTitle(title) {
+        const prefix = (title.match(/^(⟳\s*|[IVX]+\.\s*)/) || [""])[0];
+        const [en, zh] = title.slice(prefix.length).split(TITLE_SEP);
+        return { prefix, en: en.trim(), zh: (zh || en).trim() };
+      }
+
+      // The map has room for a lane's one-line description; a legend button
+      // does not. Both read the same title — the button just stops at the dash.
+      function laneName(label, lang) {
+        return label[lang].split(DESC_SEP)[0];
+      }
+
+      // Rewrite every subgraph title down to one language. The graph itself —
+      // nodes, edges, linkStyle — is untouched, so both renders are the same
+      // drawing wearing different labels.
+      function mapSource(src, lang) {
+        return src.replace(
+          /^(\s*subgraph\s+[A-Z][A-Z0-9]*\[")(.*)("\])$/gm,
+          (all, head, title, tail) => {
+            const t = splitTitle(title);
+            return head + t.prefix + (lang === "zh" ? t.zh : t.en) + tail;
+          },
+        );
+      }
+
+      // The mermaid block is the single source of truth for the graph. Reading
+      // it back rather than keeping a second hand-written edge list is what
+      // stops the two drawings from ever disagreeing.
+      function parseGraph(src) {
+        const nodes = [];
+        const links = [];
+        const laneLabel = {};
+        let lane = null;
+
+        for (const raw of src.split("\n")) {
+          const line = raw.trim();
+          let m;
+          if ((m = line.match(/^subgraph\s+([A-Z][A-Z0-9]*)\["(.*)"\]$/))) {
+            lane = m[1];
+            laneLabel[lane] = splitTitle(m[2]);
+            continue;
+          }
+          if (line === "end") {
+            lane = null;
+            continue;
+          }
+          if ((m = line.match(/^([A-Z][A-Z0-9]*)\["(\/[a-z0-9-]+)"\]$/))) {
+            nodes.push({ id: m[1], name: m[2], lane });
+            continue;
+          }
+          if (
+            (m = line.match(
+              /^([A-Z][A-Z0-9]*)\s*(-->|-\.->)(?:\|"?(.*?)"?\|)?\s*([A-Z][A-Z0-9]*)$/,
+            ))
+          ) {
+            links.push({
+              source: m[1],
+              target: m[4],
+              kind: m[2] === "-.->" ? "companion" : "dispatch",
+              label: m[3] || "",
+            });
+          }
+        }
+
+        // The mend cycle is not a fourth arrow syntax — it is the edges the
+        // source already singles out by index for a red linkStyle. It is a
+        // flag rather than a kind, because mermaid's linkStyle overrides only
+        // colour and width: an edge written with the dotted arrow keeps its
+        // dashes when it turns red. Overwriting kind here would draw that one
+        // solid and put the two drawings out of step.
+        const mend = src.match(/linkStyle\s+([\d,]+)/);
+        if (mend) {
+          for (const i of mend[1].split(",").map(Number)) {
+            if (links[i]) links[i].mend = true;
+          }
+        }
+        return { nodes, links, laneLabel };
+      }
+
+      function buildNetwork(d3, src) {
+        const { nodes, links, laneLabel } = parseGraph(src);
+        const svg = d3.select("#net");
+        const box = document.querySelector(".netbox");
+        const tip = document.getElementById("nettip");
+        const W = box.clientWidth || 900;
+        const H = 620;
+
+        const defs = svg.append("defs");
+        for (const [kind, color] of [
+          ["dispatch", "#7a5a2e"],
+          ["companion", "#a08a63"],
+          ["mend", "#9a3b2e"],
+        ]) {
+          defs
+            .append("marker")
+            .attr("id", `arrow-${kind}`)
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 16)
+            .attr("markerWidth", 5)
+            .attr("markerHeight", 5)
+            .attr("orient", "auto")
+            .append("path")
+            .attr("d", "M0,-4L9,0L0,4")
+            .attr("fill", color);
+        }
+
+        const root = svg.append("g");
+        const link = root
+          .append("g")
+          .selectAll("line")
+          .data(links)
+          .join("line")
+          .attr("stroke", (d) =>
+            d.mend
+              ? "#9a3b2e"
+              : d.kind === "companion"
+                ? "#a08a63"
+                : "#7a5a2e",
+          )
+          .attr("stroke-width", (d) => (d.mend ? 2 : 1.2))
+          .attr("stroke-dasharray", (d) =>
+            d.kind === "companion" ? "4 3" : null,
+          )
+          .attr(
+            "marker-end",
+            (d) => `url(#arrow-${d.mend ? "mend" : d.kind})`,
+          );
+
+        const node = root
+          .append("g")
+          .selectAll("g")
+          .data(nodes)
+          .join("g")
+          .style("cursor", "pointer");
+
+        node
+          .append("circle")
+          .attr("r", 5.5)
+          .attr("fill", (d) => BAND_COLOR[LANE_BAND[d.lane] || "other"])
+          .attr("stroke", "#fbf6ea")
+          .attr("stroke-width", 1.5);
+
+        node
+          .append("text")
+          .text((d) => d.name)
+          .attr("x", 9)
+          .attr("y", 4)
+          .attr("font-size", 11)
+          .attr("fill", "#2b2419")
+          .attr("paint-order", "stroke")
+          .attr("stroke", "#f4ecd9")
+          .attr("stroke-width", 3);
+
+        const sim = d3
+          .forceSimulation(nodes)
+          .force(
+            "link",
+            d3
+              .forceLink(links)
+              .id((d) => d.id)
+              .distance(80)
+              .strength(0.45),
+          )
+          .force("charge", d3.forceManyBody().strength(-320))
+          .force(
+            "collide",
+            d3.forceCollide().radius((d) => 14 + d.name.length * 3.1),
+          )
+          .force("x", d3.forceX(W / 2).strength(0.05))
+          .force("y", d3.forceY(H / 2).strength(0.07))
+          .stop();
+
+        // Settle off-screen first so the reader is handed a composed web
+        // rather than an explosion that resolves while they watch.
+        for (let i = 0; i < 320; i++) sim.tick();
+
+        function draw() {
+          link
+            .attr("x1", (d) => d.source.x)
+            .attr("y1", (d) => d.source.y)
+            .attr("x2", (d) => d.target.x)
+            .attr("y2", (d) => d.target.y);
+          node.attr("transform", (d) => `translate(${d.x},${d.y})`);
+        }
+        sim.on("tick", draw);
+        draw();
+
+        // The extent is named rather than left to d3's default, which reads
+        // svg.width.baseVal — meaningless here, because this SVG is sized by
+        // CSS and carries no width/height attribute for that to reflect.
+        const zoom = d3
+          .zoom()
+          .extent([
+            [0, 0],
+            [W, H],
+          ])
+          .scaleExtent([0.25, 4])
+          .on("zoom", (e) => root.attr("transform", e.transform));
+        svg.call(zoom);
+
+        function fit() {
+          const xs = nodes.map((d) => d.x);
+          const ys = nodes.map((d) => d.y);
+          const pad = 60;
+          const w = Math.max(1, Math.max(...xs) - Math.min(...xs) + pad * 2);
+          const h = Math.max(1, Math.max(...ys) - Math.min(...ys) + pad * 2);
+          const k = Math.min(W / w, H / h, 1.6);
+          svg
+            .transition()
+            .duration(300)
+            .call(
+              zoom.transform,
+              d3.zoomIdentity
+                .translate(W / 2, H / 2)
+                .scale(k)
+                .translate(
+                  -(Math.min(...xs) + Math.max(...xs)) / 2,
+                  -(Math.min(...ys) + Math.max(...ys)) / 2,
+                ),
+            );
+        }
+        fit();
+
+        node.call(
+          d3
+            .drag()
+            .on("start", (e, d) => {
+              if (!e.active) sim.alphaTarget(0.3).restart();
+              d.fx = d.x;
+              d.fy = d.y;
+            })
+            .on("drag", (e, d) => {
+              d.fx = e.x;
+              d.fy = e.y;
+            })
+            .on("end", (e, d) => {
+              if (!e.active) sim.alphaTarget(0);
+              d.fx = null;
+              d.fy = null;
+            }),
+        );
+
+        let picked = null;
+        function paint() {
+          node.style("opacity", (d) =>
+            !picked || d.lane === picked ? 1 : 0.15,
+          );
+          link.style("opacity", (d) =>
+            !picked ||
+            d.source.lane === picked ||
+            d.target.lane === picked
+              ? 1
+              : 0.08,
+          );
+        }
+
+        node
+          .on("mousemove", (e, d) => {
+            const r = box.getBoundingClientRect();
+            tip.textContent = `${d.name} — ${
+              laneLabel[d.lane] ? laneName(laneLabel[d.lane], curLang) : d.lane
+            }`;
+            tip.style.left = `${e.clientX - r.left + 12}px`;
+            tip.style.top = `${e.clientY - r.top + 12}px`;
+            tip.style.opacity = 1;
+          })
+          .on("mouseleave", () => {
+            tip.style.opacity = 0;
+          });
+
+        const bar = document.getElementById("netbar");
+        for (const lane of Object.keys(laneLabel)) {
+          const b = document.createElement("button");
+          const sw = document.createElement("span");
+          sw.className = "sw";
+          sw.style.background = BAND_COLOR[LANE_BAND[lane] || "other"];
+          const txt = document.createElement("span");
+          txt.className = "txt";
+          b.append(sw, txt);
+          b.addEventListener("click", () => {
+            picked = picked === lane ? null : lane;
+            bar
+              .querySelectorAll("button[data-lane]")
+              .forEach((x) =>
+                x.classList.toggle("on", x.dataset.lane === picked),
+              );
+            paint();
+          });
+          b.dataset.lane = lane;
+          bar.appendChild(b);
+        }
+        const spacer = document.createElement("span");
+        spacer.className = "spacer";
+        bar.appendChild(spacer);
+        const reset = document.createElement("button");
+        reset.addEventListener("click", fit);
+        bar.appendChild(reset);
+
+        // Every string the network shows is re-read here rather than baked in
+        // at build time, so the toggle re-labels without re-simulating — a
+        // node the reader dragged somewhere deliberate stays where they put it.
+        return function relabel(lang) {
+          bar.querySelectorAll("button[data-lane]").forEach((b) => {
+            b.querySelector(".txt").textContent = laneName(
+              laneLabel[b.dataset.lane],
+              lang,
+            );
+          });
+          reset.textContent = RESET_LABEL[lang];
+          svg.attr("aria-label", NET_ARIA[lang]);
+        };
+      }
+
+      async function boot() {
+        // Read the authored source BEFORE mermaid.run() replaces the <pre>
+        // with its SVG — after the run the text is gone. This bilingual
+        // original stays the one the network parses, so its node and edge
+        // reading never depends on which language is on screen.
+        const pre = document.querySelector("pre.mermaid");
+        const graphSource = pre ? pre.textContent : "";
+
+        // Redrawing in another language means handing the <pre> fresh source
+        // and clearing the stamp mermaid leaves on what it has consumed. The
+        // diagram sits outside both language blocks, so it is never hidden
+        // while mermaid measures it.
+        async function drawMap(lang) {
+          if (!pre) return;
+          pre.removeAttribute("data-processed");
+          pre.textContent = mapSource(graphSource, lang);
+          await mermaid.run({ nodes: [pre] });
+        }
+
+        let saved = "en";
+        try {
+          saved = localStorage.getItem(KEY) || "en";
+        } catch (e) {
+          /* private mode or storage disabled — default to en */
+        }
+
+        await drawMap(saved);
+
+        document.querySelectorAll(".langtoggle button").forEach((b) => {
+          b.addEventListener("click", () => applyLang(b.dataset.lang));
+        });
+
+        // applyLang runs before onLang is armed, so the saved language does
+        // not draw the map a second time.
+        applyLang(saved);
+
+        let relabelNet = null;
+        let drawing = Promise.resolve();
+        let drawn = saved;
+        onLang = (lang) => {
+          // Clicking the language already in force would otherwise pay for a
+          // full mermaid re-render to arrive back where it started.
+          if (lang === drawn) return;
+          drawn = lang;
+          // Two toggles in quick succession would race for the same <pre>, so
+          // they queue. The network is re-labelled after the map has redrawn —
+          // the promise is what makes "together" true rather than nearly true —
+          // and after the catch, so a failed redraw still leaves the buttons
+          // and the aria-label speaking the language the reader chose.
+          drawing = drawing
+            .then(() => drawMap(lang))
+            .catch(() => {})
+            .then(() => {
+              if (relabelNet) relabelNet(lang);
+            });
+        };
+
+        // The network is an extra view, not the chapter — if its CDN is
+        // unreachable the lane map and the prose must still stand, so its
+        // failure is reported in place rather than thrown.
+        try {
+          const d3 = await import("https://cdn.jsdelivr.net/npm/d3@7/+esm");
+          relabelNet = buildNetwork(d3, graphSource);
+          relabelNet(curLang);
+        } catch (e) {
+          // Written as the page's own two language blocks rather than one
+          // picked string, so the toggle keeps working on it through the very
+          // same applyLang every other block uses — there is no relabel
+          // closure to call once the network failed to build.
+          const box = document.querySelector(".netbox");
+          if (box) {
+            box.innerHTML =
+              '<p class="netfall note lang-en">The interactive web needs d3 from the CDN, which did not load. The lane map above carries the same graph.</p>' +
+              '<p class="netfall note lang-zh">這張互動網需要從 CDN 載入 d3，而它沒有載入成功。上方的欄位圖承載同一份圖。</p>';
+            applyLang(curLang);
+          }
+        }
+      }
+
+      boot();
+    </script>
+  </body>
+</html>
