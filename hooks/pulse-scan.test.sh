@@ -649,6 +649,37 @@ PY
 )
 check "dashboard carries the window selector, wired and mutually exclusive" "$expected_winui" "$actual_winui"
 
+# ── 18e2b · each cut row is named, and the exclusivity rule stands unprompted ──
+# Three identically styled chip rows with no labels read as one field of buttons,
+# so a reset looks like a glitch rather than a rule. The labels name the rows and
+# the legend names the rule; both sit in applyChrome so the language switch
+# carries them, and both locales must define the four strings.
+expected_cutui="labels:yes|legend:yes|chrome:yes|en:yes|zh:yes"
+actual_cutui=$(python3 - "$hen/adherence-pulse.html" <<'PY'
+import re, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+ids = ('id="lblModel"', 'id="lblEffort"', 'id="lblWindow"')
+keys = ("cutModel", "cutEffort", "cutWindow", "cutLegend")
+chrome = re.search(r"function applyChrome\(\) \{(.*?)\n\}", html, re.S)
+body = chrome.group(1) if chrome else ""
+wired = all('getElementById("%s").textContent = S().%s' % (el, k) in body
+            for el, k in (("lblModel", "cutModel"), ("lblEffort", "cutEffort"),
+                          ("lblWindow", "cutWindow"), ("cutlegend", "cutLegend")))
+# Each locale block runs to the line closing it, so a key found in one is not
+# miscounted for the other.
+locales = dict(re.findall(r"\n  (en|zh): \{(.*?)\n  \},", html, re.S))
+def yn(b):
+    return "yes" if b else "no"
+print("labels:%s|legend:%s|chrome:%s|en:%s|zh:%s" % (
+    yn(all(i in html for i in ids)),
+    yn('id="cutlegend"' in html),
+    yn(wired),
+    yn(all(k in locales.get("en", "") for k in keys)),
+    yn(all(k in locales.get("zh", "") for k in keys))))
+PY
+)
+check "dashboard names each cut row and carries a standing exclusivity legend" "$expected_cutui" "$actual_cutui"
+
 # ── 18e3 · the window never reaches the historical trend ──
 # Two time axes, and only one belongs to this chart: its x-axis is the date each
 # pulse RAN, while a window asks about the days work HAPPENED. Applying one to

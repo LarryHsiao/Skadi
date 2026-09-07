@@ -2118,6 +2118,11 @@ _PAGE = """<meta charset="utf-8">
   .tabbtn.active{background:#7a5c2e;color:#fff;border-color:#7a5c2e;}
   .tabnote{font-size:.7rem;color:#87795e;margin:.2rem 0 0;}
   .modelchips{display:flex;gap:.35rem;margin:.5rem 0 .2rem;flex-wrap:wrap;}
+  .cutrow{display:flex;align-items:center;gap:.5rem;}
+  /* fixed width, so the three labels align into one scannable column */
+  .cutlabel{font-size:.7rem;color:#87795e;width:3.5rem;flex:none;text-align:right;}
+  /* bottom margin, not .tabnote's top: adjacent margins collapse to the larger */
+  .cutlegend{font-size:.7rem;color:#87795e;margin:.35rem 0 .6rem;}
   .chip{border:1px solid #cbb89a;border-radius:999px;padding:.18rem .7rem;font-size:.72rem;background:none;cursor:pointer;color:inherit;}
   .chip.active{background:#a68a52;color:#fff;border-color:#a68a52;}
   .info{border:1px solid #cbb89a;border-radius:999px;width:1.15rem;height:1.15rem;line-height:1;font-size:.8rem;padding:0;background:none;cursor:pointer;color:#87795e;vertical-align:middle;}
@@ -2150,9 +2155,10 @@ _PAGE = """<meta charset="utf-8">
   <button class="tabbtn active" data-tab="direct">Direct</button>
   <button class="tabbtn" data-tab="sweep">Sweep</button>
 </div>
-<div class="modelchips" id="modelchips"></div>
-<div class="modelchips" id="effortchips"></div>
-<div class="modelchips" id="windowchips"></div>
+<div class="cutrow"><span class="cutlabel" id="lblModel"></span><div class="modelchips" id="modelchips"></div></div>
+<div class="cutrow"><span class="cutlabel" id="lblEffort"></span><div class="modelchips" id="effortchips"></div></div>
+<div class="cutrow"><span class="cutlabel" id="lblWindow"></span><div class="modelchips" id="windowchips"></div></div>
+<div class="cutlegend" id="cutlegend"></div>
 <div class="tabnote" id="tabnote"></div>
 <div class="kpi" id="overall">—</div>
 <div class="trendlabel" id="trendlabel">trend, by run date</div>
@@ -2182,10 +2188,11 @@ const STRINGS = {
     infoTitle: "What counts as success / failure",
     modelNote: (m) => ` · showing only ${m}'s runs, recomputed independently.`,
     effortNote: (e) => ` · showing only runs at ${e} effort, recomputed independently.`,
-    windowNote: (d) => ` · showing only the last ${d} days, summed from each row's own days.`,
+    windowNote: (d) => ` · showing only the last ${d} days, summed from each row's own days. A span omits any run whose transcript carried no date; only All counts those.`,
     windowAll: "All",
     trendWholeScan: "whole scan",
-    cutExclusive: "Model, effort and window are independent cuts — nothing records how they combine, so choosing one returns the others. A span also omits any run whose transcript carried no date; only All counts those.",
+    cutModel: "Model", cutEffort: "Effort", cutWindow: "Window",
+    cutLegend: "Model, effort and window are independent cuts — nothing records how they combine, so choosing one returns the other two to Overall.",
     tabNotes: {
       direct: "workflow rows count sessions with no /loop or /amon-sul in them — a hand-typed command inside such a session is still counted as sweep.",
       sweep: "workflow rows only — grammar and free-form gate rows carry no sweep concept, so they're dropped from this tab.",
@@ -2211,10 +2218,11 @@ const STRINGS = {
     infoTitle: "什麼算通過／未通過",
     modelNote: (m) => `．僅顯示 ${m} 的執行紀錄，獨立重新計算。`,
     effortNote: (e) => `．僅顯示 ${e} 推理強度的執行紀錄，獨立重新計算。`,
-    windowNote: (d) => `．僅顯示最近 ${d} 天，由各列自己的逐日明細加總而來。`,
+    windowNote: (d) => `．僅顯示最近 ${d} 天，由各列自己的逐日明細加總而來。轉錄檔未帶日期的執行不屬於任何一段時間窗口，只有「全部」會計入它們。`,
     windowAll: "全部",
     trendWholeScan: "整段掃描",
-    cutExclusive: "模型、推理強度與時間窗口是三個獨立切面——沒有任何紀錄能說明它們如何交互，因此選了其一，其餘便回到總體。此外，轉錄檔未帶日期的執行不屬於任何一段時間窗口，只有「全部」會計入它們。",
+    cutModel: "模型", cutEffort: "推理強度", cutWindow: "時間窗口",
+    cutLegend: "模型、推理強度與時間窗口是三個獨立切面——沒有任何紀錄能說明它們如何交互，因此選了其一，其餘兩者便回到總體。",
     tabNotes: {
       direct: "workflow 類項目計入沒有 /loop 或 /amon-sul 的 session——這類 session 裡手動輸入的指令仍算作 sweep。",
       sweep: "只涵蓋 workflow 類項目——grammar 與 free-form gate 沒有 sweep 的概念，因此不列入這個分頁。",
@@ -2530,10 +2538,10 @@ function render(tab, model, effort, days) {
   const cutNote = days !== "All" ? S().windowNote(days)
     : model !== "Overall" ? S().modelNote(modelLabel(model))
     : effort !== "Overall" ? S().effortNote(effort) : "";
-  // The exclusivity note earns its place only once a cut is chosen — that is
-  // the moment the other row visibly resets and wants explaining.
-  document.getElementById("tabnote").textContent =
-    S().tabNotes[tab] + cutNote + (cutNote ? " " + S().cutExclusive : "");
+  // The exclusivity rule stands in the legend at all times, not only once a cut
+  // is chosen: the reader who has not yet clicked is exactly the one who needs
+  // to know that the three rows will not compose.
+  document.getElementById("tabnote").textContent = S().tabNotes[tab] + cutNote;
   document.getElementById("modelchips").innerHTML = ["Overall", ...DATA.models].map(m =>
     `<button class="chip ${m === model ? "active" : ""}" data-model="${esc(m)}">${esc(modelLabel(m))}</button>`
   ).join("");
@@ -2627,6 +2635,10 @@ function applyChrome() {
   document.getElementById("colItem").textContent = S().colItem;
   document.getElementById("colRate").textContent = S().colRate;
   document.getElementById("colN").textContent = S().colN;
+  document.getElementById("lblModel").textContent = S().cutModel;
+  document.getElementById("lblEffort").textContent = S().cutEffort;
+  document.getElementById("lblWindow").textContent = S().cutWindow;
+  document.getElementById("cutlegend").textContent = S().cutLegend;
 }
 document.getElementById("langSwitch").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip");
