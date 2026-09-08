@@ -157,6 +157,10 @@
     "defaultMode": "auto"
   },
   "model": "opusplan",
+  "modelSettings": {
+    "claude-sonnet-5": { "effortLevel": "medium" },
+    "claude-opus-5": { "effortLevel": "high" }
+  },
   "theme": "light",
   "outputStyle": "tolkien-narrator",
   "env": {
