@@ -620,45 +620,46 @@ PY
 )
 check "byEffort reaches the page; effort roster climbs its ladder" "$expected_byeffort_page" "$actual_byeffort_page"
 
-# ── 18c · the page carries the effort chip row, the thin floor, and the reset ──
-# The two cuts are independent splits of the same totals — no model-at-effort
-# cell is ever computed — so each selector must return the other to Overall
-# rather than imply a filter the data cannot answer.
-expected_effortui="chips:yes|applyEffort:yes|thinN:yes|reset-model:yes|reset-effort:yes|thin-status:yes"
+# ── 18c · the page carries the effort chip row, the thin floor, and the
+#         model/effort click handlers composing rather than flatly resetting ──
+# A model-at-effort cell is now tallied (byModelEffort), so the click handlers
+# join a second selector to the first instead of always bouncing it to
+# Overall — each checks only the OTHER two rows before deciding.
+expected_effortui="chips:yes|applyEffort:yes|thinN:yes|model-composes:yes|effort-composes:yes|thin-status:yes"
 actual_effortui=$(python3 - "$hen/adherence-pulse.html" <<'PY'
 import sys
 html = open(sys.argv[1], encoding="utf-8").read()
 def has(s): return "yes" if s in html else "no"
-print("chips:%s|applyEffort:%s|thinN:%s|reset-model:%s|reset-effort:%s|thin-status:%s" % (
+print("chips:%s|applyEffort:%s|thinN:%s|model-composes:%s|effort-composes:%s|thin-status:%s" % (
     has('id="effortchips"'),
     has("function applyEffort"),
     has("const THIN_N"),
-    has('render(currentTab, btn.dataset.model, "Overall", "All")'),
-    has('render(currentTab, "Overall", btn.dataset.effort, "All")'),
+    has('currentEffort !== "Overall" && currentWindow !== "All"'),
+    has('currentModel !== "Overall" && currentWindow !== "All"'),
     has('status: "thin"')))
 PY
 )
-check "dashboard carries the effort selector, thin floor, and mutual reset (now three-way)" "$expected_effortui" "$actual_effortui"
+check "dashboard carries the effort selector, thin floor, and the model/effort compose handlers" "$expected_effortui" "$actual_effortui"
 
-# ── 18e2 · the window selector is present, wired, and returns the other two ──
-# Three cuts now, and none composes with another: byDate holds no model split,
-# byModel holds no days. A selector that left another standing would imply a
-# filter the data cannot answer.
-expected_winui="chips:yes|apply:yes|listener:yes|resets:yes|strings:yes"
+# ── 18e2 · the window selector is present, wired, and composes with model or
+#         effort — now that byModelDate/byEffortDate hold the per-day split
+#         each needs, a window click only starts fresh when BOTH the other
+#         rows are already active (the still-uncomputed triple) ──
+expected_winui="chips:yes|apply:yes|listener:yes|composes:yes|strings:yes"
 actual_winui=$(python3 - "$hen/adherence-pulse.html" <<'PY'
 import sys
 html = open(sys.argv[1], encoding="utf-8").read()
 def has(s):
     return "yes" if s in html else "no"
-print("chips:%s|apply:%s|listener:%s|resets:%s|strings:%s" % (
+print("chips:%s|apply:%s|listener:%s|composes:%s|strings:%s" % (
     has('id="windowchips"'),
     has("function applyWindow"),
     has('getElementById("windowchips").addEventListener'),
-    has('render(currentTab, "Overall", "Overall", btn.dataset.window)'),
+    has('currentModel !== "Overall" && currentEffort !== "Overall"'),
     "yes" if ("windowNote" in html and "windowAll" in html) else "no"))
 PY
 )
-check "dashboard carries the window selector, wired and mutually exclusive" "$expected_winui" "$actual_winui"
+check "dashboard carries the window selector, wired and composing with model or effort" "$expected_winui" "$actual_winui"
 
 # ── 18e2b · each cut row is named, and the exclusivity rule stands unprompted ──
 # Three identically styled chip rows with no labels read as one field of buttons,
@@ -881,7 +882,10 @@ page = m._PAGE
 # every window test with an empty result rather than a loud error.
 parts = [re.search(r"const THIN_N = \d+;", page).group(0),
          re.search(r"const MS_PER_DAY = \d+;", page).group(0)]
-for fn in ("applyCut", "windowCutoff", "applyWindow"):
+# applyWindow no longer stands alone — it shares foldSpan/windowClassify with
+# its two pairwise counterparts, so both must ride along or the lift throws a
+# ReferenceError the moment applyWindow calls them.
+for fn in ("applyCut", "windowCutoff", "foldSpan", "windowClassify", "applyWindow"):
     parts.append(re.search(r"function %s\(.*?\n\}" % fn, page, re.S).group(0))
 harness = """
 // Two days of runs: one four days back, one today. A 1-day window must see
@@ -3084,6 +3088,185 @@ PY
   check "gateSeries sorts points by date, not by byDate's insertion order" "$expected_gateseries" "$actual_gateseries"
 else
   echo "  skip · gateSeries date order — node absent, JS not exercised"
+fi
+
+# ── 76 · _bump_cuts tallies the three pairwise cells (modelEffort, modelDate,
+#         effortDate) alongside the three singles, from the same instance at
+#         the same tally — and a pair drops cleanly when either of its two
+#         keys is None, the same way a single None key is dropped today ──
+expected_paircuts="model:A=4/3 effort:E=4/3 date:D=4/3 modelEffort:A,E=3/2 modelDate:A,D=3/2 effortDate:E,D=3/2"
+actual_paircuts=$(python3 - "$SCAN" <<'PY'
+import importlib.util as u, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+cuts = m._new_cuts()
+assert set(cuts) == {"model", "effort", "date", "modelEffort", "modelDate", "effortDate"}, cuts
+m._bump_cuts(cuts, "A", "E", "D", True)
+m._bump_cuts(cuts, "A", "E", "D", False)
+m._bump_cuts(cuts, None, "E", "D", True)     # no model — model/modelEffort/modelDate drop it
+m._bump_cuts(cuts, "A", "E", None, True)     # no date — date/modelDate/effortDate drop it
+m._bump_cuts(cuts, "A", None, "D", True)     # no effort — effort/modelEffort/effortDate drop it
+def cell(bucket, key):
+    c = bucket[key]
+    return "%d/%d" % (c["applied"], c["complied"])
+print("model:A=%s effort:E=%s date:D=%s modelEffort:A,E=%s modelDate:A,D=%s effortDate:E,D=%s" % (
+    cell(cuts["model"], "A"), cell(cuts["effort"], "E"), cell(cuts["date"], "D"),
+    cell(cuts["modelEffort"], ("A", "E")), cell(cuts["modelDate"], ("A", "D")),
+    cell(cuts["effortDate"], ("E", "D"))))
+PY
+)
+check "_bump_cuts tallies the three pairwise cells beside the singles, dropping a pair on either None key" "$expected_paircuts" "$actual_paircuts"
+
+# ── 77 · the three pairwise cells reach an apply_rubric item's JSON payload,
+#         nested by outer key then inner — not flattened into a "model|effort"
+#         string a tuple dict key could never survive json.dumps as ──
+d=$(tmpdir)
+cat >"$d/s.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-20T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-08-20T10:00:05Z","effort":"max","message":{"model":"claude-opus-5","content":[{"type":"text","text":"Glorfindel — STIRRED."}]}}
+{"type":"user","timestamp":"2026-08-20T10:01:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-08-20T10:01:05Z","effort":"low","message":{"model":"claude-opus-5","content":[{"type":"text","text":"still working"}]}}
+{"type":"user","timestamp":"2026-08-21T10:00:00Z","message":{"content":"<command-name>/glorfindel</command-name>"}}
+{"type":"assistant","timestamp":"2026-08-21T10:00:05Z","effort":"max","message":{"model":"claude-sonnet-5","content":[{"type":"text","text":"Glorfindel — STIRRED."}]}}
+JSON
+expected_pairjson="modelEffort:opus-max=1/1,opus-low=1/0,sonnet-max=1/1 modelDate:opus-20=2/1,sonnet-21=1/1 effortDate:max-20=1/1,low-20=1/0,max-21=1/1"
+actual_pairjson=$(python3 - "$SCAN" "$FIXTURE_RUBRIC" "$d/s.jsonl" <<'PY'
+import importlib.util as u, sys, json
+sys.stdout.reconfigure(encoding="utf-8")
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+items, _, _ = m.apply_rubric([sys.argv[3]], rubric)
+json.dumps(items)  # the whole payload must survive real json.dumps — a tuple
+                   # key anywhere in it would TypeError right here
+item = next(i for i in items if i["id"] == "workflow.glorfindel")
+def cell(nested, outer, inner):
+    c = nested[outer][inner]
+    return "%d/%d" % (c["applied"], c["complied"])
+me, md, ed = item["byModelEffort"], item["byModelDate"], item["byEffortDate"]
+print("modelEffort:opus-max=%s,opus-low=%s,sonnet-max=%s modelDate:opus-20=%s,sonnet-21=%s effortDate:max-20=%s,low-20=%s,max-21=%s" % (
+    cell(me, "claude-opus-5", "max"), cell(me, "claude-opus-5", "low"), cell(me, "claude-sonnet-5", "max"),
+    cell(md, "claude-opus-5", "2026-08-20"), cell(md, "claude-sonnet-5", "2026-08-21"),
+    cell(ed, "max", "2026-08-20"), cell(ed, "low", "2026-08-20"), cell(ed, "max", "2026-08-21")))
+PY
+)
+check "apply_rubric's item carries byModelEffort/byModelDate/byEffortDate, nested and json-safe" "$expected_pairjson" "$actual_pairjson"
+
+# ── 78 · applyModelEffort applies the same thin floor as applyCut, on a cell
+#         nested by model then effort rather than a single flat key ──
+if command -v node >/dev/null 2>&1; then
+  mejs="$ROOT/applymodeleffort.js"
+  python3 - "$SCAN" "$mejs" <<'PY'
+import importlib.util as u, sys, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+page = m._PAGE
+thin = re.search(r"const THIN_N = \d+;", page).group(0)
+fn = re.search(r"function applyModelEffort\(items, model, effort\) \{.*?\n\}", page, re.S).group(0)
+floor = int(re.search(r"\d+", thin).group(0))
+harness = """
+const item = (n) => ({ id: "x", status: "ok",
+  byModelEffort: { A: { E: { applied: n, complied: n, rate: 100 } } } });
+const one = (n) => applyModelEffort([item(n)], "A", "E")[0];
+const gone = applyModelEffort([item(99)], "A", "F")[0];
+const under = one(%d), at = one(%d);
+console.log("under:" + under.status + "/" + under.rate
+  + "|at:" + at.status + "/" + at.rate
+  + "|missing:" + gone.status);
+""" % (floor - 1, floor)
+open(sys.argv[2], "w", encoding="utf-8").write(thin + "\n" + fn + "\n" + harness)
+PY
+  expected_methin="under:thin/null|at:ok/100|missing:no-data"
+  actual_methin=$(node "$mejs")
+  check "applyModelEffort applies the thin floor on a nested cell" "$expected_methin" "$actual_methin"
+else
+  echo "  skip · applyModelEffort thin floor — node absent, JS not exercised"
+fi
+
+# ── 79 · applySelection composes a pairwise cell when two selectors are
+#         active, and still reads a single cut when only one is — the whole
+#         dispatch lifted and run, not restated in Python ──
+if command -v node >/dev/null 2>&1; then
+  seljs="$ROOT/applyselection.js"
+  python3 - "$SCAN" "$seljs" <<'PY'
+import importlib.util as u, sys, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+page = m._PAGE
+parts = [re.search(r"const THIN_N = \d+;", page).group(0),
+         re.search(r"const MS_PER_DAY = \d+;", page).group(0)]
+for fn in ("applyCut", "applyModel", "applyEffort", "applyModelEffort", "windowCutoff",
+           "foldSpan", "windowClassify", "applyWindow", "applyModelWindow",
+           "applyEffortWindow", "applySelection"):
+    parts.append(re.search(r"function %s\(.*?\n\}" % fn, page, re.S).group(0))
+harness = """
+const today = new Date().toISOString().slice(0, 10);
+const item = {
+  id: "x", status: "ok",
+  byModel: { A: { applied: 50, complied: 40, rate: 80 } },
+  byEffort: { E: { applied: 50, complied: 30, rate: 60 } },
+  byDate: { [today]: { applied: 50, complied: 35, rate: 70 } },
+  byModelEffort: { A: { E: { applied: 20, complied: 19, rate: 95 } } },
+  byModelDate: { A: { [today]: { applied: 20, complied: 11, rate: 55 } } },
+  byEffortDate: { E: { [today]: { applied: 20, complied: 13, rate: 65 } } },
+};
+const at = (model, effort, days) => applySelection([item], model, effort, days)[0];
+console.log("modelOnly:" + at("A", "Overall", "All").rate);
+console.log("effortOnly:" + at("Overall", "E", "All").rate);
+console.log("windowOnly:" + at("Overall", "Overall", "7").rate);
+console.log("modelEffort:" + at("A", "E", "All").rate);
+console.log("modelWindow:" + at("A", "Overall", "7").rate);
+console.log("effortWindow:" + at("Overall", "E", "7").rate);
+"""
+open(sys.argv[2], "w", encoding="utf-8").write("\n".join(parts) + "\n" + harness)
+PY
+  out=$(node "$seljs")
+  g() { printf '%s\n' "$out" | grep "^$1:" | cut -d: -f2-; }
+  check "applySelection reads the plain model cut alone" "80" "$(g modelOnly)"
+  check "applySelection reads the plain effort cut alone" "60" "$(g effortOnly)"
+  check "applySelection reads the plain window cut alone" "70" "$(g windowOnly)"
+  check "applySelection composes model+effort into the pairwise cell, not either single" "95" "$(g modelEffort)"
+  check "applySelection composes model+window into the pairwise cell, not either single" "55" "$(g modelWindow)"
+  check "applySelection composes effort+window into the pairwise cell, not either single" "65" "$(g effortWindow)"
+else
+  echo "  skip · applySelection composition — node absent, JS not exercised"
+fi
+
+# ── 80 · the click handlers compose a second selector with the first, and
+#         collapse a third click back to itself — the actual sequence a
+#         reader's clicks produce, not just the source text that implies it ──
+if command -v node >/dev/null 2>&1; then
+  clickjs="$ROOT/clickcompose.js"
+  python3 - "$SCAN" "$clickjs" <<'PY'
+import importlib.util as u, sys, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+page = m._PAGE
+lets = "\n".join(re.findall(r"let current\w+ = .*?;", page))
+handlers = []
+for chip in ("modelchips", "effortchips", "windowchips"):
+    handlers.append(re.search(
+        r'document\.getElementById\("%s"\)\.addEventListener\("click", \(e\) => \{.*?\n\}\);' % chip,
+        page, re.S).group(0))
+harness = """
+const calls = [];
+function render(tab, model, effort, days) {
+  currentTab = tab; currentModel = model; currentEffort = effort; currentWindow = days;
+  calls.push([model, effort, days].join(","));
+}
+const handlerMap = {};
+const document = { getElementById: (id) => ({ addEventListener: (t, cb) => { handlerMap[id] = cb; } }) };
+"""
+click_fn = """
+function click(id, dataset) { handlerMap[id]({ target: { closest: () => ({ dataset }) } }); }
+click("modelchips", { model: "A" });
+click("windowchips", { window: "7" });
+click("effortchips", { effort: "E" });
+console.log(calls.join("|"));
+"""
+open(sys.argv[2], "w", encoding="utf-8").write(
+    lets + "\n" + harness + "\n".join(handlers) + "\n" + click_fn)
+PY
+  expected_clicks="A,Overall,All|A,Overall,7|Overall,E,All"
+  actual_clicks=$(node "$clickjs")
+  check "a second click composes with the first; a third collapses the pair back to itself" "$expected_clicks" "$actual_clicks"
+else
+  echo "  skip · click compose/reset sequence — node absent, JS not exercised"
 fi
 
 echo ""

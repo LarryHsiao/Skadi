@@ -450,17 +450,36 @@ def _bump_cut(bucket, key, complied):
         counts["complied"] += 1
 
 
+def _pair(a, b):
+    """(a, b) if both are attributable, else None — the same drop rule as a
+    single key, lifted here once the three pairwise cuts below made it recur
+    a third time (docs/style/universal.md: lift duplicate shapes on the third
+    recurrence)."""
+    return (a, b) if a is not None and b is not None else None
+
+
 def _new_cuts():
     """The attribution splits every scorer tallies beside its own totals. Kept
-    as one container so a scorer's signature does not grow a slot per cut."""
-    return {"model": {}, "effort": {}, "date": {}}
+    as one container so a scorer's signature does not grow a slot per cut.
+    The three pairwise buckets (modelEffort, modelDate, effortDate) ride beside
+    the three singles — composed from the same instance at the same tally, not
+    recomputed from a second pass, so a page that wants "Sonnet 5 in the last
+    7 days" already has the cell rather than needing a new scan to build it."""
+    return {"model": {}, "effort": {}, "date": {},
+            "modelEffort": {}, "modelDate": {}, "effortDate": {}}
 
 
 def _bump_cuts(cuts, model, effort, date, complied):
-    """Tally one instance against every cut at once."""
+    """Tally one instance against every cut at once — the three singles and the
+    three pairs composed from them. A pair needs both its keys present; if
+    either is None the pair is dropped the same way a single None key is,
+    rather than filed under a half-known composite."""
     _bump_cut(cuts["model"], model, complied)
     _bump_cut(cuts["effort"], effort, complied)
     _bump_cut(cuts["date"], date, complied)
+    _bump_cut(cuts["modelEffort"], _pair(model, effort), complied)
+    _bump_cut(cuts["modelDate"], _pair(model, date), complied)
+    _bump_cut(cuts["effortDate"], _pair(effort, date), complied)
 
 
 def _run_date(run):
@@ -1548,6 +1567,18 @@ def _rated_cut(bucket):
     return {k: {**c, "rate": _rate(c["applied"], c["complied"])} for k, c in bucket.items()}
 
 
+def _nested_rated_cut(bucket):
+    """{(outer, inner): {applied, complied}} → {outer: {inner: {..., rate}}} —
+    the pairwise counterpart to _rated_cut. A tuple key cannot survive
+    json.dumps (it demands str/int/float/bool/None keys), and nesting is also
+    the shape the page wants: a lookup by outer key, then inner, rather than a
+    flat "outer|inner" string it would have to split back apart."""
+    nested = {}
+    for (outer, inner), counts in bucket.items():
+        nested.setdefault(outer, {})[inner] = {**counts, "rate": _rate(counts["applied"], counts["complied"])}
+    return nested
+
+
 def _merge_cut(total, addition):
     for key, counts in addition.items():
         bucket = total.setdefault(key, {"applied": 0, "complied": 0})
@@ -1899,9 +1930,11 @@ def apply_rubric(files, rubric):
     workflow-kind items additionally split into direct (top-level, the
     human running the rider by hand) vs sweep (item["sweep"], a /loop- or
     /amon-sul-fired repeat) — see _is_sweep_session. Every ok item also carries
-    byModel (and sweep items carry sweep.byModel), the same split re-cut by
-    which model authored the run. Returns (items, models) — models is the full
-    chip roster, see _all_models."""
+    byModel/byEffort/byDate (and sweep items carry the same trio under
+    item.sweep), plus the three pairwise cells a composed selection reads —
+    byModelEffort, byModelDate, byEffortDate — built from the same tally, not
+    a second pass. Returns (items, models) — models is the full chip roster,
+    see _all_models."""
     scorers = {"workflow": score_workflow, "grammar": score_grammar,
                "freeform-gate": score_freeform_gate, "post-gate": score_post_gate,
                "review-verdict": score_review_verdict,
@@ -1952,13 +1985,23 @@ def apply_rubric(files, rubric):
                      # Every row carries its own day histogram, which is what
                      # lets the dashboard answer a span narrower than the scan's
                      # own window without a second, slower scan.
-                     "byDate": _rated_cut(cuts["date"])}
+                     "byDate": _rated_cut(cuts["date"]),
+                     # The three pairwise cells a composed selection reads —
+                     # {model: {effort: {...}}} and the two date-nested forms —
+                     # built from the same tally as the singles above, not a
+                     # second pass.
+                     "byModelEffort": _nested_rated_cut(cuts["modelEffort"]),
+                     "byModelDate": _nested_rated_cut(cuts["modelDate"]),
+                     "byEffortDate": _nested_rated_cut(cuts["effortDate"])}
             if kind == "workflow":
                 item["sweep"] = {"applied": sweep_applied, "complied": sweep_complied,
                                   "rate": _rate(sweep_applied, sweep_complied),
                                   "byModel": _rated_cut(sweep_cuts["model"]),
                                   "byEffort": _rated_cut(sweep_cuts["effort"]),
-                                  "byDate": _rated_cut(sweep_cuts["date"])}
+                                  "byDate": _rated_cut(sweep_cuts["date"]),
+                                  "byModelEffort": _nested_rated_cut(sweep_cuts["modelEffort"]),
+                                  "byModelDate": _nested_rated_cut(sweep_cuts["modelDate"]),
+                                  "byEffortDate": _nested_rated_cut(sweep_cuts["effortDate"])}
             if kind == "plan-gate":
                 item["abandoned"] = _abandoned_gates(sessions)
                 # The same days, from the same walk over the same gates, with
@@ -2189,10 +2232,13 @@ const STRINGS = {
     modelNote: (m) => ` · showing only ${m}'s runs, recomputed independently.`,
     effortNote: (e) => ` · showing only runs at ${e} effort, recomputed independently.`,
     windowNote: (d) => ` · showing only the last ${d} days, summed from each row's own days. A span omits any run whose transcript carried no date; only All counts those.`,
+    modelEffortNote: (m, e) => ` · showing only ${m}'s runs at ${e} effort, recomputed independently.`,
+    modelWindowNote: (m, d) => ` · showing only ${m}'s runs from the last ${d} days, summed from each row's own days.`,
+    effortWindowNote: (e, d) => ` · showing only runs at ${e} effort from the last ${d} days, summed from each row's own days.`,
     windowAll: "All",
     trendWholeScan: "whole scan",
     cutModel: "Model", cutEffort: "Effort", cutWindow: "Window",
-    cutLegend: "Model, effort and window are independent cuts — nothing records how they combine, so choosing one returns the other two to Overall.",
+    cutLegend: "Model, effort and window compose two at a time — pick a second and it narrows the first instead of resetting it; a third collapses the pair back to itself, since a three-way cell was never tallied.",
     tabNotes: {
       direct: "workflow rows count sessions with no /loop or /amon-sul in them — a hand-typed command inside such a session is still counted as sweep.",
       sweep: "workflow rows only — grammar and free-form gate rows carry no sweep concept, so they're dropped from this tab.",
@@ -2219,10 +2265,13 @@ const STRINGS = {
     modelNote: (m) => `．僅顯示 ${m} 的執行紀錄，獨立重新計算。`,
     effortNote: (e) => `．僅顯示 ${e} 推理強度的執行紀錄，獨立重新計算。`,
     windowNote: (d) => `．僅顯示最近 ${d} 天，由各列自己的逐日明細加總而來。轉錄檔未帶日期的執行不屬於任何一段時間窗口，只有「全部」會計入它們。`,
+    modelEffortNote: (m, e) => `．僅顯示 ${m} 在 ${e} 推理強度下的執行紀錄，獨立重新計算。`,
+    modelWindowNote: (m, d) => `．僅顯示 ${m} 最近 ${d} 天的執行紀錄，由各列自己的逐日明細加總而來。`,
+    effortWindowNote: (e, d) => `．僅顯示 ${e} 推理強度最近 ${d} 天的執行紀錄，由各列自己的逐日明細加總而來。`,
     windowAll: "全部",
     trendWholeScan: "整段掃描",
     cutModel: "模型", cutEffort: "推理強度", cutWindow: "時間窗口",
-    cutLegend: "模型、推理強度與時間窗口是三個獨立切面——沒有任何紀錄能說明它們如何交互，因此選了其一，其餘兩者便回到總體。",
+    cutLegend: "模型、推理強度與時間窗口最多兩兩合成——選了第二項，會收窄第一項而非讓它回到總體；選到第三項，組合會收回為它自己，因為三者交叉的儲存格從未被統計過。",
     tabNotes: {
       direct: "workflow 類項目計入沒有 /loop 或 /amon-sul 的 session——這類 session 裡手動輸入的指令仍算作 sweep。",
       sweep: "只涵蓋 workflow 類項目——grammar 與 free-form gate 沒有 sweep 的概念，因此不列入這個分頁。",
@@ -2273,14 +2322,18 @@ function viewFor(items, tab) {
   return items.filter(i => i.kind === "workflow").map(i => {
     if (i.status !== "ok") return i;
     const sw = i.sweep ||
-      { applied: 0, complied: 0, rate: null, byModel: {}, byEffort: {}, byDate: {} };
-    // EVERY cut is swapped, not just byModel. A spread that carries one of them
-    // over from the Direct view leaves that chip and the window summing the
+      { applied: 0, complied: 0, rate: null, byModel: {}, byEffort: {}, byDate: {},
+        byModelEffort: {}, byModelDate: {}, byEffortDate: {} };
+    // EVERY cut is swapped, not just byModel — the three pairwise cells
+    // included. A spread that carried one of them over from the Direct view
+    // would leave that chip, or a composed pair touching it, summing the
     // wrong population — silently, since the number is plausible and the row
     // shows no sign it answered for a different set of sessions.
     return { ...i, rate: sw.rate, applied: sw.applied, complied: sw.complied,
              byModel: sw.byModel || {}, byEffort: sw.byEffort || {},
-             byDate: sw.byDate || {}, status: sw.applied ? "ok" : "no-sweep" };
+             byDate: sw.byDate || {}, byModelEffort: sw.byModelEffort || {},
+             byModelDate: sw.byModelDate || {}, byEffortDate: sw.byEffortDate || {},
+             status: sw.applied ? "ok" : "no-sweep" };
   });
 }
 
@@ -2297,9 +2350,9 @@ function viewFor(items, tab) {
 // the model cut on the same terms; a rarely-used model earns the same caution.
 const THIN_N = 10;
 
-// One cut at a time, by construction. byModel and byEffort are independent
-// splits of the same totals; nothing records how they combine, so there is no
-// model-at-effort cell to show and the selectors reset each other.
+// A single-key cut. byModel and byEffort are flat splits of the same totals;
+// applyModelEffort below reads the pairwise cell instead when both a model
+// and an effort are chosen together.
 function applyCut(items, bucketName, key) {
   if (key === "Overall") return items;
   return items.map(i => {
@@ -2321,6 +2374,21 @@ function applyEffort(items, effort) {
   return applyCut(items, "byEffort", effort);
 }
 
+// The one pairwise cell with no date axis: model and effort chosen together,
+// doubly nested (model, then effort) rather than a flat "model|effort" key —
+// classified the same no-data/thin/ok way applyCut classifies its single cell.
+function applyModelEffort(items, model, effort) {
+  return items.map(i => {
+    if (i.status !== "ok") return i;
+    const cell = ((i.byModelEffort || {})[model] || {})[effort];
+    if (!cell) return { ...i, rate: null, applied: 0, complied: 0, status: "no-data" };
+    if (cell.applied < THIN_N) {
+      return { ...i, rate: null, applied: cell.applied, complied: cell.complied, status: "thin" };
+    }
+    return { ...i, rate: cell.rate, applied: cell.applied, complied: cell.complied };
+  });
+}
+
 // The oldest day a span still includes, as the YYYY-MM-DD its byDate keys use.
 // A declaration, not a const arrow: the test lifts this out of _PAGE by
 // matching `function <name>(`, as it does for every other function it exercises.
@@ -2331,44 +2399,68 @@ function windowCutoff(days) {
   return new Date(Date.now() - (Number(days) - 1) * MS_PER_DAY).toISOString().slice(0, 10);
 }
 
-// A span, not a split. byDate is summed across the days inside it — which is
-// why a window is not composable with the model or effort chips: those hold no
-// per-day breakdown, and the interaction was never computed.
+// A span, not a split — byDate (or a byModelDate/byEffortDate row) is summed
+// across the days inside it. Shared by applyWindow and its two pairwise
+// counterparts below, which differ only in which per-day histogram they hand
+// in: the item's own byDate, or one row of a byModelDate/byEffortDate nest.
 //
 // A span is also never quite "All", even at the scan's own width: a run whose
 // transcript line carried no timestamp scores in the totals but joins no day,
 // so it is present in All and absent from every span. That is the honest
 // reading — it happened, but it cannot be placed on a time axis.
+function foldSpan(byDate, cutoff) {
+  const inSpan = Object.entries(byDate || {}).filter(([d]) => d >= cutoff);
+  const applied = inSpan.reduce((a, [, c]) => a + c.applied, 0);
+  const complied = inSpan.reduce((a, [, c]) => a + c.complied, 0);
+  return { hasData: inSpan.length > 0, applied, complied };
+}
+
+function windowClassify(item, cutoff, pickByDate) {
+  const { hasData, applied, complied } = foldSpan(pickByDate(item), cutoff);
+  if (!hasData) return { ...item, rate: null, applied: 0, complied: 0, status: "no-data" };
+  if (applied < THIN_N) return { ...item, rate: null, applied, complied, status: "thin" };
+  return { ...item, applied, complied, rate: Math.round((100 * complied) / applied) };
+}
+
 function applyWindow(items, days) {
   if (days === "All") return items;
   const cutoff = windowCutoff(days);
-  return items.map(i => {
-    if (i.status !== "ok") return i;
-    const inSpan = Object.entries(i.byDate || {}).filter(([d]) => d >= cutoff);
-    if (!inSpan.length) {
-      return { ...i, rate: null, applied: 0, complied: 0, status: "no-data" };
-    }
-    const applied = inSpan.reduce((a, [, c]) => a + c.applied, 0);
-    const complied = inSpan.reduce((a, [, c]) => a + c.complied, 0);
-    if (applied < THIN_N) {
-      return { ...i, rate: null, applied, complied, status: "thin" };
-    }
-    return { ...i, applied, complied, rate: Math.round((100 * complied) / applied) };
-  });
+  return items.map(i => i.status !== "ok" ? i : windowClassify(i, cutoff, x => x.byDate));
 }
 
-// The selected cut, whichever it is. Branching rather than composing is the
-// point: applying both in turn would read byEffort off items already narrowed
-// by model, and that cell was never computed — the number it produced would be
-// wrong rather than empty. The selectors already reset each other; this makes
-// the invariant structural instead of merely conventional.
+// model and window chosen together: the model's own day-by-day slice, summed
+// across the span, rather than the model's whole-history rate or the whole
+// fleet's rate for that span.
+function applyModelWindow(items, model, days) {
+  const cutoff = windowCutoff(days);
+  return items.map(i => i.status !== "ok" ? i : windowClassify(i, cutoff, x => (x.byModelDate || {})[model]));
+}
+
+// effort and window chosen together — the effort-axis twin of applyModelWindow.
+function applyEffortWindow(items, effort, days) {
+  const cutoff = windowCutoff(days);
+  return items.map(i => i.status !== "ok" ? i : windowClassify(i, cutoff, x => (x.byEffortDate || {})[effort]));
+}
+
+// One cut, or a composed pair of two — never all three, since a model × effort
+// × window cell was never tallied; the interaction the file used to say was
+// simply uncomputed now has two of its three faces, but not the third. When
+// two of the three selectors are active the matching pairwise cell answers;
+// with one, the plain cut; with none, the item stands as scanned. The click
+// handlers below hold the invariant that at most two are ever active at
+// once — a third click collapses the standing pair back to Overall/All rather
+// than attempting the still-uncomputed triple.
 // The spans the window chips offer. "All" is the scan's own width and is not a
 // span: it alone includes runs that carry no date.
 const WINDOWS = ["All", "1", "7", "30", "90"];
 
 function applySelection(items, model, effort, days) {
-  if (days && days !== "All") return applyWindow(items, days);
-  if (effort !== "Overall") return applyEffort(items, effort);
+  const m = model !== "Overall", e = effort !== "Overall", w = Boolean(days) && days !== "All";
+  if (m && e) return applyModelEffort(items, model, effort);
+  if (m && w) return applyModelWindow(items, model, days);
+  if (e && w) return applyEffortWindow(items, effort, days);
+  if (w) return applyWindow(items, days);
+  if (e) return applyEffort(items, effort);
   return applyModel(items, model);
 }
 
@@ -2535,12 +2627,16 @@ function render(tab, model, effort, days) {
   currentModel = model;
   currentEffort = effort;
   currentWindow = days;
-  const cutNote = days !== "All" ? S().windowNote(days)
-    : model !== "Overall" ? S().modelNote(modelLabel(model))
-    : effort !== "Overall" ? S().effortNote(effort) : "";
-  // The exclusivity rule stands in the legend at all times, not only once a cut
+  const mSel = model !== "Overall", eSel = effort !== "Overall", wSel = days !== "All";
+  const cutNote = (mSel && eSel) ? S().modelEffortNote(modelLabel(model), effort)
+    : (mSel && wSel) ? S().modelWindowNote(modelLabel(model), days)
+    : (eSel && wSel) ? S().effortWindowNote(effort, days)
+    : wSel ? S().windowNote(days)
+    : mSel ? S().modelNote(modelLabel(model))
+    : eSel ? S().effortNote(effort) : "";
+  // The composition cap stands in the legend at all times, not only once a cut
   // is chosen: the reader who has not yet clicked is exactly the one who needs
-  // to know that the three rows will not compose.
+  // to know the three rows compose two at a time, never all three.
   document.getElementById("tabnote").textContent = S().tabNotes[tab] + cutNote;
   document.getElementById("modelchips").innerHTML = ["Overall", ...DATA.models].map(m =>
     `<button class="chip ${m === model ? "active" : ""}" data-model="${esc(m)}">${esc(modelLabel(m))}</button>`
@@ -2596,23 +2692,37 @@ document.querySelectorAll(".tabbtn").forEach(btn => {
     render(btn.dataset.tab, currentModel, currentEffort, currentWindow);
   });
 });
-// Each selector returns the other to Overall: the two cuts are independent
-// splits of the same totals, so a model-at-effort cell was never computed and
-// showing one selected beside the other would imply a filter that is not there.
+// A second selector joins the first, composing a pair the backend actually
+// tallied; a third collapses the standing pair back to itself, since a model
+// × effort × window cell was never computed. Each handler asks only about the
+// OTHER two rows — if both are already active (a pair not involving this row),
+// this click cannot extend it, so it starts fresh instead of attempting the
+// uncomputed triple.
 document.getElementById("modelchips").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip");
   if (!btn) return;
-  render(currentTab, btn.dataset.model, "Overall", "All");
+  const pairAlready = currentEffort !== "Overall" && currentWindow !== "All";
+  render(currentTab, btn.dataset.model,
+         pairAlready ? "Overall" : currentEffort,
+         pairAlready ? "All" : currentWindow);
 });
 document.getElementById("effortchips").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip");
   if (!btn) return;
-  render(currentTab, "Overall", btn.dataset.effort, "All");
+  const pairAlready = currentModel !== "Overall" && currentWindow !== "All";
+  render(currentTab,
+         pairAlready ? "Overall" : currentModel,
+         btn.dataset.effort,
+         pairAlready ? "All" : currentWindow);
 });
 document.getElementById("windowchips").addEventListener("click", (e) => {
   const btn = e.target.closest(".chip");
   if (!btn) return;
-  render(currentTab, "Overall", "Overall", btn.dataset.window);
+  const pairAlready = currentModel !== "Overall" && currentEffort !== "Overall";
+  render(currentTab,
+         pairAlready ? "Overall" : currentModel,
+         pairAlready ? "Overall" : currentEffort,
+         btn.dataset.window);
 });
 document.getElementById("rows").addEventListener("click", (e) => {
   const btn = e.target.closest(".info");
