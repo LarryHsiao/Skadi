@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72" role="img" aria-label="Skadi — a pen nib">
+  <path d="M 36 6 L 52 36 L 36 66 L 20 36 Z" fill="#2b2419"/>
+  <circle cx="36" cy="40" r="5" fill="#f4ecd9"/>
+  <path d="M 36 45 L 36 62" stroke="#f4ecd9" stroke-width="3.5"/>
+</svg>
