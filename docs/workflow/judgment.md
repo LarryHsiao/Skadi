@@ -185,3 +185,26 @@ This mirrors Rubric 1's "switch roads" instinct, but the trigger differs:
 Rubric 1 fires when your *own* fixes keep failing the same way; this fires
 when the *user* supplies a higher-signal target while you are still
 investigating, before you have even attempted a fix.
+
+## 8 · "Not found" in a repo may mean "not fetched"
+
+**Signal:** a search for something that plausibly should exist — a file
+referenced elsewhere, a section a skill points to, a feature the user expects
+— turns up nothing in the working tree.
+
+**Action:** before reporting the thing absent, check whether the local branch
+is behind its remote (`git fetch`, then compare `HEAD` to `origin/<branch>` —
+`git status`'s ahead/behind line is enough). If behind, say so and pull (or
+name that the tree is stale and the thing may exist upstream) rather than
+reporting a gap a stale checkout invented. This applies to any repo with a
+configured remote, and matters most in fast-moving personal-tooling repos
+another session may have just pushed to.
+
+- ✅ *Right:* `docs/workflow/mechanism-cache.md` and a skill it should back
+  are both missing from the tree; before calling it drift, you check the
+  branch is 5 commits behind `origin/master`, pull, and find both files land
+  with the fast-forward — no drift, just a stale checkout.
+- ❌ *Wrong:* the same search comes up empty, and you report it as "the source
+  of truth is missing a mechanism live in the installed copies" without ever
+  checking `origin` — the user pulls moments later and the "finding"
+  evaporates.
