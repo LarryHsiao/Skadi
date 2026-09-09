@@ -29,7 +29,7 @@ GA_LAG_DAYS = 2            # GA4 daily tables finalize ~2 days late
 TREND_WEEKS = 12
 SPARK_DAYS = 30
 MAX_BYTES = "1000000000"   # 1 GB scan cap (string for the bq flag) — metis is far under this
-HENNETH = Path.home() / ".claude" / "previews" / "henneth"
+HENNETH = Path.home() / ".skadi" / "henneth"
 OUT_HTML = HENNETH / "metis-growth.html"
 OUT_JSON = HENNETH / "metis-growth.json"
 
