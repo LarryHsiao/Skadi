@@ -1,5 +1,7 @@
 # Skadi
 
+<img src="assets/icon.svg" alt="Skadi icon — a pen nib" width="48" height="48">
+
 My personal configuration for [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 and [Codex](https://learn.chatgpt.com/docs/codex). Global instructions, skills,
 hooks, safety policy, and workflow state are version-controlled here and
