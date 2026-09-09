@@ -145,6 +145,8 @@
       "Bash(~/.claude/hooks/vor-teams-poll.sh:*)",
       "Bash(~/.claude/hooks/vor-normalize.sh:*)",
       "Bash(~/.claude/hooks/ping-pong.sh:*)",
+      "Bash(~/.claude/hooks/pengolodh.sh:*)",
+      "Bash(~/.claude/hooks/pengolodh-inject.sh:*)",
       "Bash({{SKADI_ROOT}}/install.sh:*)",
       "Bash(rtk git status:*)",
       "Bash(rtk git log:*)",
@@ -296,6 +298,10 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/handoff-autosub.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/pengolodh-inject.sh"
           }
         ]
       }
