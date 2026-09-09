@@ -253,6 +253,23 @@ The boundary a location gate would draw is the wrong trade. A mislabelled entry 
 
 **The repo itself never reads or writes another repo's files.** Its own standing session picks up entries from the `worklog-inbox` handoff channel and files them under `logs/YYYY-MM-DD.md`; nothing about this rule asks any other session to touch that repo directly. `dir-guard.sh` bars the ordinary cross-repo reach, and `protected-repo-guard.sh`'s registration in `~/.skadi/protected_repos.md` names the channel to route through instead — advice rather than a bar, the same as it does for Minerva.
 
+## Mechanism Cache (Pengolodh)
+
+When a turn — at the same moment a worklog entry and the Compliance Review
+are already owed — has just taught this session a fact about the repo that
+grep cannot answer on its own (an entry point, which of several look-alike
+modules is live, a seam, an invariant, which of two contradicting
+conventions won), record it in the repo's mechanism cache before the "done"
+report. Read `docs/workflow/mechanism-cache.md` before recording an entry,
+or before touching `hooks/pengolodh.sh` / `hooks/pengolodh.py` — it carries
+the boundary rule, the entry format, and the storage mechanics.
+
+The rule in one line: an entry bearing a `file:line` anchor goes to the
+cache (`bash ~/.claude/hooks/pengolodh.sh path <repo-root>`); an entry
+without one goes to auto-memory or the knowledge-base repo instead. This is
+opportunistic, not a sweep — record only what a task just paid to learn,
+never a deliberate scan of the tree.
+
 ## Shell Compatibility
 
 When a needed command is missing on the current shell, do not reach for a different terminal to escape the gap — no spawning bash from PowerShell, no calling PowerShell from bash to borrow its cmdlets. Name the missing tool plainly and ask the user to install it (e.g. `zip` absent from Git Bash). If a native substitute exists in the current shell (`tar`, `Compress-Archive`), use that instead.
