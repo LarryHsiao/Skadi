@@ -26,6 +26,18 @@ check_has() { # desc needle haystack
 
 WORK=$(mktemp -d)
 export SKADI_FLUTTER_ROOT="$WORK/state"
+# The real, sibling window-register.sh is exercised as-is (SCRIPT_DIR inside
+# the hook resolves to $HERE, where it actually lives) — this only points
+# where it should file registrations, exactly as SKADI_WINDOWS_DIR does for
+# the hook it belongs to.
+export SKADI_WINDOWS_DIR="$WORK/windows"
+
+# window_name dir -> the same registry name flutter-daemon.sh's own
+# window_name() would compute for that state dir, so a test can assert on the
+# exact registry file without duplicating the hook's internal logic by hand.
+window_name() { # dir
+  printf 'flutter-%s-%s\n' "$(basename "$(dirname "$1")")" "$(basename "$1")"
+}
 
 cleanup() {
   local p
@@ -59,6 +71,9 @@ cat > "$WORK/bin/flutter" <<'STUB'
 #!/bin/bash
 echo "$*" >> "$STUB_LOG"
 echo "cwd=$PWD" >> "$STUB_LOG"
+if [ "${STUB_NO_DEVTOOLS:-0}" != "1" ]; then
+  echo 'The Flutter DevTools debugger and profiler is available at: http://127.0.0.1:9101?uri=http://127.0.0.1:50505/abc123=/'
+fi
 if [ "${STUB_NO_START:-0}" = "1" ]; then
   echo '[{"event":"daemon.connected","params":{"version":"0.6.1","pid":1}}]'
 else
@@ -128,6 +143,15 @@ check "start exits 0" "0" "$st"
 check_has "start names the appId it learned" "started stub-app-1" "$out"
 
 dirA=$(echo "$SKADI_FLUTTER_ROOT"/appA-*/*)
+regA=$(window_name "$dirA")
+
+# ── DevTools registers itself on the statusline the moment the app starts ──
+check "start registers a DevTools window" "1" "$([[ -f "$SKADI_WINDOWS_DIR/$regA" ]] && echo 1 || echo 0)"
+check "the registered url is the one Flutter printed" \
+  "http://127.0.0.1:9101?uri=http://127.0.0.1:50505/abc123=/" \
+  "$(sed -n '1p' "$SKADI_WINDOWS_DIR/$regA")"
+check_has "the registered label names the project" "appA" "$(sed -n '2p' "$SKADI_WINDOWS_DIR/$regA")"
+
 check "the command file is laid down" "1" "$([[ -f "$dirA/cmds" ]] && echo 1 || echo 0)"
 check "the daemon pid is recorded" "1" "$([[ -s "$dirA/daemon.pid" ]] && echo 1 || echo 0)"
 check "the holder pid is recorded" "1" "$([[ -s "$dirA/holder.pid" ]] && echo 1 || echo 0)"
@@ -195,6 +219,7 @@ out=$(PATH="$BARE_PATH" "$HOOK" stop --project "$projA" 2>&1); st=$?
 check "stop exits 0" "0" "$st"
 check "stop removes the state directory" "0" "$([[ -d "$dirA" ]] && echo 1 || echo 0)"
 check "stop kills the pipe holder" "1" "$(kill -0 "$holderA" 2>/dev/null; echo $?)"
+check "stop unregisters the DevTools window" "0" "$([[ -f "$SKADI_WINDOWS_DIR/$regA" ]] && echo 1 || echo 0)"
 
 # ── a corpse is named as one, and never poked ──
 projB=$(new_project appB)
@@ -351,6 +376,37 @@ check "multi-device stop removes simA's state dir" "0" "$([[ -d "$dirH_A" ]] && 
 check "multi-device stop removes simB's state dir" "0" "$([[ -d "$dirH_B" ]] && echo 1 || echo 0)"
 check "multi-device stop kills simA's pipe holder" "1" "$(kill -0 "$holderH_A" 2>/dev/null; echo $?)"
 check "multi-device stop kills simB's pipe holder" "1" "$(kill -0 "$holderH_B" 2>/dev/null; echo $?)"
+
+# ── a Flutter that never prints the DevTools line costs `start` nothing ──
+# An older Flutter, or one run with DevTools disabled, leaves no line to grep.
+# `start` must still succeed — DevTools registration is an ornament, not a
+# condition of the daemon coming up.
+projI=$(new_project appI)
+export STUB_IN="$WORK/i.in"
+: > "$STUB_IN"
+out=$(STUB_NO_DEVTOOLS=1 PATH="$BARE_PATH" "$HOOK" start --project "$projI" --timeout 20 2>&1); st=$?
+check "start with no DevTools line still exits 0" "0" "$st"
+dirI=$(echo "$SKADI_FLUTTER_ROOT"/appI-*/*)
+regI=$(window_name "$dirI")
+check "no DevTools window is registered when Flutter never printed one" "0" \
+  "$([[ -f "$SKADI_WINDOWS_DIR/$regI" ]] && echo 1 || echo 0)"
+PATH="$BARE_PATH" "$HOOK" stop --project "$projI" >/dev/null 2>&1
+
+# ── a missing window-register.sh costs `start` nothing either ──
+# An installed root that predates this feature has no sibling script to call;
+# the fallback in register_devtools_window (and in reap's unregister) must
+# make that silent rather than a failure. Copy only flutter-daemon.sh itself
+# into an isolated directory — no window-register.sh beside it — and run
+# through that copy.
+BARE_HOOK="$WORK/bare-hooks/flutter-daemon.sh"
+mkdir -p "$WORK/bare-hooks"
+cp "$HOOK" "$BARE_HOOK"
+projJ=$(new_project appJ)
+export STUB_IN="$WORK/j.in"
+: > "$STUB_IN"
+out=$(PATH="$BARE_PATH" "$BARE_HOOK" start --project "$projJ" --timeout 20 2>&1); st=$?
+check "start with no sibling window-register.sh still exits 0" "0" "$st"
+PATH="$BARE_PATH" "$BARE_HOOK" stop --project "$projJ" >/dev/null 2>&1
 
 echo ""
 echo "── $pass passed, $fail failed ──"

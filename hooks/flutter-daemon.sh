@@ -80,6 +80,11 @@ ROOT="${SKADI_FLUTTER_ROOT:-$HOME/.skadi/flutter}"
 START_TIMEOUT_DEFAULT=300
 POKE_TIMEOUT_DEFAULT=120
 LOG_LINES_DEFAULT=40
+# window-register.sh is a sibling in this same hooks/ directory, installed
+# alongside this file by the same /install run — so a relative lookup off
+# this script's own path holds on every machine, unlike a hardcoded absolute
+# one. Resolved once, up front, rather than re-derived per call.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat >&2 <<'USAGE'
@@ -301,15 +306,44 @@ spawn_daemon() { # dir project
   meta_set "$1" started "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 
+# window_name dir -> a name for the statusline's server registry, stable and
+# unique enough that two projects — or two devices of the same project — never
+# collide: the state dir already encodes both (the cksum-suffixed project
+# directory, then the device slug), so composing the two carries that apart.
+window_name() { # dir
+  printf 'flutter-%s-%s\n' "$(basename "$(dirname "$1")")" "$(basename "$1")"
+}
+
+# DevTools is an ornament on top of the daemon's real job, never a condition
+# of it: a missing window-register.sh (an older installed root that predates
+# it) or a Flutter version that never prints its own "DevTools ... available
+# at:" line must never fail `start` itself — this always returns success.
+# Flutter prints that line as plain prose, not a daemon-protocol JSON event,
+# so grepping the log for it (VS Code and Android Studio's own Flutter
+# plugins do the same) is the only stable way to learn the URL at all.
+register_devtools_window() { # dir project
+  local url
+  [ -x "$SCRIPT_DIR/window-register.sh" ] || return 0
+  url="$(grep -oE 'https?://[^[:space:]]+\?uri=[^[:space:]]*' "$1/log" 2>/dev/null | tail -n 1)"
+  [ -n "$url" ] || return 0
+  "$SCRIPT_DIR/window-register.sh" register "$(window_name "$1")" "$url" \
+    "🛠️ DevTools · $(basename "$2")" >/dev/null 2>&1
+  return 0
+}
+
 # Tear a daemon down whole. The pipe holder (`tail -f`) goes first — closing it
 # closes the pipe's only write end, the very EOF the daemon exits on, the death
 # that made a backgrounded `flutter run` useless, put to work as the shutdown.
 # Both `stop` and a `start`
 # that finds a corpse come through here: a holder outliving its state directory
 # would sit on a pipe that no longer has a name, and one more would be stranded
-# on every restart-after-death.
+# on every restart-after-death. The DevTools registration, if one was ever
+# made, is unregistered here too — the one place every teardown path passes
+# through — rather than at each call site separately.
 reap() { # dir
   local pid waited=0
+  [ -x "$SCRIPT_DIR/window-register.sh" ] && \
+    "$SCRIPT_DIR/window-register.sh" unregister "$(window_name "$1")" >/dev/null 2>&1
   [ -f "$1/holder.pid" ] && kill "$(cat "$1/holder.pid")" 2>/dev/null
   pid="$(cat "$1/daemon.pid" 2>/dev/null)"
   while [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && [ "$waited" -lt 10 ]; do
@@ -382,6 +416,7 @@ cmd_start() { # dir project
   local app
   if daemon_alive "$1"; then
     if app="$(resolve_appid "$1")"; then
+      register_devtools_window "$1" "$2"
       echo "alive $app · $2 · device $(meta_get "$1" device)"
       return 0
     fi
@@ -393,6 +428,7 @@ cmd_start() { # dir project
   # daemon that died in that same breath must not be reported as a success.
   if app="$(await_started "$1" "$timeout")"; then
     daemon_alive "$1" || { last_words "$1" "the app started, then the daemon died"; return 5; }
+    register_devtools_window "$1" "$2"
     echo "started $app · $2 · device $(meta_get "$1" device)"
     return 0
   fi
