@@ -110,4 +110,26 @@ is smaller than narya, not a copy of it.
 - [x] **Register on the statusline.** On a successful `start`, resolve the URL per the decision above and call `window-register.sh register vilya-<project>-<name> <url> <label>`; unregister on the teardown path, the single point every stop passes through — narya's `reap()` pattern. **Verify:** extend `vilya.test.sh` — the registry file appears with the right url and label after `start` and is gone after `stop`; a server with no URL in its log and no `--url` still starts cleanly and registers nothing. <!-- sha: c203304 -->
 - [x] **Give it a real completion signal.** `vilya ready <name> [--since <offset>] [--timeout <s>]` — watch the log from a byte offset for a per-server ready pattern (`--ready-pattern` at `start`, kept in `meta`), exit 0 on match and non-zero on timeout: the shape of narya's `await_result`. **Verify:** a test whose stub server prints its ready line after a delay — assert `ready` blocks, then exits 0; assert it exits non-zero when the pattern never comes. <!-- sha: e7393b4 -->
 - [x] **Reach it from chat.** `skills/vilya/SKILL.md` — the full verb table (every verb from the three steps above, so the table is written once rather than re-edited), and the judgment for when to reach for Vilya over narya or over a plain background Bash call. Add `Bash(~/.claude/hooks/vilya.sh:*)` to `settings.json`. **Verify:** `/install` sweeps every root clean, and `/vilya status <name>` answers from a fresh session. <!-- sha: 3334a44 -->
-- [ ] **Close feanor's gap.** Replace `skills/feanor/SKILL.md`'s "wait briefly and re-shoot" with: when the target is served by a Vilya-held server, call `vilya ready` and let its exit code gate the next shot, exactly as the Flutter path uses `flutter-daemon.sh reload`. Keep the fixed-settle fallback for a server Vilya does not hold. **Verify:** partly by eye — the two paths must read symmetrically — plus one real feanor run against a Vilya-held dev server whose rebuild outlasts the old fixed settle.
+- [~] **Close feanor's gap.** Replace `skills/feanor/SKILL.md`'s "wait briefly and re-shoot" with: when the target is served by a Vilya-held server, call `vilya ready` and let its exit code gate the next shot, exactly as the Flutter path uses `flutter-daemon.sh reload`. Keep the fixed-settle fallback for a server Vilya does not hold. **Verify:** partly by eye — the two paths must read symmetrically — plus one real feanor run against a Vilya-held dev server whose rebuild outlasts the old fixed settle.
+
+## What the fifth step still owes
+
+It stands at `[~]`, not `[x]`. Its verify line asks for one real `/feanor` run,
+and the session that wrote it had no reachable headless browser: the only one on
+that machine sat outside `dir-guard`'s allowed paths, and routing around the
+guard is not a thing this repo permits. `feanor-shot.sh` exits 3 there.
+
+What was proved instead: a dev server whose rebuild takes six seconds — three
+times the 2000ms fixed settle — served its pre-edit page at t+2s, and
+`vilya ready --since <watermark>` returned 0 at t+7s, at which moment it served
+the post-edit page. So the gate does distinguish the two moments.
+
+What that does not prove, and a real run would: that `feanor-shot.sh` and a
+headless render behave as the prose says; that the `4`, `5`, `6` and `7`
+branches read correctly to an agent mid-loop; and — the sharpest gap — that a
+server whose rebuild reaches the browser without changing the served document
+(Vite's HMR patches an already-loaded page over a socket) is gated correctly.
+A byte comparison structurally cannot see that case.
+
+Owed: one `/feanor` pass against a Vilya-held dev server, in a session where a
+browser is reachable.
