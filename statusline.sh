@@ -284,6 +284,53 @@ account_badge() {
     printf "%s\t%s" "$glyph" "$label"
 }
 
+# ── Registered servers ───────────────────────────────────────────────────────
+# Anything a script registered via hooks/window-register.sh — a Flutter
+# DevTools session, a blog preview, anything else — gets its own row at the
+# very top of the statusline, ahead of every other line, rather than sharing
+# the "Standing windows" row further down with the four built-in servers: a
+# server the user chose to register is the one thing on this line they most
+# likely want to click right now, so it leads rather than waits its turn.
+#
+# OSC_LINK/OSC_ST/port_answers are defined here, once, and reused unchanged by
+# the "Standing windows" section below — see that section for what an OSC 8
+# hyperlink is and why liveness is a /dev/tcp connect rather than a curl probe.
+OSC_LINK=$'\033]8;;'
+OSC_ST=$'\033\\'
+
+# port_answers port — true when something listens on 127.0.0.1:port
+port_answers() {
+    local port="$1"
+    [ -n "$port" ] || return 1
+    (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null
+}
+
+# A registered window names itself in a two-line file (url, label) under this
+# directory. A file whose server no longer answers is pruned on sight: the
+# registering script may have died without calling `unregister`, and a label
+# that opens nothing is worse than no label.
+WINDOWS_DIR="${SKADI_WINDOWS_DIR:-$HOME/.skadi/windows}"
+registered_row=""
+if [ -d "$WINDOWS_DIR" ]; then
+    for window_file in "$WINDOWS_DIR"/*; do
+        [ -f "$window_file" ] || continue
+        window_url=$(sed -n '1p' "$window_file")
+        window_label=$(sed -n '2p' "$window_file")
+        window_port=""
+        [[ "$window_url" =~ :([0-9]+) ]] && window_port="${BASH_REMATCH[1]}"
+        if [ -n "$window_port" ] && [ -n "$window_label" ] && port_answers "$window_port"; then
+            [ -n "$registered_row" ] && registered_row+="  "
+            registered_row+="${OSC_LINK}${window_url}${OSC_ST}${window_label}${OSC_LINK}${OSC_ST}"
+        else
+            rm -f "$window_file"
+        fi
+    done
+fi
+
+# Line 0: registered servers — printed only when at least one answers, ahead
+# of every other line below.
+[ -n "$registered_row" ] && printf "%s\n" "$registered_row"
+
 # Line 1: project name + worktree name (if any) + branch
 project_name=$(basename "$cwd")
 worktree_name=""
@@ -644,22 +691,20 @@ case "$chosen" in
 esac
 
 # ── Standing windows ─────────────────────────────────────────────────────────
-# The board, Henneth, this repo's plan mirror, the skills cheatsheet Henneth
-# serves, and whatever else has registered itself via hooks/window-register.sh:
-# named rather than numbered. Each label is an OSC 8 terminal hyperlink over
-# its localhost URL, so the port costs no width on the line and a click opens
-# the window. A label appears only when its server actually answers.
+# The board, Henneth, this repo's plan mirror, and the skills cheatsheet
+# Henneth serves: named rather than numbered. Each label is an OSC 8 terminal
+# hyperlink over its localhost URL, so the port costs no width on the line and
+# a click opens the window. A label appears only when its server actually
+# answers. Anything registered via hooks/window-register.sh gets its own row
+# at the very top of the statusline instead (see "Registered servers" above,
+# which also defines OSC_LINK/OSC_ST/port_answers — reused here unchanged).
 #
 # Liveness is a /dev/tcp connect rather than the curl probe board-henneth.sh
-# uses. The statusline redraws constantly, so each probe is one subshell and
-# nothing else; a connect refused on 127.0.0.1 returns at once rather than
-# hanging. Four probes are fixed (board, Henneth, Galadriel, and the registry
-# scan's directory-existence check); the registry then adds one further probe
-# per file a script has actually registered, so the row's cost grows only with
-# what a person has chosen to register, not with anything unbounded. The
-# subshell is not avoidable: a bare `exec 3<>` whose redirection fails takes a
-# non-interactive shell down with it, so the connect must be attempted inside
-# a child that can die alone.
+# uses. The statusline redraws constantly, so each of these three probes is
+# one subshell and nothing else; a connect refused on 127.0.0.1 returns at
+# once rather than hanging. The subshell is not avoidable: a bare `exec 3<>`
+# whose redirection fails takes a non-interactive shell down with it, so the
+# connect must be attempted inside a child that can die alone.
 #
 # Two costs accepted knowingly. A connect proves something listens, not that it
 # is the right server — a stale process squatting the port would show a label
@@ -675,19 +720,6 @@ HENNETH_DIR="${HENNETH_DIR:-$HOME/.skadi/henneth}"
 GALADRIEL_DIR="${GALADRIEL_DIR:-$HOME/.claude/galadriel}"
 SKILLS_CHEATSHEET="skills-cheatsheet.html"
 PLAN_DASHBOARD="plan-dashboard.html"
-
-# port_answers port — true when something listens on 127.0.0.1:port
-port_answers() {
-    local port="$1"
-    [ -n "$port" ] || return 1
-    (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null
-}
-
-# An OSC 8 hyperlink reads: ESC ] 8 ; ; <url> ST <label> ESC ] 8 ; ; ST, where
-# ST is ESC backslash. Written as $'…' to match the colour codes above, and to
-# spare a subshell fork per label on a line that redraws many times a minute.
-OSC_LINK=$'\033]8;;'
-OSC_ST=$'\033\\'
 
 # add_window url label — hangs one OSC 8 hyperlink on the standing-windows row
 windows_row=""
@@ -735,28 +767,6 @@ port_answers "$galadriel_port" && galadriel_answers=yes
 # (handbook/index.html:81), so a live Henneth does not vouch for it.
 [ "$henneth_answers" = yes ] && [ -f "$HENNETH_DIR/$SKILLS_CHEATSHEET" ] &&
     add_window "http://localhost:$henneth_port/$SKILLS_CHEATSHEET" "📇 Skills"
-
-# Any other server — a Flutter DevTools session, a blog preview, anything a
-# script registered via hooks/window-register.sh — names itself in a two-line
-# file (url, label) under this directory rather than earning its own stanza
-# above. A file whose server no longer answers is pruned on sight: the
-# registering script may have died without calling `unregister`, and a label
-# that opens nothing is worse than no label.
-WINDOWS_DIR="${SKADI_WINDOWS_DIR:-$HOME/.skadi/windows}"
-if [ -d "$WINDOWS_DIR" ]; then
-    for window_file in "$WINDOWS_DIR"/*; do
-        [ -f "$window_file" ] || continue
-        window_url=$(sed -n '1p' "$window_file")
-        window_label=$(sed -n '2p' "$window_file")
-        window_port=""
-        [[ "$window_url" =~ :([0-9]+) ]] && window_port="${BASH_REMATCH[1]}"
-        if [ -n "$window_port" ] && [ -n "$window_label" ] && port_answers "$window_port"; then
-            add_window "$window_url" "$window_label"
-        else
-            rm -f "$window_file"
-        fi
-    done
-fi
 
 # Line 5: standing windows — printed only when one of them answers
 [ -n "$windows_row" ] && printf "%s\n" "$windows_row"
