@@ -19,14 +19,16 @@ Read `~/.skadi/install/roots.tsv`.
 
 **If the registry exists and has valid rows**, use them.
 
-**If the registry is missing or empty**, explain that `--all` creates these
-paired defaults:
+**If the registry is missing or empty**, explain that `--all` registers one
+pair and installs it:
 
 ```
-default  ~/.claude           ~/.codex
-personal ~/.claude-personal  ~/.codex-personal
-work     ~/.claude-work      ~/.codex-work
+default  ~/.claude  ~/.codex
 ```
+
+An extra profile is never taken by default — the run closes by printing how to
+add one, how to launch it (`CLAUDE_CONFIG_DIR` / `CODEX_HOME`), and the aliases
+that bind each to a word. Pass that closing text on rather than restating it.
 
 For a custom mapping, ask for the paired Claude and Codex roots, then use
 `install.sh --pair`; that command records the pair.

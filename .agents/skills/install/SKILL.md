@@ -11,8 +11,9 @@ Run only from the Skadi repository.
    that `install.sh`, `AGENTS.md`, and `settings.json` exist there.
 2. Read `~/.skadi/install/roots.tsv`. Each row is
    `<profile><TAB><claude-root><TAB><codex-root>`.
-3. If the registry is absent, explain that the default mapping will create
-   paired `default`, `personal`, and `work` homes, then invoke:
+3. If the registry is absent, explain that `--all` registers one pair —
+   `default`, at `~/.claude` and `~/.codex` — and that the run closes by
+   printing how to add a second profile, then invoke:
 
    ```bash
    "$(git rev-parse --show-toplevel)/install.sh" --all

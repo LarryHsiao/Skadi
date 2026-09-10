@@ -61,10 +61,11 @@ Composed over those stages, not before them: **`/anduin`** rides plan and forge 
 - **Tolkien narrator tone** — Measured cadence, a touch formal, a storyteller's weight. Tight sentences; no breathless filler, no hype.
 - **Free-form gate** — Every free-form mutating turn opens with one four-field block — a three-tier size gauge (reach, depth, reversibility), acceptance outcomes, the non-goals a diff must not cross, and a change summary — then waits for the user's word; slash-invoked skills run straight through, and read-only turns are exempt. A `gate-reminder.sh` hook re-injects the gate with every prompt so lower-tier models hold to it. See [The work loop](#the-work-loop).
 - **Multi-root install** — `/install` updates every Claude/Codex pair in
-  `~/.skadi/install/roots.tsv`; the first `--all` install registers the default,
-  personal, and work pairs.
-- **Paired agent profiles** — `default`, `personal`, and `work` map to isolated
-  Claude and Codex homes. Paired homes share Skadi routing/preferences under
+  `~/.skadi/install/roots.tsv`; the first `--all` install registers one pair,
+  `default`, and closes by printing how to add another.
+- **Paired agent profiles** — every registered profile maps to an isolated
+  Claude and Codex home; only `default` is installed out of the box, and
+  `--pair` adds the rest. Paired homes share Skadi routing/preferences under
   `~/.skadi/profiles/`, but never authentication or chat history.
 - **Native Codex adaptation** — installation renders strict Codex skill
   frontmatter, `$skill` invocations, Codex hook paths, current subagent/tool
@@ -355,23 +356,37 @@ The council brakes at five `[COUNSEL vN]`s without a verdict. On what would be `
 ```bash
 git clone git@github.com:LarryHsiao/Skadi.git ~/skadi
 cd ~/skadi
-./install.sh --all           # install default, personal, and work pairs
+./install.sh --all           # install every registered pair
 ./install.sh ~/.claude-work  # backward-compatible Claude-only install
 ./install.sh --codex ~/.codex-work
 ./install.sh --pair ~/.claude-work ~/.codex-work
 ```
 
-Pair mappings live in `~/.skadi/install/roots.tsv`. Re-running is safe: Codex
-authentication, sessions, `config.toml`, unrelated rules/hooks/skills, and user
-text outside Skadi's marked `AGENTS.md` block are preserved. After installing a
-Codex home, start a new session and use `/hooks` once to review and trust the
-new or changed lifecycle hooks.
+A machine with no registry is registered with **one** pair — `~/.claude` and
+`~/.codex`. Extra profiles are never taken by default; `--pair` adds one, and
+`--all` then keeps every registered row in step. Pair mappings live in
+`~/.skadi/install/roots.tsv`. Re-running is safe: Codex authentication,
+sessions, `config.toml`, unrelated rules/hooks/skills, and user text outside
+Skadi's marked `AGENTS.md` block are preserved. After installing a Codex home,
+start a new session and use `/hooks` once to review and trust the new or
+changed lifecycle hooks.
 
-Launch an isolated Codex profile by setting its home explicitly:
+### Launching a profile
+
+Neither tool reads the registry at launch — each is pointed at a home by an
+environment variable, so an unqualified `claude` or `codex` always speaks for
+the default one:
 
 ```bash
-CODEX_HOME="$HOME/.codex-personal" codex
+CLAUDE_CONFIG_DIR="$HOME/.claude-work" claude
 CODEX_HOME="$HOME/.codex-work" codex
+```
+
+Bind each to a word in `~/.zshrc` (or `~/.bashrc`) rather than retyping it:
+
+```bash
+alias claude-work='CLAUDE_CONFIG_DIR="$HOME/.claude-work" claude'
+alias codex-work='CODEX_HOME="$HOME/.codex-work" codex'
 ```
 
 Claude retains its scripted weather/diff status line. Codex uses its native

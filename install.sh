@@ -218,6 +218,40 @@ install_codex() {
   echo "Done: Codex $profile profile at $root"
 }
 
+# Printed at the close of an `--all` run while a single pair stands — the one
+# moment the user has no second profile yet and may not know one is on offer.
+# It falls silent as soon as a second row is registered, so a machine that
+# already keeps separate homes is not lectured on every install.
+#
+# The standing pair is named from the registry rather than assumed to be the
+# default one: `--pair` on a fresh machine can register a single custom home,
+# and a hint that announced ~/.claude there would be telling the user something
+# untrue about their own install. Only that first line varies, so the rest is a
+# quoted heredoc — $HOME must reach the terminal literally, the lines being
+# meant for a shell rc rather than read as this run's own paths.
+print_profile_hint() {
+  local profile="$1" claude_root="$2" codex_root="$3"
+  echo ""
+  echo "One profile is registered: $profile — $claude_root | $codex_root"
+  cat <<'HINT'
+To keep a second, isolated profile (a work one, say):
+
+  ./install.sh --pair ~/.claude-work ~/.codex-work
+
+Launch it by naming its home:
+
+  CLAUDE_CONFIG_DIR="$HOME/.claude-work" claude
+  CODEX_HOME="$HOME/.codex-work" codex
+
+Or bind each to a word — add to ~/.zshrc or ~/.bashrc:
+
+  alias claude-work='CLAUDE_CONFIG_DIR="$HOME/.claude-work" claude'
+  alias codex-work='CODEX_HOME="$HOME/.codex-work" codex'
+
+Registered profiles live in ~/.skadi/install/roots.tsv; --all installs every row.
+HINT
+}
+
 # The machine's skadi root, recorded once where an installed hook can read it.
 # hooks/board.sh needs it to serve the handbook and the preview theme: both live
 # in the repo, never in a config root, and a hook copied into ~/.claude has no
@@ -247,10 +281,15 @@ case "$MODE" in
     ;;
   all)
     registry="$HOME/.skadi/install/roots.tsv"
+    # A fresh machine is registered with one pair, not three. A second profile
+    # is a choice the user makes with --pair, never a default they never asked
+    # for: two of the three homes would stand empty, and the mere existence of
+    # a ~/.claude-* sibling flips ~/.claude/CLAUDE.md to the stub on the next
+    # run — a live root quietly demoted to a signpost. print_profile_hint below names
+    # how to add one, so the capability stays discoverable without being taken.
     if [ ! -s "$registry" ]; then
       mkdir -p "$(dirname "$registry")"
-      printf 'default\t%s/.claude\t%s/.codex\npersonal\t%s/.claude-personal\t%s/.codex-personal\nwork\t%s/.claude-work\t%s/.codex-work\n' \
-        "$HOME" "$HOME" "$HOME" "$HOME" "$HOME" "$HOME" > "$registry"
+      printf 'default\t%s/.claude\t%s/.codex\n' "$HOME" "$HOME" > "$registry"
     fi
     if awk -F '\t' 'NF != 3 || $1 == "" || $2 == "" || $3 == "" {bad=1} END {exit !bad}' "$registry"; then
       echo "malformed install registry: $registry (expected profile<TAB>claude-root<TAB>codex-root)" >&2
@@ -260,6 +299,14 @@ case "$MODE" in
       SKADI_PROFILE_OVERRIDE="$_profile" "$REPO/install.sh" --claude "$claude_root"
       SKADI_PROFILE_OVERRIDE="$_profile" "$REPO/install.sh" --codex "$codex_root"
     done < "$registry"
+    # Every row is three fields by the check above, so a line is a pair.
+    if [ "$(wc -l < "$registry" | tr -d ' ')" -le 1 ]; then
+      # The registry always ends in a newline, so this read reaches the row
+      # rather than EOF; `|| true` keeps a hand-truncated file from taking the
+      # whole install down over a closing note.
+      IFS=$'\t' read -r _profile claude_root codex_root < "$registry" || true
+      print_profile_hint "$_profile" "$claude_root" "$codex_root"
+    fi
     exit 0
     ;;
 esac
