@@ -21,7 +21,8 @@
 # Revisit at the third holder, or sooner if the repeated part starts drifting.
 #
 # Usage:
-#   vilya.sh start  --name <name> [--project <dir>] -- <command...>
+#   vilya.sh start  --name <name> [--project <dir>] [--url <u>] [--label <l>]
+#                   -- <command...>
 #   vilya.sh status --name <name> [--project <dir>]
 #   vilya.sh stop   --name <name> [--project <dir>]
 #   vilya.sh log    --name <name> [--project <dir>] [-n <lines>]
@@ -35,6 +36,15 @@
 # State lives under $SKADI_VILYA_ROOT (default $HOME/.skadi/vilya)/<slug>/<name>/
 # — the pid, the server's log, and a meta file naming the project, name, command
 # and start time.
+#
+# A server whose URL can be learned is registered on the statusline's standing-
+# windows row, so it becomes a link a person can click rather than a port they
+# must remember. `--url` is authoritative; absent it, the first http(s):// the
+# server printed into its own log is taken — zola announces "Web server is
+# available at…", Vite prints "Local: …", the same technique Narya uses for the
+# DevTools banner. Neither found means no registration, and `start` still
+# succeeds: the registry is an ornament on the hold, never a condition of it.
+# `--label` names the row; absent it, the server's own name does.
 #
 # WHAT THIS DOES NOT HOLD
 #   - A server that daemonizes itself (double-forks and returns) leaves a pid
@@ -73,11 +83,15 @@ LOG_LINES_DEFAULT=40
 SPAWN_SETTLE_SECONDS=0.5
 # Half-second ticks to wait for a killed server to go before insisting with -9.
 REAP_PATIENCE=10
+# window-register.sh is a sibling in this same hooks/ directory, installed
+# alongside this file by the same /install run — so a relative lookup off this
+# script's own path holds on every machine, unlike a hardcoded absolute one.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat >&2 <<'USAGE'
 usage: vilya.sh <verb> --name <name> [flags]
-  start  --name <name> [--project <dir>] -- <command...>
+  start  --name <name> [--project <dir>] [--url <u>] [--label <l>] -- <command...>
   status --name <name> [--project <dir>]
   stop   --name <name> [--project <dir>]
   log    --name <name> [--project <dir>] [-n <lines>]
@@ -125,6 +139,45 @@ name_slug() { # name
 # WOULD live, whether or not one has ever been raised there.
 state_dir() { # project name
   printf '%s/%s\n' "$(project_dir "$1")" "$(name_slug "$2")"
+}
+
+# A name for the statusline registry, stable and unique enough that two
+# projects — or two servers of the same project — never collide: the state dir
+# already encodes both (the cksum-suffixed project directory, then the name
+# slug), so composing the two carries that apart.
+window_name() { # dir
+  printf 'vilya-%s-%s\n' "$(basename "$(dirname "$1")")" "$(basename "$1")"
+}
+
+# The first address the server announced in its own log. The character class
+# stops at whitespace, at control bytes (a colourised dev server wraps its URL
+# in ANSI escapes) and at the punctuation that commonly closes one — python's
+# own banner reads "(http://127.0.0.1:8000/)", whose bracket is not part of the
+# address. A trailing sentence mark is trimmed after the fact for the same
+# reason.
+first_url_in_log() { # dir
+  grep -oE 'https?://[^[:space:][:cntrl:]<>"'"'"')]+' "$1/log" 2>/dev/null \
+    | head -n 1 \
+    | sed 's/[.,;:]*$//'
+}
+
+# The statusline row is an ornament on the hold, never a condition of it: a
+# missing window-register.sh (an older installed root that predates it) or a
+# server that never printed an address must not fail `start` itself — this
+# always returns success.
+#
+# It reads this invocation's own --url and --label, and nothing of them is kept
+# in meta: a later bare `start` against the same standing server re-derives the
+# address from the log and re-labels the row with the plain name. That is the
+# ornament's price, and it is cheap — pass the flags again to keep them.
+register_window() { # dir name
+  local address
+  [ -x "$SCRIPT_DIR/window-register.sh" ] || return 0
+  address="${url:-$(first_url_in_log "$1")}"
+  [ -n "$address" ] || return 0
+  "$SCRIPT_DIR/window-register.sh" register "$(window_name "$1")" "$address" \
+    "${label:-$2}" >/dev/null 2>&1
+  return 0
 }
 
 meta_get() { # dir key
@@ -188,10 +241,13 @@ last_words() { # dir what
 }
 
 # Tear a server down whole. Both `stop` and a `start` that finds a corpse come
-# through here — the single point every teardown passes, and so the place a
-# statusline unregistration belongs when one arrives.
+# through here, and the statusline row, if one was ever drawn, is taken down
+# here too — the one place every teardown path passes, rather than at each call
+# site separately.
 reap() { # dir
   local pid waited=0
+  [ -x "$SCRIPT_DIR/window-register.sh" ] && \
+    "$SCRIPT_DIR/window-register.sh" unregister "$(window_name "$1")" >/dev/null 2>&1
   pid="$(cat "$1/pid" 2>/dev/null)"
   if [ -n "$pid" ]; then
     kill "$pid" 2>/dev/null
@@ -206,6 +262,7 @@ reap() { # dir
 
 cmd_start() { # dir project name
   if server_alive "$1"; then
+    register_window "$1" "$3"
     echo "alive $3 · $2 · pid $(cat "$1/pid")"
     return 0
   fi
@@ -218,6 +275,11 @@ cmd_start() { # dir project name
   # The corpse is left standing rather than reaped, so `log` can still say what
   # went wrong. `stop` clears it when the reader is done with it.
   server_alive "$1" || { last_words "$1" "the server died as it started"; return 5; }
+  # A server slower to announce itself than the settle budget prints its address
+  # after this reads the log, so nothing is registered on that first `start`. A
+  # later `start` finds it alive and registers it then — and the `ready` verb,
+  # when it lands, is what will make the first attempt reliable.
+  register_window "$1" "$3"
   echo "started $3 · $2 · pid $(cat "$1/pid")"
 }
 
@@ -235,6 +297,8 @@ cmd_stop() { # dir project name
 
 project=""
 name=""
+url=""
+label=""
 lines="$LOG_LINES_DEFAULT"
 cmd=()
 
@@ -243,11 +307,13 @@ verb="${1:-}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --) shift; cmd=(${@+"$@"}); break ;;
-    --project|--name|-n)
+    --project|--name|--url|--label|-n)
       [ $# -ge 2 ] || { echo "vilya: $1 needs a value" >&2; usage; exit 2; }
       case "$1" in
         --project) project="$2" ;;
         --name) name="$2" ;;
+        --url) url="$2" ;;
+        --label) label="$2" ;;
         -n) lines="$2" ;;
       esac
       shift 2

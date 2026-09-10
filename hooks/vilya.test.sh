@@ -17,6 +17,7 @@ check() { # desc expected actual
 
 WORK=$(mktemp -d)
 export SKADI_VILYA_ROOT="$WORK/state"
+export SKADI_WINDOWS_DIR="$WORK/windows"
 PROJECT="$WORK/project"
 mkdir -p "$PROJECT"
 
@@ -25,6 +26,9 @@ mkdir -p "$PROJECT"
 cleanup() {
   "$HOOK" stop --name web --project "$PROJECT" >/dev/null 2>&1
   "$HOOK" stop --name doomed --project "$PROJECT" >/dev/null 2>&1
+  "$HOOK" stop --name mute --project "$PROJECT" >/dev/null 2>&1
+  "$HOOK" stop --name named --project "$PROJECT" >/dev/null 2>&1
+  "$HOOK" stop --name lone --project "$PROJECT" >/dev/null 2>&1
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -84,7 +88,9 @@ start_status=$?
 expected_status=0
 check "start exits 0" "$expected_status" "$start_status"
 
-pid_file="$SKADI_VILYA_ROOT/$(basename "$PROJECT")-$(printf '%s' "$PROJECT" | cksum | awk '{print $1}')/web/pid"
+project_slug="$(basename "$PROJECT")-$(printf '%s' "$PROJECT" | cksum | awk '{print $1}')"
+pid_file="$SKADI_VILYA_ROOT/$project_slug/web/pid"
+window_file="$SKADI_WINDOWS_DIR/vilya-$project_slug-web"
 expected_pid_file=yes
 check "start writes a pid file" "$expected_pid_file" "$([ -f "$pid_file" ] && echo yes || echo no)"
 
@@ -95,6 +101,21 @@ check "the pid names a living process" "$expected_alive" "$(kill -0 "$served_pid
 await_port "$PORT" yes
 expected_answers=yes
 check "the port the server opened answers" "$expected_answers" "$(port_answers "$PORT")"
+
+# ── the address the server printed becomes a clickable statusline row ──
+expected_registered=yes
+check "start registers a standing window" "$expected_registered" \
+  "$([ -f "$window_file" ] && echo yes || echo no)"
+
+# python's banner reads "(http://127.0.0.1:PORT/)" — the bracket must not be
+# taken for part of the address.
+expected_url="http://127.0.0.1:$PORT/"
+check "the registered url is the one the server announced" "$expected_url" \
+  "$(sed -n '1p' "$window_file" 2>/dev/null)"
+
+expected_label=web
+check "the label falls back to the server's name" "$expected_label" \
+  "$(sed -n '2p' "$window_file" 2>/dev/null)"
 
 # ── status and log read the standing server ──
 status_out="$("$HOOK" status --name web --project "$PROJECT" 2>&1)"
@@ -131,6 +152,45 @@ check "the state directory is gone" "$expected_gone" "$([ -d "$(dirname "$pid_fi
 
 await_port "$PORT" no
 check "the port no longer answers" "$expected_gone" "$(port_answers "$PORT")"
+check "stop clears the standing window" "$expected_gone" \
+  "$([ -f "$window_file" ] && echo yes || echo no)"
+
+# ── an explicit --url and --label outrank whatever the log says ──
+NAMED_PORT="$(free_port)"
+"$HOOK" start --name named --project "$PROJECT" \
+  --url "http://example.test/named" --label "The Named One" \
+  -- python3 -m http.server "$NAMED_PORT" --bind 127.0.0.1 >/dev/null 2>&1
+named_window="$SKADI_WINDOWS_DIR/vilya-$project_slug-named"
+expected_named_url="http://example.test/named"
+check "an explicit --url outranks the log" "$expected_named_url" \
+  "$(sed -n '1p' "$named_window" 2>/dev/null)"
+expected_named_label="The Named One"
+check "an explicit --label names the row" "$expected_named_label" \
+  "$(sed -n '2p' "$named_window" 2>/dev/null)"
+"$HOOK" stop --name named --project "$PROJECT" >/dev/null 2>&1
+
+# ── a server that announces no address still starts; it simply draws no row ──
+"$HOOK" start --name mute --project "$PROJECT" \
+  -- sh -c 'echo listening, but I name no address; sleep 30' >/dev/null 2>&1
+mute_code=$?
+check "a server with no address still starts" "$expected_status" "$mute_code"
+check "a server with no address registers nothing" "$expected_gone" \
+  "$([ -f "$SKADI_WINDOWS_DIR/vilya-$project_slug-mute" ] && echo yes || echo no)"
+"$HOOK" stop --name mute --project "$PROJECT" >/dev/null 2>&1
+
+# ── an installed root with no window-register.sh still holds its server ──
+LONE_DIR="$WORK/lone-root"
+mkdir -p "$LONE_DIR"
+cp "$HOOK" "$LONE_DIR/vilya.sh"
+chmod +x "$LONE_DIR/vilya.sh"
+LONE_PORT="$(free_port)"
+"$LONE_DIR/vilya.sh" start --name lone --project "$PROJECT" \
+  -- python3 -m http.server "$LONE_PORT" --bind 127.0.0.1 >/dev/null 2>&1
+lone_code=$?
+check "a root without window-register.sh still starts a server" "$expected_status" "$lone_code"
+check "a root without window-register.sh draws no row" "$expected_gone" \
+  "$([ -f "$SKADI_WINDOWS_DIR/vilya-$project_slug-lone" ] && echo yes || echo no)"
+"$LONE_DIR/vilya.sh" stop --name lone --project "$PROJECT" >/dev/null 2>&1
 
 # ── a server that dies as it starts is never reported as started ──
 "$HOOK" start --name doomed --project "$PROJECT" \
