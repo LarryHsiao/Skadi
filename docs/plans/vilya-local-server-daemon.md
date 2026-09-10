@@ -55,8 +55,11 @@ is smaller than narya, not a copy of it.
   DevTools banner. Neither found means no registration, and `start` still
   succeeds.
 - **Label defaults to the name.** `--label` overrides it for the statusline row.
-- **~40 lines of lifecycle scaffolding will repeat narya's** — state dir, pid
-  file, meta, reap. Accepted, but as a judgment call rather than a rule
+- **The lifecycle scaffolding repeats narya's** — and by more than the ~40
+  lines first estimated. Written out, the near-verbatim surface is
+  `resolve_project`, `project_dir`, the name/device slug, `meta_get` /
+  `meta_set` (byte-identical), the require / alive guards, `last_words`, and
+  `reap`. Accepted still, but as a judgment call rather than a rule
   application: `universal.md` says lift a shared shape on the third recurrence,
   and narya plus Vilya is two — yet that rule's own examples are small ones ("a
   condition, a method body, a transform"), so forty lines sits at the edge of
@@ -79,6 +82,14 @@ is smaller than narya, not a copy of it.
 
 ## Risks
 
+- **A crash slower than the settle window reads as a success.** `start` proves
+  liveness by pausing `SPAWN_SETTLE_SECONDS` and asking whether the process is
+  still there. A server whose failure surfaces after that budget — a slow
+  import, a bind error raised late — is reported `started`, and only the next
+  `status` corrects it. This is the fixed delay `universal.md` warns against,
+  standing in for a synchronization primitive; it is carried knowingly until the
+  `ready` verb's log pattern replaces it, and the lie it can tell is at least
+  short-lived and self-correcting on the next question asked.
 - **Ready patterns are per-server.** Vite, webpack, and zola each announce
   differently, so the pattern must be configured per slot. Absent one, the
   fallback is the fixed settle in use today — no better, but no worse, and every
@@ -95,7 +106,7 @@ is smaller than narya, not a copy of it.
 
 ## Steps
 
-- [ ] **Hold a process end to end.** `hooks/vilya.sh` with `start` / `status` / `stop` / `log`; state under `$SKADI_VILYA_ROOT` (default `~/.skadi/vilya`) as `<project-slug>/<name>/` holding `pid`, `log`, `meta`; spawned with `nohup`, no pipe apparatus. **Verify:** `hooks/vilya.test.sh` — start a `python3 -m http.server` on a free port, assert the pid lives and the port answers, `stop`, assert both are gone; plus argument handling and the no-such-server exit codes.
+- [~] **Hold a process end to end.** `hooks/vilya.sh` with `start` / `status` / `stop` / `log`; state under `$SKADI_VILYA_ROOT` (default `~/.skadi/vilya`) as `<project-slug>/<name>/` holding `pid`, `log`, `meta`; spawned with `nohup`, no pipe apparatus. **Verify:** `hooks/vilya.test.sh` — start a `python3 -m http.server` on a free port, assert the pid lives and the port answers, `stop`, assert both are gone; plus argument handling and the no-such-server exit codes.
 - [ ] **Register on the statusline.** On a successful `start`, resolve the URL per the decision above and call `window-register.sh register vilya-<project>-<name> <url> <label>`; unregister on the teardown path, the single point every stop passes through — narya's `reap()` pattern. **Verify:** extend `vilya.test.sh` — the registry file appears with the right url and label after `start` and is gone after `stop`; a server with no URL in its log and no `--url` still starts cleanly and registers nothing.
 - [ ] **Give it a real completion signal.** `vilya ready <name> [--since <offset>] [--timeout <s>]` — watch the log from a byte offset for a per-server ready pattern (`--ready-pattern` at `start`, kept in `meta`), exit 0 on match and non-zero on timeout: the shape of narya's `await_result`. **Verify:** a test whose stub server prints its ready line after a delay — assert `ready` blocks, then exits 0; assert it exits non-zero when the pattern never comes.
 - [ ] **Reach it from chat.** `skills/vilya/SKILL.md` — the full verb table (every verb from the three steps above, so the table is written once rather than re-edited), and the judgment for when to reach for Vilya over narya or over a plain background Bash call. Add `Bash(~/.claude/hooks/vilya.sh:*)` to `settings.json`. **Verify:** `/install` sweeps every root clean, and `/vilya status <name>` answers from a fresh session.
