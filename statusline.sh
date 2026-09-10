@@ -644,17 +644,22 @@ case "$chosen" in
 esac
 
 # ── Standing windows ─────────────────────────────────────────────────────────
-# The board, Henneth, this repo's plan mirror, and the skills cheatsheet Henneth
-# serves: named rather than numbered. Each label is an OSC 8 terminal hyperlink
-# over its localhost URL, so the port costs no width on the line and a click
-# opens the window. A label appears only when its server actually answers.
+# The board, Henneth, this repo's plan mirror, the skills cheatsheet Henneth
+# serves, and whatever else has registered itself via hooks/window-register.sh:
+# named rather than numbered. Each label is an OSC 8 terminal hyperlink over
+# its localhost URL, so the port costs no width on the line and a click opens
+# the window. A label appears only when its server actually answers.
 #
 # Liveness is a /dev/tcp connect rather than the curl probe board-henneth.sh
-# uses. The statusline redraws constantly, so the whole row is budgeted at three
-# forks — one subshell per probe, and nothing else; a connect refused on
-# 127.0.0.1 returns at once rather than hanging. The subshell is not avoidable:
-# a bare `exec 3<>` whose redirection fails takes a non-interactive shell down
-# with it, so the connect must be attempted inside a child that can die alone.
+# uses. The statusline redraws constantly, so each probe is one subshell and
+# nothing else; a connect refused on 127.0.0.1 returns at once rather than
+# hanging. Four probes are fixed (board, Henneth, Galadriel, and the registry
+# scan's directory-existence check); the registry then adds one further probe
+# per file a script has actually registered, so the row's cost grows only with
+# what a person has chosen to register, not with anything unbounded. The
+# subshell is not avoidable: a bare `exec 3<>` whose redirection fails takes a
+# non-interactive shell down with it, so the connect must be attempted inside
+# a child that can die alone.
 #
 # Two costs accepted knowingly. A connect proves something listens, not that it
 # is the right server — a stale process squatting the port would show a label
@@ -730,6 +735,28 @@ port_answers "$galadriel_port" && galadriel_answers=yes
 # (handbook/index.html:81), so a live Henneth does not vouch for it.
 [ "$henneth_answers" = yes ] && [ -f "$HENNETH_DIR/$SKILLS_CHEATSHEET" ] &&
     add_window "http://localhost:$henneth_port/$SKILLS_CHEATSHEET" "📇 Skills"
+
+# Any other server — a Flutter DevTools session, a blog preview, anything a
+# script registered via hooks/window-register.sh — names itself in a two-line
+# file (url, label) under this directory rather than earning its own stanza
+# above. A file whose server no longer answers is pruned on sight: the
+# registering script may have died without calling `unregister`, and a label
+# that opens nothing is worse than no label.
+WINDOWS_DIR="${SKADI_WINDOWS_DIR:-$HOME/.skadi/windows}"
+if [ -d "$WINDOWS_DIR" ]; then
+    for window_file in "$WINDOWS_DIR"/*; do
+        [ -f "$window_file" ] || continue
+        window_url=$(sed -n '1p' "$window_file")
+        window_label=$(sed -n '2p' "$window_file")
+        window_port=""
+        [[ "$window_url" =~ :([0-9]+) ]] && window_port="${BASH_REMATCH[1]}"
+        if [ -n "$window_port" ] && [ -n "$window_label" ] && port_answers "$window_port"; then
+            add_window "$window_url" "$window_label"
+        else
+            rm -f "$window_file"
+        fi
+    done
+fi
 
 # Line 5: standing windows — printed only when one of them answers
 [ -n "$windows_row" ] && printf "%s\n" "$windows_row"
