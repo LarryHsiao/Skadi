@@ -643,7 +643,98 @@ case "$chosen" in
     poi)        display_quote="👁️ \"${person_of_interest_quotes[$RANDOM % ${#person_of_interest_quotes[@]}]}\"";;
 esac
 
-# Line 4: divider
+# ── Standing windows ─────────────────────────────────────────────────────────
+# The board, Henneth, this repo's plan mirror, and the skills cheatsheet Henneth
+# serves: named rather than numbered. Each label is an OSC 8 terminal hyperlink
+# over its localhost URL, so the port costs no width on the line and a click
+# opens the window. A label appears only when its server actually answers.
+#
+# Liveness is a /dev/tcp connect rather than the curl probe board-henneth.sh
+# uses. The statusline redraws constantly, so the whole row is budgeted at three
+# forks — one subshell per probe, and nothing else; a connect refused on
+# 127.0.0.1 returns at once rather than hanging. The subshell is not avoidable:
+# a bare `exec 3<>` whose redirection fails takes a non-interactive shell down
+# with it, so the connect must be attempted inside a child that can die alone.
+#
+# Two costs accepted knowingly. A connect proves something listens, not that it
+# is the right server — a stale process squatting the port would show a label
+# that opens a stranger. And /dev/tcp is a compile-time bash feature absent from
+# some Git Bash builds; where it is missing every probe fails and the row simply
+# does not draw, which loses an ornament rather than any working thing.
+BOARD_PORT="${BOARD_PORT:-10000}"
+HENNETH_DIR="${HENNETH_DIR:-$HOME/.skadi/henneth}"
+# Galadriel keeps one folder per project under the default config root, not the
+# profile's — hardcoded that way in its skill, its server, and board-galadriel.sh
+# alike, so this reads the same path under the same seam rather than forking a
+# third opinion about where the mirror lives.
+GALADRIEL_DIR="${GALADRIEL_DIR:-$HOME/.claude/galadriel}"
+SKILLS_CHEATSHEET="skills-cheatsheet.html"
+PLAN_DASHBOARD="plan-dashboard.html"
+
+# port_answers port — true when something listens on 127.0.0.1:port
+port_answers() {
+    local port="$1"
+    [ -n "$port" ] || return 1
+    (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null
+}
+
+# An OSC 8 hyperlink reads: ESC ] 8 ; ; <url> ST <label> ESC ] 8 ; ; ST, where
+# ST is ESC backslash. Written as $'…' to match the colour codes above, and to
+# spare a subshell fork per label on a line that redraws many times a minute.
+OSC_LINK=$'\033]8;;'
+OSC_ST=$'\033\\'
+
+# add_window url label — hangs one OSC 8 hyperlink on the standing-windows row
+windows_row=""
+add_window() {
+    [ -n "$windows_row" ] && windows_row+="  "
+    windows_row+="${OSC_LINK}${1}${OSC_ST}${2}${OSC_LINK}${OSC_ST}"
+}
+
+# Henneth takes whatever port was free at its boot and records it; the board's
+# is fixed, so the URL never drifts (hooks/board.sh:212).
+henneth_port=""
+[ -f "$HENNETH_DIR/.henneth-port" ] && read -r henneth_port < "$HENNETH_DIR/.henneth-port"
+# Anything but digits is no port at all. Bash accepts a service name in that
+# position as readily as a number, so an unguarded lockfile holding "http" would
+# probe port 80 and hang a label on whatever stranger answered there.
+case "$henneth_port" in
+    '' | *[!0-9]*) henneth_port="" ;;
+esac
+
+galadriel_port=""
+[ -f "$GALADRIEL_DIR/.galadriel-port" ] && read -r galadriel_port < "$GALADRIEL_DIR/.galadriel-port"
+case "$galadriel_port" in
+    '' | *[!0-9]*) galadriel_port="" ;;
+esac
+
+board_answers=no
+henneth_answers=no
+galadriel_answers=no
+port_answers "$BOARD_PORT" && board_answers=yes
+port_answers "$henneth_port" && henneth_answers=yes
+port_answers "$galadriel_port" && galadriel_answers=yes
+
+[ "$board_answers" = yes ] && add_window "http://localhost:$BOARD_PORT/" "📋 Board"
+[ "$henneth_answers" = yes ] && add_window "http://localhost:$henneth_port/" "🪟 Henneth"
+# The plan mirror is the one label tied to where this session stands: Galadriel
+# renders one folder per project (hooks/galadriel-server.py:44), so a repo it has
+# never rendered has no plan to open and draws no label. The repo's name is
+# spliced into the URL raw: a directory named with a space or a '#' would cut the
+# hyperlink short inside the escape, and the label would open the wrong page.
+# Left unencoded knowingly — no encoder exists in this file, and raising one for
+# a single caller costs more than the case it guards.
+[ "$galadriel_answers" = yes ] && [ -f "$GALADRIEL_DIR/$project_name/$PLAN_DASHBOARD" ] &&
+    add_window "http://localhost:$galadriel_port/$project_name/$PLAN_DASHBOARD" "🪞 Plan"
+# Henneth serves the cheatsheet but does not write it — that is /board's doing
+# (handbook/index.html:81), so a live Henneth does not vouch for it.
+[ "$henneth_answers" = yes ] && [ -f "$HENNETH_DIR/$SKILLS_CHEATSHEET" ] &&
+    add_window "http://localhost:$henneth_port/$SKILLS_CHEATSHEET" "📇 Skills"
+
+# Line 5: standing windows — printed only when one of them answers
+[ -n "$windows_row" ] && printf "%s\n" "$windows_row"
+
+# Line 6: divider
 printf "%s\n" "──────────────────────────────────────────────────"
 
 # Sunrise/sunset + moon phase from wttr.in, refreshed once per day (they shift only daily)
@@ -698,14 +789,14 @@ if [ -n "$sunrise_time" ] && [ -n "$sunset_time" ]; then
     fi
 fi
 
-# Line 5: weather + sun time & moon
+# Line 7: weather + sun time & moon
 if [ -n "$sun_label" ]; then
     printf "%s  %s %s  %s\n" "$weather" "$sun_glyph" "$sun_label" "$moon_glyph"
 else
     printf "%s\n" "$weather"
 fi
 
-# Line 6: quote (wrap at 64 columns; continuation lines hang under the opening ")
+# Line 8: quote (wrap at 64 columns; continuation lines hang under the opening ")
 # Lead with '|' — Claude Code's statusline trims leading whitespace, so anchor with a visible char.
 quote_indent='|   '
 printf "%s\n" "$display_quote" | fold -s -w 60 | awk -v ind="$quote_indent" 'NR==1 {print; next} {print ind $0}'
