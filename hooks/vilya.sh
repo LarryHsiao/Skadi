@@ -22,7 +22,8 @@
 #
 # Usage:
 #   vilya.sh start  --name <name> [--project <dir>] [--url <u>] [--label <l>]
-#                   -- <command...>
+#                   [--ready-pattern <regex>] -- <command...>
+#   vilya.sh ready  --name <name> [--project <dir>] [--since <bytes>] [--timeout <s>]
 #   vilya.sh status --name <name> [--project <dir>]
 #   vilya.sh stop   --name <name> [--project <dir>]
 #   vilya.sh log    --name <name> [--project <dir>] [-n <lines>]
@@ -46,6 +47,28 @@
 # succeeds: the registry is an ornament on the hold, never a condition of it.
 # `--label` names the row; absent it, the server's own name does.
 #
+# READINESS, AND WHY IT IS NOT A SLEEP
+# A caller that edits a file and then screenshots the page must know when the
+# rebuild has reached the served bytes. Waiting a fixed few seconds and hoping
+# is a race, not an answer: too short and the shot shows the old page as though
+# the mend did nothing, too long and every pass pays for the worst case.
+# `universal.md` names the cure — where completion is knowable, signal it
+# directly. A dev server does announce itself, in its own log, in its own words,
+# so `--ready-pattern` at `start` records that phrasing and `ready` waits on it,
+# exiting 0 the moment it appears. Owning the process is what makes the log
+# reachable, and the log is where the signal lives.
+#
+# `--since <bytes>` is what makes the answer trustworthy on the SECOND pass. A
+# server that announced itself once has that line in its log forever, so a bare
+# match would answer "ready" for a rebuild that has not begun. Read the log's
+# size before triggering the edit, hand it back as --since, and only an
+# announcement made after that moment counts.
+#
+# The pattern is an extended regular expression, not literal text, so a banner
+# pasted whole can defeat itself: "compiled (1234ms)" reads its own parentheses
+# as a group and so matches only the text without them. Name a short, stable
+# fragment — "compiled", "ready in", "Serving HTTP" — rather than a whole line.
+#
 # WHAT THIS DOES NOT HOLD
 #   - A server that daemonizes itself (double-forks and returns) leaves a pid
 #     file naming a process that has already exited. Most dev servers stay in
@@ -64,8 +87,14 @@
 #   1 — the state directory could not be laid down
 #   2 — bad arguments
 #   4 — no server by that name for this project
-#   5 — the server's process is gone: it died as it started, or it has since
-#       exited. `stop` clears the corpse, and `start` raises a new one
+#   5 — the server's process is gone: it died as it started, died while `ready`
+#       waited on it, or has since exited. `stop` clears the corpse, and
+#       `start` raises a new one
+#   6 — readiness cannot be known: the server carries no ready pattern. A
+#       caller reading this should fall back to whatever it did before Vilya,
+#       not treat the server as ready
+#   7 — the ready pattern never came within the timeout — treat what the server
+#       serves as stale
 #
 # Runs under macOS bash 3.2 — no declare -A, no mapfile, no ${var,,}.
 set -u
@@ -83,21 +112,41 @@ LOG_LINES_DEFAULT=40
 SPAWN_SETTLE_SECONDS=0.5
 # Half-second ticks to wait for a killed server to go before insisting with -9.
 REAP_PATIENCE=10
+# How long `ready` waits by default. Matched to Narya's own poke timeout: a cold
+# Vite or webpack start is the slow case this must not cut short.
+READY_TIMEOUT_DEFAULT=120
 # window-register.sh is a sibling in this same hooks/ directory, installed
 # alongside this file by the same /install run — so a relative lookup off this
 # script's own path holds on every machine, unlike a hardcoded absolute one.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# flutter-daemon.sh's next_id() guards its own counter this way; the reason here
+# is sharper, since these values reach arithmetic that would otherwise abort the
+# script with a code the exit table has already spoken for. `*[!0-9]*` refuses a
+# negative too: the minus sign is not a digit.
+require_count() { # flag value
+  case "$2" in
+    ''|*[!0-9]*)
+      echo "vilya: $1 wants a whole number, not '$2'" >&2
+      usage
+      exit 2
+      ;;
+  esac
+}
+
 usage() {
   cat >&2 <<'USAGE'
 usage: vilya.sh <verb> --name <name> [flags]
-  start  --name <name> [--project <dir>] [--url <u>] [--label <l>] -- <command...>
+  start  --name <name> [--project <dir>] [--url <u>] [--label <l>]
+         [--ready-pattern <regex>] -- <command...>
+  ready  --name <name> [--project <dir>] [--since <bytes>] [--timeout <s>]
   status --name <name> [--project <dir>]
   stop   --name <name> [--project <dir>]
   log    --name <name> [--project <dir>] [-n <lines>]
 
 One server per (project, name). Every verb needs its name; the command to run
-follows `--` on start.
+follows `--` on start. `ready` blocks until the server's own log says it is
+serving, so a caller can act on a signal rather than on a guess.
 USAGE
 }
 
@@ -159,6 +208,31 @@ first_url_in_log() { # dir
   grep -oE 'https?://[^[:space:][:cntrl:]<>"'"'"')]+' "$1/log" 2>/dev/null \
     | head -n 1 \
     | sed 's/[.,;:]*$//'
+}
+
+# Has the ready pattern appeared at or after a byte offset? `tail -c +N` is
+# specified by POSIX to count from the beginning, one-based, so an offset of 0 —
+# the whole log — is +1. GNU and BSD agree on that reading, but only the GNU one
+# has been run here; a macOS check is still owed, the same caveat this file
+# already carries for nohup.
+pattern_seen() { # dir offset pattern
+  tail -c "+$(($2 + 1))" "$1/log" 2>/dev/null | grep -qE "$3"
+}
+
+# Narya's await_result in a simpler key: poll in half-second ticks until the
+# answer comes or the budget runs out. The liveness check is what keeps a caller
+# from waiting the full timeout on a corpse — a server that has died will never
+# announce anything. It is asked AFTER the pattern, so a server that announces
+# itself and then exits still counts as having answered.
+await_ready() { # dir offset pattern timeout
+  local waited=0 ticks=$(($4 * 2))
+  while :; do
+    pattern_seen "$1" "$2" "$3" && return 0
+    server_alive "$1" || return 5
+    [ "$waited" -ge "$ticks" ] && return 7
+    sleep 0.5
+    waited=$((waited + 1))
+  done
 }
 
 # The statusline row is an ornament on the hold, never a condition of it: a
@@ -232,6 +306,7 @@ spawn_server() { # dir project name
   # Joined for the reader's sake; a command whose arguments bore spaces will not
   # round-trip from here, so nothing reads this back to re-run anything.
   meta_set "$1" command "${cmd[*]}"
+  [ -n "$ready_pattern" ] && meta_set "$1" readyPattern "$ready_pattern"
   meta_set "$1" started "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 
@@ -262,6 +337,9 @@ reap() { # dir
 
 cmd_start() { # dir project name
   if server_alive "$1"; then
+    # A pattern named on a later `start` takes, rather than being silently
+    # dropped because the spawn was skipped.
+    [ -n "$ready_pattern" ] && meta_set "$1" readyPattern "$ready_pattern"
     register_window "$1" "$3"
     echo "alive $3 · $2 · pid $(cat "$1/pid")"
     return 0
@@ -289,6 +367,26 @@ cmd_status() { # dir project name
   echo "alive $3 · $2 · pid $(cat "$1/pid") · since $(meta_get "$1" started)"
 }
 
+cmd_ready() { # dir project name
+  local pattern
+  server_known "$1" || { echo "none $3 · $2 — no such server"; return 4; }
+  server_alive "$1" || { echo "dead $3 · $2 — the process is gone, start it again"; return 5; }
+  pattern="$(meta_get "$1" readyPattern)"
+  [ -n "$pattern" ] || {
+    echo "vilya: $3 carries no ready pattern — raise it with --ready-pattern to make readiness knowable" >&2
+    return 6
+  }
+  await_ready "$1" "$since" "$pattern" "$timeout"
+  case $? in
+    0) echo "ready $3 · $2"; return 0 ;;
+    5) last_words "$1" "the server died before it was ready"; return 5 ;;
+    *)
+      echo "vilya: $3 did not announce itself within ${timeout}s — treat what it serves as stale" >&2
+      return 7
+      ;;
+  esac
+}
+
 cmd_stop() { # dir project name
   server_known "$1" || { echo "none $3 · $2 — no such server"; return 4; }
   reap "$1"
@@ -299,6 +397,9 @@ project=""
 name=""
 url=""
 label=""
+ready_pattern=""
+since=0
+timeout="$READY_TIMEOUT_DEFAULT"
 lines="$LOG_LINES_DEFAULT"
 cmd=()
 
@@ -307,14 +408,17 @@ verb="${1:-}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --) shift; cmd=(${@+"$@"}); break ;;
-    --project|--name|--url|--label|-n)
+    --project|--name|--url|--label|--ready-pattern|--since|--timeout|-n)
       [ $# -ge 2 ] || { echo "vilya: $1 needs a value" >&2; usage; exit 2; }
       case "$1" in
         --project) project="$2" ;;
         --name) name="$2" ;;
         --url) url="$2" ;;
         --label) label="$2" ;;
-        -n) lines="$2" ;;
+        --ready-pattern) ready_pattern="$2" ;;
+        --since) require_count --since "$2"; since="$2" ;;
+        --timeout) require_count --timeout "$2"; timeout="$2" ;;
+        -n) require_count -n "$2"; lines="$2" ;;
       esac
       shift 2
       ;;
@@ -323,7 +427,7 @@ while [ $# -gt 0 ]; do
 done
 
 case "$verb" in
-  start|status|stop|log) ;;
+  start|ready|status|stop|log) ;;
   *) usage; exit 2 ;;
 esac
 
@@ -340,6 +444,9 @@ case "$verb" in
       exit 2
     }
     cmd_start "$dir" "$proj" "$name"
+    ;;
+  ready)
+    cmd_ready "$dir" "$proj" "$name"
     ;;
   status)
     cmd_status "$dir" "$proj" "$name"

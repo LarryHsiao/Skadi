@@ -29,6 +29,9 @@ cleanup() {
   "$HOOK" stop --name mute --project "$PROJECT" >/dev/null 2>&1
   "$HOOK" stop --name named --project "$PROJECT" >/dev/null 2>&1
   "$HOOK" stop --name lone --project "$PROJECT" >/dev/null 2>&1
+  "$HOOK" stop --name slow --project "$PROJECT" >/dev/null 2>&1
+  "$HOOK" stop --name wordless --project "$PROJECT" >/dev/null 2>&1
+  "$HOOK" stop --name fading --project "$PROJECT" >/dev/null 2>&1
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -192,6 +195,70 @@ check "a root without window-register.sh draws no row" "$expected_gone" \
   "$([ -f "$SKADI_WINDOWS_DIR/vilya-$project_slug-lone" ] && echo yes || echo no)"
 "$LONE_DIR/vilya.sh" stop --name lone --project "$PROJECT" >/dev/null 2>&1
 
+# ── ready waits on the server's own word, not on a clock ──
+# The stub holds its tongue for two seconds, then announces itself and stays up.
+# So `ready` must block rather than answer at once, and must answer once the
+# line lands — the whole difference between a signal and a guess.
+"$HOOK" start --name slow --project "$PROJECT" --ready-pattern 'serving on' \
+  -- sh -c 'sleep 2; echo "serving on the appointed port"; sleep 30' >/dev/null 2>&1
+before=$(date +%s)
+"$HOOK" ready --name slow --project "$PROJECT" --timeout 20 >/dev/null 2>&1
+ready_code=$?
+elapsed=$(( $(date +%s) - before ))
+check "ready exits 0 once the server announces itself" "$expected_status" "$ready_code"
+expected_blocked=yes
+check "ready blocked rather than answering at once" "$expected_blocked" \
+  "$([ "$elapsed" -ge 1 ] && echo yes || echo no)"
+
+# ── --since makes the answer trustworthy on a second pass ──
+# The announcement is now behind us in the log. Asked to look only at what comes
+# after this point, `ready` must NOT accept that stale line.
+log_size=$(wc -c < "$SKADI_VILYA_ROOT/$project_slug/slow/log" | tr -d ' ')
+"$HOOK" ready --name slow --project "$PROJECT" --since "$log_size" --timeout 2 >/dev/null 2>&1
+stale_code=$?
+expected_timeout=7
+check "an announcement older than --since does not count" "$expected_timeout" "$stale_code"
+
+# ── a pattern named on a later start takes, and one that never comes times out ──
+# The server is still standing, so this start resumes rather than raises — the
+# path where a new pattern would be silently dropped if meta were only written
+# at spawn. The pattern it carries away is one the log will never hold.
+"$HOOK" start --name slow --project "$PROJECT" --ready-pattern 'this is never printed' \
+  -- sh -c 'sleep 2; echo "serving on the appointed port"; sleep 30' >/dev/null 2>&1
+"$HOOK" ready --name slow --project "$PROJECT" --timeout 2 >/dev/null 2>&1
+check "a pattern that never comes exits 7" "$expected_timeout" "$?"
+
+# ── a server nobody taught to announce itself says so, rather than lying ──
+# Silence must never read as readiness: a caller told 0 here would screenshot a
+# page nothing had rebuilt.
+"$HOOK" start --name wordless --project "$PROJECT" \
+  -- sh -c 'echo I say nothing useful; sleep 30' >/dev/null 2>&1
+"$HOOK" ready --name wordless --project "$PROJECT" --timeout 2 >/dev/null 2>&1
+wordless_code=$?
+expected_unknowable=6
+check "a server with no ready pattern exits 6" "$expected_unknowable" "$wordless_code"
+"$HOOK" stop --name wordless --project "$PROJECT" >/dev/null 2>&1
+
+# ── a server that dies mid-wait ends the wait, rather than burning the budget ──
+"$HOOK" start --name fading --project "$PROJECT" --ready-pattern 'never arrives' \
+  -- sh -c 'sleep 1; exit 1' >/dev/null 2>&1
+fading_before=$(date +%s)
+"$HOOK" ready --name fading --project "$PROJECT" --timeout 30 >/dev/null 2>&1
+fading_code=$?
+fading_elapsed=$(( $(date +%s) - fading_before ))
+expected_died=5
+check "a server that dies mid-wait exits 5" "$expected_died" "$fading_code"
+expected_cut_short=yes
+check "the wait ended with the server, not with the budget" "$expected_cut_short" \
+  "$([ "$fading_elapsed" -lt 20 ] && echo yes || echo no)"
+"$HOOK" stop --name fading --project "$PROJECT" >/dev/null 2>&1
+
+expected_no_such=4
+"$HOOK" ready --name never-raised --project "$PROJECT" >/dev/null 2>&1
+check "ready on an unknown name exits 4" "$expected_no_such" "$?"
+
+"$HOOK" stop --name slow --project "$PROJECT" >/dev/null 2>&1
+
 # ── a server that dies as it starts is never reported as started ──
 "$HOOK" start --name doomed --project "$PROJECT" \
   -- sh -c 'echo the port was taken >&2; exit 1' >/dev/null 2>&1
@@ -238,6 +305,12 @@ check "a flag with no value exits 2" "$expected_refused" "$?"
 check "an unknown flag exits 2" "$expected_refused" "$?"
 "$HOOK" status --name web --project "$WORK/no-such-place" >/dev/null 2>&1
 check "a project directory that is not there exits 2" "$expected_refused" "$?"
+"$HOOK" ready --name web --project "$PROJECT" --timeout abc >/dev/null 2>&1
+check "a timeout that is not a number exits 2" "$expected_refused" "$?"
+"$HOOK" ready --name web --project "$PROJECT" --since -5 >/dev/null 2>&1
+check "a negative --since exits 2" "$expected_refused" "$?"
+"$HOOK" log --name web --project "$PROJECT" -n nonsense >/dev/null 2>&1
+check "a line count that is not a number exits 2" "$expected_refused" "$?"
 
 echo ""
 echo "── $pass passed, $fail failed ──"
