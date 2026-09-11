@@ -23,9 +23,6 @@
       "Bash(rg:*)",
       "Bash(egrep:*)",
       "Bash(fgrep:*)",
-      "Bash(rtk grep:*)",
-      "Bash(rtk ls:*)",
-      "Bash(rtk find:*)",
       "Bash(find:*)",
       "Bash(head:*)",
       "Bash(tail:*)",
@@ -152,10 +149,6 @@
       "Bash(~/.claude/hooks/subagent-runner.sh:*)",
       "Bash(~/.claude/hooks/window-register.sh:*)",
       "Bash({{SKADI_ROOT}}/install.sh:*)",
-      "Bash(rtk git status:*)",
-      "Bash(rtk git log:*)",
-      "Bash(rtk git diff:*)",
-      "Bash(rtk git show:*)",
       "Bash(xcrun:*)",
       "Bash(sed:*)",
       "PowerShell(Join-Path *)"
@@ -214,7 +207,6 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "rtk hook claude" },
           {
             "type": "command",
             "command": "~/.claude/hooks/dir-guard.sh",

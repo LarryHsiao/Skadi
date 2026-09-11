@@ -198,7 +198,7 @@ Entries in the source `settings.json` `permissions.allow` must not bear hard-cod
 Three portable forms:
 
 - **`~`-prefixed paths** (`~/.claude/hooks/foo.sh`, `~/skadi/...`) — for files under the home directory; resolved by the shell at use time.
-- **Bare-command form** (`git:*`, `glab:*`, `rtk git status:*`) — for binaries on `PATH`.
+- **Bare-command form** (`git:*`, `glab:*`, `flutter analyze:*`) — for binaries on `PATH`.
 - **`{{SKADI_ROOT}}` placeholder** — for files at the skadi repo root itself (notably `install.sh`). `install.sh` substitutes the placeholder with the machine's actual skadi root when copying `settings.json` into each Claude config root. The source stays portable; the live file carries the per-machine absolute path the harness requires.
 
 Entries must also be **project-agnostic**. A permission tied to a single project's filename or build script — e.g. `Bash(bash build_win7.sh:*)` for one Flutter app's release pipeline — does not belong in skadi. Such narrow entries live in that project's own `.claude/settings.local.json`, where they apply only when that project is the working directory. The global allowlist must read true across every machine *and* every project; anything narrower clutters the file and bears no use beyond its origin.

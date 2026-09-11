@@ -122,13 +122,6 @@ install_settings() {
   rendered=$(sed -e "s|{{SKADI_ROOT}}|$REPO|g" \
                  -e "s|{{SKADI_PROFILE}}|$profile|g" "$src")
 
-  # RTK is not wired on Windows. Its PreToolUse entry is a self-contained
-  # line, so dropping it here leaves valid JSON. Strip before the comparison
-  # so re-runs on Windows stay idempotent.
-  case "$(uname -s)" in
-    MINGW*|MSYS*|CYGWIN*) rendered=$(printf '%s' "$rendered" | sed '/rtk hook claude/d') ;;
-  esac
-
   if [ -e "$dst" ] && [ "$(cat "$dst")" = "$rendered" ]; then
     echo "up to date:     $dst"
     return

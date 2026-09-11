@@ -198,7 +198,7 @@ options:
 ```
 
 - If **Save**: run the git steps against the knowledge-base repo, not the cwd —
-  `rtk git -C "$MEMORY_REPO_ROOT" add <relative-path> && rtk git -C "$MEMORY_REPO_ROOT" commit -m "Add note: <filename>" && rtk git -C "$MEMORY_REPO_ROOT" push`
+  `git -C "$MEMORY_REPO_ROOT" add <relative-path> && git -C "$MEMORY_REPO_ROOT" commit -m "Add note: <filename>" && git -C "$MEMORY_REPO_ROOT" push`
 - If **Discard**: delete the file and notify the user.
 
 ## Rules

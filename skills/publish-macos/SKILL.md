@@ -105,7 +105,7 @@ Confirm:
 ```
 question: "Bumped to NEW_VERSION. Commit and push?"
 options:
-  - label: "Commit and push"  description: "rtk git add -A && rtk git commit && rtk git push"
+  - label: "Commit and push"  description: "git add -A && git commit && git push"
   - label: "Stop"             description: "Leave the working tree dirty and exit"
 ```
 
@@ -121,9 +121,9 @@ Stop if rejected.
 Then commit everything together:
 
 ```bash
-rtk git add -A
-rtk git commit -m "chore: bump version to NEW_VERSION"
-rtk git push
+git add -A
+git commit -m "chore: bump version to NEW_VERSION"
+git push
 ```
 
 Remember `NEW_VERSION` for steps 11 and 12.
@@ -375,7 +375,7 @@ Apple creds (`APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`) were resolved in
 Require `gh` authenticated (`gh auth status`). If not, stop with instructions.
 
 ```bash
-rtk gh release create "vNEW_VERSION" \
+gh release create "vNEW_VERSION" \
   "ARTIFACT" \
   --title "vNEW_VERSION" \
   --generate-notes
@@ -402,8 +402,8 @@ Stop on failure. On success, the build is in App Store Connect awaiting processi
 Only after publishing succeeds:
 
 ```bash
-rtk git tag "vNEW_VERSION"
-rtk git push origin "vNEW_VERSION"
+git tag "vNEW_VERSION"
+git push origin "vNEW_VERSION"
 ```
 
 If tagging fails (e.g. tag exists), report but don't roll back the published artifact.
@@ -411,8 +411,8 @@ If tagging fails (e.g. tag exists), report but don't roll back the published art
 Note: for `TARGET == github`, `gh release create` already creates the tag remotely. Check before re-tagging:
 
 ```bash
-rtk git fetch --tags
-rtk git tag -l "vNEW_VERSION"
+git fetch --tags
+git tag -l "vNEW_VERSION"
 ```
 
 If the tag already exists locally/remotely from the release, skip this step.
