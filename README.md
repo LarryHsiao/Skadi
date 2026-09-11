@@ -192,6 +192,7 @@ installed workflow as `$name`.
 - **mirror-server** — Henneth's gallery server (port 10001): serves every artifact dropped into `~/.skadi/henneth/` newest-first, follows the latest unless pinned, and deletes on request
 - **install-codex**, **render-codex-skill**, **codex-hook-adapter** — Install Skadi-owned Codex artifacts without replacing user-owned config, render each source skill into a Codex-compatible copy, and translate Codex hook payloads into the Claude-shaped ones the rest of these hooks consume
 - **skadi-state** — Resolve and migrate Skadi-owned workflow state (routing, preferences) shared by paired profiles; chat history and agent memory stay product-owned
+- **subagent-runner** — Show or seed the profile's external subagent runner pointer (`~/.skadi/profiles/<profile>/subagent-runner.md`) that *Delegation Discipline* prefers over an Agent-tool spawn
 - **board-stability**, **bq_common** — Crash-free users % for the board's Stability tile, and the shared `bq`-CLI scaffolding every BigQuery-backed hook leans on
 - **compact-context** — On a resumed session, remind the model what must survive a compaction
 - **board-ticket**, **board-growth**, **board-henneth**, **board-galadriel**, **board-sweep** — The situation board's channel writers: a tracker issue with its AC rate (Jira REST or YouTrack), the metis growth line, the standing Henneth and Galadriel links, and an `/amon-sul` sweep verdict
@@ -431,6 +432,15 @@ keep a copy somewhere private.
 It is kept out of this repo **deliberately**: it describes a personal
 communication register, and this repo is public. Do not "fix" the gap by
 committing it.
+
+**`~/.skadi/profiles/<profile>/subagent-runner.md`** names the CLI a session
+in that profile hands delegated work to instead of spawning an Agent-tool
+subagent (`codex exec`, say, in a work profile with spare Codex quota), or
+`none`. Per profile on purpose: a machine may hold `codex` and still want it
+only for work. `install.sh` never writes it — it prints a hint per unset
+profile — and the first session there that wants a subagent asks once.
+`SKADI_PROFILE=<profile> hooks/subagent-runner.sh init` seeds it from a
+runner found on `PATH`, `init --none` records the refusal, `show` prints it.
 
 ## License
 

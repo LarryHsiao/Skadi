@@ -49,6 +49,29 @@ Rules of thumb:
 - The cheapest spawn is the one that does not happen; the next cheapest runs
   on Haiku.
 
+## External runner
+
+`~/.skadi/profiles/<profile>/subagent-runner.md` (CLAUDE.md, *Delegation
+Discipline*; the profile from `SKADI_PROFILE`) may name a CLI to run delegated
+work through instead of the Agent tool. Its shape:
+
+```
+codex exec --sandbox workspace-write -m {model} -
+mechanical=gpt-5.6-luna
+default=gpt-5.6-terra
+strong=gpt-5.6-sol
+```
+
+Line 1 is the command, prompt on stdin, `{model}` replaced by the slug for
+the tier chosen from the roster above. Dispatch through it exactly as through
+the Agent tool: the triad below, the report contract, the escalation ladder
+all hold; pick the tier, substitute its slug, pipe the brief. The Codex
+column of the roster is what `hooks/subagent-runner.sh init` writes when it
+finds `codex` on PATH; another runner is written by hand in the same shape.
+`none` means the profile has no runner — use the Agent tool. Fall back to the
+Agent tool regardless when the task needs the conversation's live context or
+Claude-only tooling (an `isolation: "worktree"` spawn, a `fork`).
+
 ## The dispatch triad — every delegation prompt carries all three
 
 1. **Goal and why.** What to produce and why it matters — the subagent has not

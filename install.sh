@@ -415,5 +415,18 @@ if [ -f "$REPO/previews/henneth/skadi-theme.css" ]; then
   install_file "$REPO/previews/henneth/skadi-theme.css" "$HOME/.skadi/henneth/skadi-theme.css"
 fi
 
+# The profile's external subagent runner is a choice, not a detection: a
+# machine may hold codex and still want it only in the work profile. So the
+# install never seeds it — it names the profile whose pointer is unset and the
+# one command that writes it, and leaves the writing to the user, or to the
+# first session there that wants a subagent (CLAUDE.md, *Delegation Discipline*).
+hint_subagent_runner() {
+  local profile
+  profile="$(profile_for_root "$CLAUDE_DIR")"
+  [ -f "$HOME/.skadi/profiles/$profile/subagent-runner.md" ] && return
+  echo "subagent runner unset for $profile — SKADI_PROFILE=$profile hooks/subagent-runner.sh init  (or: init --none)"
+}
+hint_subagent_runner
+
 echo ""
 echo "Done."
