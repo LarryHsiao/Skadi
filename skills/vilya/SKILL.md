@@ -60,8 +60,10 @@ text without them. `compiled`, `ready in`, `Serving HTTP` are the right size.
 server that announces itself once at boot and then reports each rebuild in
 different words needs both phrasings in the pattern, joined with `|`. Vite is
 the proven case: it prints `ready in 279 ms` once; an edit to `index.html`
-then logged `[vite] (client) page reload index.html`, and a module edit is
-reported as `hmr update …` — never `ready in` again. Taught only the banner, a second-pass `ready --since` waited
+then logged `[vite] (client) page reload index.html` — never `ready in`
+again. Vite documents `hmr update …` as the wording for a module patch; that
+line was not exercised in the run, and is carried in the pattern on Vite's
+word rather than on observation. Taught only the banner, a second-pass `ready --since` waited
 its whole timeout and returned `7` for a rebuild that had already landed.
 
 Common patterns, as a starting point rather than a promise — read the server's

@@ -131,7 +131,8 @@ reached a browser (exit 0, where the earlier session got 3). Two runs:
   whole timeout, because Vite reports a rebuild as `[vite] (client) page
   reload index.html` and never repeats its banner. Taught
   `ready in|page reload|hmr update`, the same edit returned 0 and the shot
-  measured the new colour.
+  measured the new colour. Only `page reload` was observed; `hmr update` is
+  in the pattern on Vite's documentation, a module edit not having been made.
 
 Both runs surfaced the same third fault: BSD `wc -c` pads its count, and
 `--since '      49'` is refused with exit 2, so the recipe both skill docs
