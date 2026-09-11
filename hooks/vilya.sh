@@ -68,6 +68,11 @@
 # pasted whole can defeat itself: "compiled (1234ms)" reads its own parentheses
 # as a group and so matches only the text without them. Name a short, stable
 # fragment — "compiled", "ready in", "Serving HTTP" — rather than a whole line.
+# And a fragment from the boot banner alone is not enough when `ready` will be
+# asked again after an edit: a server that reports a rebuild in other words
+# (Vite prints "ready in" once, then "page reload" or "hmr update") needs both
+# joined with |, or the second-pass `ready --since` waits out its timeout for a
+# rebuild that already landed.
 #
 # WHAT THIS DOES NOT HOLD
 #   - A server that daemonizes itself (double-forks and returns) leaves a pid

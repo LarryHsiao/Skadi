@@ -7,6 +7,11 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HOOK="$HERE/vilya.sh"
+# http.server prints its banner with print(), and a stdout that is a file (the
+# hook's log) is block-buffered — under Python 3.14 the line never lands while
+# the server lives, so the url and log assertions below read an empty log.
+# Unbuffered, it lands within the hook's own settle.
+export PYTHONUNBUFFERED=1
 pass=0
 fail=0
 
@@ -128,7 +133,7 @@ check "status exits 0 while it stands" "$expected_status" "$status_code"
 expected_verdict=alive
 check "status reports it alive" "$expected_verdict" "$(printf '%s' "$status_out" | awk '{print $1}')"
 
-# http.server announces itself on stderr, which the hook folds into the log.
+# http.server's banner lands in the log — unbuffered, per the export above.
 log_out="$("$HOOK" log --name web --project "$PROJECT" 2>&1)"
 expected_logged=yes
 check "log carries the server's own output" "$expected_logged" \
