@@ -143,6 +143,7 @@
       "Bash(~/.claude/hooks/vilya.sh:*)",
       "Bash(~/.claude/hooks/handoff.sh:*)",
       "Bash(~/.claude/hooks/handoff-autosub.sh:*)",
+      "Bash(~/.claude/hooks/mithlond.sh:*)",
       "Bash(~/.claude/hooks/vor-teams-poll.sh:*)",
       "Bash(~/.claude/hooks/vor-normalize.sh:*)",
       "Bash(~/.claude/hooks/ping-pong.sh:*)",
@@ -285,6 +286,10 @@
           },
           {
             "type": "command",
+            "command": "~/.claude/hooks/mithlond-poll.sh"
+          },
+          {
+            "type": "command",
             "command": "~/.claude/hooks/ping-pong.sh"
           }
         ]
@@ -303,7 +308,21 @@
           },
           {
             "type": "command",
+            "command": "~/.claude/hooks/mithlond-presence.sh"
+          },
+          {
+            "type": "command",
             "command": "~/.claude/hooks/pengolodh-inject.sh"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/mithlond-presence.sh"
           }
         ]
       }
