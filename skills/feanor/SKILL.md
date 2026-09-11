@@ -566,7 +566,9 @@ For each pass `n` (1 to `--max`):
      must have carried the edit into the bytes it serves before a shot is worth
      taking, and there are two ways to know that — one a signal, one a guess:
      - **Held by Vilya** — take the log's watermark *before* the edit
-       (`~/.claude/hooks/vilya.sh log --name <n> -n 99999 | wc -c`), then let
+       (`~/.claude/hooks/vilya.sh log --name <n> -n 99999 | wc -c | tr -d ' '` —
+       the trim matters, BSD `wc` pads its count and `--since` refuses the
+       padded form), then let
        `~/.claude/hooks/vilya.sh ready --name <n> --since <watermark>` decide
        whether the next shot is worth taking, as the Flutter path leans on
        `flutter-daemon.sh reload`. Where Flutter reads one bit — `0` shoot,

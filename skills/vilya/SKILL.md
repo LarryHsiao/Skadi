@@ -44,7 +44,7 @@ dev server and an API mock — each answering to its own name.
 ## Starting one
 
     ~/.claude/hooks/vilya.sh start --name web \
-      --ready-pattern 'ready in' --label '🌐 Dev' \
+      --ready-pattern 'ready in|page reload|hmr update' --label '🌐 Dev' \
       -- npm run dev
 
 Nothing about the command is baked in: Vilya runs whatever you hand it after
@@ -56,12 +56,20 @@ extended regular expression, so a line pasted whole can defeat itself —
 `compiled (1234ms)` reads its own parentheses as a group and matches only the
 text without them. `compiled`, `ready in`, `Serving HTTP` are the right size.
 
+**A boot banner alone is not enough when `ready` will be asked twice.** A
+server that announces itself once at boot and then reports each rebuild in
+different words needs both phrasings in the pattern, joined with `|`. Vite is
+the proven case: it prints `ready in 279 ms` once; an edit to `index.html`
+then logged `[vite] (client) page reload index.html`, and a module edit is
+reported as `hmr update …` — never `ready in` again. Taught only the banner, a second-pass `ready --since` waited
+its whole timeout and returned `7` for a rebuild that had already landed.
+
 Common patterns, as a starting point rather than a promise — read the server's
-actual first run and take the phrasing from there:
+actual first run *and its first rebuild* and take the phrasing from there:
 
 | Server | A fragment that works |
 |---|---|
-| Vite | `ready in` |
+| Vite | `ready in\|page reload\|hmr update` |
 | Zola | `Web server is available` |
 | Python's `http.server` | `Serving HTTP` |
 | webpack dev server | `compiled` |
@@ -73,9 +81,12 @@ bare `ready` on the second pass answers *yes* for a rebuild that has not begun.
 
 Read the log's size **before** making the edit, and hand it back:
 
-    before=$(~/.claude/hooks/vilya.sh log --name web -n 99999 | wc -c)
+    before=$(~/.claude/hooks/vilya.sh log --name web -n 99999 | wc -c | tr -d ' ')
     # ... make the edit ...
     ~/.claude/hooks/vilya.sh ready --name web --since "$before"
+
+The `tr -d ' '` is not decoration: BSD `wc` (macOS) pads its count with
+leading spaces, and `--since '      49'` is refused as not a whole number.
 
 Only an announcement made after that point counts. Skipping this is the same
 mistake as sleeping and hoping, wearing better clothes.
