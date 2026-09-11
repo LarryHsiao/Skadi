@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Standing Machinery</title>
+    <link rel="stylesheet" href="../previews/henneth/skadi-theme.css" />
+    <style>
+      .flow {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .backnav {
+        max-width: 1100px;
+        margin: 0 auto 0.6rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .backnav a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 0.9rem;
+      }
+      .backnav a:hover {
+        text-decoration: underline;
+      }
+      .langtoggle button {
+        font: inherit;
+        font-size: 0.85rem;
+        padding: 0.15rem 0.65rem;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--ink);
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .langtoggle button + button {
+        margin-left: 0.3rem;
+      }
+      .langtoggle button.active {
+        background: var(--accent);
+        color: var(--bg);
+        border-color: var(--accent);
+      }
+      .diagram {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 1rem 0.6rem;
+        margin: 0.6rem 0 1.2rem;
+        overflow-x: auto;
+      }
+      .diagram pre {
+        margin: 0;
+      }
+      .small {
+        font-size: 0.85rem;
+        color: #6b5d44;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="backnav">
+      <a href="index.html">← Skadi Handbook</a>
+      <div class="langtoggle">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="zh">繁中</button>
+      </div>
+    </div>
+
+    <div class="flow">
+      <div class="lang-en">
+        <h1>The Standing Machinery</h1>
+        <p class="sub">
+          Four pieces that outlive a single turn — a server kept answering, a
+          daemon fed one line at a time, a runner a session hands work to
+          instead of spawning its own, and the registry naming which config
+          root belongs to which profile.
+        </p>
+
+        <p class="note">
+          Chapter VI maps every skill by the stage of work it serves. None of
+          what follows is a skill in that sense — it is the standing state
+          those skills, and the sessions calling them, read and write between
+          turns. It grew alongside the fellowship without ever joining the
+          map.
+        </p>
+      </div>
+      <div class="lang-zh" hidden>
+        <h1>常駐機制</h1>
+        <p class="sub">
+          四樣活得比一個 turn 還久的東西——持續應答的伺服器、一次餵一行的
+          daemon、session 拿去外包工作而非自己生 subagent 的 runner，以及
+          記錄哪個 config root 屬於哪個 profile 的登記表。
+        </p>
+
+        <p class="note">
+          Chapter VI 按工作階段把每個 skill 都畫進圖裡。以下這些都不是那個
+          意義上的 skill——它們是那些 skill、以及呼叫它們的 session，在
+          turn 與 turn 之間讀寫的常駐狀態。它們跟著整個 fellowship 一起
+          長出來，卻從未被畫進那張圖。
+        </p>
+      </div>
+
+      <div class="lang-en">
+        <h2>Registered, drained, and read</h2>
+        <div class="diagram">
+          <pre class="mermaid">
+graph TD
+    VILYA["/vilya<br/>holds a protocol-less server"]
+    NARYA["/narya<br/>flutter run --machine daemon"]
+    WINREG["hooks/window-register.sh<br/>register / unregister"]
+    WINDIR[("~/.skadi/windows/<br/>one two-line file per window<br/>url, label")]
+    STATUS["statusline.sh<br/>/dev/tcp liveness probe<br/>OSC 8 hyperlink row"]
+
+    VILYA --> WINREG
+    NARYA --> WINREG
+    WINREG --> WINDIR
+    WINDIR -->|"probed live, drawn as a link"| STATUS
+    WINDIR -.->|"silent server — pruned on sight"| STATUS
+
+    classDef daemon fill:#dfeade,stroke:#cdbfa0
+    class VILYA,NARYA daemon
+        </pre>
+        </div>
+      </div>
+      <div class="lang-zh" hidden>
+        <h2>登記、餵入、讀取</h2>
+        <div class="diagram">
+          <pre class="mermaid">
+graph TD
+    VILYA["/vilya<br/>守住一個無協議的伺服器"]
+    NARYA["/narya<br/>flutter run --machine daemon"]
+    WINREG["hooks/window-register.sh<br/>register / unregister"]
+    WINDIR[("~/.skadi/windows/<br/>每個視窗一個兩行檔<br/>url、label")]
+    STATUS["statusline.sh<br/>/dev/tcp 存活探測<br/>OSC 8 超連結列"]
+
+    VILYA --> WINREG
+    NARYA --> WINREG
+    WINREG --> WINDIR
+    WINDIR -->|"探測存活，畫成連結"| STATUS
+    WINDIR -.->|"伺服器已無聲——見即清除"| STATUS
+
+    classDef daemon fill:#dfeade,stroke:#cdbfa0
+    class VILYA,NARYA daemon
+        </pre>
+        </div>
+      </div>
+
+      <div class="lang-en">
+        <h2>I. The windows row</h2>
+        <p>
+          Any script starting a local server a person might want to click
+          into — a Flutter DevTools session, a blog preview, anything else —
+          drops a two-line file under <code>~/.skadi/windows</code> via
+          <code>hooks/window-register.sh</code>: url on line 1, label on line
+          2. <code>statusline.sh</code> draws each as an OSC 8 terminal
+          hyperlink, so the port costs no width on the line and a click opens
+          the window.
+        </p>
+        <p>
+          Liveness is a <code>/dev/tcp</code> connect rather than a curl
+          probe, because the statusline redraws constantly and a heavier
+          check would be paid on every redraw. A file whose server has gone
+          silent is pruned on sight — the registering script may have died
+          without calling <code>unregister</code>, and a label that opens
+          nothing is worse than no label — so calling <code>unregister</code>
+          on a clean shutdown is a courtesy, not a requirement.
+        </p>
+        <p>
+          Registered servers get their own row at the very top of the
+          statusline, above the built-in Standing Windows row that already
+          names the board, Henneth, the plan mirror, and the skills
+          cheatsheet: a server the user chose to register just now is the
+          thing they most likely want to click, so it leads rather than waits
+          its turn.
+        </p>
+
+        <h2>II. Vilya and Narya — daemons that outlive a turn</h2>
+        <p>
+          Both hold one long-lived process per named slot. The expensive
+          setup — a Flutter build, a dev server's cold start — is paid once;
+          every later turn or session pokes the standing process for pennies.
+          Neither boots a device or a browser, and neither navigates —
+          holding the process and reading its state is the whole of the job.
+        </p>
+        <p>
+          <span class="name">/narya</span> keeps a
+          <code>flutter run --machine</code> session alive behind a named
+          pipe, so a source edit reaches the running app in about a second
+          instead of a 60–90s rebuild, without losing the screen you
+          navigated to. <span class="name">/vilya</span> holds a
+          protocol-less server — a Vite or webpack dev server, a Zola or Hugo
+          preview, an API mock — one per <code>(project, name)</code>, and
+          its <code>ready</code> verb reads the server's own log for a
+          pattern rather than sleeping and hoping, so a caller acts on a
+          signal instead of a guess. Both register themselves on the windows
+          row above; any caller may poke either — you in chat,
+          <span class="name">/feanor</span> between mends,
+          <span class="name">/manwe</span> before a shot.
+        </p>
+        <p class="small">
+          One gap stands open honestly: Vilya's plan replaced
+          <span class="name">/feanor</span>'s fixed settle-and-reshoot with a
+          real <code>ready</code> gate, and that prose has shipped — but one
+          real <span class="name">/feanor</span> pass against a Vilya-held
+          server, the thing the plan's own verify line asks for, has not yet
+          run. See <code>TODO.md</code> at the repo root.
+        </p>
+
+        <h2>III. The external runner</h2>
+        <p>
+          <code>~/.skadi/profiles/&lt;profile&gt;/subagent-runner.md</code>
+          names a CLI a session hands delegated work to instead of spawning
+          an Agent-tool subagent, for the profile named by
+          <code>SKADI_PROFILE</code> — which the installer stamps into each
+          root's <code>settings.json</code>. Its first line is the runner's
+          non-interactive command template (prompt on stdin,
+          <code>{model}</code> standing in for the slug); the lines after map
+          the delegation roster's <code>mechanical=</code> /
+          <code>default=</code> / <code>strong=</code> tiers onto that
+          runner's own models. So a work profile may dispatch through Codex
+          while the personal profile keeps to the Agent tool.
+        </p>
+        <p>
+          The file's absence means the question was never asked; the literal
+          value <code>none</code> means it was asked and declined.
+          <code>install.sh</code> never writes this file itself — it only
+          prints a hint for a profile left unset — because which runner a
+          profile uses, and whether spare quota stands behind it, is a
+          choice about that profile and that machine, not a fact the config
+          can know on its own.
+        </p>
+
+        <h2>IV. Profiles and <code>roots.tsv</code></h2>
+        <p>
+          <code>~/.skadi/install/roots.tsv</code> holds one tab-separated row
+          per <code>profile</code> / <code>claude-root</code> /
+          <code>codex-root</code>. <code>install.sh --all</code> installs
+          every registered row; <code>--pair</code> registers one more.
+        </p>
+        <p>
+          A fresh machine is registered with <b>one</b> pair, not three, and
+          the reasoning is worth drawing out: two of the three homes would
+          stand empty, and the mere existence of a <code>~/.claude-*</code>
+          sibling flips <code>~/.claude/CLAUDE.md</code> to the stub on the
+          next run — quietly demoting a live root to a signpost. A second
+          profile is a choice made with <code>--pair</code>, never a default
+          taken on the user's behalf. Launching a profile once paired is
+          <code>CLAUDE_CONFIG_DIR</code> / <code>CODEX_HOME</code>, which the
+          install hint names directly.
+        </p>
+      </div>
+      <div class="lang-zh" hidden>
+        <h2>I. 視窗列</h2>
+        <p>
+          任何啟動本機伺服器、而使用者可能想點進去看的腳本——Flutter
+          DevTools session、部落格預覽、或其他——都會透過
+          <code>hooks/window-register.sh</code> 在
+          <code>~/.skadi/windows</code> 底下丟一個兩行檔：第一行是 url，
+          第二行是 label。<code>statusline.sh</code> 把每一筆都畫成 OSC 8
+          終端機超連結，所以連 port 都不佔狀態列的寬度，點一下就能開啟
+          那個視窗。
+        </p>
+        <p>
+          存活判斷用的是 <code>/dev/tcp</code> 連線，而不是 curl 探測——
+          因為狀態列不斷重繪，較重的探測每次重繪都要付一次代價。伺服器
+          已經無聲的檔案會被見即清除——註冊用的腳本可能沒呼叫
+          <code>unregister</code> 就死掉了，而一個打不開任何東西的
+          label 比沒有 label 還糟——所以乾淨關閉時呼叫
+          <code>unregister</code> 只是禮貌，不是必要。
+        </p>
+        <p>
+          已註冊的伺服器會出現在狀態列最上方自己的一列，排在原本就存在
+          的 Standing Windows 列（board、Henneth、plan mirror、skills
+          cheatsheet）之前：使用者剛剛選擇註冊的伺服器，最有可能是他們
+          現在就想點的那個，所以它排在最前面，不必等輪到它。
+        </p>
+
+        <h2>II. Vilya 與 Narya——活得比一個 turn 久的 daemon</h2>
+        <p>
+          兩者都是每個具名的 slot 守住一個長駐 process。昂貴的初始化——
+          一次 Flutter build、一次 dev server 的冷啟動——只付一次；之後
+          每個 turn 或 session 戳一下常駐 process 都只是零錢的代價。兩者
+          都不開裝置、不開瀏覽器，也不做任何導覽——守住這個 process、
+          讀它的狀態，就是全部的工作。
+        </p>
+        <p>
+          <span class="name">/narya</span> 在具名 pipe 後面守住一個
+          <code>flutter run --machine</code> session，讓原始碼的修改在
+          約一秒內就送進正在跑的 app，而不是 60–90 秒的重建，也不會
+          丟失你原本導覽到的畫面。<span class="name">/vilya</span> 守住
+          一個無協議的伺服器——Vite 或 webpack 的 dev server、Zola 或
+          Hugo 的預覽、API mock——每個 <code>(project, name)</code>
+          一份，它的 <code>ready</code> 動詞直接讀伺服器自己的 log
+          找特定樣式，而不是睡一下賭運氣，讓呼叫端能等一個訊號、而不是
+          用猜的。兩者都會自己註冊到上面的視窗列；任何呼叫端都能戳
+          其中一個——你在聊天視窗裡、<span class="name">/feanor</span>
+          在兩次修補之間、<span class="name">/manwe</span> 在拍照之前。
+        </p>
+        <p class="small">
+          有一個缺口老實地留著：Vilya 的計畫把
+          <span class="name">/feanor</span> 原本「等幾秒再重拍」的做法
+          換成真正的 <code>ready</code> 關卡，這段文字已經上線——但計畫
+          自己驗證那行要求的、對著 Vilya 守住的伺服器跑一次真正的
+          <span class="name">/feanor</span>，還沒有真的跑過。見倉庫根目錄
+          的 <code>TODO.md</code>。
+        </p>
+
+        <h2>III. 外部 runner</h2>
+        <p>
+          <code>~/.skadi/profiles/&lt;profile&gt;/subagent-runner.md</code>
+          記錄一個 session 拿去外包工作、而不是自己生一個 Agent-tool
+          subagent 的 CLI，profile 取自 <code>SKADI_PROFILE</code>——
+          由 installer 寫進每個 root 自己的 <code>settings.json</code>。
+          第一行是這個 runner 的非互動指令樣板（prompt 走 stdin，
+          <code>{model}</code> 代表 model slug）；之後幾行把 delegation
+          roster 的 <code>mechanical=</code>／<code>default=</code>／
+          <code>strong=</code> 三個分級對應到那個 runner 自己的 model。
+          所以 work profile 可以走 Codex 外包，personal profile 則仍然
+          用 Agent tool。
+        </p>
+        <p>
+          這個檔案不存在，代表從沒被問過；內容寫死是 <code>none</code>，
+          代表問過但被拒絕了。<code>install.sh</code> 本身從不寫這個
+          檔案——只會替還沒設定的 profile 印出提示——因為某個 profile
+          該用哪個 runner、背後是否還有餘裕的額度，是關於那個 profile
+          與那台機器的選擇，不是設定檔自己能知道的事實。
+        </p>
+
+        <h2>IV. Profile 與 <code>roots.tsv</code></h2>
+        <p>
+          <code>~/.skadi/install/roots.tsv</code> 每一列都是一組
+          tab 分隔的 <code>profile</code> / <code>claude-root</code> /
+          <code>codex-root</code>。<code>install.sh --all</code> 會安裝
+          登記表裡的每一列；<code>--pair</code> 再多登記一組。
+        </p>
+        <p>
+          一台全新的機器只會登記<b>一組</b>，不是三組，這個理由值得
+          寫清楚：三個 home 裡有兩個會是空的，而且光是
+          <code>~/.claude-*</code> 這種 sibling 存在，就會讓
+          <code>~/.claude/CLAUDE.md</code> 在下一次執行時翻成 stub——
+          悄悄把一個活著的 root 降級成路標。第二個 profile 是用
+          <code>--pair</code> 主動做出的選擇，絕不是替使用者預設好的。
+          配好之後要啟動某個 profile，就是
+          <code>CLAUDE_CONFIG_DIR</code> / <code>CODEX_HOME</code>，
+          install 的提示文字會直接點名。
+        </p>
+      </div>
+    </div>
+
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "base",
+        themeVariables: {
+          fontFamily: "Iowan Old Style, Palatino Linotype, Georgia, serif",
+          primaryColor: "#fbf6ea",
+          primaryBorderColor: "#cdbfa0",
+          primaryTextColor: "#2b2419",
+          lineColor: "#7a5a2e",
+          actorBkg: "#fbf6ea",
+          actorBorder: "#7a5a2e",
+          actorTextColor: "#2b2419",
+          actorLineColor: "#cdbfa0",
+          signalColor: "#7a5a2e",
+          signalTextColor: "#2b2419",
+          noteBkgColor: "#f6efe0",
+          noteBorderColor: "#7a5a2e",
+          noteTextColor: "#2b2419",
+          sequenceNumberColor: "#fbf6ea",
+          labelBoxBkgColor: "#ece0c3",
+          labelBoxBorderColor: "#cdbfa0",
+          labelTextColor: "#2b2419",
+        },
+      });
+
+      const KEY = "skadi-handbook-lang";
+
+      function applyLang(lang) {
+        document
+          .querySelectorAll(".lang-en")
+          .forEach((el) => (el.hidden = lang !== "en"));
+        document
+          .querySelectorAll(".lang-zh")
+          .forEach((el) => (el.hidden = lang !== "zh"));
+        document.querySelectorAll(".langtoggle button").forEach((b) => {
+          b.classList.toggle("active", b.dataset.lang === lang);
+        });
+        document.documentElement.lang = lang === "zh" ? "zh-Hant" : "en";
+        try {
+          localStorage.setItem(KEY, lang);
+        } catch (e) {
+          /* private mode or storage disabled — the toggle still works this visit */
+        }
+      }
+
+      async function boot() {
+        // mermaid measures text by laying the SVG out in the DOM — a
+        // hidden (display:none) container collapses that measurement to
+        // 0, so the inactive language's diagram must be revealed for the
+        // run and only re-hidden once rendering has actually finished.
+        const zhBlocks = document.querySelectorAll(".lang-zh");
+        const wasHidden = new Map();
+        zhBlocks.forEach((el) => {
+          wasHidden.set(el, el.hidden);
+          el.hidden = false;
+        });
+
+        await mermaid.run();
+
+        zhBlocks.forEach((el) => {
+          el.hidden = wasHidden.get(el);
+        });
+
+        document.querySelectorAll(".langtoggle button").forEach((b) => {
+          b.addEventListener("click", () => applyLang(b.dataset.lang));
+        });
+
+        let saved = "en";
+        try {
+          saved = localStorage.getItem(KEY) || "en";
+        } catch (e) {
+          /* private mode or storage disabled — default to en */
+        }
+        applyLang(saved);
+      }
+
+      boot();
+    </script>
+  </body>
+</html>

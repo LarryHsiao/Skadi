@@ -176,7 +176,7 @@
       <div class="lang-en">
         <h1>The Fellowship of Skills</h1>
         <p class="sub">
-          One map of all fifty-three skills — where each stands on the arc of
+          One map of all fifty-six skills — where each stands on the arc of
           the work, and which of them call which.
         </p>
 
@@ -209,7 +209,7 @@
       <div class="lang-zh" hidden>
         <h1>技藝之網</h1>
         <p class="sub">
-          五十三個 skill 的全圖——各自站在工作流程的哪一段，以及誰會呼叫誰。
+          五十六個 skill 的全圖——各自站在工作流程的哪一段，以及誰會呼叫誰。
         </p>
 
         <p class="note">
@@ -285,6 +285,7 @@ graph LR
       CELEBR["/celebrimbor"]
       NARVI["/narvi"]
       NARYA["/narya"]
+      VILYA["/vilya"]
       FEANOR["/feanor"]
       MANWE["/manwe"]
       STAGE["/stage"]
@@ -333,6 +334,8 @@ graph LR
       FOCUS["/focus"]
       FINDEGIL["/findegil"]
       SCRIBE["/scribe"]
+      MITHLOND["/mithlond"]
+      PENGOLODH["/pengolodh"]
     end
 
     AMONSUL --> RHOV
@@ -349,7 +352,9 @@ graph LR
     WORKING --> JIRA
     FEANOR --> MANWE
     FEANOR --> NARYA
+    FEANOR --> VILYA
     MANWE --> NARYA
+    MANWE --> VILYA
     SUMMARY --> STAGE
     ARGONATH --> NAZGUL
     ARGONATH --> MITH
@@ -374,6 +379,7 @@ graph LR
     PREFLIGHT --> PALANTIR
     EOD --> COMMIT
     REMEMBER --> HANDOFF
+    MITHLOND --> HANDOFF
 
     MITH -.-> LINDIR
     MANDOS -.-> COUNCIL
@@ -393,7 +399,7 @@ graph LR
     classDef isolate stroke-dasharray:4 3,stroke:#9a3b2e;
     class FINDEGIL,FOCUS,SCRIBE isolate;
 
-    linkStyle 48,49,50,51 stroke:#9a3b2e,stroke-width:2px;
+    linkStyle 51,52,53,54 stroke:#9a3b2e,stroke-width:2px;
 </pre>
       </div>
 
@@ -456,6 +462,7 @@ graph LR
             <td class="stage">5. Implementation Loop</td>
             <td>
               <span class="name">/narya</span> keeps the app alive,
+              <span class="name">/vilya</span> keeps a dev server serving,
               <span class="name">/feanor</span> mends against a spec,
               <span class="name">/manwe</span> weighs a single render
             </td>
@@ -560,6 +567,7 @@ graph LR
             <td class="stage">5. Implementation Loop</td>
             <td>
               <span class="name">/narya</span> 讓 app 保持存活，
+              <span class="name">/vilya</span> 讓 dev server 保持提供服務，
               <span class="name">/feanor</span> 對著 spec 修補，
               <span class="name">/manwe</span> 衡量單一畫面
             </td>
@@ -614,7 +622,7 @@ graph LR
         <h2>The same web, without the lanes</h2>
         <p>
           The map above imposes an order the skills themselves do not have. Here
-          the same fifty-three are turned loose: no stage, no left-to-right, only
+          the same fifty-six are turned loose: no stage, no left-to-right, only
           pull and repulsion. Skills that call each other draw together; skills
           that call nothing drift to the edge. <b>Scroll to zoom, drag the
           canvas to pan, drag a node to pull it free</b> — release it and the
@@ -632,7 +640,7 @@ graph LR
       <div class="lang-zh" hidden>
         <h2>同一張網，拿掉欄位</h2>
         <p>
-          上面那張圖強加了一種 skill 本身並不具備的順序。這裡把同樣的五十三個放
+          上面那張圖強加了一種 skill 本身並不具備的順序。這裡把同樣的五十六個放
           開：沒有階段、沒有左到右，只有牽引與排斥。互相呼叫的會靠攏，誰都不呼叫
           的則漂到邊緣。<b>滾輪縮放、拖曳畫布平移、拖曳節點把它拉開</b>——放手之
           後，網會自己重新安定下來。
@@ -650,7 +658,7 @@ graph LR
         <svg
           id="net"
           role="img"
-          aria-label="Force-directed network of the 53 skills: the calls between them, the mentions that are not calls, and the one mend cycle. The lane map above carries the same graph."
+          aria-label="Force-directed network of the 56 skills: the calls between them, the mentions that are not calls, and the one mend cycle. The lane map above carries the same graph."
         ></svg>
         <div class="nettip" id="nettip"></div>
       </div>
@@ -680,8 +688,8 @@ graph LR
       const KEY = "skadi-handbook-lang";
       const RESET_LABEL = { en: "Reset view", zh: "重設視圖" };
       const NET_ARIA = {
-        en: "Force-directed network of the 53 skills: the calls between them, the mentions that are not calls, and the one mend cycle. The lane map above carries the same graph.",
-        zh: "五十三個 skill 的力導向關係網：彼此之間的呼叫、只是提到而非呼叫的關係，以及唯一的修補迴路。上方的欄位圖承載同一份圖。",
+        en: "Force-directed network of the 56 skills: the calls between them, the mentions that are not calls, and the one mend cycle. The lane map above carries the same graph.",
+        zh: "五十六個 skill 的力導向關係網：彼此之間的呼叫、只是提到而非呼叫的關係，以及唯一的修補迴路。上方的欄位圖承載同一份圖。",
       };
 
       // The two views answer a language change differently: the mermaid map is
