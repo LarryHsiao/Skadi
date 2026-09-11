@@ -562,9 +562,37 @@ For each pass `n` (1 to `--max`):
    Changes / Read Before Write guidance exists to catch.
 
 5. Let the rebuild reach the rendered surface before the next pass shoots it:
-   - **Web** — a static `file://` page is already written (no wait); a dev server
-     hot-reloads (a few seconds — if the next shot still shows the pre-edit state,
-     wait briefly and re-shoot). Settle time is tunable via `FEANOR_SETTLE_MS`.
+   - **Web** — a static `file://` page is already written (no wait). A dev server
+     must have carried the edit into the bytes it serves before a shot is worth
+     taking, and there are two ways to know that — one a signal, one a guess:
+     - **Held by Vilya** — take the log's watermark *before* the edit
+       (`~/.claude/hooks/vilya.sh log --name <n> -n 99999 | wc -c | tr -d ' '` —
+       the trim matters, BSD `wc` pads its count and `--since` refuses the
+       padded form), then let
+       `~/.claude/hooks/vilya.sh ready --name <n> --since <watermark>` decide
+       whether the next shot is worth taking, as the Flutter path leans on
+       `flutter-daemon.sh reload`. Where Flutter reads one bit — `0` shoot,
+       anything else do not — Vilya answers with a state Flutter has no room
+       for, so read the code:
+       - `0` — shoot.
+       - `7` — do not. The rebuild never landed; `vilya log` says why.
+       - `5` — do not. The server died; read its last words, then raise it again.
+       - `6` — Vilya was never taught that server's ready line. Fall to the
+         settle below and **say so**, rather than shooting blind under a
+         signal's authority.
+       - `4` — no server by that name for this project. Vilya does not hold
+         this page after all, or the `--name` / `--project` is not the pair it
+         was raised under. Check with `vilya status` before concluding either;
+         until you know which, treat this page as **not held** and take the
+         path below.
+
+       Pass `--since` every time: `vilya/SKILL.md`'s *Waiting properly* says
+       why, and skipping it is the same mistake as the settle below.
+     - **Not held by Vilya** — the fixed settle stands as before: wait, and if
+       the next shot still shows the pre-edit state, wait briefly and re-shoot.
+       Tunable via `FEANOR_SETTLE_MS`. This is a clock raced against work of
+       unknown duration, not a signal — when the loop will run more than once,
+       raise the server under `/vilya` instead.
    - **Flutter** — the running app must pick up the Dart change by **hot reload**:
      `~/.claude/hooks/flutter-daemon.sh reload`, whose exit code decides whether
      the next shot is worth taking — `0` shoot, anything else do not, since a

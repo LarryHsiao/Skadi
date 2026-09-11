@@ -55,8 +55,11 @@ is smaller than narya, not a copy of it.
   DevTools banner. Neither found means no registration, and `start` still
   succeeds.
 - **Label defaults to the name.** `--label` overrides it for the statusline row.
-- **~40 lines of lifecycle scaffolding will repeat narya's** — state dir, pid
-  file, meta, reap. Accepted, but as a judgment call rather than a rule
+- **The lifecycle scaffolding repeats narya's** — and by more than the ~40
+  lines first estimated. Written out, the near-verbatim surface is
+  `resolve_project`, `project_dir`, the name/device slug, `meta_get` /
+  `meta_set` (byte-identical), the require / alive guards, `last_words`, and
+  `reap`. Accepted still, but as a judgment call rather than a rule
   application: `universal.md` says lift a shared shape on the third recurrence,
   and narya plus Vilya is two — yet that rule's own examples are small ones ("a
   condition, a method body, a transform"), so forty lines sits at the edge of
@@ -79,6 +82,14 @@ is smaller than narya, not a copy of it.
 
 ## Risks
 
+- **A crash slower than the settle window reads as a success.** `start` proves
+  liveness by pausing `SPAWN_SETTLE_SECONDS` and asking whether the process is
+  still there. A server whose failure surfaces after that budget — a slow
+  import, a bind error raised late — is reported `started`, and only the next
+  `status` corrects it. This is the fixed delay `universal.md` warns against,
+  standing in for a synchronization primitive; it is carried knowingly until the
+  `ready` verb's log pattern replaces it, and the lie it can tell is at least
+  short-lived and self-correcting on the next question asked.
 - **Ready patterns are per-server.** Vite, webpack, and zola each announce
   differently, so the pattern must be configured per slot. Absent one, the
   fallback is the fixed settle in use today — no better, but no worse, and every
@@ -95,8 +106,36 @@ is smaller than narya, not a copy of it.
 
 ## Steps
 
-- [ ] **Hold a process end to end.** `hooks/vilya.sh` with `start` / `status` / `stop` / `log`; state under `$SKADI_VILYA_ROOT` (default `~/.skadi/vilya`) as `<project-slug>/<name>/` holding `pid`, `log`, `meta`; spawned with `nohup`, no pipe apparatus. **Verify:** `hooks/vilya.test.sh` — start a `python3 -m http.server` on a free port, assert the pid lives and the port answers, `stop`, assert both are gone; plus argument handling and the no-such-server exit codes.
-- [ ] **Register on the statusline.** On a successful `start`, resolve the URL per the decision above and call `window-register.sh register vilya-<project>-<name> <url> <label>`; unregister on the teardown path, the single point every stop passes through — narya's `reap()` pattern. **Verify:** extend `vilya.test.sh` — the registry file appears with the right url and label after `start` and is gone after `stop`; a server with no URL in its log and no `--url` still starts cleanly and registers nothing.
-- [ ] **Give it a real completion signal.** `vilya ready <name> [--since <offset>] [--timeout <s>]` — watch the log from a byte offset for a per-server ready pattern (`--ready-pattern` at `start`, kept in `meta`), exit 0 on match and non-zero on timeout: the shape of narya's `await_result`. **Verify:** a test whose stub server prints its ready line after a delay — assert `ready` blocks, then exits 0; assert it exits non-zero when the pattern never comes.
-- [ ] **Reach it from chat.** `skills/vilya/SKILL.md` — the full verb table (every verb from the three steps above, so the table is written once rather than re-edited), and the judgment for when to reach for Vilya over narya or over a plain background Bash call. Add `Bash(~/.claude/hooks/vilya.sh:*)` to `settings.json`. **Verify:** `/install` sweeps every root clean, and `/vilya status <name>` answers from a fresh session.
-- [ ] **Close feanor's gap.** Replace `skills/feanor/SKILL.md`'s "wait briefly and re-shoot" with: when the target is served by a Vilya-held server, call `vilya ready` and let its exit code gate the next shot, exactly as the Flutter path uses `flutter-daemon.sh reload`. Keep the fixed-settle fallback for a server Vilya does not hold. **Verify:** partly by eye — the two paths must read symmetrically — plus one real feanor run against a Vilya-held dev server whose rebuild outlasts the old fixed settle.
+- [x] **Hold a process end to end.** `hooks/vilya.sh` with `start` / `status` / `stop` / `log`; state under `$SKADI_VILYA_ROOT` (default `~/.skadi/vilya`) as `<project-slug>/<name>/` holding `pid`, `log`, `meta`; spawned with `nohup`, no pipe apparatus. **Verify:** `hooks/vilya.test.sh` — start a `python3 -m http.server` on a free port, assert the pid lives and the port answers, `stop`, assert both are gone; plus argument handling and the no-such-server exit codes. <!-- sha: e89e5d4 -->
+- [x] **Register on the statusline.** On a successful `start`, resolve the URL per the decision above and call `window-register.sh register vilya-<project>-<name> <url> <label>`; unregister on the teardown path, the single point every stop passes through — narya's `reap()` pattern. **Verify:** extend `vilya.test.sh` — the registry file appears with the right url and label after `start` and is gone after `stop`; a server with no URL in its log and no `--url` still starts cleanly and registers nothing. <!-- sha: c203304 -->
+- [x] **Give it a real completion signal.** `vilya ready <name> [--since <offset>] [--timeout <s>]` — watch the log from a byte offset for a per-server ready pattern (`--ready-pattern` at `start`, kept in `meta`), exit 0 on match and non-zero on timeout: the shape of narya's `await_result`. **Verify:** a test whose stub server prints its ready line after a delay — assert `ready` blocks, then exits 0; assert it exits non-zero when the pattern never comes. <!-- sha: e7393b4 -->
+- [x] **Reach it from chat.** `skills/vilya/SKILL.md` — the full verb table (every verb from the three steps above, so the table is written once rather than re-edited), and the judgment for when to reach for Vilya over narya or over a plain background Bash call. Add `Bash(~/.claude/hooks/vilya.sh:*)` to `settings.json`. **Verify:** `/install` sweeps every root clean, and `/vilya status <name>` answers from a fresh session. <!-- sha: 3334a44 -->
+- [x] **Close feanor's gap.** Replace `skills/feanor/SKILL.md`'s "wait briefly and re-shoot" with: when the target is served by a Vilya-held server, call `vilya ready` and let its exit code gate the next shot, exactly as the Flutter path uses `flutter-daemon.sh reload`. Keep the fixed-settle fallback for a server Vilya does not hold. **Verify:** partly by eye — the two paths must read symmetrically — plus one real feanor run against a Vilya-held dev server whose rebuild outlasts the old fixed settle. <!-- sha: f0b1e0c -->
+
+## What the fifth step's run found
+
+The verify line was met on 2026-09-11 in a session where `feanor-shot.sh`
+reached a browser (exit 0, where the earlier session got 3). Two runs:
+
+- **Build-then-serve, 6s rebuild.** A `/feanor` pass at 800×300 against a stub
+  that copies `src/` to `dist/` after a six-second "build" and prints `build
+  complete`. Pass 1 named the deltas (border `#CC3333` against the spec's
+  `#3366CC`, "red" against "blue"); the mend was made; a shot taken at t+4s —
+  where the old 2000ms settle would have shot — still measured `#CC3333`;
+  `vilya ready --since` returned 0 at the build's end, and pass 2 measured
+  `#3366CC`. `ALIGNED` on pass 2 of 2.
+- **A real Vite dev server** (v8.3.0), the case the byte comparison could not
+  see. Vite serves fresh bytes on demand, so a headless load after an edit is
+  never stale — the risk was the *signal*, not the served page: taught the
+  documented `ready in`, a second-pass `ready --since` returned 7 after its
+  whole timeout, because Vite reports a rebuild as `[vite] (client) page
+  reload index.html` and never repeats its banner. Taught
+  `ready in|page reload|hmr update`, the same edit returned 0 and the shot
+  measured the new colour. Only `page reload` was observed; `hmr update` is
+  in the pattern on Vite's documentation, a module edit not having been made.
+
+Both runs surfaced the same third fault: BSD `wc -c` pads its count, and
+`--since '      49'` is refused with exit 2, so the recipe both skill docs
+prescribed could not work on the machine it was written on. The hook already
+had a trimmed caller in its own test; the docs now match it. All three
+corrections landed in the sha above; `hooks/vilya.sh` itself needed no change.

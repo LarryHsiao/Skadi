@@ -104,6 +104,46 @@ check "custom pair records one shared profile" custom-claude "$(cut -f1 "$TEST_H
 check "Claude settings receive the shared profile" custom-claude "$(jq -r '.env.SKADI_PROFILE' "$CUSTOM_CLAUDE/settings.json")"
 check "Codex skills receive the shared profile" yes "$(rg -q 'skadi-state.sh path custom-claude' "$CUSTOM_CODEX/skills/commit/SKILL.md" && echo yes || echo no)"
 
+# A machine with no registry is registered with one pair, not three — and the
+# run closes by naming how to add a second, since nothing else would tell the
+# user the option exists. A fresh HOME, not TEST_HOME: the pair test above has
+# already written a registry there.
+FRESH_HOME="$TMP/fresh"
+mkdir -p "$FRESH_HOME"
+HOME="$FRESH_HOME" bash "$HERE/install.sh" --all > "$TMP/fresh-all.txt" 2>&1
+expected_rows=1
+check "a fresh registry holds one pair" "$expected_rows" "$(awk 'NF' "$FRESH_HOME/.skadi/install/roots.tsv" | wc -l | tr -d ' ')"
+expected_profile=default
+check "the one pair is default" "$expected_profile" "$(cut -f1 "$FRESH_HOME/.skadi/install/roots.tsv")"
+expected_home=no
+check "no personal home is created" "$expected_home" "$([ -e "$FRESH_HOME/.claude-personal" ] && echo yes || echo no)"
+check "no work home is created" "$expected_home" "$([ -e "$FRESH_HOME/.claude-work" ] && echo yes || echo no)"
+expected_standing="One profile is registered: default — $FRESH_HOME/.claude | $FRESH_HOME/.codex"
+expected_shown=yes
+check "the close names the standing pair" "$expected_shown" "$(grep -qxF "$expected_standing" "$TMP/fresh-all.txt" && echo yes || echo no)"
+check "the close names --pair" "$expected_shown" "$(grep -q -- '--pair ~/.claude-work' "$TMP/fresh-all.txt" && echo yes || echo no)"
+check "the close names how to launch one" "$expected_shown" "$(grep -q 'CLAUDE_CONFIG_DIR="\$HOME/.claude-work" claude' "$TMP/fresh-all.txt" && echo yes || echo no)"
+check "the close names the Codex home" "$expected_shown" "$(grep -q 'CODEX_HOME="\$HOME/.codex-work" codex' "$TMP/fresh-all.txt" && echo yes || echo no)"
+check "the close offers an alias" "$expected_shown" "$(grep -q "alias claude-work='CLAUDE_CONFIG_DIR" "$TMP/fresh-all.txt" && echo yes || echo no)"
+
+# A single CUSTOM pair must be named as itself: announcing ~/.claude to someone
+# whose only home is elsewhere would tell them something untrue about their own
+# install.
+CUSTOM_HOME="$TMP/custom"
+mkdir -p "$CUSTOM_HOME"
+HOME="$CUSTOM_HOME" bash "$HERE/install.sh" --pair \
+  "$CUSTOM_HOME/.claude-solo" "$CUSTOM_HOME/.codex-solo" >/dev/null 2>&1
+HOME="$CUSTOM_HOME" bash "$HERE/install.sh" --all > "$TMP/custom-all.txt" 2>&1
+expected_custom="One profile is registered: solo — $CUSTOM_HOME/.claude-solo | $CUSTOM_HOME/.codex-solo"
+check "a lone custom pair is named as itself" "$expected_shown" "$(grep -qxF "$expected_custom" "$TMP/custom-all.txt" && echo yes || echo no)"
+
+# Once a second pair stands the hint has served its purpose and falls silent.
+printf 'work\t%s\t%s\n' "$FRESH_HOME/.claude-work" "$FRESH_HOME/.codex-work" \
+  >> "$FRESH_HOME/.skadi/install/roots.tsv"
+HOME="$FRESH_HOME" bash "$HERE/install.sh" --all > "$TMP/fresh-two.txt" 2>&1
+expected_silent=no
+check "a second pair silences the hint" "$expected_silent" "$(grep -q 'CLAUDE_CONFIG_DIR' "$TMP/fresh-two.txt" && echo yes || echo no)"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [ "$fail" -eq 0 ]
