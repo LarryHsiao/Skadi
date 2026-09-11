@@ -131,6 +131,7 @@ installed workflow as `$name`.
 - `/manwe` — Weigh a rendered UI against its spec — a Henneth wireframe, a Figma reference, a screenshot — or, absent a spec, against a sibling component's actual layout values. Reports `DELTAS` or `DIVERGENT` findings on padding, spacing, sizing, and typography; folded into the Compliance Review when a step edits a component's render
 - `/minuial` — The morning-start ritual: boot (or reuse) Henneth, serve the situation board, raise the Galadriel plan mirror where the project has a plans folder, refresh the board (tickets + metis growth), then compute the `/este` adherence pulse — printing every URL. Read-only; composes `/henneth`, `/board`, `/galadriel` and `/este`
 - `/handoff` — An async file mailbox between Claude Code sessions: one session leaves a message (or a whole context baton) on a named channel, another reads it on demand or subscribes for live auto-pickup. Sessions standing in the same repo join its channel automatically at start, so no subscribing is needed to reach a sibling session. No server — messages live under `~/.skadi/handoff/`
+- `/mithlond` — The Grey Havens: one call asks every live Claude Code session on this machine to wrap up. Each session that hears it weighs its own unfinished work — nothing pending, it replies `sailed` and ends its own process; something pending, it leaves a baton on its repo's handoff channel, replies `held: <reason>`, and stays. `status` renders who sailed and who held. A flag file, not a queue message, so every session hears it; each session only ever ends itself
 - `/cleanup-dev` — Free disk space by clearing dev caches and build artifacts
 - `/publish` — Build Flutter release archives and collect into `build/publish/`; macOS builds are signed (Developer ID) and notarized
 - `/publish-macos` — Bump version, build, and publish a macOS Xcode project to GitHub Releases or the Mac App Store
@@ -183,6 +184,7 @@ installed workflow as `$name`.
 - **vor-teams-poll**, **vor-normalize**, **vor-cursor** — Teams delta fetch, message normalization, and the read-cursor for `/vor`
 - **working-jira-ticket**, **working-jira-open**, **working-jira-transitions** — Resolve a ticket, open its draft PR/MR, and drive its state transitions for `/working`
 - **handoff**, **handoff-poll**, **handoff-autosub** — The mailbox store, the subscribe-poll loop, and the session-start join to the repo's own channel for `/handoff`
+- **mithlond**, **mithlond-presence**, **mithlond-poll** — The live-session registry, call flag, and self-departure for `/mithlond`; the SessionStart/SessionEnd presence hook and the UserPromptSubmit hook that injects the call once
 - **appgrowth** — Query the GA4 → BigQuery export for `/growth`
 - **beleg-crashes**, **beleg-rubric.json** — Collect Crashlytics issues from the BigQuery export, rank them by value, and render the brief into Henneth for `/beleg`; `--from-json` ranks issues the skill scraped from the console instead, so both collectors share one scorer. Exits 2 when a project carries no export — absence, distinct from a failed query
 - **scribe** — Export a Minerva section to YouTrack, Outline, or disk for `/scribe`
