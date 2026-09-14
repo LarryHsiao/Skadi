@@ -20,7 +20,7 @@ Item names are lowercase service names (`youtrack`, `jira`, …). Re-use Bitward
 `secret.sh <service> [field] [env_override]`
 
 - `field` defaults to `password`; valid values are `password`, `uri`, `username`, `notes`.
-- `env_override` overrides the auto-mapped env-var name. Auto mapping: `password → <SERVICE>_TOKEN`, `uri → <SERVICE>_URL`, `username → <SERVICE>_USERNAME`, `notes → <SERVICE>_NOTES`.
+- `env_override` overrides the auto-mapped env-var name. Auto mapping: `password → <SERVICE>_TOKEN`, `uri → <SERVICE>_URL`, `username → <SERVICE>_USERNAME`, `notes → <SERVICE>_NOTES`. Pass `-` to skip the env fallback entirely — vault-only, fails rather than reading any environment variable.
 
 Examples: `secret.sh youtrack` (token), `secret.sh youtrack uri` (URL), `secret.sh jira password JIRA_API_TOKEN` (Jira's env var diverges from the auto map, so override it).
 
