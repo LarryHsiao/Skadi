@@ -44,7 +44,7 @@ Composed over those stages, not before them: **`/anduin`** rides plan and forge 
 | `settings.json` | Model, permissions, plugins, and hook definitions |
 | `codex/hooks.json` | Native Codex lifecycle-hook definitions |
 | `codex/rules/skadi.rules` | Native Codex command escalation policy |
-| `statusline.sh` | Custom status line script |
+| `statusline.sh` | The terminal status line — eight rows of project, diff, model, quota, standing windows, and sky. See [The statusline](#the-statusline) |
 | `hooks/` | Shell scripts that run before/after tool calls |
 | `hooks/lint.sh` | Shellcheck gate over the scripts a branch changed — `./hooks/lint.sh` (add paths to widen it) |
 | `skills/` | Custom slash-command skills |
@@ -212,6 +212,71 @@ installed workflow as `$name`.
 - **skadi-worktree**, **worktree-guard** — Create or enter an isolated git worktree and block strays outside it
 - **protected-repo-guard** — Name the workflow that owns a protected repository, and the handoff channel to route a change through; advisory, not a block
 - **daily-mark-run**, **triage-mark-run** — Record the last-run timestamp for `/daily` and `/triage`
+
+## The statusline
+
+`statusline.sh` draws the terminal's status area — eight rows, redrawn on every
+turn, wired in by `settings.json` (`statusLine`) and installed to
+`~/.claude/statusline.sh`. Codex has no equivalent; see
+[Launching a profile](#launching-a-profile).
+
+A render, with a personal login and three standing windows up. The numbers are
+illustrative, not a measurement:
+
+```
+📁 skadi  🌿 master
+✏️ +1/-0  📄 1  ⬆ 0  ✍️ 0
+📝 Sonnet  🎚️ high  🏠 personal  📊 ▰▰▰▰▰▰▰▰▱▱ 78%
+⚡ 1h ▰▰▰▰▰▰▱▱▱▱ 64%  📅 2d ▰▰▰▰▰▰▰▱▱▱ 71%
+📋 Board  🪟 Henneth  📇 Skills
+──────────────────────────────────────────────────
+🌦️ 🌡️ 24°C 🌬️←10km/h  🌅 05:39  🌒
+🔮 "Everything is significant if you look closely enough.
+|   — Patrick Jane"
+```
+
+- **Where you stand** — Project name and branch, each ellipsized (25 and 35
+  characters). Inside a git worktree the project resolves to the containing
+  repository and a `🌳` worktree segment appears between the two.
+- **What is uncommitted** — Insertions and deletions in the staged diff,
+  changed-plus-untracked file count, commits unpushed against the upstream, and
+  today's grammar corrections read from `~/.skadi/grammar_log` — the counter
+  behind the Grammar check feature above.
+- **Model, login, and context** — The model's short name, its effort level
+  where the model exposes one, and the login badge naming the config root's own
+  account: `🏠 personal`, or `🏢 <org>` on a team or enterprise login, or `🔑`
+  with the profile's name when the account cannot be read. The `📊` bar and its
+  figure are the context window *remaining*, not used.
+- **Quota** — The five-hour and seven-day rate limits, each a ten-cell `▰▱` bar
+  of remaining quota, green at 50% or more, yellow at 30%, red below. The label
+  is the rough time to reset — `2h`, `30m`, `3d` — rather than the window's
+  name, since the reset is the part worth knowing.
+- **Standing windows** — Links to the four built-in servers — the situation
+  board, Henneth, this repo's plan mirror, and the skills cheatsheet — each an
+  OSC 8 terminal hyperlink, each drawn only when its port actually answers. The
+  `🪞 Plan` label is tied to the repository the session stands in, since
+  `/galadriel` renders one folder per project and a repository it has never
+  rendered has no plan to open.
+- **Registered windows** — Anything a script registered through
+  `hooks/window-register.sh` gets its own row above every line here, on the
+  reasoning that a server you chose to register is the one you most likely want
+  to click. Liveness, pruning, and why the registered row leads are set out in
+  chapter VII of the handbook,
+  [`handbook/standing-machinery.html`](handbook/standing-machinery.html) — open
+  it with `./handbook.sh`.
+- **Sky** — Weather from `wttr.in`, cached 30 minutes, with temperature and
+  wind coloured by threshold; then sunrise or sunset and the moon glyph, cached
+  once a day. The clock shows the *coming* sunrise from three hours after
+  sunset, and the coming sunset from three hours after sunrise.
+- **A quote** — One line drawn from eight pools: John Wick, proverbs, The
+  Accountant, The Mentalist, Suits, The Lord of the Rings, Band of Brothers,
+  and Person of Interest. Folded at 60 columns with a hanging indent.
+
+The script opens with `export GIT_OPTIONAL_LOCKS=0`. Its git calls are all
+read-only, but `git status` would otherwise take `index.lock` to refresh the
+index — and a line that redraws this often would eventually take it out from
+under a foreground rebase or commit. Required locks are untouched; only the
+read-side refresh is suppressed.
 
 ## The work loop
 
@@ -399,9 +464,10 @@ alias claude-work='CLAUDE_CONFIG_DIR="$HOME/.claude-work" claude'
 alias codex-work='CODEX_HOME="$HOME/.codex-work" codex'
 ```
 
-Claude retains its scripted weather/diff status line. Codex uses its native
-`/statusline` picker for model, reasoning, context, rate limits, directory, and
-Git branch because Codex does not execute a custom status-line program.
+Claude runs Skadi's own status line — see [The statusline](#the-statusline).
+Codex uses its native `/statusline` picker for model, reasoning, context, rate
+limits, directory, and Git branch, because Codex does not execute a custom
+status-line program.
 
 ### Mechanism cache (Pengolodh)
 
