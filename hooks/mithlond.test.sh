@@ -75,6 +75,21 @@ check "register without --pid records the claude-named ancestor" "$shell_pid" \
   "$(grep '^pid:' "$MITHLOND_ROOT/live/walk0000-0000" | cut -d' ' -f2)"
 "$HOOK" unregister --session walk0000-0000
 
+# On platforms whose ps understands -W (Git for Windows' bundled MSYS ps),
+# the walk above finds no claude-named ancestor from a plain shell with no
+# such name in its tree — $CLAUDE_PID plus that -W bridge is the fallback.
+# Elsewhere (macOS, Linux) -W errors and the case does not apply.
+if ps -W >/dev/null 2>&1; then
+  target_pid="$(spawn_sleeper)"
+  target_winpid="$(ps -p "$target_pid" 2>/dev/null | awk 'NR==2 {print $4}')"
+  CLAUDE_PID="$target_winpid" bash -c "\"$HOOK\" register --session envfix0000-0000 --cwd /repo/envfix" 2>/dev/null
+  check "CLAUDE_PID/-W fallback records the pid it names" "$target_pid" \
+    "$(grep '^pid:' "$MITHLOND_ROOT/live/envfix0000-0000" | cut -d' ' -f2)"
+  "$HOOK" unregister --session envfix0000-0000
+else
+  echo "skip CLAUDE_PID/-W fallback (this ps has no -W)"
+fi
+
 # --- poll before any call ------------------------------------------------------
 
 check "poll with no call is silent" "" "$("$HOOK" poll --session aaaa1111-0000)"

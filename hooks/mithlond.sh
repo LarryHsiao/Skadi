@@ -66,18 +66,64 @@ field() {
   grep -m1 "^$2:" "$1" 2>/dev/null | sed "s/^$2:[[:space:]]*//" || true
 }
 
+# Whether this ps supports the POSIX -o custom format, checked once and
+# cached. Git for Windows' bundled MSYS ps has no -o at all ("ps: unknown
+# option -- o", exit 1) — is_claude_pid and claude_ancestor fall back to its
+# default columnar `ps -p <pid>` output instead (PID PPID PGID WINPID TTY UID
+# STIME COMMAND, no arguments appended, so the same command still lands in
+# the last field).
+PS_HAS_O=""
+ps_has_o() {
+  if [ -z "$PS_HAS_O" ]; then
+    if ps -o pid= -p $$ >/dev/null 2>&1; then PS_HAS_O=1; else PS_HAS_O=0; fi
+  fi
+  [ "$PS_HAS_O" = 1 ]
+}
+
+# The pid's command, no arguments — via -o where it exists, else the last
+# field of the default `ps -p <pid>` listing.
+ps_command() {
+  if ps_has_o; then
+    ps -o command= -p "$1" 2>/dev/null || true
+  else
+    ps -p "$1" 2>/dev/null | awk 'NR==2 {print $NF}' || true
+  fi
+}
+
+# The pid's parent pid, by the same -o/fallback split.
+ps_ppid() {
+  if ps_has_o; then
+    ps -o ppid= -p "$1" 2>/dev/null | tr -d ' ' || true
+  else
+    ps -p "$1" 2>/dev/null | awk 'NR==2 {print $2}' || true
+  fi
+}
+
 # True when ps reports the pid's command as claude — the bare binary, a path
 # ending in /claude, or the npm package's cli.js. The guard depart leans on.
 is_claude_pid() {
   local cmd
-  cmd="$(ps -o command= -p "$1" 2>/dev/null || true)"
+  cmd="$(ps_command "$1")"
   case "$cmd" in
     claude|claude\ *|*/claude|*/claude\ *|*@anthropic-ai/claude-code/*) return 0 ;;
     *) return 1 ;;
   esac
 }
 
-# The nearest ancestor of this process whose command is claude, or nothing.
+# Windows-only, last resort: a session's own $CLAUDE_PID env var names its
+# claude.exe by its real Windows PID, but that number lives in a different
+# space than the pid ps/kill address here — Git for Windows spawns the Bash
+# tool and its hooks so detached that their ps-visible ancestry hits pid 1
+# within a hop or two, well short of any claude.exe, on every platform this
+# was tried on. `ps -W` (windows-and-cygwin processes) is the one command
+# that bridges the two, via its WINPID column.
+claude_pid_from_env() {
+  [ -n "${CLAUDE_PID:-}" ] || return 0
+  ps -W 2>/dev/null | awk -v winpid="$CLAUDE_PID" 'NR>1 && $4==winpid {print $1; exit}' || true
+}
+
+# The nearest ancestor of this process whose command is claude, or — failing
+# that — the process $CLAUDE_PID names.
 claude_ancestor() {
   local pid=$PPID depth=0
   while [ "$pid" -gt 1 ] && [ "$depth" -lt "$ANCESTOR_DEPTH" ]; do
@@ -85,11 +131,11 @@ claude_ancestor() {
       printf '%s' "$pid"
       return 0
     fi
-    pid="$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
-    [ -n "$pid" ] || return 0
+    pid="$(ps_ppid "$pid")"
+    [ -n "$pid" ] || break
     depth=$((depth + 1))
   done
-  return 0
+  claude_pid_from_env
 }
 
 # The live call's `at`, or nothing when there is no call or it has expired.
