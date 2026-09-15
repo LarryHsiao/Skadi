@@ -117,9 +117,16 @@ Run this before any other work in the turn that hears the call.
      `no-remote` are clear; `dirty`, `unpushed`, `both`, and `error` hold.
 
 2. **Nothing unfinished — sail.** In this order, nothing after the last:
-   1. One line to the user: `🚢 Sailing — nothing unfinished in <cwd>.`
-   2. Reply: `printf 'sailed — <cwd>' | ~/.claude/hooks/handoff.sh send mithlond-replies`
-   3. The last tool call of the session:
+   1. **Settle the worklog first.** Check this conversation for any completed,
+      already-reported task with no matching `/handoff send worklog-inbox`
+      send — the same check `CLAUDE.md`'s Worklog section already owes at the
+      moment each task was reported done. Send it now, `[<category>]
+      <project>` header and all, rather than sailing with the gap open. A
+      task with no worklog owed (a read-only turn, nothing completed this
+      session) needs nothing sent.
+   2. One line to the user: `🚢 Sailing — nothing unfinished in <cwd>.`
+   3. Reply: `printf 'sailed — <cwd>' | ~/.claude/hooks/handoff.sh send mithlond-replies`
+   4. The last tool call of the session:
       `~/.claude/hooks/mithlond.sh depart`
       It signals this session's own claude process, which exits gracefully
       within a few seconds and restores the terminal. Do not queue anything
