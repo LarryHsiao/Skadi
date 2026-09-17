@@ -3063,6 +3063,7 @@ if command -v node >/dev/null 2>&1; then
 import importlib.util as u, sys, re
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
 page = m._PAGE
+daymin_fn = re.search(r"const DAY_MIN_N = \d+;", page).group(0)
 models_fn = re.search(r"function gateModels\(.*?\n\}", page, re.S).group(0)
 series_fn = re.search(r"function gateSeries\(.*?\n\}", page, re.S).group(0)
 harness = """
@@ -3072,16 +3073,17 @@ const GATE_HUES = ["h1", "h2", "h3"];
 const GATE_OTHER = "ho";
 const GATE_INK = "ink";
 // Insertion order deliberately out of date order, matching how byDate is
-// actually built (scan order, not date order).
+// actually built (scan order, not date order). applied:2 clears DAY_MIN_N so
+// this test still measures date order, not the floor test 81 covers.
 const item = { byDate: {
-  "2026-08-30": { applied: 1, complied: 1, rate: 100 },
-  "2026-08-02": { applied: 1, complied: 0, rate: 0 },
-  "2026-08-15": { applied: 1, complied: 1, rate: 100 },
+  "2026-08-30": { applied: 2, complied: 2, rate: 100 },
+  "2026-08-02": { applied: 2, complied: 0, rate: 0 },
+  "2026-08-15": { applied: 2, complied: 2, rate: 100 },
 } };
 const overall = gateSeries(item).find(s => s.model === null);
 console.log(overall.points.map(p => p.date).join(","));
 """
-open(sys.argv[2], "w", encoding="utf-8").write(models_fn + "\n" + series_fn + "\n" + harness)
+open(sys.argv[2], "w", encoding="utf-8").write(daymin_fn + "\n" + models_fn + "\n" + series_fn + "\n" + harness)
 PY
   expected_gateseries="2026-08-02,2026-08-15,2026-08-30"
   actual_gateseries=$(node "$gsjs")
@@ -3267,6 +3269,42 @@ PY
   check "a second click composes with the first; a third collapses the pair back to itself" "$expected_clicks" "$actual_clicks"
 else
   echo "  skip · click compose/reset sequence — node absent, JS not exercised"
+fi
+
+# ── 81 · gateSeries drops a day below DAY_MIN_N from the plotted line — a
+#         single failing or passing case can't establish a rate — but still
+#         folds its applied/complied into the series' legend total, so the
+#         window's real count is never understated by the trim ──
+if command -v node >/dev/null 2>&1; then
+  daymjs="$ROOT/gateseries-daymin.js"
+  python3 - "$SCAN" "$daymjs" <<'PY'
+import importlib.util as u, sys, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+page = m._PAGE
+daymin_fn = re.search(r"const DAY_MIN_N = \d+;", page).group(0)
+models_fn = re.search(r"function gateModels\(.*?\n\}", page, re.S).group(0)
+series_fn = re.search(r"function gateSeries\(.*?\n\}", page, re.S).group(0)
+harness = """
+const modelLabel = (m) => m;
+const MODEL_LABELS = {};
+const GATE_HUES = ["h1", "h2", "h3"];
+const GATE_OTHER = "ho";
+const GATE_INK = "ink";
+// One thin day (applied:1, below DAY_MIN_N) beside one well-sampled day.
+const item = { byDate: {
+  "2026-08-02": { applied: 1, complied: 0, rate: 0 },
+  "2026-08-15": { applied: 5, complied: 3, rate: 60 },
+} };
+const overall = gateSeries(item).find(s => s.model === null);
+console.log(overall.points.map(p => p.date).join(",") + "|" + overall.applied + "/" + overall.complied);
+"""
+open(sys.argv[2], "w", encoding="utf-8").write(daymin_fn + "\n" + models_fn + "\n" + series_fn + "\n" + harness)
+PY
+  expected_daymin="2026-08-15|6/3"
+  actual_daymin=$(node "$daymjs")
+  check "gateSeries drops a thin day from the line but keeps it in the legend total" "$expected_daymin" "$actual_daymin"
+else
+  echo "  skip · gateSeries DAY_MIN_N floor — node absent, JS not exercised"
 fi
 
 echo ""

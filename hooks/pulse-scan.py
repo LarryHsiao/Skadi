@@ -2350,6 +2350,13 @@ function viewFor(items, tab) {
 // the model cut on the same terms; a rarely-used model earns the same caution.
 const THIN_N = 10;
 
+// The per-item trend chart's own floor — smaller than THIN_N because a single
+// day naturally carries far fewer judged cases than a 7/30/90-day window.
+// Below this, one failing or passing case swings the day's dot to a bare 0%
+// or 100%, a coin-flip dressed as a rate; the day is dropped from the LINE
+// but its cases still count toward the legend's window total below.
+const DAY_MIN_N = 2;
+
 // A single-key cut. byModel and byEffort are flat splits of the same totals;
 // applyModelEffort below reads the pairwise cell instead when both a model
 // and an effort are chosen together.
@@ -2508,8 +2515,9 @@ function gateSeries(item) {
     return {
       label, colour, model: m, applied, complied,
       rate: applied ? Math.round(100 * complied / applied) : null,
-      points: cells.map(p => ({ date: p.date, rate: p.cell.rate,
-                                n: p.cell.complied + "/" + p.cell.applied })),
+      points: cells.filter(p => p.cell.applied >= DAY_MIN_N)
+        .map(p => ({ date: p.date, rate: p.cell.rate,
+                     n: p.cell.complied + "/" + p.cell.applied })),
     };
   };
   const out = [build(modelLabel("Overall"), null, GATE_INK)];
