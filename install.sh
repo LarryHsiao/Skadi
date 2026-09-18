@@ -146,21 +146,27 @@ mirror_dirs() {
 
 # Remove files in dst that have no counterpart in src, then sweep empty dirs.
 # Hidden files and directories under dst are left alone — those belong to the
-# user, not to skadi.
+# user, not to skadi. An optional third argument names a top-level child of
+# dst to skip entirely (e.g. "synced", which Claude Code's own plugin-sync
+# mechanism populates under skills/ — skadi does not own it).
 prune_tree() {
   local src="$1"
   local dst="$2"
+  local exclude="${3:-}"
   [ -d "$dst" ] || return 0
 
   while IFS= read -r -d '' path; do
     local rel="${path#$dst/}"
+    if [ -n "$exclude" ] && [ "$rel" = "$exclude" -o "${rel#$exclude/}" != "$rel" ]; then
+      continue
+    fi
     if [ ! -e "$src/$rel" ]; then
       rm -f "$path"
       echo "pruned:         $path"
     fi
   done < <(find "$dst" -name '.*' -prune -o -type f -print0)
 
-  find "$dst" -depth -mindepth 1 -type d -empty -not -name '.*' -delete 2>/dev/null || true
+  find "$dst" -depth -mindepth 1 -type d -empty -not -name '.*' -not -name "$exclude" -delete 2>/dev/null || true
 }
 
 profile_for_root() {
@@ -374,7 +380,7 @@ for skill in "$REPO/skills/"*; do
     install_file "$skill" "$CLAUDE_DIR/skills/$skill_name/SKILL.md"
   fi
 done
-prune_tree "$REPO/skills" "$CLAUDE_DIR/skills"
+prune_tree "$REPO/skills" "$CLAUDE_DIR/skills" "synced"
 
 # Docs
 if [ -d "$REPO/docs" ]; then

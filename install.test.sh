@@ -61,6 +61,21 @@ run_install "$TMP/profile" "$TMP/profile/.claude-personal"
 actual_profile="$(which_claude_md "$TMP/profile/.claude-personal/CLAUDE.md")"
 check "profile root takes the full CLAUDE.md" "$expected_profile" "$actual_profile"
 
+# ── 4 · a plugin-owned skills/synced file survives the skills prune ──
+# Claude Code's own plugin-sync mechanism populates $CLAUDE_DIR/skills/synced;
+# skadi's skills/ tree carries no such directory, so a prune with no exclusion
+# would delete it as if it were stale skadi output. It must not.
+expected_synced="present"
+mkdir -p "$TMP/plugin/.claude/skills/synced/some-bucket/morning"
+echo "plugin file" > "$TMP/plugin/.claude/skills/synced/some-bucket/morning/SKILL.md"
+run_install "$TMP/plugin" "$TMP/plugin/.claude"
+if [[ -f "$TMP/plugin/.claude/skills/synced/some-bucket/morning/SKILL.md" ]]; then
+  actual_synced="present"
+else
+  actual_synced="pruned"
+fi
+check "plugin-owned skills/synced file is not pruned" "$expected_synced" "$actual_synced"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
