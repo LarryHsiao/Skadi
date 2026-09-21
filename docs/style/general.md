@@ -61,6 +61,22 @@ Two conditions bind the ellipsis wherever it is used:
 
 The mechanics that make the default actually fire differ by framework — Flutter's in [`flutter.md`](flutter.md), CSS's in [`react.md`](react.md). The wireframe that tests this before a line is written is the overflow frame in [`docs/workflow/previews.md`](../workflow/previews.md).
 
+## ICU Plurals
+
+A string whose wording depends on a count — a verb, a noun, an article that changes shape between one and many — carries that dependency in an ICU `plural` block, never a fixed template with the number interpolated into it.
+
+- **The naive form breaks at the boundary.** `"There are {count} items"` reads wrong the moment `count` is `1` ("There are 1 items"), and worse in a locale whose plural rule has more than English's two categories (Arabic has six; Polish splits `few`/`many`). Cover the boundary by construction, not by testing at `count = 1` after the fact.
+- **Branch in the source string, not around it.** Give each category (`one`, `other`, and any others the target locales require) its own full clause — verb and noun included — rather than swapping only the noun:
+
+  ```
+  {count, plural,
+    one {There is # unregistered offline data item.}
+    other {There are # unregistered offline data items.}
+  }
+  ```
+- **A decorative count needs no plural block.** A badge or counter showing a bare number next to fixed text (no verb or noun agreement in play) is a formatted number, not a plural — leave it as a plain interpolation.
+- **Applies at string authorship, wherever it happens.** Whether the key is written by hand, generated, or drafted by a model translating a spec into copy, the same-count-dependent-wording test governs before the string reaches Tolgee (`docs/tools/tolgee.md`) or any other translation layer.
+
 ## Lists
 
 - **Hanging-indent wrapped list lines.** A dash or numbered list item that wraps in a narrow terminal reads as a fresh bullet unless the continuation line is indented under the marker (2 spaces for `-`, matching the marker's width for a numbered list). Apply this to every list rendered narrow — plan output, gate blocks, findings, prose — not just code.
