@@ -21,6 +21,8 @@ model_name=$(echo "$input" | jq -r '.model.display_name // empty' 2>/dev/null)
 effort_level=$(echo "$input" | jq -r '.effort.level // empty' 2>/dev/null)
 cwd=$(echo "$input" | jq -r '.cwd // "."' 2>/dev/null)
 git_branch=$(git -C "$cwd" rev-parse --abbrev-ref HEAD 2>/dev/null)
+git_sha=$(git -C "$cwd" rev-parse --short HEAD 2>/dev/null)
+git_tags=$(git -C "$cwd" tag --points-at HEAD 2>/dev/null | tr '\n' ',' | sed 's/,$//; s/,/, /g')
 git_dir=$(git -C "$cwd" rev-parse --git-dir 2>/dev/null)
 git_common_dir=$(git -C "$cwd" rev-parse --git-common-dir 2>/dev/null)
 git_toplevel=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)
@@ -339,9 +341,13 @@ if [ -n "$git_common_dir" ] && [ "$git_dir" != "$git_common_dir" ]; then
     worktree_name=$(basename "$git_toplevel")
 fi
 project_label=$(ellipsize_end "$project_name" 25)
-branch_label=$(ellipsize_end "${git_branch:-N/A}" 35)
+sha_segment=""
+[ -n "$git_sha" ] && sha_segment=" ($git_sha)"
+branch_label=$(ellipsize_end "${git_branch:-N/A}" 35)$sha_segment
 worktree_segment=""
 [ -n "$worktree_name" ] && worktree_segment="🌳 $(ellipsize_end "$worktree_name" 25)  "
+tags_label=$(ellipsize_end "$git_tags" 60)
+[ -n "$tags_label" ] && printf "🏷️ %s\n" "$tags_label"
 printf "📁 %s  %s🌿 %s\n" "$project_label" "$worktree_segment" "$branch_label"
 
 # Line 2: branch info
