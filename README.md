@@ -78,10 +78,26 @@ The turn-by-turn ritual is chapter I of the handbook; the ticket→PR machine
 (`/council` → `/celebrimbor` → `/mithrandir` and their sweeps) is chapter II;
 the skills catalogue is chapter III.
 
+### The standing windows
+
+Four local servers outlive a single turn and earn a clickable row on the
+statusline. Each is booted, or reused if already up, by one call; the ports
+are fixed so the URLs never drift.
+
+| Window | Call | Port | What it shows |
+|---|---|---|---|
+| Situation board | `/board` | 10000 | Tickets in progress, growth, stability, the attention band — and the handbook at `/handbook/` |
+| Henneth | `/henneth` | 10001 | The gallery of rendered artifacts — wireframes, dashboards, previews |
+| Plan mirror | `/galadriel` | 10002 | The project's `docs/plans/` concepts with their step progress |
+| Handbook | `./handbook.sh` | rides the board | The chapters below |
+
+`/minuial` — the morning ritual — lights all of them in one call, then refreshes
+the board and computes the `/este` pulse.
+
 ### The handbook
 
 A browsable HTML field guide — `./handbook.sh` opens it, served by the
-situation board (`/board`).
+situation board.
 
 | Chapter | What it tells |
 |---|---|
