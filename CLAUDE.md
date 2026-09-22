@@ -59,6 +59,24 @@ Changes: <files and intent, one or two lines>
 - **Non-goals names what the turn will deliberately not touch** — write `none` when scope is unambiguous, so trivial turns bear no ceremony. It earns its place when scope could be read two ways, or adjacent code tempts a widen the task did not ask for. The Compliance Review's spec-compliance pass reads it as the line a diff must not cross.
 - The `gate-reminder.sh` hook re-injects this gate with every prompt; this section is its specification.
 
+## Ticket Estimation
+
+Applies when a turn writes an estimate onto a tracker ticket — `/jira create`, `/council`'s `[COUNSEL]`, `/working`, or a ticket body composed in chat. The unit is **hours** of developer time (a day is 8 h), on the assumption the work is done with Claude Code at the bench, not typed by hand.
+
+**Sort the work into two classes before pricing it.** They cost differently, and the published estimation literature calibrates only the second.
+
+- **Mechanical** — the same edit repeated: extract, rename, wrap, move, re-key. A model at the keyboard does one unit in minutes, not the half-hour a hand-typed estimate assumes. Count the units from the tree — grep, not guess — price one, multiply, and add one named line for the non-repeating setup. `60 strings × ~5 min + 2 h Tolgee wiring ≈ 7 h` can be checked; "2–3 days" cannot. (That ticket closed at 8 h — ratio 0.875, inside the band the write-back rule below names.) When the count leaves a doubt between two figures, take the smaller and write the risk in one line beside it.
+- **Judgment** — each unit needs a decision: a design trade-off, a migration with data at stake, a behaviour whose correct outcome is not yet known. Estimate it three-point — optimistic `O`, most likely `M`, pessimistic `P`, expected `(O + 4M + P) / 6` — and apply **no** AI discount: a model shortens the draft, but every decision it drafts still has to be read and judged by a person, and that review is where this class spends its hours.
+
+**Calibration anchors.** One per class, from tickets actually closed. Hold every new estimate against the nearest anchor before writing it.
+
+| Class | Reference ticket | Actual |
+|---|---|---|
+| Mechanical | ~60 hard-coded strings into Tolgee — key naming, extraction, codegen, one review pass | 1 day (8 h) |
+| Judgment | *(none recorded yet — the first closed judgment-class ticket fills this row)* | — |
+
+**Write the actual back.** When a ticket estimated under this rule closes, record `estimate ÷ actual` beside its class in the table above — a ratio near 1.0 means the anchor holds; a ratio drifting past 1.5 or under 0.7 means the anchor is stale, and the fix is to replace the row, not to adjust the next estimate by hand. The scale is what estimators get wrong; the ratio is what corrects it.
+
 ## Previews (Henneth)
 
 Visual artifacts render as HTML into the shared Henneth folder (`~/.skadi/henneth/`), watched by the standing `/henneth` window. Before rendering any preview, read `docs/workflow/previews.md` — file shape, shared theme, serving, fallbacks all live there. The when:
