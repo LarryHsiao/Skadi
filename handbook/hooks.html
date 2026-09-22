@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Hooks</title>
+    <link rel="stylesheet" href="../previews/henneth/skadi-theme.css" />
+    <style>
+      .flow {
+        max-width: 920px;
+        margin: 0 auto;
+      }
+      .backnav {
+        max-width: 920px;
+        margin: 0 auto 0.6rem;
+      }
+      .backnav a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 0.9rem;
+      }
+      .backnav a:hover {
+        text-decoration: underline;
+      }
+      .small {
+        font-size: 0.85rem;
+        color: #6b5d44;
+      }
+      td:first-child {
+        white-space: nowrap;
+        vertical-align: top;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="backnav"><a href="index.html">← Skadi Handbook</a></div>
+
+    <div class="flow">
+      <h1>The Hooks</h1>
+      <p class="sub">
+        Every script under <code>hooks/</code>, grouped by what it serves. A
+        hook is either wired into a lifecycle event by <code>settings.json</code>
+        — before a tool call, after an edit, at session start — or called by a
+        skill as its hands, so the skill's prose carries no pipeline or variable
+        expansion of its own.
+      </p>
+
+      <p class="note">
+        The rule behind the roster stands in <code>CLAUDE.md</code>, <i>Skills
+        &amp; Scripts</i>: logic that needs bash lives in a script here, is made
+        executable, and is named in <code>settings.json</code>'s
+        <code>permissions.allow</code> as <code>Bash(~/.claude/hooks/&lt;name&gt;.sh:*)</code>.
+        <code>./hooks/lint.sh</code> runs shellcheck over the scripts a branch
+        changed. Tests ride beside their hooks as <code>*.test.sh</code> /
+        <code>test_*.py</code>, with the Jira and skeleton-rung suites under
+        <code>tests/</code>.
+      </p>
+
+      <h2>Guards and reminders</h2>
+      <p class="small" style="margin-top: 0">What stands between a tool call and the tree, and what is whispered to the model each turn.</p>
+      <table>
+        <thead><tr><th>Hook</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">dir-guard</span></td>
+            <td>Block Bash commands and Write/Edit/NotebookEdit file paths that run outside the project directory</td>
+          </tr>
+          <tr>
+            <td><span class="name">pre-commit-guard</span></td>
+            <td>Prevent unauthorized commits</td>
+          </tr>
+          <tr>
+            <td><span class="name">destructive-warn</span></td>
+            <td>Warn on destructive shell commands</td>
+          </tr>
+          <tr>
+            <td><span class="name">skadi-worktree</span>, <span class="name">worktree-guard</span></td>
+            <td>Create or enter an isolated git worktree and block strays outside it</td>
+          </tr>
+          <tr>
+            <td><span class="name">protected-repo-guard</span></td>
+            <td>Name the workflow that owns a protected repository, and the handoff channel to route a change through; advisory, not a block</td>
+          </tr>
+          <tr>
+            <td><span class="name">gate-reminder</span></td>
+            <td>Re-inject the Free-Form Gate specification with every user prompt, so the gate holds even on lighter models</td>
+          </tr>
+          <tr>
+            <td><span class="name">compliance-review-reminder</span></td>
+            <td>The closing gate to <code>gate-reminder</code>'s opening one: re-inject the Compliance Review trigger with every prompt, naming the agent dispatch the pulse rubric requires behind the verdict line, and nudging the two conditional checks most often skipped — the sibling-string value comparison and the <code>/manwe</code> render weigh</td>
+          </tr>
+          <tr>
+            <td><span class="name">worklog-reminder</span></td>
+            <td>Re-inject the worklog entry owed alongside Compliance Review with every prompt, supplying the <code>[&lt;category&gt;] &lt;project&gt;</code> header's two defaults so the label is a choice made rather than a question forgotten</td>
+          </tr>
+          <tr>
+            <td><span class="name">grammar-reminder</span></td>
+            <td>Inject the grammar-check reminder on every user prompt</td>
+          </tr>
+          <tr>
+            <td><span class="name">grammar-counter</span></td>
+            <td>Count grammar corrections at session stop</td>
+          </tr>
+          <tr>
+            <td><span class="name">session-readme</span></td>
+            <td>On <code>SessionStart</code>, inject the project's <code>README.md</code> (if any) as additional context</td>
+          </tr>
+          <tr>
+            <td><span class="name">compact-context</span></td>
+            <td>On a resumed session, remind the model what must survive a compaction</td>
+          </tr>
+          <tr>
+            <td><span class="name">ping-pong</span></td>
+            <td>Answer a bare "ping" with "pong"</td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Formatters</h2>
+      <p class="small" style="margin-top: 0">Run after an edit lands, on the file types they know.</p>
+      <table>
+        <thead><tr><th>Hook</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">dart-format</span></td>
+            <td>Run <code>dart format</code> after editing Dart files</td>
+          </tr>
+          <tr>
+            <td><span class="name">prettier-format</span></td>
+            <td>Run Prettier after editing supported files</td>
+          </tr>
+          <tr>
+            <td><span class="name">eslint-check</span></td>
+            <td>Run ESLint after editing JS/TS files</td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Install, secrets, and shared state</h2>
+      <p class="small" style="margin-top: 0">The plumbing every profile stands on.</p>
+      <table>
+        <thead><tr><th>Hook</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">secret</span></td>
+            <td>Resolve a credential field for a service from Vaultwarden via <code>bw serve</code>, falling back to an env var</td>
+          </tr>
+          <tr>
+            <td><span class="name">install-codex</span>, <span class="name">render-codex-skill</span>, <span class="name">codex-hook-adapter</span></td>
+            <td>Install Skadi-owned Codex artifacts without replacing user-owned config, render each source skill into a Codex-compatible copy, and translate Codex hook payloads into the Claude-shaped ones the rest of these hooks consume</td>
+          </tr>
+          <tr>
+            <td><span class="name">skadi-state</span></td>
+            <td>Resolve and migrate Skadi-owned workflow state (routing, preferences) shared by paired profiles; chat history and agent memory stay product-owned</td>
+          </tr>
+          <tr>
+            <td><span class="name">subagent-runner</span></td>
+            <td>Show or seed the profile's external subagent runner pointer (<code>~/.skadi/profiles/&lt;profile&gt;/subagent-runner.md</code>) that <i>Delegation Discipline</i> prefers over an Agent-tool spawn</td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Trackers</h2>
+      <p class="small" style="margin-top: 0">Jira and YouTrack I/O for the council, the sweeps, and the ticket a session is working.</p>
+      <table>
+        <thead><tr><th>Hook</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">council-youtrack-fetch</span>, <span class="name">council-youtrack-comment</span>, <span class="name">council-jira-fetch</span>, <span class="name">council-jira-comment</span></td>
+            <td>Tracker I/O for <code>/council</code> (YouTrack and Jira)</td>
+          </tr>
+          <tr>
+            <td><span class="name">council-plan-html</span></td>
+            <td>Render a <code>[COUNSEL]</code> plan to a local HTML preview</td>
+          </tr>
+          <tr>
+            <td><span class="name">glorfindel-youtrack-list</span>, <span class="name">glorfindel-jira-list</span></td>
+            <td>List open tickets matching a filter for <code>/glorfindel</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">youtrack-state</span>, <span class="name">jira-state</span></td>
+            <td>Idempotent state transitions on YouTrack and Jira tickets, used by <code>/glorfindel</code> (on <code>[FORTH]</code>) and <code>/celebrimbor</code> (after <code>[GWAITH]</code>)</td>
+          </tr>
+          <tr>
+            <td><span class="name">skeleton-rung</span></td>
+            <td>Derives the loop's next action for a skeleton-stage YouTrack issue</td>
+          </tr>
+          <tr>
+            <td><span class="name">youtrack-comment-edit</span></td>
+            <td>Edits a YouTrack comment in place</td>
+          </tr>
+          <tr>
+            <td><span class="name">youtrack-attach</span></td>
+            <td>Attaches or replaces a PNG on a YouTrack issue</td>
+          </tr>
+          <tr>
+            <td><span class="name">jira-comment-edit</span>, <span class="name">jira-attach</span></td>
+            <td>Edit a Jira comment in place and attach/replace a PNG — the Jira twins of the YouTrack pair above (ADF conversion shared in <code>jira_adf.py</code>), for <code>/council</code>'s skeleton-stage path</td>
+          </tr>
+          <tr>
+            <td><span class="name">rhovanion-jira-probe</span>, <span class="name">rhovanion-youtrack-probe</span></td>
+            <td>The cheap per-project movement probe that decides whether <code>/rhovanion</code> rides a project</td>
+          </tr>
+          <tr>
+            <td><span class="name">working-jira-ticket</span>, <span class="name">working-jira-open</span>, <span class="name">working-jira-transitions</span></td>
+            <td>Resolve a ticket, open its draft PR/MR, and drive its state transitions for <code>/working</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">jira-daily</span>, <span class="name">prs-check</span>, <span class="name">mrs-check</span>, <span class="name">eod-git-check</span></td>
+            <td>Data collectors for the matching skills</td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Forges</h2>
+      <p class="small" style="margin-top: 0">GitHub and GitLab I/O — opening, reading, judging, and mending PRs and MRs.</p>
+      <table>
+        <thead><tr><th>Hook</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">forge-github-pr</span>, <span class="name">forge-gitlab-mr</span></td>
+            <td>Push a branch and open a PR/MR on GitHub or GitLab via <code>gh</code>/<code>glab</code>; body taken from stdin, optional <code>--assignee</code> (used by <code>/celebrimbor</code> and <code>/working</code>)</td>
+          </tr>
+          <tr>
+            <td><span class="name">aule-github-merged</span>, <span class="name">aule-gitlab-merged</span></td>
+            <td>Report whether a forged ticket's PR/MR has since merged, for <code>/aule</code>'s close pass</td>
+          </tr>
+          <tr>
+            <td><span class="name">lindir-github-pr</span>, <span class="name">lindir-gitlab-mr</span></td>
+            <td>Read a PR/MR via <code>gh</code>/<code>glab</code> and emit a JSON brief for <code>/lindir</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">lindir-github-approve</span>, <span class="name">lindir-gitlab-approve</span></td>
+            <td>Submit an approving review on a PR/MR via <code>gh</code>/<code>glab</code> for <code>/lindir approve</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">mithrandir-github-comment</span>, <span class="name">mithrandir-gitlab-comment</span></td>
+            <td>Post a comment on a PR/MR via <code>gh</code>/<code>glab</code> for <code>/mithrandir comment</code>; body taken from stdin</td>
+          </tr>
+          <tr>
+            <td><span class="name">mithrandir-github-prior</span>, <span class="name">mithrandir-gitlab-prior</span></td>
+            <td>Find Mithrandir's prior <code>comment</code>-verb post on a PR/MR so <code>/mithrandir bless</code> can thread its follow-up</td>
+          </tr>
+          <tr>
+            <td><span class="name">mithrandir-gitlab-reply</span></td>
+            <td>Thread a <code>bless</code> follow-up under Mithrandir's prior verdict on a GitLab MR (the GitHub reply is handled inline)</td>
+          </tr>
+          <tr>
+            <td><span class="name">narvi-github-comments</span>, <span class="name">narvi-gitlab-comments</span></td>
+            <td>Fetch every unaddressed comment on a PR/MR — unresolved inline review-thread comments <i>and</i> overview comments (top-level issue-comments, submitted-review bodies, non-positioned discussion notes) — via <code>gh api graphql</code> / <code>glab api</code> for <code>/narvi</code>; each entry tagged with <code>kind: inline | overview</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">narvi-github-reply</span>, <span class="name">narvi-gitlab-reply</span></td>
+            <td>Post a one-line ack on a review thread after Narvi's smith lands an amendment. GitHub inline: GraphQL <code>addPullRequestReviewThreadReply</code> so the note threads under the original. GitHub overview: a fresh issue-comment with a <code>(Reply to &lt;url&gt;)</code> footer (no thread-reply primitive on issue-comments). GitLab (both kinds): a child note via the discussions endpoint, uniformly threaded</td>
+          </tr>
+          <tr>
+            <td><span class="name">durin-github-list</span>, <span class="name">durin-gitlab-list</span></td>
+            <td>List open PRs/MRs bearing unaddressed comments for <code>/durin</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">prs-activity</span>, <span class="name">mrs-activity</span></td>
+            <td>Surface PRs/MRs with new comments via GitHub notifications and GitLab todos for <code>/palantir</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>CI, gates, and release</h2>
+      <p class="small" style="margin-top: 0">What a branch must pass before it is pushed, and where a build goes after.</p>
+      <table>
+        <thead><tr><th>Hook</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">amon-din-gitlab</span>, <span class="name">amon-din-teamcity</span></td>
+            <td>Fetch the most recent CI runs via <code>glab</code> (GitLab pipelines) or REST (TeamCity builds) for <code>/amon-din</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">argonath-detect</span>, <span class="name">argonath-run</span>, <span class="name">argonath-secrets</span></td>
+            <td>Detect the project toolchain, run the lint/format/build/test gate, and scan for secrets for <code>/argonath</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">argonath-merge-check</span>, <span class="name">argonath-drift</span></td>
+            <td>Probe the resolved target branch for <code>/argonath</code> — the first for textual conflicts via <code>git merge-tree</code>, the second for the semantic drift a textual merge cannot see (dependency, test-config, and migration collisions)</td>
+          </tr>
+          <tr>
+            <td><span class="name">argonath-merged-test</span></td>
+            <td>Escalation for <code>/argonath</code> when drift fires: materialise the merge in a throwaway <code>git worktree</code>, re-detect the toolchain there, install, and run the tests — the caller's working tree never touched</td>
+          </tr>
+          <tr>
+            <td><span class="name">nazgul-checks-mark-reviewed</span></td>
+            <td>Stamp the rubric-review state file consumed by <code>/preflight</code>; called by <code>/nazgul reviewed</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">publish-macos-target</span></td>
+            <td>Remember whether a macOS project publishes to GitHub Releases or the Mac App Store</td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Communications</h2>
+      <p class="small" style="margin-top: 0">Microsoft Graph, read-only save for the two mail verbs that write.</p>
+      <table>
+        <thead><tr><th>Hook</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">outlook-token</span>, <span class="name">outlook-fetch</span>, <span class="name">outlook-classify</span>, <span class="name">outlook-folders</span>, <span class="name">outlook-folder-create</span>, <span class="name">outlook-mark-read</span>, <span class="name">outlook-move</span></td>
+            <td>Microsoft Graph I/O (token, fetch, classify, list/create folders, mark read, move) for <code>/triage</code> and <code>/gwaihir</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">vor-teams-poll</span>, <span class="name">vor-normalize</span>, <span class="name">vor-cursor</span></td>
+            <td>Teams delta fetch, message normalization, and the read-cursor for <code>/vor</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Sessions talking to sessions</h2>
+      <p class="small" style="margin-top: 0">The mailbox and the call to wrap up.</p>
+      <table>
+        <thead><tr><th>Hook</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">handoff</span>, <span class="name">handoff-poll</span>, <span class="name">handoff-autosub</span></td>
+            <td>The mailbox store, the subscribe-poll loop, and the session-start join to the repo's own channel for <code>/handoff</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">mithlond</span>, <span class="name">mithlond-presence</span>, <span class="name">mithlond-poll</span></td>
+            <td>The live-session registry, call flag, and self-departure for <code>/mithlond</code>; the SessionStart/SessionEnd presence hook and the UserPromptSubmit hook that injects the call once</td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Standing servers, daemons, and dashboards</h2>
+      <p class="small" style="margin-top: 0">What outlives a turn — chapter VII tells the why; this is the roster.</p>
+      <table>
+        <thead><tr><th>Hook</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">window-register</span></td>
+            <td>Register or unregister one entry in the generic standing-windows registry the statusline reads: any script starting a local server a person might want to click into drops a two-line file (url, label) under <code>~/.skadi/windows</code>; a file whose server has gone silent is pruned on sight, so calling <code>unregister</code> on a clean shutdown is a courtesy, not a requirement</td>
+          </tr>
+          <tr>
+            <td><span class="name">vilya</span></td>
+            <td>The standing hold on a protocol-less local server for <code>/vilya</code>: <code>nohup</code> and a pid file, no pipe apparatus, because a dev server reads no stdin and speaks no protocol. Owning the process is what makes its log reachable, and <code>ready</code> waits on that log — from a byte offset, so an announcement made before the edit does not count</td>
+          </tr>
+          <tr>
+            <td><span class="name">flutter-daemon</span></td>
+            <td>The standing <code>flutter run --machine</code> session behind a named pipe for <code>/narya</code>: <code>start</code> pays the build once, then <code>reload</code> / <code>restart</code> reach the running app in about a second. A persistent writer holds the pipe open, without which the daemon takes the stdin EOF that kills a backgrounded <code>flutter run</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">feanor-shot</span>, <span class="name">feanor-flutter-shot</span></td>
+            <td>Shoot the target to a PNG — a served page via headless Chrome/Edge, or a booted Flutter app — for <code>/feanor</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">mirror-server</span></td>
+            <td>Henneth's gallery server (port 10001): serves every artifact dropped into <code>~/.skadi/henneth/</code> newest-first, follows the latest unless pinned, and deletes on request</td>
+          </tr>
+          <tr>
+            <td><span class="name">henneth-group</span></td>
+            <td>Group the gallery artifacts for <code>/henneth</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">galadriel-render</span>, <span class="name">galadriel-server</span></td>
+            <td>Render the <code>/galadriel</code> plan mirror to HTML and serve it live; the server also watches every registered project's plans folder and re-renders on its own when a concept file changes</td>
+          </tr>
+          <tr>
+            <td><span class="name">board-stability</span>, <span class="name">bq_common</span></td>
+            <td>Crash-free users % for the board's Stability tile, and the shared <code>bq</code>-CLI scaffolding every BigQuery-backed hook leans on</td>
+          </tr>
+          <tr>
+            <td><span class="name">board-ticket</span>, <span class="name">board-growth</span>, <span class="name">board-henneth</span>, <span class="name">board-galadriel</span>, <span class="name">board-sweep</span></td>
+            <td>The situation board's channel writers: a tracker issue with its AC rate (Jira REST or YouTrack), the metis growth line, the standing Henneth and Galadriel links, and an <code>/amon-sul</code> sweep verdict</td>
+          </tr>
+          <tr>
+            <td><span class="name">board-manifest</span>, <span class="name">board-active</span>, <span class="name">board-server</span>, <span class="name">board</span></td>
+            <td>The manifest the page polls, the single-homed flip that keeps exactly one hero ticket, the static server, and the one entry point <code>/board</code> routes every verb through</td>
+          </tr>
+          <tr>
+            <td><span class="name">appgrowth</span></td>
+            <td>Query the GA4 → BigQuery export for <code>/growth</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">beleg-crashes</span>, <span class="name">beleg-rubric.json</span></td>
+            <td>Collect Crashlytics issues from the BigQuery export, rank them by value, and render the brief into Henneth for <code>/beleg</code>; <code>--from-json</code> ranks issues the skill scraped from the console instead, so both collectors share one scorer. Exits 2 when a project carries no export — absence, distinct from a failed query</td>
+          </tr>
+          <tr>
+            <td><span class="name">pulse-scan</span>, <span class="name">pulse-rubric.json</span></td>
+            <td>The adherence-pulse engine and its rubric: walks every config root's transcripts read-only, scores each item with a confidence tier and a plain-language criterion, and renders <code>/este</code>'s dashboard</td>
+          </tr>
+          <tr>
+            <td><span class="name">mandos-record</span>, <span class="name">fidelity-scan</span></td>
+            <td>Append a <code>/mandos</code> verdict to the plan-fidelity history, and read that history back into <code>/fidelity</code>'s rate and its Missing-versus-Scope-crept split</td>
+          </tr>
+          <tr>
+            <td><span class="name">skills-cheatsheet-render</span></td>
+            <td>Render a quick-browse HTML cheatsheet of every skadi skill's name and purpose, each card expanding on click to its full description and invocation grammar; refreshed on each <code>/board refresh</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">scribe</span></td>
+            <td>Export a Minerva section to YouTrack, Outline, or disk for <code>/scribe</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Maintenance</h2>
+      <p class="small" style="margin-top: 0">Housekeeping, and the timestamps that tell /preflight what is overdue.</p>
+      <table>
+        <thead><tr><th>Hook</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">cleanup-dev-*</span></td>
+            <td>Analyze, report, execute, mark-run, and project-scan helpers for <code>/cleanup-dev</code> (the last finds per-project build artifacts under <code>$HOME</code>, read-only)</td>
+          </tr>
+          <tr>
+            <td><span class="name">preflight-check</span></td>
+            <td>Emit the preflight checklist state consumed by <code>/preflight</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">daily-mark-run</span>, <span class="name">triage-mark-run</span></td>
+            <td>Record the last-run timestamp for <code>/daily</code> and <code>/triage</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>

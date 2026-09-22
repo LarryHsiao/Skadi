@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Instruments</title>
+    <link rel="stylesheet" href="../previews/henneth/skadi-theme.css" />
+    <style>
+      .flow {
+        max-width: 920px;
+        margin: 0 auto;
+      }
+      .backnav {
+        max-width: 920px;
+        margin: 0 auto 0.6rem;
+      }
+      .backnav a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 0.9rem;
+      }
+      .backnav a:hover {
+        text-decoration: underline;
+      }
+      .small {
+        font-size: 0.85rem;
+        color: #6b5d44;
+      }
+      .render {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0.8rem 1rem;
+        margin: 0.6rem 0 1rem;
+        overflow-x: auto;
+      }
+      .render pre {
+        margin: 0;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.9rem;
+        line-height: 1.45;
+      }
+      .rows li {
+        margin: 0.3rem 0;
+      }
+      .rows .row {
+        font-weight: 600;
+        color: var(--blue);
+      }
+      td:first-child {
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="backnav"><a href="index.html">← Skadi Handbook</a></div>
+
+    <div class="flow">
+      <h1>The Instruments</h1>
+      <p class="sub">
+        What the config shows you while you work — the status line under every
+        turn, the two scorecards that say whether the loop was actually kept,
+        and the three habits every session carries without being asked.
+      </p>
+
+      <h2>I. The statusline</h2>
+      <p>
+        <code>statusline.sh</code> draws the terminal's status area — eight rows,
+        redrawn on every turn, wired in by <code>settings.json</code>
+        (<code>statusLine</code>) and installed to
+        <code>~/.claude/statusline.sh</code>. Codex has no equivalent; it uses
+        its native <code>/statusline</code> picker for model, reasoning,
+        context, rate limits, directory, and Git branch, because Codex does not
+        execute a custom status-line program.
+      </p>
+      <p class="small">
+        A render, with a personal login and three standing windows up. The
+        numbers are illustrative, not a measurement:
+      </p>
+      <div class="render">
+        <pre>
+📁 skadi  🌿 master
+✏️ +1/-0  📄 1  ⬆ 0  ✍️ 0
+📝 Sonnet  🎚️ high  🏠 personal  📊 ▰▰▰▰▰▰▰▰▱▱ 78%
+⚡ 1h ▰▰▰▰▰▰▱▱▱▱ 64%  📅 2d ▰▰▰▰▰▰▰▱▱▱ 71%
+📋 Board  🪟 Henneth  📇 Skills
+──────────────────────────────────────────────────
+🌦️ 🌡️ 24°C 🌬️←10km/h  🌅 05:39  🌒
+🔮 "Everything is significant if you look closely enough.
+|   — Patrick Jane"</pre>
+      </div>
+      <ul class="rows">
+        <li>
+          <span class="row">Where you stand</span> — Project name and branch,
+          each ellipsized (25 and 35 characters). Inside a git worktree the
+          project resolves to the containing repository and a 🌳 worktree
+          segment appears between the two.
+        </li>
+        <li>
+          <span class="row">What is uncommitted</span> — Insertions and
+          deletions in the staged diff, changed-plus-untracked file count,
+          commits unpushed against the upstream, and today's grammar
+          corrections read from <code>~/.skadi/grammar_log</code> — the counter
+          behind the grammar check in section III.
+        </li>
+        <li>
+          <span class="row">Model, login, and context</span> — The model's short
+          name, its effort level where the model exposes one, and the login
+          badge naming the config root's own account: <code>🏠 personal</code>,
+          or <code>🏢 &lt;org&gt;</code> on a team or enterprise login, or
+          <code>🔑</code> with the profile's name when the account cannot be
+          read. The 📊 bar and its figure are the context window
+          <i>remaining</i>, not used.
+        </li>
+        <li>
+          <span class="row">Quota</span> — The five-hour and seven-day rate
+          limits, each a ten-cell ▰▱ bar of remaining quota, green at 50% or
+          more, yellow at 30%, red below. The label is the rough time to reset
+          — <code>2h</code>, <code>30m</code>, <code>3d</code> — rather than the
+          window's name, since the reset is the part worth knowing.
+        </li>
+        <li>
+          <span class="row">Standing windows</span> — Links to the four built-in
+          servers — the situation board, Henneth, this repo's plan mirror, and
+          the skills cheatsheet — each an OSC 8 terminal hyperlink, each drawn
+          only when its port actually answers. The <code>🪞 Plan</code> label is
+          tied to the repository the session stands in, since
+          <span class="name">/galadriel</span> renders one folder per project
+          and a repository it has never rendered has no plan to open.
+        </li>
+        <li>
+          <span class="row">Registered windows</span> — Anything a script
+          registered through <code>hooks/window-register.sh</code> gets its own
+          row above every line here, on the reasoning that a server you chose to
+          register is the one you most likely want to click. Liveness, pruning,
+          and why the registered row leads are set out in chapter VII,
+          <a href="standing-machinery.html">The Standing Machinery</a>.
+        </li>
+        <li>
+          <span class="row">Sky</span> — Weather from <code>wttr.in</code>,
+          cached 30 minutes, with temperature and wind coloured by threshold;
+          then sunrise or sunset and the moon glyph, cached once a day. The
+          clock shows the <i>coming</i> sunrise from three hours after sunset,
+          and the coming sunset from three hours after sunrise.
+        </li>
+        <li>
+          <span class="row">A quote</span> — One line drawn from eight pools:
+          John Wick, proverbs, The Accountant, The Mentalist, Suits, The Lord of
+          the Rings, Band of Brothers, and Person of Interest. Folded at 60
+          columns with a hanging indent.
+        </li>
+      </ul>
+      <p class="note">
+        The script opens with <code>export GIT_OPTIONAL_LOCKS=0</code>. Its git
+        calls are all read-only, but <code>git status</code> would otherwise
+        take <code>index.lock</code> to refresh the index — and a line that
+        redraws this often would eventually take it out from under a foreground
+        rebase or commit. Required locks are untouched; only the read-side
+        refresh is suppressed.
+      </p>
+
+      <h2>II. Measuring the work</h2>
+      <p>
+        Chapter I's loop is discipline; two scorecards check whether it was
+        actually kept. Both read only past transcripts and recorded verdicts —
+        neither writes to a session, and neither can be gamed by the turn it is
+        scoring. Both run directly (<span class="name">/este</span>,
+        <span class="name">/fidelity</span>), ride inside
+        <span class="name">/minuial</span>'s morning ritual, and surface as
+        tiles on <span class="name">/board</span>.
+      </p>
+
+      <h3>The adherence pulse — <span class="name">/este</span></h3>
+      <p>
+        <code>hooks/pulse-scan.py</code> walks every paired config root's
+        session transcripts and scores seven dimensions from
+        <code>hooks/pulse-rubric.json</code>:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Dimension</th>
+            <th>What it weighs</th>
+            <th>Denominator</th>
+            <th>Tier</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>plan.accepted</code></td>
+            <td>Plan accepted as proposed</td>
+            <td>gates answered</td>
+            <td>heuristic</td>
+          </tr>
+          <tr>
+            <td><code>plan.bug-reported</code></td>
+            <td>No bug reported against a prior completion in the same session</td>
+            <td>completions checked</td>
+            <td>heuristic</td>
+          </tr>
+          <tr>
+            <td><code>rule.compliance-review</code></td>
+            <td>Compliance Review dispatches an agent and renders a verdict</td>
+            <td>authoring task segments</td>
+            <td>heuristic</td>
+          </tr>
+          <tr>
+            <td><code>review.verdict</code></td>
+            <td>Compliance Review closes clean, among reviews actually run</td>
+            <td>reviews run</td>
+            <td>heuristic</td>
+          </tr>
+          <tr>
+            <td><code>review.recovered</code></td>
+            <td>A Compliance Review FAIL gets mended before the segment closes</td>
+            <td>FAILs found</td>
+            <td>heuristic</td>
+          </tr>
+          <tr>
+            <td><code>verify.test</code></td>
+            <td>Code clears the test suite on its first run of a task</td>
+            <td>task segments running tests</td>
+            <td>structural</td>
+          </tr>
+          <tr>
+            <td><code>verify.lint</code></td>
+            <td>Code clears lint on its first run of a task</td>
+            <td>task segments running lint</td>
+            <td>structural</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Each run reads a 90-day window across all six paired roots —
+        <code>~/.claude{,-personal,-work}</code> and
+        <code>~/.codex{,-personal,-work}</code> — and scores two confidence
+        tiers: <code>structural</code> rows read a tool result's own exit
+        status, <code>heuristic</code> rows are judged by a model
+        (<code>claude -p</code>, cached under <code>~/.skadi/pulse/</code>)
+        reading intent rather than keywords. The headline reports a figure
+        <b>per tier</b> rather than one average pretending to be certain. Every
+        row also carries a <code>byModel</code> split (Opus / Sonnet / Fable) —
+        the cut that answers which model held the rules better. Each run
+        appends to <code>~/.skadi/pulse/history.jsonl</code>, so drift or
+        improvement over time is readable, and renders both a Henneth dashboard
+        and the board's pulse tile. The rubric file itself is the canon — each
+        row there carries the fuller ✓/✗ criterion the dashboard unfolds behind
+        its ⓘ button.
+      </p>
+
+      <h3>Plan fidelity — <span class="name">/fidelity</span></h3>
+      <p>
+        <code>hooks/fidelity-scan.py</code> reads the verdict history
+        <span class="name">/mandos</span> appends via
+        <code>hooks/mandos-record.sh</code>
+        (<code>~/.skadi/mandos/history.jsonl</code>) and reduces it to the
+        <b>Faithful rate</b> — the share of verdicts that came back Faithful
+        rather than Missing or Scope-crept — alongside <b>missing-blocker</b>
+        and <b>scope-crept-blocker</b> counts explaining the rest, and a
+        cumulative-rate trend across the recorded run. It fills in only as
+        <span class="name">/mandos</span> runs; it is never backfilled from
+        past sessions.
+      </p>
+
+      <h2>III. The session's habits</h2>
+      <ul class="rows">
+        <li>
+          <span class="row">Grammar check</span> — Every user message is
+          silently checked for grammar and phrasing. If anything's off, a single
+          corrected line is appended to the response with the changed tokens
+          bolded on both sides (e.g. <code>"should **i** go?"</code> →
+          <code>"should **I** go?"</code>). A counter hook tallies corrections
+          per session so trends stay visible — the ✍️ figure on the statusline's
+          second row.
+        </li>
+        <li>
+          <span class="row">Tolkien narrator tone</span> — Measured cadence, a
+          touch formal, a storyteller's weight. Tight sentences; no breathless
+          filler, no hype. Chat only: external posts (PR/MR and ticket comments)
+          default to plain human tone unless
+          <code>~/.skadi/tone-external.md</code> says otherwise.
+        </li>
+        <li>
+          <span class="row">Free-form gate</span> — Every free-form mutating
+          turn opens with one four-field block — a three-tier size gauge
+          (reach, depth, reversibility), acceptance outcomes, the non-goals a
+          diff must not cross, and a change summary — then waits for the user's
+          word; slash-invoked skills run straight through, and read-only turns
+          are exempt. A <code>gate-reminder.sh</code> hook re-injects the gate
+          with every prompt so lower-tier models hold to it. Chapter I,
+          <a href="work-loop.html">The Work Loop</a>, tells the whole loop it
+          opens.
+        </li>
+      </ul>
+    </div>
+  </body>
+</html>
