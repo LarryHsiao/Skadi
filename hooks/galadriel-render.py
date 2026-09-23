@@ -61,11 +61,16 @@ def diff_for(shas, repo):
     for sha in shas:
         # List form (no shell) — a sha bearing shell metacharacters cannot
         # escape into the shell; git just fails to resolve it and we note that.
+        # Decode explicitly as UTF-8: without it, `text=True` falls back to
+        # the platform's preferred encoding (cp1252 on Windows). A real diff
+        # routinely carries bytes that fail under that encoding, which kills
+        # subprocess's reader thread mid-read and leaves `result.stdout` None
+        # rather than raising here — hence the `or ""` below.
         result = subprocess.run(
             ["git", "-C", str(repo), "show", "--no-color", sha],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
-        blocks.append(result.stdout if result.returncode == 0
+        blocks.append((result.stdout or "") if result.returncode == 0
                       else f"(diff unavailable: {sha})")
     return cap_lines("\n".join(blocks))
 
