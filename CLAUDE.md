@@ -333,6 +333,7 @@ Read when the activity is in play (not auto-loaded):
 - Dispatch templates: `docs/workflow/dispatch-templates.md` — fill-in prompts for search / implement / refactor / research / review
 - Maintaining this config: `docs/workflow/maintenance.md` — edit covenant, lesson graduation and the doc→skill→hook ladder, compaction thresholds; read before changing skadi's rules
 - Technical review docs (Outline): `docs/workflow/outline-review-doc.md` — Seshat MCP usage, sourcing discipline, language matching, sequence-vs-flowchart division, section structure; read before writing or updating a review doc on jubo.getoutline.com
+- The session's task surface: `docs/workflow/task-surface.md` — why a standing-item step names its outcome rather than a task-tracking tool, and the identity keys the skills writing there share; read when a skill leaves an item the user sees after the chat scrolls away
 
 ## Grammar Check
 

@@ -132,32 +132,33 @@ Compare against the mapping loaded in step 3. For any **unmapped** status name:
 
 If all statuses are already mapped, skip this step silently.
 
-### 7. Sync to the built-in todo list
+### 7. Mirror your own tickets into the session's task surface
 
-**Only when viewing My Tasks** — skip entirely when `@person` was provided, since other people's tickets shouldn't populate your todo list.
+**Only when viewing My Tasks** — skip entirely when `@person` was provided, since
+other people's tickets are not yours to carry.
 
-Call **TaskList**. A Jira-backed task is any task whose `metadata.jira_key` is set.
+**This step is conditional on the session** — read `docs/workflow/task-surface.md` for the
+convention. In short: a task-tracking tool in the roster takes the fetched
+issues, so the day's work stays visible after the report scrolls away; absent
+one, the report step 8 renders *is* the record — skip this step silently.
 
-For each fetched issue in the current result set:
+Where a tool is used, one item per issue, identified by `jira_key = KEY` so a
+later run matches rather than duplicates:
 
-- If its mapped category is `todo`, `in_progress`, or `in_review`:
-  - No existing task with this `jira_key` → **TaskCreate**:
-    - `subject`: `KEY — SUMMARY` (truncate summary to ~55 chars)
-    - `description`: Jira ticket URL `JIRA_BASE_URL/browse/KEY`
-    - `metadata`: `{ "jira_key": "KEY" }`
-    - Status: `pending` for `todo`, `in_progress` for `in_progress` or `in_review` (set `activeForm` too). `in_review` is not fresh work — it's active work awaiting review, so treat it as in-progress.
-  - Existing task → **TaskUpdate** to align status:
-    - Jira `in_progress` or `in_review` → task `in_progress` (if not already)
-    - Jira `todo` → task `pending` (if it was `in_progress`, leave as `in_progress` — don't demote work already started)
+- `subject`: `KEY — SUMMARY` (truncate summary to ~55 chars)
+- `description`: the Jira ticket URL, `JIRA_BASE_URL/browse/KEY`
 
-- If its mapped category is `done`:
-  - Existing task with this `jira_key` → **TaskUpdate** `status=completed`.
+Status follows the mapped category, and only ever forward:
 
-For any existing Jira-backed task whose `jira_key` is **not** in the current fetch (e.g. reassigned, closed, filtered out):
+- `todo` → pending; `in_progress` or `in_review` → in progress. `in_review` is
+  not fresh work — it is active work awaiting review.
+- An item already in progress is never demoted back to pending; work started
+  stays started.
+- `done` → the item is marked complete.
 
-- Leave it untouched. The next `/daily` scoped to include it will reconcile.
-
-Never touch tasks without a `jira_key` in their metadata.
+An issue absent from the current fetch (reassigned, closed, filtered out) is left
+untouched — the next `/daily` scoped to include it will reconcile. An item bearing
+no `jira_key` was not written by this skill; never touch it.
 
 ### 8. Render output
 

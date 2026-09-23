@@ -1,6 +1,6 @@
 ---
 name: working
-description: Use when the user runs /working [JIRA-number] [type] to begin a Jira ticket. Resolves the ticket (prompts a list when none given), checks out an existing feature branch or cuts a new one from the chosen base, transitions the ticket to In Progress in Jira, syncs the local todo list, then pushes the branch and opens a draft PR/MR self-assigned to the author — a GitHub PR via `gh` or a GitLab MR via `glab`, whichever the origin remote points to — when the forge CLI is authenticated.
+description: Use when the user runs /working [JIRA-number] [type] to begin a Jira ticket. Resolves the ticket (prompts a list when none given), checks out an existing feature branch or cuts a new one from the chosen base, transitions the ticket to In Progress in Jira, then pushes the branch and opens a draft PR/MR self-assigned to the author — a GitHub PR via `gh` or a GitLab MR via `glab`, whichever the origin remote points to — when the forge CLI is authenticated.
 purpose: Begins a Jira ticket — branches, transitions status, and opens a draft PR/MR.
 ---
 
@@ -133,16 +133,21 @@ It prints a JSON array `[{"id":"42","name":"Doing","to":"Doing"}]` (creds via `s
 
 It prints `transitioned: id=… status=…->…` on success, `noop: id=… status=…` when already there, or `{"error":"..."}` on failure. Confirm silently — surface only an error.
 
-**d. Sync the todo list:**
+**d. Mark the ticket in progress on the session's task surface:**
 
-Call **TaskList** and look for a task whose `metadata.jira_key == JIRA-NUMBER`.
+Conditional on the session — read `docs/workflow/task-surface.md` for the convention. In short: a
+task-tracking tool in the roster carries the ticket as in-progress work; absent
+one, skip this silently — the Jira transition in step c is the authoritative
+record either way.
 
-- Found → **TaskUpdate** `status=in_progress`.
-- Not found → **TaskCreate** with:
+Where a tool is used, look first for an item bearing `jira_key = JIRA-NUMBER` —
+`/daily` may have seated it already, and it is advanced rather than duplicated:
+
+- **Found** → move it to in progress.
+- **Not found** → add it, then move it to in progress:
   - `subject`: `JIRA-NUMBER — SUMMARY` (truncate to ~55 chars)
   - `description`: `<jira-uri>/browse/JIRA-NUMBER` (jira-uri from `~/.claude/hooks/secret.sh jira uri`)
-  - `metadata`: `{ "jira_key": "JIRA-NUMBER" }`
-  - Then **TaskUpdate** it to `in_progress`.
+  - identity: `jira_key = JIRA-NUMBER`
 
 Silent on success.
 
