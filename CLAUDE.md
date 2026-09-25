@@ -138,6 +138,14 @@ A third line, `Compliance Review: SKIPPED (reason: <one line>)`, replaces the re
 
 The `compliance-review-reminder.sh` hook re-injects this review's trigger with every prompt, as `gate-reminder.sh` does for the Free-Form Gate; this section is its specification. Why it fires every turn, and why it names the agent dispatch rather than the verdict line alone, is recorded in `docs/workflow/maintenance.md`.
 
+## Context Cleanup
+
+Applies when a new user message opens a topic unrelated to the work the session has been doing, and that prior work reads as concluded — no open step, no pending verification, no decision still awaiting the user's word. Before addressing the new topic, ask plainly whether to `/clear` first: a long, unrelated-topic-laden context costs cache and attention with no offsetting benefit once the prior thread is closed. Never run `/clear` unprompted — it discards conversational state that cannot be recovered mid-session. The same session-level opt-out named in the Free-Form Gate silences this ask too.
+
+Skip the ask when the new message continues, refines, or follows up on the same thread; when the session is mid-task (an open plan, an unresolved gate, a step not yet verified); or when the new ask plainly belongs to the same project's ongoing thread.
+
+This is a judgment call, not a detector — no hook can parse topic drift from a prompt's text, only the model reading it can. The `context-cleanup-reminder.sh` hook re-injects the trigger with every prompt, as `gate-reminder.sh` and `compliance-review-reminder.sh` do for their own; this section is its specification.
+
 ## Cross-Workspace Edits
 
 `dir-guard.sh` blocks a Bash command or a Write/Edit/NotebookEdit file path whose target resolves outside this session's project directory and outside `CLAUDE_DEV_DIRS` — a session rooted in one repo cannot reach into another. When a task needs to touch a path dir-guard refuses, do not fight the guard — no `CLAUDE_DEV_DIRS` sprawl, no routing around it through a subshell.
