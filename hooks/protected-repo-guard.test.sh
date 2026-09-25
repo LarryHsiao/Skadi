@@ -193,6 +193,18 @@ REL_UNPARSABLE=$(printf "cat <<'EOF'\ndidn't work\nEOF\ncat ../%s/CLAUDE.md" "$(
 out=$(cd "$OUTSIDE" && json_bash_payload "$REL_UNPARSABLE" | CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
 check "an unparsable relative reference still advises" '"additionalContext"' "$(caught "$out")"
 
+# 22. protected_repos.md entry itself written with a literal leading ~
+#     (~/protected-repo, not the resolved absolute path) — advised. HOME is
+#     overridden to $TMP so ~ expands to the real $PROTECTED path the list
+#     can be checked against. Pre-fix, normalize() never expanded the ~ in
+#     the LIST-FILE entry (only the bash-command TOKEN path did, case #13
+#     above), so the repo silently never matched anything and the guard
+#     stayed mute for every path inside it.
+TILDE_LIST="$TMP/protected_repos_tilde.md"
+printf -- '- ~/%s \xe2\x86\x92 mychan\n' "$(basename "$PROTECTED")" > "$TILDE_LIST"
+out=$(edit_payload "$PROTECTED/CLAUDE.md" | PROTECTED_REPOS_FILE="$TILDE_LIST" HOME="$TMP" CLAUDE_PROJECT_DIR="$OUTSIDE" "$HOOK")
+check "literal-tilde list entry advised" '"additionalContext"' "$(caught "$out")"
+
 if [ "$fail" -eq 0 ]; then
   echo "--- all green ---"
 else

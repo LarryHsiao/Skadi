@@ -61,6 +61,14 @@ while IFS= read -r line; do
   repo="$(printf '%s' "$repo" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
   chan="$(printf '%s' "$chan" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
   [ -z "$repo" ] || [ -z "$chan" ] && continue
+  # Expand a literal leading ~ (not ~user/... forms, which stay unhandled),
+  # the same narrow convention the TOKEN parsing below already uses — an
+  # entry written as `~/phantom/worklog` otherwise never matches its
+  # resolved absolute form and the repo silently never gets protected.
+  # shellcheck disable=SC2088
+  case "$repo" in
+    "~"|"~/"*) repo="${repo/#\~/$HOME}" ;;
+  esac
   REPOS+=("$(normalize "$repo")")
   CHANNELS+=("$chan")
 done < "$LIST"
