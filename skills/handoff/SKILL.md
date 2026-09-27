@@ -35,11 +35,28 @@ baton shows up live on its next turn with no `subscribe` or `read` required on
 that end. This only holds when the target stands in a repo; a target outside
 any repo has no auto-channel, so fall back to an explicitly-shared name there.
 
+**Replying: use the message's `reply-channel`, not the channel it arrived
+on.** `send` stamps every message with the same repo-basename derivation
+`handoff-autosub.sh` uses (silently absent when the sender isn't standing in a
+repo) — see *Storage* below. For a **peer channel**, where both sides already
+auto-joined one shared channel, `reply-channel` names that same channel and
+replying in place already works; the field changes nothing there. It matters
+for a **hub channel** — many senders, one standing drain session, `worklog-inbox`
+being the live example — where a sender fires a message and goes back to
+watching its *own* repo's channel, never the hub. A reply posted back onto the
+hub reaches nobody. Read `reply-channel` off the message and `send` there
+instead.
+
 ## Storage
 
 - One folder per channel under `~/.skadi/handoff/<channel>/`.
 - Each message is an append-only file `<utc-timestamp>-<from>.md` with a
   `from`/`at` frontmatter and a body.
+- `send` also stamps a `reply-channel` frontmatter line whenever the sending
+  session stands inside a git repo — the basename of that repo, same
+  derivation and sanitizing `handoff-autosub.sh` uses to auto-join it. Absent
+  (never a usage error) when the sender isn't in a repo. See *Replying* above
+  for what it's for.
 - The directory is created lazily by the hook; never pre-create it from the skill.
 
 All file work is the hook's: `~/.claude/hooks/handoff.sh`. The skill orchestrates

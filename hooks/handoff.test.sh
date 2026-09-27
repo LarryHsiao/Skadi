@@ -226,6 +226,31 @@ check "missing channel needs no confirm" "no such channel 'ghost2'" "$("$HOOK" c
 "$HOOK" clear guarded --all --confirm >/dev/null
 "$HOOK" clear guarded-prune --all --confirm >/dev/null
 
+# 20. send derives reply-channel from the sender's own repo, when it stands
+#     in one — the field a hub channel's reader needs to route a reply back.
+tmp_repo="$(mktemp -d)"
+(
+  cd "$tmp_repo" && git init -q
+  mkdir -p sub && cd sub || exit
+  printf 'hi' | CLAUDE_CODE_SESSION_ID="repotest01" "$HOOK" send inbox --from repo-sender >/dev/null
+)
+expected_reply="reply-channel: $(basename "$tmp_repo" | tr '[:upper:]' '[:lower:]')"
+check "send derives reply-channel from repo basename" "$expected_reply" \
+  "$("$HOOK" read inbox | grep '^reply-channel:')"
+"$HOOK" clear inbox --all --confirm >/dev/null
+rm -rf "$tmp_repo"
+
+# 21. Outside any repo, no reply-channel field is written — absent, not a
+#     usage error, per repo_channel's own contract.
+tmp_norepo="$(mktemp -d)"
+( cd "$tmp_norepo" \
+    && printf 'hi' | CLAUDE_CODE_SESSION_ID="norepotest1" "$HOOK" send inbox2 --from norepo-sender >/dev/null )
+expected_no_reply="0"
+check "no reply-channel field outside a repo" "$expected_no_reply" \
+  "$("$HOOK" read inbox2 | grep -c '^reply-channel:')"
+"$HOOK" clear inbox2 --all --confirm >/dev/null
+rm -rf "$tmp_norepo"
+
 # Note: baton mode (/handoff send <channel> with no message) is the SKILL's
 # job — it composes the body and pipes it to `send`, which this suite already
 # covers. The composition itself is model-authored and cannot be shell-tested.

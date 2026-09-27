@@ -3,7 +3,11 @@
 #
 # Named channels live under $HANDOFF_ROOT (default $HOME/.skadi/handoff), one
 # folder per channel. Each message is an append-only file named
-# <utc-timestamp>-<from>.md bearing a from/at frontmatter and a body.
+# <utc-timestamp>-<from>.md bearing a from/at frontmatter and a body, plus an
+# optional reply-channel line (see repo_channel below) naming where the
+# sender is actually listening — for a peer channel this is the same channel
+# a reply already lands on, but a hub channel (many senders, one drain
+# session) has no other way to route a reply back to a specific sender.
 #
 # Usage:
 #   handoff.sh send <channel> [--from <label>] [--session <id>]  # body on stdin
@@ -115,6 +119,22 @@ resolve_from() {
   fi
 }
 
+# The sender's own reply channel — the same repo-basename derivation
+# handoff-autosub.sh uses to auto-subscribe a session to its repo's channel,
+# so a message can name where its sender is actually listening. Returns
+# non-zero (never a usage error) when the sender isn't standing in a repo.
+repo_channel() {
+  local where common root
+  where="${CLAUDE_PROJECT_DIR:-$PWD}"
+  common="$(cd "$where" 2>/dev/null && git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  case "$common" in
+    */.git) root="$(dirname "$common")" ;;
+    *) root="$(cd "$where" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null || true)" ;;
+  esac
+  [ -n "$root" ] || return 1
+  sanitize "$(basename "$root")"
+}
+
 cmd_send() {
   local channel="" from="" sidarg=""
   while [ $# -gt 0 ]; do
@@ -148,12 +168,16 @@ cmd_send() {
     n=$((n + 1))
   done
 
+  local reply
+  reply="$(repo_channel 2>/dev/null)" || reply=""
+
   local body
   body="$(cat)"
   {
     printf -- '---\n'
     printf 'from: %s\n' "$from"
     printf 'at: %s\n' "$at"
+    [ -n "$reply" ] && printf 'reply-channel: %s\n' "$reply"
     printf -- '---\n'
     printf '%s\n' "$body"
   } >"$file"
