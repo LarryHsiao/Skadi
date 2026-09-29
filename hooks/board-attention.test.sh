@@ -40,6 +40,20 @@ expected="0/—/quiet"
 actual="$(jq -r '"\(.count)/\(.detail)/\(.verdict)"' "$d/attention-mrs.json")"
 check "empty output writes count 0 / quiet" "$expected" "$actual"
 
+# ── 2b · the same empty result under the system bash ──
+# The hooks run as `#!/bin/bash`, which is 3.2 on macOS, where reading an empty
+# array under `set -u` is an unbound variable. Test 2 runs under whatever `bash`
+# is first on PATH (5.x here) and cannot see it, so this one names /bin/bash.
+d=$(tmpdir)
+fx="$d/fixture"
+mkdir -p "$fx"
+: >"$fx/prs.out"
+BOARD_DIR="$d" BOARD_ATTENTION_FIXTURE_DIR="$fx" /bin/bash "$WRITER" prs >/dev/null 2>&1
+rc=$?
+expected="0/0/—/quiet"
+actual="$rc/$(jq -r '"\(.count)/\(.detail)/\(.verdict)"' "$d/attention-prs.json" 2>/dev/null)"
+check "an empty result exits 0 and writes count 0 / quiet under /bin/bash" "$expected" "$actual"
+
 # ── 3 · rc=1 -> count null / unknown / exit 0 / file still written ──
 d=$(tmpdir)
 fx="$d/fixture"

@@ -125,7 +125,9 @@ tally_forge() {
   [[ $mine -gt 0 ]] && parts+=("$mine mine")
   [[ $failed -gt 0 ]] && parts+=("$failed CI failed")
   f_detail=""
-  for p in "${parts[@]}"; do
+  # `+` guards the empty case: bash 3.2 (macOS /bin/bash) calls a bare
+  # "${parts[@]}" an unbound variable under `set -u` when nothing was found.
+  for p in ${parts[@]+"${parts[@]}"}; do
     if [[ -z "$f_detail" ]]; then f_detail="$p"; else f_detail="$f_detail · $p"; fi
   done
   if [[ -z "$f_detail" ]]; then f_detail="—"; fi
