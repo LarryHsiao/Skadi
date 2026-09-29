@@ -675,6 +675,20 @@ person_of_interest_quotes=(
     "People are going to die, and I can stop it. — Harold Finch (paraphrased)"
 )
 
+# Heroes quotes (超異能英雄)
+heroes_quotes=(
+    "Save the cheerleader, save the world. — Future Hiro"
+    "Yatta! — Hiro Nakamura"
+    "I'm not a hero. I'm just a guy who wants to save people. — Peter Petrelli (paraphrased)"
+    "Where does it come from, this quest, this need to solve life's mysteries? — Mohinder Suresh"
+    "I'm going to take your power. — Sylar (paraphrased)"
+    "Nothing is ever really gone. — Hiro Nakamura (paraphrased)"
+    "We're not the only ones. — Claire Bennet (paraphrased)"
+    "The end of the world is coming. — Isaac Mendez (paraphrased)"
+    "You can't change the future. — Future Hiro (paraphrased)"
+    "Evolution is an imperfect and often violent process. — Mohinder Suresh"
+)
+
 # Build pool of available categories
 pool=("wick" "mentalist")
 [ ${#proverbs[@]} -gt 0 ] && pool+=("proverb")
@@ -683,6 +697,7 @@ pool=("wick" "mentalist")
 [ ${#lotr_quotes[@]} -gt 0 ] && pool+=("lotr")
 [ ${#band_of_brothers_quotes[@]} -gt 0 ] && pool+=("band")
 [ ${#person_of_interest_quotes[@]} -gt 0 ] && pool+=("poi")
+[ ${#heroes_quotes[@]} -gt 0 ] && pool+=("heroes")
 chosen="${pool[$RANDOM % ${#pool[@]}]}"
 
 case "$chosen" in
@@ -694,6 +709,7 @@ case "$chosen" in
     lotr)       display_quote="💍 \"${lotr_quotes[$RANDOM % ${#lotr_quotes[@]}]}\"";;
     band)       display_quote="🎖️ \"${band_of_brothers_quotes[$RANDOM % ${#band_of_brothers_quotes[@]}]}\"";;
     poi)        display_quote="👁️ \"${person_of_interest_quotes[$RANDOM % ${#person_of_interest_quotes[@]}]}\"";;
+    heroes)     display_quote="🦸 \"${heroes_quotes[$RANDOM % ${#heroes_quotes[@]}]}\"";;
 esac
 
 # ── Standing windows ─────────────────────────────────────────────────────────
