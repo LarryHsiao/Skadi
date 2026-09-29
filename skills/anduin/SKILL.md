@@ -96,11 +96,12 @@ stage still works, only the hand-off stalls.
 Both stages support Jira — Anduin passes `<tracker>` straight through. Two
 differences from YouTrack to know:
 
-- **Two rungs, not three.** The skeleton rung (diagram + `[SKELETON]`) is a
-  YouTrack-only stage of the underlying skills. On Jira the flow is council → forge
-  directly: Glorfindel drafts `[COUNSEL vN]`, the human posts `[FORTH]`, and Aulë
-  forges on `[COUNSEL]+[FORTH]` (no skeleton in between). Anduin sequences the two
-  the same way; there is simply no middle rung to run.
+- **Two rungs by default, three on request.** On Jira the default flow is council →
+  forge directly: Glorfindel drafts `[COUNSEL vN]`, the human posts `[FORTH]`, and
+  Aulë forges on `[COUNSEL]+[FORTH]`. The skeleton rung is opt-in there — started by
+  `/celebrimbor jira <project> --ticket <id> --skeleton`, never by a sweep — and once
+  a `[SKELETON]` stands, Aulë routes the ticket by `jira-skeleton-rung.py` and forges
+  only after the skeleton's own `[FORTH]`. Anduin sequences the stages the same way.
 - **Unattended is smoothed by `--auto`.** Glorfindel and Aulë each guard Jira with a
   post-safety prompt; Anduin's default appends `--auto` to **both** stages, so an
   unattended `/anduin jira PSG` (or `/amon-sul anduin jira PSG`) runs hands-off

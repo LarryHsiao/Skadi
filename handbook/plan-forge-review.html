@@ -135,8 +135,11 @@
 
       <h2>The standard arc — Jira</h2>
       <p class="small" style="margin-top: 0">
-        Council to forge in one leap. This is the whole of the road on Jira: the
-        skeleton rung below does not exist there, and no flag opts into it.
+        Council to forge in one leap — the default road on Jira. The skeleton
+        rung below is opt-in there: <span class="name">/celebrimbor jira
+        &lt;project&gt; --ticket &lt;id&gt; --skeleton</span> after the plan's
+        <span class="name">[FORTH]</span> carves it, and from then on only a second
+        <span class="name">[FORTH]</span> on the skeleton forges.
       </p>
       <div class="diagram">
         <pre class="mermaid">
@@ -180,9 +183,9 @@ graph TD
       <p class="small" style="margin-top: 0">
         A <b>skeleton</b> is carved before the forge, and two
         <span class="name">[FORTH]</span>s gate the arc — one to approve the
-        plan, one to approve the skeleton. The rung is chosen by the
-        <i>tracker</i>, never by the size of the work: YouTrack always rides it,
-        Jira never can.
+        plan, one to approve the skeleton. YouTrack always rides it; Jira rides
+        it when the skeleton is asked for, and its decider is
+        <span class="name">hooks/jira-skeleton-rung.py</span>.
       </p>
       <div class="diagram">
         <pre class="mermaid">

@@ -119,11 +119,25 @@ When `--skeleton` is set, celebrimbor carves bones instead of forging code.
 
 1. **Pre-flight** — resolve tracker + source repo only (steps 1a, 1b). No forge,
    no base-branch, no auth check.
-2. **Decide + verify rung.** Fetch the thread, run `skeleton-rung.py`. Proceed
-   only if the action is `draft_skeleton`, `redraft_skeleton`, or `answer_skeleton`;
-   otherwise stop with the action reported (e.g. "awaiting plan approval"). Locate
-   the latest `[PLAN]` body — it is the contract. **`answer_skeleton` takes the
-   answer path below, not the carve path** (steps 3–8).
+2. **Decide + verify rung.** Fetch the thread and run the tracker's decider:
+   - **YouTrack:** `council-youtrack-fetch.sh <ticket> | skeleton-rung.py`. Proceed
+     only if the action is `draft_skeleton`, `redraft_skeleton`, or `answer_skeleton`.
+     The contract is the latest `[PLAN]` body.
+   - **Jira:** `council-jira-fetch.sh <ticket> | jira-skeleton-rung.py`. The rung is
+     opt-in on Jira, so `plan_approved` (a `[FORTH]` after the latest `[COUNSEL vN]`,
+     no `[SKELETON]` yet) is the draft case; `redraft_skeleton` and `answer_skeleton`
+     proceed as on YouTrack. The contract is the latest `[COUNSEL vN]` body.
+
+   Otherwise stop with the action reported (e.g. "awaiting plan approval").
+   **`answer_skeleton` takes the answer path below, not the carve path** (steps 3–8).
+
+   **Jira hooks for the steps below.** Wherever a step names a YouTrack hook, Jira
+   uses its twin: `council-jira-comment.sh` for a new comment, `jira-comment-edit.sh
+   <ticket> <skeleton_id>` for an edit, `jira-attach.sh` for the PNG. Jira carries
+   **no `<!-- consumed -->` watermark** — it would render as visible text — so the
+   decider reads freshness from the bot's last word instead. Every Jira step that
+   would advance a watermark instead appends a bot comment (`[PEDO]` or `[VINYA]`),
+   and that comment is what quiets the next ride.
 
    **Answer path (`answer_skeleton`).** Elrond has asked a question of the standing
    `[SKELETON]` (`[CEIST]`/`[ASK]`, or bare prose), not directed a change. Acquire a
@@ -134,7 +148,9 @@ When `--skeleton` is set, celebrimbor carves bones instead of forging code.
      <ticket>`, then **edit the `[SKELETON]` comment** via `youtrack-comment-edit.sh
      <ticket> <skeleton_id>`, advancing only its watermark to the newest human
      `created` (body unchanged) — this consumes the question so the next ride stays
-     quiet. Report the answer. The bones are never re-carved; only `[ENVINYA]`/`[ALTER]` does that.
+     quiet. On **Jira**, the appended `[PEDO]` (via `council-jira-comment.sh`) is
+     itself the bot's last word, so no edit follows. Report the answer. The bones are
+     never re-carved; only `[ENVINYA]`/`[ALTER]` does that.
    - On `[ABORT]`: post nothing, leave the watermark untouched, and report the
      smith's one-line reason — the question stays open for the next ride.
 
@@ -152,7 +168,8 @@ When `--skeleton` is set, celebrimbor carves bones instead of forging code.
    - `.mmd` → `npx -y @mermaid-js/mermaid-cli -i <path>.mmd -o $TMPDIR/skel-<ticket>.png`
    - `.html` → headless screenshot (`npx -y playwright screenshot <path>.html $TMPDIR/skel-<ticket>.png`)
    If the renderer is absent on PATH, stop and report — do not post a skeleton with no diagram.
-6. **Attach the PNG:** `~/.claude/hooks/youtrack-attach.sh <ticket> $TMPDIR/skel-<ticket>.png`.
+6. **Attach the PNG:** `~/.claude/hooks/youtrack-attach.sh <ticket> $TMPDIR/skel-<ticket>.png`
+   (Jira: `~/.claude/hooks/jira-attach.sh <ticket> $TMPDIR/skel-<ticket>.png`).
 7. **Write the `[SKELETON]` comment** with marker, watermark (= newest human
    `created`), and the smith's tree/stubs:
    - `draft_skeleton` → create via `council-youtrack-comment.sh`.
@@ -164,6 +181,13 @@ When `--skeleton` is set, celebrimbor carves bones instead of forging code.
 
    <tree + stubs>
    ```
+
+   **Jira:** the same body without the watermark line.
+   - `plan_approved` → create via `council-jira-comment.sh <ticket>`.
+   - `redraft_skeleton` → edit via `jira-comment-edit.sh <ticket> <skeleton_id>`, then
+     append `[VINYA] The skeleton is renewed — see the [SKELETON] comment above.` via
+     `council-jira-comment.sh` (an in-place edit notifies no one, and the notice is
+     what marks the `[ENVINYA]` consumed). If the edit fails, stop — do not post the notice.
 8. **Release the worktree.** Report the ticket, the action taken, and the attachment.
 
 ### 1. Pre-flight resolution
@@ -207,8 +231,13 @@ gate below.
 1. The thread contains at least one `[COUNSEL vN]` (or alias `[PLAN vN]`) from the bot.
 2. A verdict token `[FORTH]` (or alias `[APPROVE]`) appears in non-bot comments somewhere in the thread.
 3. The thread does **not** contain `[GWAITH]` / `[FORGED]` / `[SHIPPED]` from the bot anywhere — already forged, leave it alone.
+4. **Jira skeleton road.** If the thread carries a `[SKELETON]`, the ticket took the
+   opt-in skeleton rung, and only its own approval forges: `council-jira-fetch.sh
+   <ticket> | jira-skeleton-rung.py` must print `action=forge` (a `[FORTH]` after
+   the skeleton's last bot word). The plan's earlier `[FORTH]` does not count. A
+   thread with no `[SKELETON]` needs only rules 1–3, exactly as before.
 
-A ticket failing any of these three is silently dropped from the candidate set. (No `[FORTH]` means the council has not yet adjourned with approval; presence of `[GWAITH]` means the deed is already done.)
+A ticket failing any of these is silently dropped from the candidate set. (No `[FORTH]` means the council has not yet adjourned with approval; presence of `[GWAITH]` means the deed is already done.)
 
 Report the gate's verdict for each ticket inspected so the user can see what was considered.
 
@@ -220,7 +249,7 @@ Report the gate's verdict for each ticket inspected so the user can see what was
 
 ### 4. Verify the approved counsel
 
-Re-read the selected ticket's thread. Locate the **latest** `[COUNSEL vN]` (or its alias `[PLAN vN]`) followed by an approved verdict. This is the contract Celebrimbor will implement.
+Re-read the selected ticket's thread. Locate the **latest** `[COUNSEL vN]` (or its alias `[PLAN vN]`) followed by an approved verdict. This is the contract Celebrimbor will implement — together with the approved `[SKELETON]` body when a Jira ticket took the skeleton rung, passed to the smith as on YouTrack.
 
 Inspect its **Open questions** section. If any question has no follow-up answer from Elrond in subsequent comments, abort with a clear note: *"`[COUNSEL vN]` carries unresolved Open questions; Celebrimbor will not guess where the counsellor would not. Resolve and re-approve, or invoke `/council` to draft a new counsel that closes them."* Stop. Do not branch.
 
@@ -251,6 +280,10 @@ Inspect its **Open questions** section. If any question has no follow-up answer 
 > **YouTrack path:** the smith's contract is the latest `[PLAN]` body **plus** the
 > approved `[SKELETON]` body (pass it under a header `## Approved skeleton (your shape)`),
 > not a `[COUNSEL vN]`. Everything else in this step is unchanged.
+>
+> **Jira skeleton road:** the contract stays the approved `[COUNSEL vN]`, with the
+> approved `[SKELETON]` body appended under the same `## Approved skeleton (your shape)`
+> header. A Jira ticket without a `[SKELETON]` passes the counsel alone, as before.
 
 Load the smith prompt from `<skill-dir>/celebrimbor.md`. Dispatch a subagent via the Agent tool, `subagent_type: general-purpose`, `model: opus`, passing:
 

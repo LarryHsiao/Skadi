@@ -97,6 +97,7 @@
       "Bash(~/.claude/hooks/rhovanion-youtrack-probe.sh:*)",
       "Bash(~/.claude/hooks/rhovanion-jira-probe.sh:*)",
       "Bash(~/.claude/hooks/skeleton-rung.py:*)",
+      "Bash(~/.claude/hooks/jira-skeleton-rung.py:*)",
       "Bash(~/.claude/hooks/youtrack-comment-edit.sh:*)",
       "Bash(~/.claude/hooks/youtrack-attach.sh:*)",
       "Bash(~/.claude/hooks/council-jira-fetch.sh:*)",

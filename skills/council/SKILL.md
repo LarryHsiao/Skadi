@@ -304,7 +304,7 @@ Walk the `comments` array (already oldest-first). Determine:
 - **Plan comment id.** The `id` of that highest-version plan comment (from the fetch hook's `id` field). This is the comment step 6 edits in place on a redraft. If no plan exists yet, there is no id — step 6 creates the comment instead.
 - **Bot identity.** Two modes:
   - **Service-account mode** (e.g. YouTrack with a dedicated `claude` user): a comment is the bot's iff `login == "<bot-login>"`.
-  - **Shared-identity mode** (e.g. Jira where the bot posts as Elrond): no login distinction exists; a comment is the bot's iff its first line carries `[COUNSEL v…]` / `[PLAN v…]` (alias), `[PARLEY]` / `[AGENT-ASK]` (alias), `[PEDO]` / `[ANSWER]` (alias), `[VINYA]` / `[RENEWED]` (alias — the in-place-edit notice), `[ENWINA]` / `[STALE]` (alias — the description-drift notice), `[DOOM]` / `[VERDICT]` (alias — Mandos's faithfulness verdict, loop-neutral), or `[GWAITH]` / `[FORGED]` / `[SHIPPED]` (Celebrimbor's mark).
+  - **Shared-identity mode** (e.g. Jira where the bot posts as Elrond): no login distinction exists; a comment is the bot's iff its first line carries `[COUNSEL v…]` / `[PLAN v…]` (alias), `[PARLEY]` / `[AGENT-ASK]` (alias), `[PEDO]` / `[ANSWER]` (alias), `[VINYA]` / `[RENEWED]` (alias — the in-place-edit notice), `[ENWINA]` / `[STALE]` (alias — the description-drift notice), `[DOOM]` / `[VERDICT]` (alias — Mandos's faithfulness verdict, loop-neutral), `[GWAITH]` / `[FORGED]` / `[SHIPPED]` (Celebrimbor's mark), `[SKELETON]` (Celebrimbor's opt-in skeleton rung), or `[METTA]` (Aulë's close-on-merge). `hooks/jira-skeleton-rung.py` applies this same list.
 
   Detect mode by inspecting the comment thread: if any login carries the configured bot value (today: `claude`), use service-account mode; otherwise use shared-identity mode.
 
@@ -314,7 +314,9 @@ Walk the `comments` array (already oldest-first). Determine:
 
 ### 3. Handle thread state
 
-The order of these checks matters — verdict beats quiet (no fresh counsel) beats first-turn beats alter beats answer.
+The order of these checks matters — skeleton beats verdict beats quiet (no fresh counsel) beats first-turn beats alter beats answer.
+
+0. **Skeleton standing (Jira).** If the thread bears a bot `[SKELETON]`, the plan rung is closed and every later human word — `[FORTH]`, `[ENVINYA]`, a question — belongs to the skeleton, which is `/celebrimbor --skeleton`'s to answer. Council posts nothing (a `[PEDO]` here would read as the bot's last word and swallow the skeleton question). Tell the user "awaiting — the skeleton is celebrimbor's" and stop. This mirrors the YouTrack path's `draft_skeleton` no-op.
 
 1. **Verdict present.** Scan all fresh counsel for the three verdict tokens (and their aliases). Token precedence — *not* chronological order — picks the winner: `[FORTH]`/`[APPROVE]` beats `[NAY]`/`[REJECT]` beats `[NAMARIE]`/`[FAREWELL]`. So if Elrond posts `[NAY]` and later posts `[FORTH]`, the parser adjourns as approved (FORTH wins regardless of when it appeared); same if the order is reversed. Effect:
    - `[FORTH]`/`[APPROVE]` → adjourn with approval on `[COUNSEL vN]`. **Before stopping, run *The `[ENWINA]` divergence notice* below** — on approval the plan is settled, so this is the one moment to flag a description that has fallen behind it.

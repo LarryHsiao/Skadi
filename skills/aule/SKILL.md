@@ -123,6 +123,19 @@ A ticket qualifies iff *all* of:
 1. The thread contains at least one `[COUNSEL vN]` (or alias `[PLAN vN]`) from the bot.
 2. A verdict token `[FORTH]` (or alias `[APPROVE]`) appears in non-bot comments somewhere in the thread.
 3. The thread does **not** contain `[GWAITH]` / `[FORGED]` / `[SHIPPED]` from the bot anywhere — already forged, leave it alone.
+4. **Jira skeleton road.** When the thread carries a `[SKELETON]` (the opt-in rung,
+   carved by `/celebrimbor jira <project> --ticket <id> --skeleton`), rules 1–2 no
+   longer qualify it; route by `council-jira-fetch.sh <ticket> | jira-skeleton-rung.py`
+   instead, queued exactly like the YouTrack rung dispatch above:
+
+   | action | Dispatch |
+   |---|---|
+   | `forge` | `/celebrimbor jira <project> --ticket <id>` |
+   | `redraft_skeleton`, `answer_skeleton` | `/celebrimbor jira <project> --ticket <id> --skeleton` |
+   | `await_skeleton` | skip (no-op) |
+
+   Aulë never *starts* the skeleton rung on Jira — a ticket with no `[SKELETON]`
+   forges on rules 1–3 as it always has.
 
 Drop tickets failing rule 1 or 2 silently from the qualifier set. A ticket failing **only** rule 3 (already forged) is the Jira path's close-watch analogue to YouTrack's `done` action: if the thread bears no bot `[METTA]` yet, add it to the **close-watch set** for step 5b instead of dropping it outright — a forged-but-unmerged Jira ticket needs the same merge check YouTrack's decider already routes there. If the thread does bear a bot `[METTA]`, it is the true terminal no-op (forged and closed) and is dropped for real, mirroring YouTrack's `at_rest`.
 
