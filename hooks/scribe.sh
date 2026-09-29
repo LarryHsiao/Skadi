@@ -2,7 +2,7 @@
 # scribe.sh — export a Minerva markdown section as one issue.
 #
 # Usage:
-#   scribe.sh <file> <heading-slug> --project=<KEY> [--target=youtrack|disk] [--commit]
+#   scribe.sh <file> <heading-slug> --project=<KEY> [--target=youtrack|disk|outline|jira] [--commit]
 #
 # Step 2 of the build is dry-run only: prints the rendered issue body and the
 # would-be POST/disk write, performs no network or filesystem writes. The
@@ -36,8 +36,13 @@ PARENT_DOC_ID=""
 # re-invoke with --force.
 EXIT_DUPLICATE=75
 
+# Jira: the body line standing where the screenshot would be embedded, and the
+# issue type a scribed section is created as (the /jira create default).
+JIRA_SCREENSHOT_NOTE='📎 Figma screenshot attached to this issue — see Attachments.'
+JIRA_ISSUE_TYPE="Task"
+
 usage() {
-  echo "Usage: $0 <file> <heading-slug> --project=<KEY> [--target=youtrack|disk|outline] [--collection=<name>] [--parent=<UUID>] [--commit] [--force] [--with-subtasks] [--screenshot-path=<png>]" >&2
+  echo "Usage: $0 <file> <heading-slug> --project=<KEY> [--target=youtrack|disk|outline|jira] [--collection=<name>] [--parent=<UUID>] [--commit] [--force] [--with-subtasks] [--screenshot-path=<png>]" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -77,9 +82,13 @@ if [[ $WRITEBACK_ONLY -eq 1 ]]; then
 fi
 
 case "$TARGET" in
-  youtrack|disk|outline) ;;
-  *) echo "invalid --target: $TARGET (must be youtrack, disk, or outline)" >&2; exit 2 ;;
+  youtrack|disk|outline|jira) ;;
+  *) echo "invalid --target: $TARGET (must be youtrack, disk, outline, or jira)" >&2; exit 2 ;;
 esac
+if [[ "$TARGET" == "jira" && $WITH_SUBTASKS -eq 1 ]]; then
+  echo "--with-subtasks is not supported yet for --target=jira (the parent issue only)" >&2
+  exit 2
+fi
 
 # ---------- normalize: lowercase, strip punctuation, collapse whitespace ----------
 
@@ -329,9 +338,10 @@ JIRA_KEY="$(awk -v start="$MATCH_LINE" -v end="$((MATCH_LINE + 20))" '
 # ---------- look for file-local jira base URL ----------
 # Optional `<!-- jira-base: https://... -->` anywhere in the file. When present,
 # the JIRA marker renders as a clickable link `[KEY](<base>/browse/KEY)` in the
-# body; otherwise plain text (the current default).
+# body; otherwise plain text (the current default). Named apart from the
+# JIRA_BASE_URL credential env var, which assigning here would clobber for secret.sh.
 
-JIRA_BASE_URL="$(grep -oE '<!--[[:space:]]*jira-base:[[:space:]]*https?://[A-Za-z0-9./_?&%=#:-]+' "$FILE" \
+FILE_JIRA_BASE_URL="$(grep -oE '<!--[[:space:]]*jira-base:[[:space:]]*https?://[A-Za-z0-9./_?&%=#:-]+' "$FILE" \
   | head -1 \
   | sed -E 's|<!--[[:space:]]*jira-base:[[:space:]]*||' \
   | sed -E 's|/+$||' || true)"
@@ -342,6 +352,16 @@ JIRA_BASE_URL="$(grep -oE '<!--[[:space:]]*jira-base:[[:space:]]*https?://[A-Za-
 
 SECTION_YT_ID="$(awk -v start="$MATCH_LINE" 'NR == start' "$FILE" \
   | grep -oE '<!--[[:space:]]*yt:[[:space:]]*[A-Z][A-Z0-9]*-[0-9]+' \
+  | head -1 \
+  | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' || true)"
+
+# ---------- look for section-level Jira issue marker (issue scribe owns) ----------
+# Pattern: ## Epic 1 · ... <!-- jira-issue: PSG-12 -->
+# Deliberately distinct from `<!-- jira: KEY -->` above: that one only links a
+# related ticket someone else may own, so scribe must never overwrite it.
+
+SECTION_JIRA_ISSUE="$(awk -v start="$MATCH_LINE" 'NR == start' "$FILE" \
+  | grep -oE '<!--[[:space:]]*jira-issue:[[:space:]]*[A-Z][A-Z0-9]*-[0-9]+' \
   | head -1 \
   | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' || true)"
 
@@ -521,8 +541,8 @@ render_child_body() {
     fi
   fi
   if [[ -n "$JIRA_KEY" ]]; then
-    if [[ -n "$JIRA_BASE_URL" ]]; then
-      printf -- '- JIRA: [%s](%s/browse/%s)\n' "$JIRA_KEY" "$JIRA_BASE_URL" "$JIRA_KEY"
+    if [[ -n "$FILE_JIRA_BASE_URL" ]]; then
+      printf -- '- JIRA: [%s](%s/browse/%s)\n' "$JIRA_KEY" "$FILE_JIRA_BASE_URL" "$JIRA_KEY"
     else
       printf -- '- JIRA: %s\n' "$JIRA_KEY"
     fi
@@ -556,8 +576,8 @@ render_leaf_body() {
     fi
   fi
   if [[ -n "$JIRA_KEY" ]]; then
-    if [[ -n "$JIRA_BASE_URL" ]]; then
-      printf -- '- JIRA: [%s](%s/browse/%s)\n' "$JIRA_KEY" "$JIRA_BASE_URL" "$JIRA_KEY"
+    if [[ -n "$FILE_JIRA_BASE_URL" ]]; then
+      printf -- '- JIRA: [%s](%s/browse/%s)\n' "$JIRA_KEY" "$FILE_JIRA_BASE_URL" "$JIRA_KEY"
     else
       printf -- '- JIRA: %s\n' "$JIRA_KEY"
     fi
@@ -630,8 +650,8 @@ render_body() {
     fi
   fi
   if [[ -n "$JIRA_KEY" ]]; then
-    if [[ -n "$JIRA_BASE_URL" ]]; then
-      printf -- '- JIRA: [%s](%s/browse/%s)\n' "$JIRA_KEY" "$JIRA_BASE_URL" "$JIRA_KEY"
+    if [[ -n "$FILE_JIRA_BASE_URL" ]]; then
+      printf -- '- JIRA: [%s](%s/browse/%s)\n' "$JIRA_KEY" "$FILE_JIRA_BASE_URL" "$JIRA_KEY"
     else
       printf -- '- JIRA: %s\n' "$JIRA_KEY"
     fi
@@ -680,6 +700,15 @@ case "$TARGET" in
     else
       [[ -n "$FIGMA_NODE_ID" || $HAS_SCREENSHOT -eq 1 ]] && IMAGE_REF='![Component](./screenshot.png)'
     fi ;;
+  jira)
+    # Jira Cloud rejects an inline image in a description (the mediaSingle embed
+    # council-jira-comment.sh tried), so the screenshot rides as an attachment
+    # and the body points at it. Same commit/dry-run split as disk.
+    if [[ $COMMIT -eq 1 ]]; then
+      [[ $HAS_SCREENSHOT -eq 1 ]] && IMAGE_REF="$JIRA_SCREENSHOT_NOTE"
+    else
+      [[ -n "$FIGMA_NODE_ID" || $HAS_SCREENSHOT -eq 1 ]] && IMAGE_REF="$JIRA_SCREENSHOT_NOTE"
+    fi ;;
 esac
 
 BODY="$(render_body "$IMAGE_REF")"
@@ -707,10 +736,139 @@ yt_id:   ${SECTION_YT_ID:-<none>}
 outline: ${SECTION_OUTLINE_ID:-<none>}
 slug:    $OUTPUT_SLUG
 EOF
+  if [[ "$TARGET" == "jira" ]]; then
+    echo "jira-issue: ${SECTION_JIRA_ISSUE:-<none>}"
+  fi
   if [[ -n "$SCREENSHOT_PATH" ]]; then
     echo "screenshot: $SCREENSHOT_PATH"
   fi
   echo "================================================================================"
+}
+
+# Prints the Jira REST v3 JSON for this section, the body converted to ADF.
+#   $1 = create | update   (update sends only summary + description)
+#   $2 = assignee accountId (create only; empty leaves the issue unassigned)
+jira_issue_payload() {
+  printf '%s' "$BODY" | PYTHONPATH="$(dirname "$0")" python3 -c '
+import json, sys
+from jira_adf import md_to_adf
+mode, project, summary, issue_type, assignee = sys.argv[1:6]
+fields = {"summary": summary, "description": md_to_adf(sys.stdin.read())}
+if mode == "create":
+    fields["project"] = {"key": project}
+    fields["issuetype"] = {"name": issue_type}
+    if assignee:
+        fields["assignee"] = {"accountId": assignee}
+print(json.dumps({"fields": fields}, ensure_ascii=False, indent=2))
+' "$1" "$PROJECT" "$MATCH_TEXT" "$JIRA_ISSUE_TYPE" "${2:-}"
+}
+
+# Sets JIRA_URL / JIRA_EMAIL / JIRA_TOKEN, the same secret.sh names jira-attach.sh reads.
+jira_credentials() {
+  local secret; secret="$(dirname "$0")/secret.sh"
+  JIRA_URL="$("$secret" jira uri JIRA_BASE_URL 2>/dev/null || true)"
+  JIRA_EMAIL="$("$secret" jira username JIRA_EMAIL 2>/dev/null || true)"
+  JIRA_TOKEN="$("$secret" jira password JIRA_API_TOKEN 2>/dev/null || true)"
+  if [[ -z "$JIRA_URL" || -z "$JIRA_EMAIL" || -z "$JIRA_TOKEN" ]]; then
+    echo "jira credentials missing (Vaultwarden item 'jira' uri/username/password, or env JIRA_BASE_URL/JIRA_EMAIL/JIRA_API_TOKEN)" >&2
+    exit 1
+  fi
+  JIRA_URL="${JIRA_URL%/}"
+}
+
+# jira_request <method> <path> <response-file> [json-body-file] — prints the HTTP status.
+jira_request() {
+  local method="$1" path="$2" out="$3" body="${4:-}"
+  local args=(-sS -X "$method" -u "$JIRA_EMAIL:$JIRA_TOKEN" -H "Accept: application/json"
+              -o "$out" -w "%{http_code}")
+  if [[ -n "$body" ]]; then
+    args+=(-H "Content-Type: application/json; charset=utf-8" --data-binary "@$body")
+  fi
+  curl "${args[@]}" "$JIRA_URL$path" || echo "000"
+}
+
+# jira_fail <what> <status> <response-file> — names the failed call and exits 1.
+jira_fail() {
+  echo "jira $1 failed (http=$2):" >&2
+  cat "$3" >&2
+  rm -f "$3"
+  exit 1
+}
+
+# Prints the authenticated user's accountId, so the new issue is assigned to its author.
+# Fetched on every create rather than cached (tracker-authorship.md suggests a cache):
+# creates are rare, and a stale cached id would misassign silently.
+jira_account_id() {
+  local resp status id; resp="$(mktemp)"
+  status="$(jira_request GET /rest/api/3/myself "$resp")"
+  [[ "$status" == 2* ]] || jira_fail "account lookup (GET /myself)" "$status" "$resp"
+  id="$(jq -r '.accountId // empty' < "$resp")"
+  # An empty id would create the issue unassigned; stop before anything is written.
+  [[ -n "$id" ]] || jira_fail "account lookup (GET /myself returned no accountId)" "$status" "$resp"
+  rm -f "$resp"
+  printf '%s' "$id"
+}
+
+# Exits $EXIT_DUPLICATE when an issue in $PROJECT already carries this exact summary.
+jira_exit_if_duplicate() {
+  local resp status words jql dup
+  # JQL text search reserves most punctuation; search on the words, match exactly in jq.
+  words="$(printf '%s' "$MATCH_TEXT" | tr -c '[:alnum:][:space:]' ' ' | tr -s ' ')"
+  jql="project = \"$PROJECT\" AND summary ~ \"${words# }\""
+  resp="$(mktemp)"
+  status="$(jira_request GET "/rest/api/3/search/jql?fields=summary&jql=$(jq -rn --arg q "$jql" '$q|@uri')" "$resp")"
+  [[ "$status" == 2* ]] || jira_fail "duplicate check" "$status" "$resp"
+  dup="$(jq -r --arg s "$MATCH_TEXT" '[.issues[]? | select(.fields.summary == $s)][0].key // empty' < "$resp")"
+  rm -f "$resp"
+  [[ -z "$dup" ]] && return 0
+  print_header "DUPLICATE — issue with this title already exists"
+  echo
+  echo "existing: $JIRA_URL/browse/$dup"
+  echo "(re-run with --force to create a duplicate anyway, or add"
+  echo " <!-- jira-issue: $dup --> to the section heading to update it)"
+  exit $EXIT_DUPLICATE
+}
+
+# jira_create_issue <accountId> — creates the issue and prints its key.
+jira_create_issue() {
+  local payload resp status key
+  payload="$(mktemp)"; resp="$(mktemp)"
+  jira_issue_payload create "$1" > "$payload"
+  status="$(jira_request POST /rest/api/3/issue "$resp" "$payload")"
+  rm -f "$payload"
+  [[ "$status" == 2* ]] || jira_fail "issue create" "$status" "$resp"
+  key="$(jq -r '.key // empty' < "$resp")"
+  rm -f "$resp"
+  if [[ -z "$key" ]]; then
+    echo "jira issue create returned 2xx but no key" >&2
+    exit 1
+  fi
+  printf '%s' "$key"
+}
+
+# jira_update_issue <key> — rewrites the summary and description of an issue scribe owns.
+jira_update_issue() {
+  local payload resp status
+  payload="$(mktemp)"; resp="$(mktemp)"
+  jira_issue_payload update > "$payload"
+  status="$(jira_request PUT "/rest/api/3/issue/$1" "$resp" "$payload")"
+  rm -f "$payload"
+  [[ "$status" == 2* ]] || jira_fail "issue update" "$status" "$resp"
+  rm -f "$resp"
+}
+
+# The create path: duplicate check, author lookup, create, then the heading marker.
+# Marker before any attachment: if the upload fails, a re-run finds the marker
+# and updates this issue rather than stopping at the duplicate check.
+jira_create_and_mark() {
+  local account_id
+  if [[ $FORCE -eq 0 ]]; then
+    jira_exit_if_duplicate
+  fi
+  account_id="$(jira_account_id)"
+  ISSUE_KEY="$(jira_create_issue "$account_id")"
+  "$0" "$FILE" "$SLUG" --writeback-only --marker-key=jira-issue --marker-value="$ISSUE_KEY" >/dev/null \
+    || echo "(writeback of <!-- jira-issue: $ISSUE_KEY --> returned non-zero)" >&2
 }
 
 if [[ $COMMIT -eq 0 ]]; then
@@ -773,6 +931,23 @@ WOULD WRITE:
   \$HOME/Documents/scribe/$FILE_STEM_DRY/$OUTPUT_SLUG/screenshot.png  (copied from --screenshot-path or skipped if absent)
 EOF
       ;;
+    jira)
+      if [[ -n "$SECTION_JIRA_ISSUE" ]]; then
+        echo "WOULD PUT:"
+        echo "  PUT   \${JIRA_BASE_URL}/rest/api/3/issue/$SECTION_JIRA_ISSUE"
+        echo "  BODY (JSON):"
+        jira_issue_payload update | sed 's/^/    /'
+      else
+        echo "WOULD POST:"
+        echo "  POST  \${JIRA_BASE_URL}/rest/api/3/issue"
+        echo "  BODY (JSON; assignee resolved from GET /rest/api/3/myself at commit):"
+        jira_issue_payload create "<your accountId>" | sed 's/^/    /'
+        echo "  THEN:"
+        echo "    append <!-- jira-issue: <new key> --> to the section heading"
+      fi
+      echo "  AND (only with --screenshot-path):"
+      echo "    jira-attach.sh <key> <screenshot.png>"
+      ;;
   esac
   echo
   echo '(dry-run complete — no side effects performed)'
@@ -782,6 +957,25 @@ fi
 # ---- commit path ----
 
 case "$TARGET" in
+  jira)
+    jira_credentials
+    if [[ -n "$SECTION_JIRA_ISSUE" ]]; then
+      ISSUE_KEY="$SECTION_JIRA_ISSUE"
+      jira_update_issue "$ISSUE_KEY"
+      OUTCOME="updated"
+    else
+      jira_create_and_mark
+      OUTCOME="created"
+    fi
+    ISSUE_URL="$JIRA_URL/browse/$ISSUE_KEY"
+    if [[ $HAS_SCREENSHOT -eq 1 ]]; then
+      "$(dirname "$0")/jira-attach.sh" "$ISSUE_KEY" "$SCREENSHOT_PATH" >/dev/null \
+        || { echo "issue $OUTCOME without its screenshot: $ISSUE_URL" >&2; exit 1; }
+    fi
+    print_header "COMMITTED — jira issue $OUTCOME"
+    echo
+    echo "issue: $ISSUE_URL"
+    ;;
   disk)
     FILE_STEM="$(basename "$FILE" .md)"
     OUTDIR="$HOME/Documents/scribe/$FILE_STEM/$OUTPUT_SLUG"

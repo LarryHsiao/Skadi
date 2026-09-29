@@ -1,7 +1,7 @@
 ---
 name: scribe
-description: Use when the user runs /scribe <file> <heading-slug> --project=<KEY> [--target=youtrack|disk|outline] [--collection=<name>] [--parent=<UUID>]. Exports a single section (top-level Epic heading) of a Minerva markdown file to YouTrack (issue), Outline (wiki document via Seshat MCP), or disk. Carries title, scope, Figma screenshot, sub-task checklist, and Open Questions. Update mode: re-runs read inline `<!-- yt: ... -->` / `<!-- outline: ... -->` markers and PATCH in place rather than duplicating.
-purpose: Exports a Minerva markdown section to YouTrack, Outline, or disk.
+description: Use when the user runs /scribe <file> <heading-slug> --project=<KEY> [--target=youtrack|jira|disk|outline] [--collection=<name>] [--parent=<UUID>]. Exports a single section (top-level Epic heading) of a Minerva markdown file to YouTrack (issue), Jira (issue), Outline (wiki document via Seshat MCP), or disk. Carries title, scope, Figma screenshot, sub-task checklist, and Open Questions. Update mode: re-runs read inline `<!-- yt: ... -->` / `<!-- jira-issue: ... -->` / `<!-- outline: ... -->` markers and update in place rather than duplicating.
+purpose: Exports a Minerva markdown section to YouTrack, Jira, Outline, or disk.
 ---
 
 # Scribe Skill
@@ -10,12 +10,12 @@ Carries a planning section from a Minerva markdown file out to an issue tracker 
 
 ## Argument Parsing
 
-`/scribe <file> <heading-slug> --project=<KEY> [--target=youtrack|disk]`
+`/scribe <file> <heading-slug> --project=<KEY> [--target=youtrack|jira|disk|outline]`
 
 - `<file>` — path to a Minerva markdown file, relative to the current working directory or absolute.
 - `<heading-slug>` — fuzzy match against the file's `## Epic ...` headings only. Match is case-insensitive, whitespace-and-punctuation-tolerant. Example: `left-panel` matches `## Epic 1 · Left Panel — Reminder list`.
 - `--project=<KEY>` — **required**. The destination project key (YouTrack project short name; for `--target=disk` it is currently informational only — the disk path is namespaced by source-file stem and heading slug, not by project).
-- `--target=youtrack|disk|outline` — optional, defaults to `youtrack`.
+- `--target=youtrack|jira|disk|outline` — optional, defaults to `youtrack`. For `jira`, `--project` is the Jira project key (e.g. `PSG`); `--with-subtasks` is refused (exit 2) — Jira takes the parent issue only for now.
 - `--collection=<name>` — **required for `--target=outline`**, ignored otherwise. The Outline collection name (case-insensitive substring match against `mcp__seshat__list_collections`).
 - `--parent=<UUID>` — optional, only meaningful for `--target=outline` on the **create** path. The Outline document UUID under which the new section doc should be nested. Threads through the envelope as `parent_document_id` and is passed verbatim to `mcp__seshat__create_document`'s `parentDocumentId`. Ignored for `update` (an existing doc keeps its current parent) and for non-outline targets.
 
@@ -28,7 +28,7 @@ The work below is delegated to `~/.claude/hooks/scribe.sh`. Your job:
 1. Parse the user's `/scribe ...` arguments and forward them to the hook verbatim. Quote the heading slug if it contains spaces.
 2. Run the hook via Bash:
    ```
-   ~/.claude/hooks/scribe.sh <file> "<slug>" --project=<KEY> [--target=youtrack|disk]
+   ~/.claude/hooks/scribe.sh <file> "<slug>" --project=<KEY> [--target=youtrack|jira|disk]
    ```
 3. Surface the hook's stdout to the user verbatim — its dry-run report, would-be POST shape, or final issue URL is the answer.
 4. If the hook exits non-zero, surface its stderr verbatim. Do not retry, do not paper over the error; the hook names its failures plainly (missing arg, no match, multiple matches, missing source frame, auth failure, non-2xx from YouTrack).
@@ -233,10 +233,29 @@ e. Copy the screenshot to `~/Documents/scribe/<source-stem>/<slug>/screenshot.pn
 
 f. Print the absolute path to the user.
 
+#### `--target=jira`
+
+Jira tickets are real work: run it without `--commit` first — the dry run prints the ADF payload and touches no network.
+
+a. **Resolve credentials** via `secret.sh jira uri|username|password` (env fallback `JIRA_BASE_URL` / `JIRA_EMAIL` / `JIRA_API_TOKEN`), the same item `jira-attach.sh` reads.
+
+b. **Branch on the heading marker.** A `<!-- jira-issue: KEY -->` on the section heading names the issue scribe owns: PUT `/rest/api/3/issue/KEY` with summary + description, then skip to (f) — no duplicate check, author lookup, or create.
+
+c. **Pre-flight duplicate check** (skipped with `--force`): search the project for an issue with the exact heading as summary; on a hit, exit 75 with the existing URL — the same duplicate prompt as YouTrack.
+
+d. **Resolve the author** via `GET /rest/api/3/myself`; stop before creating if it fails or returns no `accountId`, so no unassigned issue is left behind. Fetched on every create rather than cached — creates are rare, and a stale cached id would misassign silently.
+
+e. **Create the issue** — POST `/rest/api/3/issue` as a `Task` assigned to the author, description converted from the rendered markdown to ADF by `hooks/jira_adf.py`'s `md_to_adf`. Then write `<!-- jira-issue: KEY -->` onto the section heading — before the attachment, so if the upload fails a re-run finds the marker and updates this issue instead of stopping at the duplicate check.
+
+f. **Attach the screenshot** (only with `--screenshot-path`) via `jira-attach.sh`, which replaces a same-named attachment on a re-run. Jira Cloud rejects an inline image in a description, so the body carries a pointer line to the attachment instead.
+
+g. **Print the issue URL** to the user.
+
 ## Conventions this skill assumes
 
 - The Minerva file's first lines include `_Source: Figma frame `<NODE-ID>`_` — already true of `reminder-overview-todo.md`.
-- Optional: `<!-- jira: <KEY> -->` marker on or near the section heading. If absent, the JIRA line in the rendered Source block is omitted.
+- Optional: `<!-- jira: <KEY> -->` marker on or near the section heading. If absent, the JIRA line in the rendered Source block is omitted. It only *links* a related ticket — scribe never writes to it.
+- `<!-- jira-issue: <KEY> -->` on the section heading marks the Jira issue scribe *owns* for `--target=jira`; written after a create, read to update in place. Kept apart from `jira:` so a hand-linked ticket is never overwritten.
 - Optional: `<!-- figma: <NODE-ID> -->` on a sub-line for leaf-level overrides — recognised but not yet acted on in v1.
 - Section headings start with the literal word `Epic` (case-insensitive on match).
 
@@ -249,6 +268,8 @@ f. Print the absolute path to the user.
 - `--project` missing.
 - `secret.sh youtrack` returns empty (auth not configured).
 - YouTrack returns non-2xx (print status and body, stop).
+- `secret.sh jira` returns empty, or Jira returns non-2xx on any call (name the call, print status and body, stop).
+- `--with-subtasks` with `--target=jira` (not supported yet; exit 2).
 
 ## Build status
 
@@ -315,3 +336,14 @@ Extends `--with-subtasks` so each level-2 leaf (any `- [ ]` line at two-space in
 - **P5.26 Level-1 child body rewrite** — done. After grandchildren land, the level-1 child's `## Tasks` block is replaced with `- [ ] JVC-N — <leaf title>` grandchild links via the same awk/`ENVIRON` splice pattern used for the parent rewrite. Patched back via the description endpoint.
 - **P5.27 Per-leaf marker writeback** — done. After grandchildren are linked, the hook recursively invokes itself with `--writeback-only --writeback-task-title="<leaf title>"` per newly-created grandchild — placing `<!-- yt: JVC-N -->` on the matching `- [ ]` line in the source markdown.
 - **P5.28 End-to-end live test** — done. 2026-04-28 in JVC: synthetic markdown with two level-1 items and three level-2 leaves. Run 1 created JVC-12…JVC-17 (1 epic + 2 children + 3 grandchildren), linked the full tree, rewrote each parent's body, and wrote 6 markers back into the markdown. Run 2 detected all 6 markers, took the update path, and patched in place — JVC count stable at JVC-17, no duplicates.
+
+## Phase 6 — Jira target (`--target=jira`)
+
+The parent issue only; sub-tasks and depth=2 stay YouTrack-only for now.
+
+- **P6.29 Markdown → ADF** — done. `md_to_adf` in `hooks/jira_adf.py`: headings, paragraphs, nested bullets, `- [ ]` checklists as ☐/☑ bullets, web links, bold, inline code; a local image keeps its alt text. Unit tests in `hooks/test_jira_adf.py`.
+- **P6.30 Dry run** — done. `--target=jira` prints the WOULD POST (or, with a marker, WOULD PUT) payload; the other targets' dry-run output is byte-identical to before.
+- **P6.31 Create** — done. Duplicate check (exit 75), author lookup, Task create assigned to the author, `<!-- jira-issue: KEY -->` writeback, then the screenshot via `jira-attach.sh`.
+- **P6.32 Update** — done. A heading marker takes the PUT path: summary + description only, no search, lookup, or create.
+- **P6.33 Offline tests** — done. `hooks/scribe-jira.test.sh` drives every branch against a `curl` stub; no test reaches Jira.
+- **P6.34 End-to-end live test** — not yet run against a real Jira project.
