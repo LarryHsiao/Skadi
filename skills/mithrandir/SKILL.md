@@ -23,6 +23,7 @@ Where Lindir reads what is written, Mithrandir weighs it. The Grey Pilgrim has w
 /mithrandir                        # branch, lore tone (default — current branch vs base)
 /mithrandir branch                 # branch, lore tone (explicit)
 /mithrandir branch --plain         # branch, plain tone
+/mithrandir branch --repo <path>   # branch, weighing the checkout at <path> instead of the cwd
 /mithrandir <url>                  # read, lore tone
 /mithrandir <url> --plain          # read, plain tone
 /mithrandir branch --deep          # branch, per-file fan-out (depth over breadth)
@@ -51,6 +52,8 @@ Dispatch on the **first positional argument**:
 The flags `--plain` and `--lore` may appear anywhere after the verb/URL; they are mutually exclusive. If both are passed, stop with: *"`--plain` and `--lore` cannot stand together; choose one tongue."*
 
 The `--deep` flag may also appear anywhere after the verb/URL. It composes with either tone flag (or neither) — it changes the *depth* of the weighing, not the voice — and rides the branch-path and read-path alike (and so the `comment` / `bless` verbs that build on read). See *Deep mode* below.
+
+The `--repo <path>` flag rides the **branch-path only**: it names the checkout to weigh, for a caller whose working directory cannot stand in it (a forge workspace cloned under `$TMPDIR`, which the Bash tool's cwd will not hold). It is the one flag bearing a value: strip `--repo` and the token after it before positional dispatch, so the path is never read as a verb or URL. It composes with every other flag. On any URL path, stop with: *"`--repo` weighs a local checkout; a URL already names its own."* If `<path>` is not a git work tree, stop with: *"`<path>` is no git checkout — Mithrandir has nothing there to weigh."*
 
 The `--verify` flag may also appear anywhere after the verb/URL, alongside `--deep` and either tone flag. It changes whether a finding survives a second, adversarial check before it is rendered — not which surface is touched, nor how deep the first read went. See *Verify mode* below.
 
@@ -161,6 +164,8 @@ If neither pattern matches, stop with: *"Mithrandir does not know that URL — i
 Mithrandir reuses Lindir's read hooks unchanged; only the comment hooks are new.
 
 ## Workflow — branch-path (no argument or `branch` verb)
+
+With `--repo <path>`, every `git` command this path runs — the steps below and the `git remote get-url origin` the style axes read — runs as `git -C <path> …`, the call-graph search (Regression risk) runs over `<path>`, and deep-mode reviewers read files from `<path>`. Without it, all three use the current working directory.
 
 ### 1. Resolve the base
 

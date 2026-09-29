@@ -57,6 +57,10 @@ if [ -f "pubspec.yaml" ]; then
     test_cmd="flutter test"
     install_cmd="flutter pub get"
   fi
+  # An APK build needs an Android app module. A Flutter package (or an app
+  # without an Android target) has none, so the build step is left empty and
+  # reported n/a rather than run and failed.
+  [ -d "android/app" ] || build=""
 elif [ -f "package.json" ]; then
   stack="node"
   has_script() { jq -e --arg s "$1" '.scripts[$s] // empty' package.json >/dev/null 2>&1; }

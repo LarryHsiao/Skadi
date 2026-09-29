@@ -107,6 +107,33 @@ out=$(cd "$OVERRIDDEN" && "$HOOK" 2>/dev/null)
 check "an override beats the stack default" "pnpm install --frozen-lockfile" "$(field "$out" install)"
 check "an install-only override still marks the source merged" "merged" "$(field "$out" source)"
 
+# `flutter build apk` needs an Android app module. A Flutter package has none,
+# so it names no build and the gate reports the row n/a, not a failure.
+FLUTTER_PKG="$WORK/flutter-package"
+stack_repo "$FLUTTER_PKG"
+printf 'name: pkg\n' > "$FLUTTER_PKG/pubspec.yaml"
+out=$(cd "$FLUTTER_PKG" && "$HOOK" 2>/dev/null)
+expected_build=""
+check "a flutter package names no build" "$expected_build" "$(field "$out" build)"
+expected_test="flutter test"
+check "a flutter package still names its tests" "$expected_test" "$(field "$out" test)"
+
+FLUTTER_APP="$WORK/flutter-app"
+stack_repo "$FLUTTER_APP"
+printf 'name: app\n' > "$FLUTTER_APP/pubspec.yaml"
+mkdir -p "$FLUTTER_APP/android/app"
+out=$(cd "$FLUTTER_APP" && "$HOOK" 2>/dev/null)
+expected_build="flutter build apk --debug"
+check "a flutter app with an android module keeps its build" "$expected_build" "$(field "$out" build)"
+
+FVM_PKG="$WORK/fvm-package"
+stack_repo "$FVM_PKG"
+printf 'name: pkg\n' > "$FVM_PKG/pubspec.yaml"
+printf '{}\n' > "$FVM_PKG/.fvmrc"
+out=$(cd "$FVM_PKG" && "$HOOK" 2>/dev/null)
+expected_build=""
+check "an fvm flutter package names no build" "$expected_build" "$(field "$out" build)"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

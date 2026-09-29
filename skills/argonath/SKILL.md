@@ -66,6 +66,8 @@ Empty command → render the row as `⚪ skipped — no command`.
 
 If `test_scope` is `changed`, the project's test command runs as configured — Argonath does not transform it. The override file is the place to express scope.
 
+**Test secrets.** A suite that needs credentials names them as `{{NAME}}` placeholders in its override command — e.g. `test: fvm flutter test --dart-define=testAccount={{TEST_ACCOUNT}}` — and declares each one in the repo's `test_env.md` in Skadi state (`~/.claude/hooks/skadi-state.sh path "${SKADI_PROFILE:-default}" "$PWD" test_env.md`), one `NAME=secret:<item>:<field>` line apiece. `argonath-run.sh` resolves them through `secret.sh`; the row's `command` keeps the placeholder and the log masks the value. When the file or a name is missing, the row fails before the suite runs and its summary names the path to write — render that summary as it stands, never as failing tests. A mass failure confined to one directory whose test config calls `fail(…)` for missing credentials is the same missing secret: say so, rather than calling the suite broken.
+
 ### 4. Secret scan
 
 Diff mode:

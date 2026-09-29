@@ -41,6 +41,8 @@ It returns `{stack, lint, format, build, test, ...}`. Run each non-empty command
 
 Fix every failure your change introduced — a lint diagnostic, an unformatted file, a build break, a test your edit reddened — so each check your change touched passes. `format` is a check, not a fix: when it flags files, run the project's formatter to mend them; never leave the tree unformatted. Distinguish a failure your change caused from one already standing on the base branch: if it predates your work and lies outside what you touched, name it in the PR body rather than chasing it. If you cannot tell whether you caused it, abort and say so.
 
+A mass test failure confined to one directory whose test config calls `fail(…)` for missing credentials (a `flutter_test_config.dart` logging in, and the like) is a **missing secret**, not pre-existing breakage. Do not report it as standing failures: name the missing credential, and say that the repo's `test_env.md` must declare it (see `/argonath`, *Test secrets*).
+
 When the detector resolves no toolchain (`stack` unknown, every command empty), there is nothing to run — note it and move on. A Dart/Flutter workspace resolves through the same detector (`flutter analyze` / `dart analyze` for lint, `dart format` for format), so the analyzer still runs, now alongside format, build, and test.
 
 ## Mend mode
