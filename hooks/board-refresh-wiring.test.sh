@@ -36,7 +36,7 @@ refresh_case=$(awk '/^  refresh\)/{f=1} f{print} f&&/^    ;;/{exit}' "$BOARD")
 # board-manifest.py / board-active.py / board-server.py, which are not channel
 # writers at all.
 for writer in board-attention.sh board-growth.sh board-cost.py \
-              board-henneth.sh board-galadriel.sh; do
+              board-henneth.sh board-galadriel.sh board-narya.sh; do
   expected="invoked"
   actual=$(printf '%s' "$refresh_case" | grep -q -- "$writer" && echo invoked || echo missing)
   check "refresh invokes $writer" "$expected" "$actual"

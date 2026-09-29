@@ -237,6 +237,68 @@ check "an empty array returns empty string (band + divider vanish)" '""' "$(afie
 check "no url means no Enter link" "no-link" "$(afield NOURL)"
 check "an unknown surface sorts last but still renders" "GitLab MRs,Unknown surface" "$(afield UNKNOWNSURF)"
 
+# ── The Narya band ──
+# Like the attention band, a pure function of its channel (data in, HTML string
+# out), sliced by its own neighbours: it starts at naryaBandHtml and ends where
+# renderBody begins. The band draws only once the writer has written a channel;
+# a written channel with no daemons still draws, as the empty state.
+narya_out=$(node - "$PAGE" <<'JS'
+const fs = require("fs");
+const page = fs.readFileSync(process.argv[2], "utf8");
+
+const start = page.indexOf("function naryaBandHtml(");
+const end = page.indexOf("function renderBody(", start);
+if (start === -1 || end === -1) {
+  console.log("EXTRACT_FAILED");
+  process.exit(0);
+}
+const src = page.slice(start, end);
+
+const esc = (s) =>
+  String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+const fn = eval(src + "\nnaryaBandHtml;");
+
+const mk = (over) => ({
+  project: "vitallink-ca", device: "iPhone-16", state: "alive",
+  appId: "com.example.app", pid: 4242, ...over,
+});
+
+// No channel at all -> nothing, no ghost band.
+console.log("ABSENT " + JSON.stringify(fn(undefined)));
+
+// A channel with no daemons -> the empty state, not a blank band.
+console.log("EMPTY " + (fn({ daemons: [] }).includes("No flame is lit") ? "void" : "blank"));
+
+// Rows keep the writer's order and each takes its state as a class.
+const three = fn({ daemons: [mk({ state: "alive" }), mk({ state: "starting" }), mk({ state: "dead" })] });
+console.log("STATES " + [...three.matchAll(/class="nst ([a-z]+)"/g)].map((m) => m[1]).join(","));
+
+// Exact values (appId, pid) stay reachable in the row's tooltip.
+const one = fn({ daemons: [mk({})] });
+console.log("EXACT " + (one.includes("com.example.app") && one.includes("4242") ? "reachable" : "lost"));
+
+// A quote in a name must not break out of its title attribute, nor a tag through.
+// The attribute must hold the escaped form; a raw quote in the visible text is harmless.
+const hostile = fn({ daemons: [mk({ project: 'a"b<i>', device: "x" })] });
+const expectedTitle = "a&quot;b&lt;i&gt;";
+const titles = [...hostile.matchAll(/title="([^"]*)"/g)].map((m) => m[1]);
+console.log("HOSTILE " + (titles.includes(expectedTitle) && !hostile.includes("<i>") ? "safe" : "unsafe"));
+
+// A null appId (still starting) must not print the word "null".
+const bare = fn({ daemons: [mk({ state: "starting", appId: null })] });
+console.log("NULLAPP " + (bare.includes("null") ? "leaks" : "clean"));
+JS
+)
+
+nfield() { printf '%s\n' "$narya_out" | awk -v k="$1" '{ if ($1 == k) { $1=""; sub(/^ /,""); print; exit } }'; }
+
+check "an absent channel draws no band" '""' "$(nfield ABSENT)"
+check "no daemons draws the empty state" "void" "$(nfield EMPTY)"
+check "rows carry their state class in the writer's order" "alive,starting,dead" "$(nfield STATES)"
+check "appId and pid stay reachable in the row" "reachable" "$(nfield EXACT)"
+check "a hostile name cannot break out of its attribute or tag" "safe" "$(nfield HOSTILE)"
+check "a null appId never prints 'null'" "clean" "$(nfield NULLAPP)"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

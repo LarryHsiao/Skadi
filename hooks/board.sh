@@ -117,6 +117,7 @@ case "$cmd" in
     python3 "$DIR/board-cost.py" || echo "board: cost refresh failed (skipped)" >&2
     "$DIR/board-henneth.sh" || echo "board: henneth link refresh failed (skipped)" >&2
     "$DIR/board-galadriel.sh" || echo "board: galadriel link refresh failed (skipped)" >&2
+    "$DIR/board-narya.sh" || echo "board: narya refresh failed (skipped)" >&2
     python3 "$DIR/skills-cheatsheet-render.py" "$CLAUDE_SKILLS_DIR" "$SKILLS_CHEATSHEET_DEST" \
       || echo "board: skills cheatsheet render failed (skipped)" >&2
 

@@ -312,6 +312,62 @@
       .attnrows {
         margin-bottom: 0.9rem;
       }
+      /* Narya band — one row per standing Flutter daemon. Name columns share the
+         row's width and ellipse (identity text); the state word never shrinks. */
+      .nrows {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+      }
+      .nrow {
+        display: grid;
+        grid-template-columns: 0.7rem minmax(0, 1.2fr) minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.55rem;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: var(--panel);
+        padding: 0.3rem 0.5rem;
+        font-size: 0.74rem;
+      }
+      .nrow .nell {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: left;
+      }
+      .ndot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      .ndot.alive {
+        background: var(--green);
+      }
+      .ndot.dead {
+        background: var(--red);
+      }
+      .nst {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.66rem;
+        color: var(--accent);
+      }
+      .nst.alive {
+        color: var(--green);
+      }
+      .nst.dead {
+        color: var(--red);
+      }
+      .nvoid {
+        text-align: center;
+        color: var(--accent);
+        font-size: 0.74rem;
+        font-style: italic;
+        border: 1px dashed var(--line);
+        border-radius: 5px;
+        padding: 0.5rem 0;
+      }
       .srow {
         border: 1px solid var(--line);
         border-radius: 5px;
@@ -370,6 +426,7 @@
           No ticket channels yet. Run the writer to raise one.
         </div>
       </div>
+      <div class="naryaband" id="narya"></div>
       <div class="sweepband" id="sweeps"></div>
       <div class="costband" id="cost"></div>
     </div>
@@ -480,6 +537,7 @@
         renderStrip(tickets, growth, sweeps, pulse, stabilityChannels);
         renderAttention(attention);
         renderBody(tickets);
+        renderNarya(channels.find((c) => c.channel === "narya"));
         renderSweeps(sweeps);
         renderCost(cost);
       }
@@ -750,6 +808,36 @@
 
       function renderAttention(items) {
         document.getElementById("attention").innerHTML = attentionBandHtml(items);
+      }
+
+      // The Flutter daemons /narya keeps standing. Absent channel -> no band (the
+      // writer has never run); a written channel with no daemons -> the empty
+      // state. `esc` leaves quotes alone, so values bound for a title attribute
+      // are quoted here. appId and pid are exact values: they ride the row's
+      // tooltip whole rather than being squeezed into a column.
+      function naryaBandHtml(channel) {
+        if (!channel) return "";
+        const attr = (v) => esc(v).replace(/"/g, "&quot;");
+        const daemons = channel.daemons || [];
+        const head = `<div class="banddiv">narya · flutter daemons</div>`;
+        if (!daemons.length) {
+          return `${head}<div class="nvoid">No flame is lit. Run <code>/narya start</code> beside a booted simulator.</div>`;
+        }
+        const rows = daemons
+          .map((d) => {
+            const exact = [d.appId, d.pid].filter((v) => v != null).join(" · ");
+            return `<div class="nrow" title="${attr(exact)}">
+      <span class="ndot ${attr(d.state)}"></span>
+      <span class="nell" title="${attr(d.project)}">${esc(d.project)}</span>
+      <span class="nell" title="${attr(d.device)}">${esc(d.device)}</span>
+      <span class="nst ${attr(d.state)}">${esc(d.state)}</span></div>`;
+          })
+          .join("");
+        return `${head}<div class="nrows">${rows}</div>`;
+      }
+
+      function renderNarya(channel) {
+        document.getElementById("narya").innerHTML = naryaBandHtml(channel);
       }
 
       function renderBody(tickets) {
