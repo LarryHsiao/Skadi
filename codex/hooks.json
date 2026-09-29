@@ -49,6 +49,7 @@
           { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/grammar-reminder.sh" },
           { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/gate-reminder.sh" },
           { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/compliance-review-reminder.sh" },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/context-cleanup-reminder.sh" },
           { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/handoff-poll.sh" },
           { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/ping-pong.sh" }
         ]

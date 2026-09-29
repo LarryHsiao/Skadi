@@ -42,6 +42,11 @@ check "user AGENTS text is preserved" yes "$(rg -q 'Keep this paragraph' "$CODEX
 check "one managed AGENTS block is installed" 1 "$(rg -c '<!-- skadi:start -->' "$CODEX_ROOT/AGENTS.md")"
 check "user hook is preserved" true "$(jq -r '.hooks.SessionEnd[0].hooks[0].command == "/usr/bin/true"' "$CODEX_ROOT/hooks.json")"
 check "Skadi hooks are installed" true "$(jq -r '[.. | strings | select(contains("codex-hook-adapter.sh"))] | length > 0' "$CODEX_ROOT/hooks.json")"
+expected_cleanup=1
+# Matched on the adapter and hook names, not the root's spelling: the installer
+# writes the resolved real path (/private/var on macOS), the test's own root is not.
+actual_cleanup="$(jq '[.hooks.UserPromptSubmit[].hooks[].command | select(test("codex-hook-adapter[.]sh .*/hooks/context-cleanup-reminder[.]sh$"))] | length' "$CODEX_ROOT/hooks.json")"
+check "context-cleanup reminder is registered once under UserPromptSubmit" "$expected_cleanup" "$actual_cleanup"
 check "Skadi rules are installed" yes "$([ -f "$CODEX_ROOT/rules/skadi.rules" ] && echo yes || echo no)"
 check "hook adapter stays executable" yes "$([ -x "$CODEX_ROOT/hooks/codex-hook-adapter.sh" ] && echo yes || echo no)"
 check "rendered skill uses Codex invocation" yes "$(rg -q '\$commit' "$CODEX_ROOT/skills/commit/SKILL.md" && echo yes || echo no)"
