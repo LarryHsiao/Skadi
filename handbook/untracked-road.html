@@ -190,6 +190,7 @@ graph TD
     end
 
     MERGE_STEP["/celebrant<br/>merge, push, prune the branch"]
+    SIRION["/sirion<br/>the whole road in one call"]
 
     subgraph OPS["Daily / upkeep"]
       direction LR
@@ -209,6 +210,7 @@ graph TD
     COMMIT --> MITH
     MITH -->|"merge verdict"| MERGE_STEP
     MAND -->|"fixed"| MERGE_STEP
+    FRESH -.->|"one call"| SIRION -.-> MERGE_STEP
     MERGE_STEP --> DONE(["merged"]):::done
 
     DONE ~~~ PREFLIGHT
@@ -276,6 +278,7 @@ graph TD
     end
 
     MERGE_STEP["/celebrant<br/>合併、推送、清理分支"]
+    SIRION["/sirion<br/>一次走完整條路"]
 
     subgraph OPS["日常／維運"]
       direction LR
@@ -295,6 +298,7 @@ graph TD
     COMMIT --> MITH
     MITH -->|"合併判定"| MERGE_STEP
     MAND -->|"已修正"| MERGE_STEP
+    FRESH -.->|"一次走完"| SIRION -.-> MERGE_STEP
     MERGE_STEP --> DONE(["已合併"]):::done
 
     DONE ~~~ PREFLIGHT
@@ -375,6 +379,9 @@ graph TD
           <li>
             <b>Merge</b> — <span class="name">/celebrant</span> completes a
             <code>--no-ff</code> merge, pushes, and prunes the branch.
+            <span class="name">/sirion</span> walks the whole road in one
+            call; with <code>--auto</code> it merges without asking,
+            stopping where it would have warned.
           </li>
           <li>
             <b>Daily / upkeep</b> — <span class="name">/preflight</span>,
@@ -443,6 +450,9 @@ graph TD
           <li>
             <b>合併</b> — <span class="name">/celebrant</span>
             完成一次 <code>--no-ff</code> 合併、推送，並清掉分支。
+            <span class="name">/sirion</span>
+            一次走完整條路——開分支、提交、審查、修正、合併；加上
+            <code>--auto</code> 則不再詢問，凡原本會警示之處一律停下。
           </li>
           <li>
             <b>日常／維運</b> — <span class="name">/preflight</span>、
