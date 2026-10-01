@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# argonath-secrets.sh — scan for secrets in either the unpushed diff or the project tree.
+# argonath-secrets.sh — scan for secrets in either the branch's diff or the project tree.
 #
 # Default (no flag): `argonath-secrets.sh [<target>]` scans the added lines
 # (those starting with `+`, ignoring `+++` headers) of the first range that
