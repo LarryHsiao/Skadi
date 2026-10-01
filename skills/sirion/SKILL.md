@@ -1,8 +1,8 @@
 ---
 name: sirion
-description: Use when the user runs /sirion [fix|feat] [<slug>] [--mend all|blockers|none] [--full]. Carries local work from a dirty tree all the way into the default branch in one call — cuts a fix/ or feat/ branch (or reuses the feature branch already checked out), commits via /commit, weighs the branch with /mithrandir branch, mends its To pass findings per --mend (all by default; blockers only; or none), pushes the feature branch, then hands off to /celebrant to merge with --no-ff, push, and delete the branch local and remote. Celebrant's one confirm still stands before the destructive steps.
+description: Use when the user runs /sirion [fix|feat] [<slug>] [--mend all|blockers|none] [--no-review] [--target <branch>] [--no-merge] [--full] [--auto]. Carries local work from a dirty tree all the way into the default branch in one call — cuts a fix/ or feat/ branch (or reuses the feature branch already checked out), commits via /commit, weighs the branch with /mithrandir branch, mends its To pass findings per --mend (all by default; blockers only; or none) unless --no-review skips both, pushes the feature branch, then hands off to /celebrant (target from --target, else resolved) to merge with --no-ff, push, and delete the branch local and remote. --no-merge stops after the push. Celebrant's one confirm stands before the destructive steps unless --auto runs it unattended — then an open Blocker or an Argonath Hold stops the run instead.
 purpose: Branches, commits, reviews, mends, pushes, and merges local work into the default branch in one call.
-args: "[fix|feat] [<slug>] [--mend all|blockers|none] [--full]"
+args: "[fix|feat] [<slug>] [--mend all|blockers|none] [--no-review] [--target <branch>] [--no-merge] [--full] [--auto]"
 user_invocable: true
 ---
 
@@ -14,18 +14,27 @@ Sirion rose in the north of Beleriand and ran the whole length of the land to th
 
 - **Compose, do not duplicate.** Each reach is an existing skill — `/commit`, `/mithrandir branch`, `/celebrant`. Sirion orders them and carries state between them; it re-implements none.
 - **The mend is the caller's choice.** `--mend` decides how much of Mithrandir's `To pass` list is fixed before the merge. Whatever is left unmended is named in the report, never dropped.
-- **The confluence keeps its own gate.** `/celebrant` confirms once before merge, push, and delete. Sirion adds no second gate and removes none.
+- **The confluence keeps its own gate.** `/celebrant` confirms once before merge, push, and delete. Sirion adds no confirm of its own; only `--auto`, passed through, removes Celebrant's — and under it Sirion stops where an attended run would have warned.
 
 ## Argument parsing
 
-`/sirion [fix|feat] [<slug>] [--mend all|blockers|none] [--full]`
+`/sirion [fix|feat] [<slug>] [--mend all|blockers|none] [--no-review] [--target <branch>] [--no-merge] [--full] [--auto]`
 
 | Argument | Required | Meaning |
 |---|---|---|
 | `fix` / `feat` | no | Branch prefix. Inferred from the diff when omitted: a defect corrected → `fix`, new capability → `feat`. |
 | `<slug>` | no | Branch name after the prefix, kebab-case. Drafted from the diff when omitted. |
 | `--mend` | no | `all` (default) — fix every `To pass` row; `blockers` — fix only `### Blocker` rows; `none` — fix nothing. Any other value: stop and name the three legal ones. |
+| `--no-review` | no | Skip steps 4 and 5 — no `/mithrandir`, no mend. |
+| `--target <branch>` | no | The branch to merge into. Replaces the resolution in step 1 and is passed to `/celebrant`. Strip the flag and its value before reading positionals, so the branch name is never taken for a slug. |
+| `--no-merge` | no | Stop after step 6 — the branch is reviewed, mended, and pushed, but not merged (to open a PR/MR instead). |
 | `--full` | no | Passed through to `/celebrant`, which then runs the full `/argonath` gate. |
+| `--auto` | no | Passed through to `/celebrant`, which then merges without its confirm. Sirion stops before the hand-off if a Blocker is still open. |
+
+Refuse these pairs before any change, naming both flags:
+
+- `--no-review` with `--mend` — there is no review to mend.
+- `--no-merge` with `--auto` or `--full` — both shape a merge that will not happen.
 
 ## Workflow
 
@@ -36,7 +45,7 @@ git rev-parse --abbrev-ref HEAD
 git status --porcelain
 ```
 
-Resolve the default branch (`<target>`) by `/celebrant`'s *Target resolution* order — `base_branch.md` entry, then `origin/HEAD`, then `master`, then `main`.
+`<target>` is `--target` when given. Otherwise resolve it by `/celebrant`'s *Target resolution* order — `base_branch.md` entry, then `origin/HEAD`, then `master`, then `main`. Check a given `--target` before any change — `git rev-parse --verify --quiet <target>` or `git ls-remote --exit-code --heads origin <target>`; if neither finds it, stop and name it.
 
 | Current branch | Tree | Action |
 |---|---|---|
@@ -60,6 +69,8 @@ Skip when the tree is clean. Otherwise invoke `/commit` via the Skill tool (no `
 
 ### 4. Review
 
+Skip steps 4 and 5 under `--no-review`.
+
 Invoke `/mithrandir branch` via the Skill tool. Hold its verdict (Merge / Hold / Refuse, with tier) and its `## To pass` rows by severity group. No `## To pass` section means no rows — skip step 5.
 
 `/mithrandir branch` resolves its own base (`master`, then `main`, then `origin/HEAD`) and ignores `base_branch.md`. When that base differs from `<target>`, say so in one line, and carry both into step 7.
@@ -80,20 +91,27 @@ Fix each selected row in the working tree, reading the cited `file:line` first. 
 git push -u origin HEAD
 ```
 
+Under `--no-merge`, stop here and render the *Report* with `Merged : — --no-merge`.
+
 ### 7. Hand off
 
-Invoke `/celebrant <target>` via the Skill tool, adding `--full` when it was given. Before it runs, print the carry so the user sees it beside Celebrant's confirm:
+**Under `--auto`, check Blockers first.** If step 4 left any Blocker open, stop here and do **not** invoke `/celebrant`:
+> `<n>` Blocker(s) still open — `--auto` will not merge past them. `<branch>` stays pushed.
+
+Under `--no-review` no review ran, so this check cannot fire: `--auto --no-review` merges with no review at all, gated by Argonath alone.
+
+Print the carry — beside Celebrant's confirm when attended, as a plain record under `--auto`:
 
 ```
 Branch : <branch>  (<cut | reused>)
 Commits: <n> ahead of <target>
-Review : <Merge | Hold | Refuse> (<tier>)  — against <mithrandir-base> when it differs from <target>
-Mend   : <all|blockers|none> — fixed <n>, left open <n> (<Blockers open: n>)
+Review : <Merge | Hold | Refuse> (<tier>)  — against <mithrandir-base> when it differs from <target>; <skipped — --no-review>
+Mend   : <all|blockers|none> — fixed <n>, left open <n> (<Blockers open: n>); <skipped — --no-review>
 ```
 
-`/celebrant`'s default `--quick` gate does not re-run `/mithrandir`, so this carry is where a Blocker left open is seen. Sirion still hands off; Celebrant's confirm is the gate.
+Then invoke `/celebrant <target>` via the Skill tool, adding `--full` and `--auto` when they were given.
 
-If the user declines at Celebrant's confirm, stop there: the branch stays pushed and intact.
+Attended: `/celebrant`'s default `--quick` gate does not re-run `/mithrandir`, so this carry is where a Blocker left open is seen. Sirion still hands off; Celebrant's confirm is the gate. If the user declines there, stop: the branch stays pushed and intact.
 
 ## Report
 
@@ -101,7 +119,7 @@ If the user declines at Celebrant's confirm, stop there: the branch stays pushed
 Branch : <branch>  → <target>
 Review : <Merge | Hold | Refuse> (<tier>)
 Mend   : fixed <n> · left open <n> (<rows, one line each>)
-Merged : <✓ | declined | stopped — reason>
+Merged : <✓ | ✓ unattended — --auto | declined | — --no-merge | stopped — Blocker open (--auto) | stopped — Argonath Hold (--auto) | stopped — reason>
 ```
 
 ## Rules
@@ -109,3 +127,4 @@ Merged : <✓ | declined | stopped — reason>
 - Never force-push and never force-delete; `/celebrant` owns the merge and delete and keeps its `-d` rule.
 - A conflict, a failed push, or a failed analysis run stops the flow where it stands — report it, and do not hand off to `/celebrant`.
 - Unfixed rows under `--mend blockers` or `none` are reported, never silently dropped.
+- `--auto` never prompts. Wherever an attended run would ask or warn, an unattended run stops and leaves the branch pushed and intact.
