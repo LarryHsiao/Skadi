@@ -4,6 +4,8 @@ description: Use when the user wants to save knowledge to their personal knowled
 purpose: Saves knowledge to the personal knowledge-base repo.
 user_invocable: true
 args: "[topic or content to remember]"
+stage: desk
+composes: handoff:dispatch
 ---
 
 # Remember — Save Knowledge to the Knowledge Base

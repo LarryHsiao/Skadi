@@ -391,7 +391,11 @@
           </tr>
           <tr>
             <td><span class="name">skills-cheatsheet-render</span></td>
-            <td>Render a quick-browse HTML cheatsheet of every skadi skill's name and purpose, each card expanding on click to its full description and invocation grammar; refreshed on each <code>/board refresh</code></td>
+            <td>Render a quick-browse HTML cheatsheet of every skadi skill's name and purpose, each card expanding on click to its full description, invocation grammar, and the skills it composes and is used by; refreshed on each <code>/board refresh</code></td>
+          </tr>
+          <tr>
+            <td><span class="name">skill-edges</span>, <span class="name">fellowship-graph</span></td>
+            <td>Read the <code>stage</code> and <code>composes</code> keys each skill declares and lint them against the skill's own text; then write chapter VI's graph and its standalone-skill lists from them</td>
           </tr>
           <tr>
             <td><span class="name">scribe</span></td>

@@ -4,6 +4,7 @@ description: Bump version, commit, push, build a native macOS Xcode project, exp
 purpose: Bumps version, builds a signed macOS app, and publishes it to GitHub or the App Store.
 user_invocable: true
 args: "[scheme] [--no-bump] [--github|--app-store|--target=<github|app-store>]"
+stage: merge
 ---
 
 # Build & Publish Native macOS Release

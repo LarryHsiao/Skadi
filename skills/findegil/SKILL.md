@@ -4,6 +4,7 @@ description: Use when the user runs /findegil <notes> [--en|--zh], or asks in pl
 purpose: Rewrites notes into a blog post in the author's own unpolished voice, in English or Chinese, without inventing anything.
 user_invocable: true
 args: "<notes> [--en|--zh]"
+stage: desk
 ---
 
 # Findegil — The King's Writer

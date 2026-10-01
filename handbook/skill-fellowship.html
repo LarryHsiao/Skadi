@@ -176,7 +176,7 @@
       <div class="lang-en">
         <h1>The Fellowship of Skills</h1>
         <p class="sub">
-          One map of all fifty-six skills — where each stands on the arc of
+          One map of every skill — where each stands on the arc of
           the work, and which of them call which.
         </p>
 
@@ -209,7 +209,7 @@
       <div class="lang-zh" hidden>
         <h1>技藝之網</h1>
         <p class="sub">
-          五十六個 skill 的全圖——各自站在工作流程的哪一段，以及誰會呼叫誰。
+          每一個 skill 的全圖——各自站在工作流程的哪一段，以及誰會呼叫誰。
         </p>
 
         <p class="note">
@@ -248,163 +248,159 @@
       </div>
 
       <div class="diagram">
-        <pre class="mermaid">
+<!-- fellowship:begin -->
+<pre class="mermaid">
 graph LR
     subgraph VIGIL["⟳ VIGIL — timers that ride a sweep · 巡守 — 按時驅動掃描"]
       direction TB
       AMONSUL["/amon-sul"]
-      RHOV["/rhovanion"]
-      ANDUIN["/anduin"]
       MORIA["/moria"]
       DURIN["/durin"]
+      RHOVANION["/rhovanion"]
+      ANDUIN["/anduin"]
     end
 
     subgraph INTAKE["I. INTAKE — what brings work in · 進料 — 工作從何而來"]
       direction TB
-      JIRA["/jira"]
+      BELEG["/beleg"]
       DAILY["/daily"]
+      GWAIHIR["/gwaihir"]
+      JIRA["/jira"]
       TRIAGE["/triage"]
       VOR["/vor"]
-      GWAIHIR["/gwaihir"]
-      BELEG["/beleg"]
     end
 
     subgraph PLAN["II. PLAN · 規劃"]
       direction TB
-      RUMIL["/rumil"]
+      GLORFINDEL["/glorfindel"]
       COUNCIL["/council"]
-      GLOR["/glorfindel"]
-      GALA["/galadriel"]
+      RUMIL["/rumil"]
+      GALADRIEL["/galadriel"]
     end
 
     subgraph FORGE["III. FORGE · 鍛造"]
       direction TB
-      WORKING["/working"]
-      BRANCH["/branch"]
       AULE["/aule"]
-      CELEBR["/celebrimbor"]
-      NARVI["/narvi"]
-      NARYA["/narya"]
-      VILYA["/vilya"]
+      BRANCH["/branch"]
+      CELEBRIMBOR["/celebrimbor"]
+      COMMIT["/commit"]
       FEANOR["/feanor"]
       MANWE["/manwe"]
-      STAGE["/stage"]
+      NARVI["/narvi"]
+      NARYA["/narya"]
       SUMMARY["/summary"]
-      COMMIT["/commit"]
+      STAGE["/stage"]
+      VILYA["/vilya"]
+      WORKING["/working"]
     end
 
     subgraph WEIGH["IV. WEIGH · 衡量"]
       direction TB
-      NAZGUL["/nazgul"]
-      ARGONATH["/argonath"]
-      MITH["/mithrandir"]
-      LINDIR["/lindir"]
-      MANDOS["/mandos"]
       AMONDIN["/amon-din"]
+      ARGONATH["/argonath"]
+      MANDOS["/mandos"]
+      MITHRANDIR["/mithrandir"]
+      LINDIR["/lindir"]
+      NAZGUL["/nazgul"]
     end
 
     subgraph MERGE["V. MERGE &amp; SHIP · 合流"]
       direction TB
+      PUBLISH["/publish"]
+      PUBLISHMACOS["/publish-macos"]
       SIRION["/sirion"]
       CELEBRANT["/celebrant"]
-      PUBLISH["/publish"]
-      PUBMAC["/publish-macos"]
     end
 
     subgraph WATCH["VI. WATCH · 守望"]
       direction TB
+      FIDELITY["/fidelity"]
       MINUIAL["/minuial"]
-      HENNETH["/henneth"]
       BOARD["/board"]
       ESTE["/este"]
       GROWTH["/growth"]
-      FIDELITY["/fidelity"]
+      HENNETH["/henneth"]
       PALANTIR["/palantir"]
-      PRS["/prs"]
       MRS["/mrs"]
+      PRS["/prs"]
     end
 
     subgraph DESK["Off the arc — the desk · 案頭 — 不在主線上的雜務"]
       direction TB
-      PREFLIGHT["/preflight"]
-      CLEANUP["/cleanup-dev"]
       EOD["/eod"]
-      RESET["/reset"]
-      HANDOFF["/handoff"]
-      REMEMBER["/remember"]
-      FOCUS["/focus"]
       FINDEGIL["/findegil"]
-      SCRIBE["/scribe"]
+      FOCUS["/focus"]
       MITHLOND["/mithlond"]
       PENGOLODH["/pengolodh"]
+      PREFLIGHT["/preflight"]
+      CLEANUPDEV["/cleanup-dev"]
+      REMEMBER["/remember"]
+      HANDOFF["/handoff"]
+      RESET["/reset"]
+      SCRIBE["/scribe"]
     end
 
-    AMONSUL --> RHOV
+    AMONSUL --> RHOVANION
     AMONSUL --> ANDUIN
-    AMONSUL --> GLOR
+    AMONSUL --> GLORFINDEL
     AMONSUL --> AULE
     AMONSUL --> MORIA
-    RHOV --> ANDUIN
-    ANDUIN --> GLOR
+    RHOVANION --> ANDUIN
+    ANDUIN --> GLORFINDEL
     ANDUIN --> AULE
-    GLOR --> COUNCIL
-    AULE --> CELEBR
-    RUMIL --> GALA
-    WORKING --> JIRA
+    GLORFINDEL --> COUNCIL
+    RUMIL --> GALADRIEL
+    AULE --> CELEBRIMBOR
     FEANOR --> MANWE
     FEANOR --> NARYA
     FEANOR --> VILYA
     MANWE --> NARYA
-    MANWE --> VILYA
     SUMMARY --> STAGE
     ARGONATH --> NAZGUL
-    ARGONATH --> MITH
+    ARGONATH --> MITHRANDIR
+    SIRION --> COMMIT
+    SIRION --> MITHRANDIR
+    SIRION --> CELEBRANT
     CELEBRANT --> ARGONATH
     CELEBRANT --> BRANCH
     CELEBRANT --> COMMIT
-    SIRION --> COMMIT
-    SIRION --> MITH
-    SIRION --> CELEBRANT
-    PUBMAC --> COMMIT
-    PUBMAC --> PUBLISH
+    FIDELITY --> HENNETH
     MINUIAL --> HENNETH
     MINUIAL --> BOARD
-    MINUIAL --> GALA
+    MINUIAL --> GALADRIEL
     MINUIAL --> ESTE
     BOARD --> BELEG
     BOARD --> GROWTH
     ESTE --> HENNETH
     GROWTH --> HENNETH
-    FIDELITY --> HENNETH
-    PREFLIGHT --> CLEANUP
+    EOD --> COMMIT
+    MITHLOND --> HANDOFF
+    PREFLIGHT --> CLEANUPDEV
     PREFLIGHT --> DAILY
     PREFLIGHT --> TRIAGE
     PREFLIGHT --> NAZGUL
     PREFLIGHT --> PALANTIR
-    EOD --> COMMIT
     REMEMBER --> HANDOFF
-    MITHLOND --> HANDOFF
-
-    MITH -.-> LINDIR
-    MANDOS -.-> COUNCIL
-    FIDELITY -.-> MANDOS
+    BELEG -.-> AMONDIN
     GWAIHIR -.-> TRIAGE
     GWAIHIR -.-> VOR
-    CELEBR -.-> COUNCIL
-    BELEG -.-> AMONDIN
+    CELEBRIMBOR -.-> COUNCIL
+    MANDOS -.-> COUNCIL
+    MITHRANDIR -.-> LINDIR
+    FIDELITY -.-> MANDOS
     PALANTIR -.-> PRS
     PALANTIR -.-> MRS
-
-    MITH -.->|"comments left standing"| MORIA
     MORIA --> DURIN
     DURIN --> NARVI
-    NARVI -->|"weighed again before push"| MITH
+    NARVI -->|"weighed again before push"| MITHRANDIR
+    MITHRANDIR -.->|"comments left standing"| MORIA
 
     classDef isolate stroke-dasharray:4 3,stroke:#9a3b2e;
-    class FINDEGIL,FOCUS,SCRIBE isolate;
+    class FINDEGIL,FOCUS,JIRA,PENGOLODH,PUBLISH,PUBLISHMACOS,RESET,SCRIBE,WORKING isolate;
 
-    linkStyle 51,52,53,54 stroke:#9a3b2e,stroke-width:2px;
+    linkStyle 50,51,52,53 stroke:#9a3b2e,stroke-width:2px;
 </pre>
+<!-- fellowship:end -->
       </div>
 
       <div class="lang-en">
@@ -502,16 +498,17 @@ graph LR
           <a href="plan-forge-review.html">Plan · Forge · Review</a>.
         </p>
 
-        <h2>Three that stand alone</h2>
+        <h2>Those that stand alone</h2>
         <p>
-          <span class="name">/findegil</span>,
-          <span class="name">/focus</span> and
-          <span class="name">/scribe</span> dispatch to no skill, and no skill
+          <!-- alone:en:begin --><span class="name">/findegil</span>, <span class="name">/focus</span>, <span class="name">/jira</span>, <span class="name">/pengolodh</span>, <span class="name">/publish</span>, <span class="name">/publish-macos</span>, <span class="name">/reset</span>, <span class="name">/scribe</span> and <span class="name">/working</span><!-- alone:en:end -->
+          dispatch to no skill, and no skill
           dispatches to them — drawn with a dashed border. They are not orphans
           in need of wiring; each answers a need the arc does not touch.
           Findegil rewrites notes into prose, Focus keeps a Pomodoro clock,
-          Scribe files a document. A skill earns an arrow by needing another
-          skill’s work, and these three do not. Erestor’s notes name
+          Scribe files a document; the rest reach what they work with — git,
+          a tracker, a build tool, a note cache — through hooks and the tool
+          itself, not through another skill. A skill earns an arrow by needing
+          another skill’s work, and these do not. Erestor’s notes name
           <span class="name">/scribe</span> once, as one way an issue might be
           carved — but naming is not calling, which is the whole point of the
           two arrow kinds above.
@@ -610,15 +607,14 @@ graph LR
           >。
         </p>
 
-        <h2>三個獨行者</h2>
+        <h2>獨行者</h2>
         <p>
-          <span class="name">/findegil</span>、
-          <span class="name">/focus</span> 與
-          <span class="name">/scribe</span>
+          <!-- alone:zh:begin --><span class="name">/findegil</span>、<span class="name">/focus</span>、<span class="name">/jira</span>、<span class="name">/pengolodh</span>、<span class="name">/publish</span>、<span class="name">/publish-macos</span>、<span class="name">/reset</span>、<span class="name">/scribe</span> 與 <span class="name">/working</span><!-- alone:zh:end -->
           既不 dispatch 任何 skill，也不被任何 skill dispatch——因此邊框畫成虛線。
           它們不是等著被接線的孤兒；每一個回應的都是這條路徑碰不到的需求。Findegil
-          把筆記改寫成文章，Focus 顧著番茄鐘，Scribe 歸檔文件。一個 skill 是因為需
-          要另一個 skill 的成果才長出箭頭，而這三個不需要。Erestor 的筆記裡確實提
+          把筆記改寫成文章，Focus 顧著番茄鐘，Scribe 歸檔文件；其餘的則是透過 hook
+          與工具本身去碰 git、issue tracker、建置工具、筆記快取，而不經過另一個
+          skill。一個 skill 是因為需要另一個 skill 的成果才長出箭頭，而它們不需要。Erestor 的筆記裡確實提
           過一次 <span class="name">/scribe</span>，說那是開票的其中一種途徑——但
           「提到」不等於「呼叫」，這正是上面兩種箭頭要分開的理由。
         </p>
@@ -628,7 +624,7 @@ graph LR
         <h2>The same web, without the lanes</h2>
         <p>
           The map above imposes an order the skills themselves do not have. Here
-          the same fifty-six are turned loose: no stage, no left-to-right, only
+          the same skills are turned loose: no stage, no left-to-right, only
           pull and repulsion. Skills that call each other draw together; skills
           that call nothing drift to the edge. <b>Scroll to zoom, drag the
           canvas to pan, drag a node to pull it free</b> — release it and the
@@ -646,7 +642,7 @@ graph LR
       <div class="lang-zh" hidden>
         <h2>同一張網，拿掉欄位</h2>
         <p>
-          上面那張圖強加了一種 skill 本身並不具備的順序。這裡把同樣的五十六個放
+          上面那張圖強加了一種 skill 本身並不具備的順序。這裡把同樣這些 skill 放
           開：沒有階段、沒有左到右，只有牽引與排斥。互相呼叫的會靠攏，誰都不呼叫
           的則漂到邊緣。<b>滾輪縮放、拖曳畫布平移、拖曳節點把它拉開</b>——放手之
           後，網會自己重新安定下來。
@@ -664,7 +660,7 @@ graph LR
         <svg
           id="net"
           role="img"
-          aria-label="Force-directed network of the 56 skills: the calls between them, the mentions that are not calls, and the one mend cycle. The lane map above carries the same graph."
+          aria-label="Force-directed network of the skills: the calls between them, the mentions that are not calls, and the one mend cycle. The lane map above carries the same graph."
         ></svg>
         <div class="nettip" id="nettip"></div>
       </div>
@@ -694,8 +690,8 @@ graph LR
       const KEY = "skadi-handbook-lang";
       const RESET_LABEL = { en: "Reset view", zh: "重設視圖" };
       const NET_ARIA = {
-        en: "Force-directed network of the 56 skills: the calls between them, the mentions that are not calls, and the one mend cycle. The lane map above carries the same graph.",
-        zh: "五十六個 skill 的力導向關係網：彼此之間的呼叫、只是提到而非呼叫的關係，以及唯一的修補迴路。上方的欄位圖承載同一份圖。",
+        en: "Force-directed network of the skills: the calls between them, the mentions that are not calls, and the one mend cycle. The lane map above carries the same graph.",
+        zh: "skill 的力導向關係網：彼此之間的呼叫、只是提到而非呼叫的關係，以及唯一的修補迴路。上方的欄位圖承載同一份圖。",
       };
 
       // The two views answer a language change differently: the mermaid map is

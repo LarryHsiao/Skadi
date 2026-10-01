@@ -2,6 +2,7 @@
 name: git-reset
 description: Use when the user asks to reset the workspace, discard all changes, or restore to HEAD. Resets staged, unstaged, and untracked files after confirmation.
 purpose: Resets staged, unstaged, and untracked files back to HEAD after confirmation.
+stage: desk
 ---
 
 # Reset Workspace to HEAD

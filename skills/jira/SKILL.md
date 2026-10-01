@@ -2,6 +2,7 @@
 name: jira
 description: Use when the user runs /jira [verb] [...args]. Supported verbs: create, status. Example: /jira create, /jira create bug, /jira status, /jira status me, /jira status --filter 10363.
 purpose: Creates Jira tickets or shows ticket status.
+stage: intake
 ---
 
 # Jira Skill

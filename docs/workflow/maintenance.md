@@ -153,6 +153,43 @@ what is genuinely read-on-demand.
   what the hook does not carry, and name the hook (the Grammar Check section
   is the pattern).
 
+## Skill composition frontmatter
+
+Each `SKILL.md` declares where it stands and what it relates to, in two
+one-line frontmatter keys:
+
+```
+stage: forge
+composes: commit:dispatch, mithrandir:companion+mend|weighed again
+```
+
+- `stage` is a lane id: `vigil`, `intake`, `plan`, `forge`, `weigh`, `merge`,
+  `watch`, or `desk`. Every skill has one.
+- `composes` lists the skills this one relates to, in order. An entry is
+  `<skill>:<kind>`, then an optional `+mend` (the one red review cycle) and an
+  optional `|<label>` (no commas — the line is parsed per comma).
+  - `dispatch` — this skill calls the other.
+  - `companion` — this skill names the other without calling it.
+- The skill's own body must name every skill it declares, as `/name` or in bold
+  as `**Name**`. A declared edge the prose never mentions is drift, and the lint
+  refuses it.
+- The `+mend` edges, taken together, must form one closed ring (today
+  `mithrandir → moria → durin → narvi → mithrandir`); the lint refuses a lone or
+  split set.
+- A skill's key is its directory name, not its frontmatter `name:` — `reset`
+  carries `name: git-reset`.
+
+Three things read these keys, and nothing else keeps an edge list:
+
+- `hooks/skill_edges.py` — the reader and the lint. Run it with no arguments to
+  check the tree; it prints one sentence per problem and exits 1 on any.
+- `hooks/fellowship_graph.py` — writes the Mermaid graph and the standalone-skill
+  lists into `handbook/skill-fellowship.html`. After changing any `stage` or
+  `composes`, run it, then commit the regenerated page; `--check` exits 1 when
+  the page is out of step, and `hooks/test_fellowship_graph.py` fails on the same.
+- `hooks/skills-cheatsheet-render.py` — the Composes and Used by rows on each
+  cheatsheet card, rebuilt on every `/board refresh`.
+
 ## Known degradation modes — and their preventions
 
 1. **Rule accretion.** Every incident adds a rule; the always-loaded weight

@@ -4,6 +4,8 @@ description: Summarize staged changes. Defaults to brief natural language; use `
 purpose: Summarizes staged changes.
 user_invocable: true
 args: "[--list]"
+stage: forge
+composes: stage:dispatch
 ---
 
 # Summarize Staged Changes

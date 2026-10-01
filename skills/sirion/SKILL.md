@@ -4,6 +4,8 @@ description: Use when the user runs /sirion [fix|feat] [<slug>] [--mend all|bloc
 purpose: Branches, commits, reviews, mends, pushes, and merges local work into the default branch in one call.
 args: "[fix|feat] [<slug>] [--mend all|blockers|none] [--no-review] [--target <branch>] [--no-merge] [--full] [--auto]"
 user_invocable: true
+stage: merge
+composes: commit:dispatch, mithrandir:dispatch, celebrant:dispatch
 ---
 
 # Sirion — The River to the Sea

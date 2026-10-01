@@ -3,6 +3,7 @@ name: commit
 description: Use when the user asks to commit changes to git. Generates a commit message from the diff and commits directly by default — no approval prompt. Pass `--confirm` to ask for approval first. Pass `--push` to also push to the default remote after the commit lands.
 purpose: Generates a commit message from the diff and commits, optionally pushing, without asking unless told to.
 args: "[--push] [--confirm]"
+stage: forge
 ---
 
 # Git Commit with Generated Message

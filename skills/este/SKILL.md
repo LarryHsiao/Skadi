@@ -3,6 +3,8 @@ name: este
 description: Use when the user runs /este. Computes the adherence pulse — a marker-based, per-item scorecard (with confidence tiers) of how faithfully the skadi config's rules and skills are followed across all config roots — appends the run to history, renders a Henneth dashboard, and prints its URL. Read-only over transcripts; never writes to a tracker or repo. Runs on demand; wrap in /loop or cron for a standing cadence.
 purpose: Computes an adherence pulse scoring how faithfully the skadi config's rules and skills are kept.
 user_invocable: true
+stage: watch
+composes: henneth:dispatch
 ---
 
 # Estë — The Adherence Pulse

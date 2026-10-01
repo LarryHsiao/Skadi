@@ -4,6 +4,7 @@ description: Use when the user runs /pengolodh, /pengolodh verify, /pengolodh st
 purpose: Prints, verifies, or prunes this repo's Pengolodh mechanism cache by hand.
 user_invocable: true
 args: "[verify|status|gc]"
+stage: desk
 ---
 
 # Pengolodh — the Mechanism Cache, by Hand

@@ -30,6 +30,8 @@ _spec.loader.exec_module(cheatsheet)
 
 SKILLS_DIR = HERE.parent / "skills"
 
+from skill_edges import Edge, Skill  # noqa: E402
+
 
 def first_tag_attributes(markup):
     """The attribute names a browser reads off the first tag, in order.
@@ -199,7 +201,7 @@ class EscapingTest(unittest.TestCase):
 
     def test_a_quote_in_a_description_cannot_close_the_attribute(self):
         """Unescaped, the quote ended data-hay and the rest became bogus attributes."""
-        expected = ["class", "data-hay", "role", "tabindex", "aria-expanded"]
+        expected = ["class", "id", "data-hay", "role", "tabindex", "aria-expanded"]
         card = cheatsheet.card_html(
             "quoted", 'Use when the user runs /quoted. Say "go" to proceed.', None, ["/quoted"]
         )
@@ -211,6 +213,61 @@ class EscapingTest(unittest.TestCase):
             "quoted", 'Use when the user runs /quoted. Say "go" to proceed.', None, ["/quoted"]
         )
         self.assertIn(expected, card)
+
+
+def sk(name, stage, *edges):
+    return Skill(name, stage, tuple(edges), "")
+
+
+class RelationTest(unittest.TestCase):
+    """The Composes / Used by rows an opened card carries."""
+
+    SKILLS = {
+        "sirion": sk("sirion", "merge", Edge("commit", "dispatch"), Edge("mithrandir", "companion", mend=True, label="a <b> label")),
+        "commit": sk("commit", "forge"),
+        "mithrandir": sk("mithrandir", "weigh"),
+        "lone": sk("lone", "desk"),
+        "undeclared": sk("undeclared", None),
+    }
+
+    def setUp(self):
+        self.relations = cheatsheet.relations(self.SKILLS)
+
+    def card(self, name):
+        return cheatsheet.card_html(name, "d", None, [], self.relations.get(name))
+
+    def test_used_by_lists_every_caller_sorted(self):
+        expected = ["sirion"]
+        self.assertEqual(expected, self.relations["commit"].used_by)
+
+    def test_a_skill_with_no_stage_gets_no_relation(self):
+        self.assertNotIn("undeclared", self.relations)
+
+    def test_composes_keeps_the_declared_order_and_links_each_target(self):
+        card = self.card("sirion")
+        first, second = card.index('href="#skill-commit"'), card.index('href="#skill-mithrandir"')
+        self.assertLess(first, second)
+
+    def test_edge_kind_mend_flag_and_label_are_shown_and_escaped(self):
+        card = self.card("sirion")
+        for fragment in ('class="kind">dispatch<', 'class="kind">companion<', 'class="kind mend">mend<', "a &lt;b&gt; label"):
+            self.assertIn(fragment, card)
+
+    def test_used_by_label_carries_the_count(self):
+        self.assertIn('Used by <span class="kind">1</span>', self.card("commit"))
+
+    def test_a_skill_that_stands_alone_says_so_in_both_rows(self):
+        card = self.card("lone")
+        self.assertIn("Stands alone — calls no other skill.", card)
+        self.assertIn("Called by no other skill.", card)
+
+    def test_a_card_without_relation_data_carries_neither_row(self):
+        card = self.card("undeclared")
+        self.assertNotIn("Composes", card)
+        self.assertNotIn("Used by", card)
+
+    def test_every_card_is_an_anchor_for_the_chips_that_point_at_it(self):
+        self.assertIn('id="skill-commit"', self.card("commit"))
 
 
 class CorpusTest(unittest.TestCase):

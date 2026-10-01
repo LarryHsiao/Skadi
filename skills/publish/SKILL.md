@@ -4,6 +4,7 @@ description: Build Flutter release archives for selected platforms and collect i
 purpose: Builds Flutter release archives for selected platforms.
 user_invocable: true
 args: "[platform...]"
+stage: merge
 ---
 
 # Build Flutter Release Archives

@@ -13,7 +13,11 @@ that reading must survive.
 """
 import re
 import sys
+from collections import namedtuple
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import skill_edges  # noqa: E402 — needs the hooks directory on the path first
 
 FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 
@@ -285,7 +289,53 @@ def params_html(forms):
     return '<div class="prec">%s</div>' % esc("\n".join(forms))
 
 
-def card_html(name, description, purpose, forms):
+Relation = namedtuple("Relation", "composes used_by")
+
+STANDS_ALONE = "Stands alone — calls no other skill."
+CALLED_BY_NONE = "Called by no other skill."
+
+
+def relations(skills):
+    """{name: Relation} for every skill that declares a stage.
+
+    `skills` is what `skill_edges.load` returns. A skill with no stage has not
+    declared its place, so it gets no entry and its card shows neither row.
+    """
+    callers = {}
+    for skill in skills.values():
+        for edge in skill.composes:
+            callers.setdefault(edge.target, []).append(skill.name)
+    return {
+        name: Relation(list(skill.composes), sorted(callers.get(name, [])))
+        for name, skill in skills.items()
+        if skill.stage
+    }
+
+
+def _chip(name):
+    return '<a class="sk" href="#skill-%s">/%s</a>' % (esc(name), esc(name))
+
+
+def _edge_item(position, edge):
+    mend = '<span class="kind mend">mend</span>' if edge.mend else ""
+    label = '<span class="why">%s</span>' % esc(edge.label) if edge.label else ""
+    return (
+        '<li><span class="ord">%d</span>%s<span class="kind">%s</span>%s%s</li>'
+        % (position, _chip(edge.target), esc(edge.kind), mend, label)
+    )
+
+
+def relation_html(relation):
+    """The Composes and Used by rows — real edges, or an admission there are none."""
+    items = "".join(_edge_item(i, e) for i, e in enumerate(relation.composes, 1))
+    composes = '<ul class="edges">%s</ul>' % items if items else '<p class="ghost">%s</p>' % STANDS_ALONE
+    chips = "".join(_chip(n) for n in relation.used_by)
+    used = '<div class="chips">%s</div>' % chips if chips else '<p class="ghost">%s</p>' % CALLED_BY_NONE
+    count = ' <span class="kind">%d</span>' % len(relation.used_by) if chips else ""
+    return '<div class="lbl">Composes</div>%s<div class="lbl">Used by%s</div>%s' % (composes, count, used)
+
+
+def card_html(name, description, purpose, forms, relation=None):
     """One card: the collapsed line, and the body a click reveals.
 
     The body ships in the HTML rather than being fetched — the page is
@@ -294,19 +344,19 @@ def card_html(name, description, purpose, forms):
     display = purpose if purpose else description
     hay = " ".join(filter(None, [name, description, purpose])).lower()
     return (
-        '<div class="card" data-hay="%s" role="button" tabindex="0" aria-expanded="false">'
+        '<div class="card" id="skill-%s" data-hay="%s" role="button" tabindex="0" aria-expanded="false">'
         '<span class="chev">&rsaquo;</span>'
         '<div class="nm">/%s</div><div class="ds">%s</div>'
         '<div class="body" hidden>'
-        '<div class="lbl">Parameters</div>%s'
+        '<div class="lbl">Parameters</div>%s%s'
         '<div class="lbl">What it does</div><p class="full">%s</p>%s'
         "</div></div>"
-        % (esc(hay), esc(name), esc(short_desc(display)), params_html(forms),
-           esc(description), diagram_html(name))
+        % (esc(name), esc(hay), esc(name), esc(short_desc(display)), params_html(forms),
+           relation_html(relation) if relation else "", esc(description), diagram_html(name))
     )
 
 
-def groups_html(skills):
+def groups_html(skills, relation_map=None):
     buckets = {}
     for skill in skills:
         buckets.setdefault(group_of(skill[0]), []).append(skill)
@@ -315,7 +365,9 @@ def groups_html(skills):
         members = buckets.get(group)
         if not members:
             continue
-        cards = "\n".join(card_html(*member) for member in members)
+        cards = "\n".join(
+            card_html(*member, (relation_map or {}).get(member[0])) for member in members
+        )
         sections.append(
             '<div class="group" data-group="%s">'
             '<h2 class="grp-hd">%s <span class="grp-count">%d</span></h2>'
@@ -325,7 +377,7 @@ def groups_html(skills):
     return "\n".join(sections)
 
 
-def render(skills):
+def render(skills, relation_map=None):
     count = len(skills)
     return """<meta charset="utf-8">
 <link rel="stylesheet" href="skadi-theme.css">
@@ -371,6 +423,14 @@ def render(skills):
   .ghost { color: #9b8b70; font-style: italic; font-size: 0.85rem; margin: 0; }
   .diagram { font-size: 0.82rem; margin: 0.7rem 0 0; }
   .empty { color: var(--accent); font-style: italic; padding: 2rem; text-align: center; }
+  .edges { list-style: none; margin: 0 0 0.7rem; padding: 0; font-size: 0.82rem; }
+  .edges li { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: baseline; padding: 0.12rem 0; }
+  .ord { color: var(--accent); font: 0.72rem ui-monospace, Menlo, monospace; min-width: 1.1rem; }
+  a.sk { font: 0.82rem ui-monospace, Menlo, monospace; color: var(--blue); text-decoration: none; border-bottom: 1px dotted var(--blue); }
+  .kind { font: 0.66rem ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-radius: 10px; padding: 0 0.4rem; background: var(--raise); color: var(--accent); }
+  .kind.mend { color: var(--red); border-color: var(--red); }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.3rem 0.5rem; margin: 0 0 0.7rem; }
+  .why { font-size: 0.78rem; color: #6b5c45; }
 </style>
 <h1>Skadi Skills Cheatsheet</h1>
 <p class="sub">%(count)d skill%(plural)s, grouped by purpose — the custom skills authored in this repo.</p>
@@ -408,6 +468,25 @@ def render(skills):
     });
   }
 
+  // A chip opens the card it names: clear the search so the target is on the
+  // page, close the rest, and bring the target to the middle of the screen.
+  function goTo(id) {
+    const target = document.getElementById(id);
+    if (!target) return;
+    q.value = "";
+    filter();
+    for (const c of cards) setOpen(c, false);
+    setOpen(target, true);
+    target.scrollIntoView({ block: "center" });
+  }
+  for (const a of document.querySelectorAll("a.sk")) {
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();   // else the card around the chip would toggle shut
+      goTo(a.getAttribute("href").slice(1));
+    });
+  }
+
   function filter() {
     const term = q.value.trim().toLowerCase();
     let shown = 0;
@@ -432,7 +511,7 @@ def render(skills):
         "favicon": FAVICON_EMOJI,
         "count": count,
         "plural": "" if count == 1 else "s",
-        "groups": groups_html(skills),
+        "groups": groups_html(skills, relation_map),
     }
 
 
@@ -443,7 +522,7 @@ def main(argv):
     skills_dir, dest = argv[1], Path(argv[2])
     skills = collect(skills_dir)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(render(skills), encoding="utf-8")
+    dest.write_text(render(skills, relations(skill_edges.load(skills_dir))), encoding="utf-8")
     print("rendered %d skill(s) -> %s" % (len(skills), dest))
     return 0
 

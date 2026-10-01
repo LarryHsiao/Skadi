@@ -3,6 +3,7 @@ name: narya
 description: Use when the user runs /narya [start|reload|restart|status|stop|log], or asks in plain words to "hot reload", "reload the app", "push that change to the simulator", "restart the running app". Keeps a Flutter app alive on a booted emulator/simulator through a long-lived `flutter run --machine` daemon, so a source edit reaches the running app in about a second instead of a 60-90s rebuild — and without losing the screen you navigated to. Any caller may poke it: you in chat, /feanor between mends, /manwe before a shot. It never boots a device and never drives a tap; navigation stays yours.
 purpose: Hot-reloads a running Flutter app on demand through a standing daemon.
 user_invocable: true
+stage: forge
 ---
 
 # Narya — the Kindler

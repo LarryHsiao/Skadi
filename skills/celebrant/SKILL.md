@@ -3,6 +3,8 @@ name: celebrant
 description: Use when the user runs /celebrant [target] [--full] [--auto]. Merges the current feature branch into the repo's default branch with a --no-ff merge commit, pushes, then deletes the now-merged branch local and remote. Runs a pre-merge /argonath gate (--quick by default, full under --full); a Hold warns but does not hard-stop. Refuses a dirty tree or being already on the target. One confirm before anything destructive — --auto skips it for unattended callers, and then a Hold stops the merge instead.
 purpose: Merges the current feature branch into the default branch and deletes it, local and remote.
 user_invocable: true
+stage: merge
+composes: argonath:dispatch, branch:dispatch, commit:dispatch
 ---
 
 # Celebrant — The Confluence

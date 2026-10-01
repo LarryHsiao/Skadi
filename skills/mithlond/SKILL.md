@@ -3,6 +3,8 @@ name: mithlond
 description: Use when the user runs /mithlond [note...], /mithlond status, /mithlond heed, or /mithlond depart — or says in plain words "wrap it up everywhere", "tell every session to finish", "call it a day across the board". The Grey Havens — one call asks every live Claude Code session on this machine to wrap up. A session that hears it weighs its own unfinished work: nothing pending, it replies `sailed` and ends its own process; something pending, it leaves a baton on its repo's handoff channel, replies `held: <reason>`, and stays. `status` renders who sailed and who held. Each session only ever ends itself — there is no `pkill`, no cascade.
 purpose: Ask every live session to wrap up, and let each decide whether it can.
 user_invocable: true
+stage: desk
+composes: handoff:dispatch
 ---
 
 # Mithlond

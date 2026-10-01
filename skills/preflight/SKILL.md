@@ -3,6 +3,8 @@ name: preflight
 description: Run periodic maintenance checks. Use /preflight to see the checklist — rows highlighted if overdue (e.g. /cleanup-dev > 30 days), then offer to run them.
 purpose: Shows periodic maintenance checks, flagging any overdue.
 user_invocable: true
+stage: desk
+composes: cleanup-dev:dispatch, daily:dispatch, triage:dispatch, nazgul:dispatch, palantir:dispatch
 ---
 
 # Preflight

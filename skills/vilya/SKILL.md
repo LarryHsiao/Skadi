@@ -3,6 +3,7 @@ name: vilya
 description: Use when the user runs /vilya [start|ready|status|stop|log], or asks in plain words to "start the dev server", "serve the blog", "is the preview up yet", "wait for the rebuild", "stop that server". Holds a protocol-less local server — a Vite or webpack dev server, a Zola or Hugo preview, an API mock — alive across turns and sessions, registers its address as a clickable row on the statusline, and answers `ready` from the server's own log so a caller can act on a signal rather than sleep and hope. Any caller may use it — you in chat, /feanor between mends, /manwe before a shot. It boots no browser and navigates nothing.
 purpose: Keeps a local web server standing and says when it is serving.
 user_invocable: true
+stage: forge
 ---
 
 # Vilya — the Ring of Water

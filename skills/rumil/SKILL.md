@@ -3,6 +3,8 @@ name: rumil
 description: Use when the user runs /rumil <spec> [--folder=<path>], or asks in plain words to "break this spec into tasks", "turn this PM/design spec into something we can build". Translates a product specification — the plan-shaped document a PM or designer writes, which reads like a plan but cannot be coded from — into an engineering plan under docs/plans/. Takes a text spec and its UI mockups together: the text carries the rules, the mockups the flow. A text spec may be an Outline wiki page read via seshat; a UI spec may be a figma.com/design URL, preferred over screenshots for being structured data. Wires the two to each other — every screen bound to the rule that governs it — and raises what falls out (orphan screen, orphan rule, text-versus-mock contradiction) as numbered questions, never settling a contradiction quietly. Binds every product noun to a real file:line, refuses to carry the spec's milestones across as steps, turns product acceptance nothing can fail ("feels instant") into a question rather than an invented threshold, and walks the states left undrawn (empty, loading, error, offline, permission, overflow, interruption). Puts every question to the user in session via AskUserQuestion — answered or deferred — before the plan is written. Sifts every step against four signals (one seam, one check, one revert, no conjunction), splitting until nothing above minimum remains. Writes plans only — never code, never commits, never a PR.
 purpose: Translates a product spec and its UI mockups into an engineering plan.
 user_invocable: true
+stage: plan
+composes: galadriel:dispatch
 ---
 
 # Rúmil
