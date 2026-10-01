@@ -70,10 +70,10 @@ If `test_scope` is `changed`, the project's test command runs as configured — 
 
 ### 4. Secret scan
 
-Diff mode:
+Diff mode — resolve the target here, by step 5's order: run that `rev-parse` chain and pass the **name** that resolved (`master`, `main`, or `origin/HEAD`), not the SHA it prints. If none resolves, call the hook with no argument:
 
 ```bash
-~/.claude/hooks/argonath-secrets.sh
+~/.claude/hooks/argonath-secrets.sh <target>
 ```
 
 Project mode:
@@ -82,7 +82,7 @@ Project mode:
 ~/.claude/hooks/argonath-secrets.sh --project
 ```
 
-Returns JSON `{ok, count, hits, note}`. In diff mode the scanned range is `@{upstream}..HEAD` (or `HEAD` if no upstream); in project mode every tracked file is scanned, untracked / `.gitignore`d paths excluded.
+Returns JSON `{ok, count, hits, note}`. In diff mode the scanned range is everything the branch brings to its target — `<merge-base>..HEAD` — whether pushed or not. Standing on the target itself, or with no target resolved, it falls back to `@{upstream}..HEAD`, and with no upstream either, to everything `HEAD` carries; the `note` names the range read. A branch with no commits beyond its target and no upstream thus scans the whole tree, so an old committed secret can raise a Hold there; in project mode every tracked file is scanned, untracked / `.gitignore`d paths excluded.
 
 ### 5. Merge check (diff mode only)
 
