@@ -62,6 +62,8 @@ Skip when the tree is clean. Otherwise invoke `/commit` via the Skill tool (no `
 
 Invoke `/mithrandir branch` via the Skill tool. Hold its verdict (Merge / Hold / Refuse, with tier) and its `## To pass` rows by severity group. No `## To pass` section means no rows — skip step 5.
 
+`/mithrandir branch` resolves its own base (`master`, then `main`, then `origin/HEAD`) and ignores `base_branch.md`. When that base differs from `<target>`, say so in one line, and carry both into step 7.
+
 ### 5. Mend
 
 | `--mend` | Rows fixed |
@@ -85,7 +87,7 @@ Invoke `/celebrant <target>` via the Skill tool, adding `--full` when it was giv
 ```
 Branch : <branch>  (<cut | reused>)
 Commits: <n> ahead of <target>
-Review : <Merge | Hold | Refuse> (<tier>)
+Review : <Merge | Hold | Refuse> (<tier>)  — against <mithrandir-base> when it differs from <target>
 Mend   : <all|blockers|none> — fixed <n>, left open <n> (<Blockers open: n>)
 ```
 
