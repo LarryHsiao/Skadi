@@ -26,8 +26,10 @@
 #   - PEM private keys                                       -----BEGIN … PRIVATE KEY-----
 #   - K/V assignments with a non-trivial value               (API_KEY|TOKEN|…)=value
 #
-# Exit 0 always — caller reads `ok`. Non-fatal errors leave `ok=true,count=0`
-# with an explanatory note.
+# Exit 0 when a scan ran — the caller reads `ok`. Exit 1 with `ok=false,count=0`
+# when nothing could be scanned (root unenterable, `git diff` failed); the note
+# says which. A repo with no commits, or a cwd outside any repo, exits 0 with
+# a note saying so.
 set -u
 
 mode="diff"
@@ -84,9 +86,22 @@ if [ "$mode" = "project" ]; then
     | xargs -0 grep -IEHni "$re" 2>/dev/null \
     || true)"
 else
+  # An unborn HEAD has no history to leak — say so, rather than let the diff
+  # error below fall through to the same "clean" a real scan would earn.
+  if ! git rev-parse --verify --quiet HEAD >/dev/null; then
+    jq -nc '{ok:true,count:0,hits:[],note:"no commits yet — nothing to scan"}'
+    exit 0
+  fi
   range="$(scan_range "${1:-}")"
   scope_note="diff range: $range"
-  hits="$(git diff -U0 "$range" 2>/dev/null \
+  # The diff is read whole before the grep, so its own failure is seen: an
+  # unreadable range and a clean one are different findings (see the root guard).
+  if ! diff_text="$(git diff -U0 "$range" 2>/dev/null)"; then
+    jq -nc --arg note "git diff failed on $range — nothing scanned" \
+      '{ok:false,count:0,hits:[],note:$note}'
+    exit 1
+  fi
+  hits="$(printf '%s\n' "$diff_text" \
     | grep -E '^\+[^+]' \
     | grep -E -i "$re" \
     || true)"
