@@ -80,6 +80,7 @@ SKILL_GROUPS = {
     "summary": "Git & Repo",
     "git-reset": "Git & Repo",
     "celebrant": "Git & Repo",
+    "sirion": "Git & Repo",
     "publish": "Release",
     "publish-macos": "Release",
     "cleanup-dev": "Maintenance & Utility",

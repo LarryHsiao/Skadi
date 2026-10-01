@@ -305,6 +305,7 @@ graph LR
 
     subgraph MERGE["V. MERGE &amp; SHIP · 合流"]
       direction TB
+      SIRION["/sirion"]
       CELEBRANT["/celebrant"]
       PUBLISH["/publish"]
       PUBMAC["/publish-macos"]
@@ -361,6 +362,9 @@ graph LR
     CELEBRANT --> ARGONATH
     CELEBRANT --> BRANCH
     CELEBRANT --> COMMIT
+    SIRION --> COMMIT
+    SIRION --> MITH
+    SIRION --> CELEBRANT
     PUBMAC --> COMMIT
     PUBMAC --> PUBLISH
     MINUIAL --> HENNETH
@@ -485,7 +489,8 @@ graph LR
             <td class="stage">8. Done</td>
             <td>
               <span class="name">/commit</span>,
-              <span class="name">/celebrant</span> to merge,
+              <span class="name">/celebrant</span> to merge (or
+              <span class="name">/sirion</span> for branch → review → merge in one call),
               <span class="name">/handoff</span> for the worklog entry
             </td>
           </tr>
@@ -590,7 +595,8 @@ graph LR
             <td class="stage">8. Done</td>
             <td>
               <span class="name">/commit</span>、合併用
-              <span class="name">/celebrant</span>、worklog 用
+              <span class="name">/celebrant</span>（或以
+              <span class="name">/sirion</span> 一次走完開分支→審查→合併）、worklog 用
               <span class="name">/handoff</span>
             </td>
           </tr>
