@@ -1,6 +1,6 @@
 ---
 name: celebrant
-description: Use when the user runs /celebrant [target] [--full]. Merges the current feature branch into the repo's default branch with a --no-ff merge commit, pushes, then deletes the now-merged branch local and remote. Runs a pre-merge /argonath gate (--quick by default, full under --full); a Hold warns but does not hard-stop. Refuses a dirty tree or being already on the target. One confirm before anything destructive.
+description: Use when the user runs /celebrant [target] [--full] [--auto]. Merges the current feature branch into the repo's default branch with a --no-ff merge commit, pushes, then deletes the now-merged branch local and remote. Runs a pre-merge /argonath gate (--quick by default, full under --full); a Hold warns but does not hard-stop. Refuses a dirty tree or being already on the target. One confirm before anything destructive — --auto skips it for unattended callers, and then a Hold stops the merge instead.
 purpose: Merges the current feature branch into the default branch and deletes it, local and remote.
 user_invocable: true
 ---
@@ -11,19 +11,20 @@ The Celebrant, the Silverlode, runs down from the Misty Mountains through Lothl�
 
 ## Ethos
 
-- **Confirm before the confluence.** The merge, the push, and the branch delete are destructive. One gate stands before them; the slash invocation alone is not authority for the irreversible.
+- **Confirm before the confluence.** The merge, the push, and the branch delete are destructive. One gate stands before them; the slash invocation alone is not authority for the irreversible. `--auto` is that authority given up front — and with no one to weigh a warning, a Hold becomes a stop.
 - **The default branch is not assumed.** Not every repo flows to `master`. The target is resolved per-repo, the same way `/celebrimbor` resolves its base.
 - **Safe-delete, never force.** The branch is removed with `git branch -d` (lowercase) — since it was just merged, `-d` succeeds; if anything is off, it stops loud rather than force-deleting work.
 - **A clean tree only.** A half-committed state must not ride into the default branch. A dirty working tree is refused before any change.
 
 ## Argument parsing
 
-`/celebrant [target] [--full]`
+`/celebrant [target] [--full] [--auto]`
 
 | Argument | Required | Meaning |
 |---|---|---|
 | `target` | no | The branch to merge into. If omitted, resolved per the order below. |
 | `--full` | no | Run the full `/argonath` gate (with the `/nazgul` + `/mithrandir` advisory rows). Default is `/argonath --quick` — artefact commands and the secret scan only. |
+| `--auto` | no | Skip the step-4 confirm. An Argonath **Hold** then stops the run before any change, instead of warning. |
 
 ## Target resolution
 
@@ -65,7 +66,10 @@ Hold the repo root and the current (feature) branch. Resolve `target` per the or
 
 Invoke `/argonath` via the Skill tool — `/argonath --quick` by default, or `/argonath` (full) when `--full` was given. Capture its **Pass / Hold** verdict.
 
-A **Hold** does not stop the flow here. Carry it into the confirm step as a warning; the user keeps the final say.
+Unless `--auto` (below), a **Hold** does not stop the flow here. Carry it into the confirm step as a warning; the user keeps the final say.
+
+Under `--auto` there is no confirm to carry it to, so a **Hold** stops the run:
+> Argonath holds — `--auto` will not merge past it. `<feature>` is left as it stands.
 
 ### 4. Confirm once
 
@@ -78,6 +82,8 @@ Gate   : <Pass | Hold — with one-line reason>
 ```
 
 Proceed only on the user's word. If they decline, stop — nothing has changed.
+
+Under `--auto`, skip this step: print the same block as plain text, then go straight to step 5.
 
 ### 5. Run the flow
 
@@ -113,12 +119,15 @@ Merged : <feature> → <target>
 Commit : <merge-commit subject>
 Cleared: local ✓  remote <✓ | — absent>
 Gate   : <Pass | Hold>
+Confirm: <given | skipped — --auto>
 ```
+
+A run stopped under `--auto` by a Hold renders no report — the stop message from step 3 stands in its place.
 
 ## Rules
 
 - Never `git branch -D` (force) — only `-d`. If `-d` refuses, surface why and stop; do not escalate to force.
 - Never merge a dirty tree, and never merge while standing on the target.
-- One confirm gate covers the whole destructive sequence; do not prompt per git command.
+- One confirm gate covers the whole destructive sequence; do not prompt per git command. `--auto` removes that gate and nothing else — the dirty-tree, on-target, conflict, and `-d` rules all still stop the run, and a Hold stops it too.
 - On any conflict, stop with the tree as git left it — no push, no delete.
 - This skill operates on local + remote branches, not on the forge — it opens and closes no PR/MR.
