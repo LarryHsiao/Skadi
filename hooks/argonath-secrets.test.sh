@@ -60,6 +60,78 @@ expected_keys="count,hits,note,ok"
 actual_keys=$(printf '%s' "$out" | python3 -c 'import json,sys; print(",".join(sorted(json.load(sys.stdin))))' 2>/dev/null)
 check "a real repo emits the documented keys" "$expected_keys" "$actual_keys"
 
+# ── the range: a merge gate must read everything the branch brings, pushed or
+# not. Each case builds a throwaway repo with a bare origin ──
+export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+# Split so this file never matches its own pattern.
+SECRET="AKIA""ABCDEFGHIJKLMNOP"
+
+# fixture <name> — a repo at $WORK/<name>/work with master pushed to origin.
+fixture() {
+  local root="$WORK/$1"
+  git init -q --bare "$root/origin.git"
+  git init -q -b master "$root/work"
+  git -C "$root/work" remote add origin "$root/origin.git"
+  echo base > "$root/work/a.txt"
+  git -C "$root/work" add a.txt && git -C "$root/work" commit -qm base
+  git -C "$root/work" push -q -u origin master 2>/dev/null
+  echo "$root/work"
+}
+
+# commit_file <repo> <file> <content>
+commit_file() {
+  printf '%s\n' "$3" > "$1/$2"
+  git -C "$1" add "$2" && git -C "$1" commit -qm "add $2"
+}
+
+repo=$(fixture pushed)
+git -C "$repo" switch -q -c feat/x
+commit_file "$repo" key.txt "aws=$SECRET"
+git -C "$repo" push -q -u origin HEAD 2>/dev/null
+out=$(cd "$repo" && "$HOOK" master 2>/dev/null)
+expected_ok="False"
+check "a pushed branch's own secret is caught against the target" "$expected_ok" "$(field "$out" ok)"
+
+repo=$(fixture unpushed)
+git -C "$repo" switch -q -c feat/y
+git -C "$repo" branch -q --unset-upstream 2>/dev/null
+commit_file "$repo" key.txt "aws=$SECRET"
+out=$(cd "$repo" && "$HOOK" 2>/dev/null)
+expected_ok="False"
+check "a committed secret with no upstream and no target is caught" "$expected_ok" "$(field "$out" ok)"
+
+repo=$(fixture clean)
+git -C "$repo" switch -q -c feat/z
+commit_file "$repo" b.txt "nothing here"
+git -C "$repo" push -q -u origin HEAD 2>/dev/null
+base=$(git -C "$repo" merge-base master HEAD)
+out=$(cd "$repo" && "$HOOK" master 2>/dev/null)
+expected_ok="True"
+check "a clean pushed branch passes against the target" "$expected_ok" "$(field "$out" ok)"
+expected_note="diff range: ${base}..HEAD"
+check "the note names the merge-base range" "$expected_note" "$(field "$out" note)"
+
+repo=$(fixture onmaster)
+commit_file "$repo" key.txt "aws=$SECRET"
+out=$(cd "$repo" && "$HOOK" master 2>/dev/null)
+expected_ok="False"
+check "on the target itself, an unpushed secret is caught via upstream" "$expected_ok" "$(field "$out" ok)"
+expected_note="diff range: origin/master..HEAD"
+check "on the target itself, the upstream range is used" "$expected_note" "$(field "$out" note)"
+
+out=$(cd "$repo" && "$HOOK" no-such-branch 2>/dev/null); st=$?
+expected_status="0"
+check "a missing target does not error" "$expected_status" "$st"
+expected_note="diff range: origin/master..HEAD"
+check "a missing target falls back to the upstream range" "$expected_note" "$(field "$out" note)"
+
+repo=$(fixture unrelated)
+git -C "$repo" switch -q --orphan stray
+commit_file "$repo" key.txt "aws=$SECRET"
+out=$(cd "$repo" && "$HOOK" master 2>/dev/null)
+expected_ok="False"
+check "a target sharing no history falls back to the whole tree" "$expected_ok" "$(field "$out" ok)"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

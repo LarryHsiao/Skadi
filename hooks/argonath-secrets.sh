@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # argonath-secrets.sh — scan for secrets in either the unpushed diff or the project tree.
 #
-# Default (no flag): reads `git diff @{upstream}..HEAD` (the range about to be
-# pushed). If no upstream is set, falls back to `HEAD` so a fresh branch is
-# still scanned. Inspects only added lines (those starting with `+`, ignoring
-# `+++` headers).
+# Default (no flag): `argonath-secrets.sh [<target>]` scans the added lines
+# (those starting with `+`, ignoring `+++` headers) of the first range that
+# applies:
+#   1. `<merge-base target HEAD>..HEAD` — everything the branch brings to its
+#      merge target, whether pushed or not. Used when <target> resolves and
+#      HEAD has moved past it.
+#   2. `@{upstream}..HEAD` — the range about to be pushed. Covers standing on
+#      the target itself, and a missing or unresolvable <target>.
+#   3. `<empty tree>..HEAD` — no baseline at all, so everything HEAD carries.
+#      Wide, but never blind: an empty range would answer "clean" unread.
 #
 # `--project`: scans every tracked file in the repo for the same patterns.
 # Untracked / `.gitignore`d paths stay out. Binary files are skipped.
@@ -44,6 +50,27 @@ if ! cd "$REPO_ROOT"; then
   exit 1
 fi
 
+# The empty tree's id — a baseline that holds nothing, so diffing HEAD against
+# it yields every line HEAD carries.
+EMPTY_TREE="$(git hash-object -t tree /dev/null)"
+
+# scan_range [<target>] — print the range to scan; see the header for the order.
+scan_range() {
+  local target="$1" base upstream
+  if [ -n "$target" ] && git rev-parse --verify --quiet "$target" >/dev/null; then
+    base="$(git merge-base "$target" HEAD 2>/dev/null || true)"
+    if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD)" ]; then
+      echo "${base}..HEAD"
+      return
+    fi
+  fi
+  if upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)"; then
+    echo "${upstream}..HEAD"
+    return
+  fi
+  echo "${EMPTY_TREE}..HEAD"
+}
+
 re='AKIA[0-9A-Z]{16}'
 re+='|gh[pousr]_[A-Za-z0-9]{36,}'
 re+='|xox[abprs]-[A-Za-z0-9-]+'
@@ -57,11 +84,7 @@ if [ "$mode" = "project" ]; then
     | xargs -0 grep -IEHni "$re" 2>/dev/null \
     || true)"
 else
-  if upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)"; then
-    range="${upstream}..HEAD"
-  else
-    range="HEAD"
-  fi
+  range="$(scan_range "${1:-}")"
   scope_note="diff range: $range"
   hits="$(git diff -U0 "$range" 2>/dev/null \
     | grep -E '^\+[^+]' \
