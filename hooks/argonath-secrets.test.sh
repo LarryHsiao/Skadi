@@ -132,6 +132,39 @@ out=$(cd "$repo" && "$HOOK" master 2>/dev/null)
 expected_ok="False"
 check "a target sharing no history falls back to the whole tree" "$expected_ok" "$(field "$out" ok)"
 
+# ── a diff that could not be read is not a clean diff. A `git` that passes
+# everything through but fails `diff` stands in for a corrupt object ──
+REAL_GIT="$(command -v git)"
+mkdir -p "$WORK/faildiff"
+cat > "$WORK/faildiff/git" <<STUB
+#!/bin/bash
+if [ "\${1:-}" = "diff" ]; then
+  echo "fatal: bad object" >&2
+  exit 128
+fi
+exec "$REAL_GIT" "\$@"
+STUB
+chmod +x "$WORK/faildiff/git"
+repo=$(fixture broken)
+out=$(cd "$repo" && PATH="$WORK/faildiff:$PATH" "$HOOK" master 2>/dev/null); st=$?
+expected_status="1"
+check "a failing git diff exits non-zero" "$expected_status" "$st"
+expected_ok="False"
+check "a failing git diff never reports ok" "$expected_ok" "$(field "$out" ok)"
+expected_note="git diff failed on origin/master..HEAD — nothing scanned"
+check "a failing git diff says nothing was scanned" "$expected_note" "$(field "$out" note)"
+
+# ── a repo with no commits has nothing to leak — and says so, rather than
+# passing by way of the same silence ──
+git init -q -b master "$WORK/empty"
+out=$(cd "$WORK/empty" && "$HOOK" 2>/dev/null); st=$?
+expected_status="0"
+check "a repo with no commits exits 0" "$expected_status" "$st"
+expected_ok="True"
+check "a repo with no commits reports ok" "$expected_ok" "$(field "$out" ok)"
+expected_note="no commits yet — nothing to scan"
+check "a repo with no commits says why" "$expected_note" "$(field "$out" note)"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
