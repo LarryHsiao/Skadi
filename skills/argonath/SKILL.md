@@ -84,7 +84,7 @@ Project mode:
 
 Returns JSON `{ok, count, hits, note}`. In diff mode the scanned range is everything the branch brings to its target — `<merge-base>..HEAD` — whether pushed or not. Standing on the target itself, or with no target resolved, it falls back to `@{upstream}..HEAD`, and with no upstream either, to everything `HEAD` carries; the `note` names the range read. A branch with no commits beyond its target and no upstream thus scans the whole tree, so an old committed secret can raise a Hold there; in project mode every tracked file is scanned, untracked / `.gitignore`d paths excluded.
 
-`ok: false` with `count: 0` means the scan could not run at all — a root it could not enter, or a `git diff` that failed. Render the row `🚫` with the hook's `note` as its detail, never as a clean pass and never as "0 hits".
+`ok: false` with `count: 0` means the scan could not run at all — a root it could not enter, or a `git diff` (diff mode) or `git grep` (project mode) that failed. Render the row `🚫` with the hook's `note` as its detail, never as a clean pass and never as "0 hits".
 
 ### 5. Merge check (diff mode only)
 
