@@ -27,9 +27,9 @@
 #   - K/V assignments with a non-trivial value               (API_KEY|TOKEN|…)=value
 #
 # Exit 0 when a scan ran — the caller reads `ok`. Exit 1 with `ok=false,count=0`
-# when nothing could be scanned (root unenterable, `git diff` failed); the note
-# says which. A repo with no commits, or a cwd outside any repo, exits 0 with
-# a note saying so.
+# when nothing could be scanned (root unenterable, `git diff` or `git grep`
+# failed); the note says which. A repo with no commits, or a cwd outside any
+# repo, exits 0 with a note saying so.
 set -u
 
 mode="diff"
@@ -82,9 +82,19 @@ re+='|(API_KEY|API_TOKEN|SECRET|PASSWORD|TOKEN|PRIVATE_KEY)[[:space:]]*=[[:space
 
 if [ "$mode" = "project" ]; then
   scope_note="project tree (tracked files)"
-  hits="$(git ls-files -z 2>/dev/null \
-    | xargs -0 grep -IEHni "$re" 2>/dev/null \
-    || true)"
+  # git grep, not `ls-files | xargs grep`: xargs folds grep's "no match" (1)
+  # and its error (2) into one 123, so a failed scan could not be told from a
+  # clean one. git grep keeps them apart — 0 match, 1 none, above 1 error.
+  # The -c pins and --no-color hold each hit to grep -H's `path:line:text`,
+  # whatever the user's config: no quoted non-ASCII path, no column, no ANSI.
+  # Submodules are not recursed, as ls-files never listed their files either.
+  hits="$(git -c core.quotePath=false -c grep.column=false \
+    grep --no-color -I -n -i -E -e "$re" 2>/dev/null)"
+  grep_status=$?
+  if [ "$grep_status" -gt 1 ]; then
+    jq -nc '{ok:false,count:0,hits:[],note:"git grep failed on project tree — nothing scanned"}'
+    exit 1
+  fi
 else
   # An unborn HEAD has no history to leak — say so, rather than let the diff
   # error below fall through to the same "clean" a real scan would earn.

@@ -165,6 +165,55 @@ check "a repo with no commits reports ok" "$expected_ok" "$(field "$out" ok)"
 expected_note="no commits yet — nothing to scan"
 check "a repo with no commits says why" "$expected_note" "$(field "$out" note)"
 
+# ── project mode: tracked files only, and a scan that could not run is not
+# a clean tree ──
+repo=$(fixture project)
+commit_file "$repo" key.txt "aws=$SECRET"
+printf '%s\n' "aws=$SECRET" > "$repo/untracked.txt"
+out=$(cd "$repo" && "$HOOK" --project 2>/dev/null)
+expected_ok="False"
+check "project mode catches a tracked secret" "$expected_ok" "$(field "$out" ok)"
+expected_paths="key.txt"
+actual_paths=$(printf '%s' "$out" | python3 -c 'import json,sys; print(",".join(sorted({h.split(":")[0] for h in json.load(sys.stdin)["hits"]})))' 2>/dev/null)
+check "project mode never scans an untracked file" "$expected_paths" "$actual_paths"
+
+repo=$(fixture projectclean)
+out=$(cd "$repo" && "$HOOK" --project 2>/dev/null)
+expected_ok="True"
+check "project mode passes a clean tracked tree" "$expected_ok" "$(field "$out" ok)"
+expected_note="project tree (tracked files)"
+check "project mode names its scope" "$expected_note" "$(field "$out" note)"
+
+# The hit's shape must not bend to the path's spelling or the user's git
+# config: a non-ASCII name stays unquoted, and column / colour settings add
+# nothing to `path:line:text`.
+repo=$(fixture projectshape)
+commit_file "$repo" "ünï.txt" "aws=$SECRET"
+git -C "$repo" config grep.column true
+git -C "$repo" config color.grep always
+out=$(cd "$repo" && "$HOOK" --project 2>/dev/null)
+expected_hits="ünï.txt:1:aws=$SECRET"
+actual_hits=$(printf '%s' "$out" | python3 -c 'import json,sys; print("|".join(json.load(sys.stdin)["hits"]))' 2>/dev/null)
+check "project hits keep path:line:text whatever the name or config" "$expected_hits" "$actual_hits"
+
+mkdir -p "$WORK/failgrep"
+cat > "$WORK/failgrep/git" <<STUB
+#!/bin/bash
+case " \$* " in *" grep "*)
+  echo "fatal: index file corrupt" >&2
+  exit 128 ;;
+esac
+exec "$REAL_GIT" "\$@"
+STUB
+chmod +x "$WORK/failgrep/git"
+out=$(cd "$repo" && PATH="$WORK/failgrep:$PATH" "$HOOK" --project 2>/dev/null); st=$?
+expected_status="1"
+check "a failing project scan exits non-zero" "$expected_status" "$st"
+expected_ok="False"
+check "a failing project scan never reports ok" "$expected_ok" "$(field "$out" ok)"
+expected_note="git grep failed on project tree — nothing scanned"
+check "a failing project scan says nothing was scanned" "$expected_note" "$(field "$out" note)"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
