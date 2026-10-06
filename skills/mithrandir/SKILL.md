@@ -1,6 +1,6 @@
 ---
 name: mithrandir
-description: Use when the user runs /mithrandir, /mithrandir branch, /mithrandir <url>, /mithrandir comment <url>, or /mithrandir bless <url> (alias /mithrandir recheck <url>). With no argument or the `branch` verb, weighs the current local branch against its base; with a URL, weighs a pull request or merge request. Renders a multi-axis verdict — six always-on (stability, performance, coding style, maintainability, correctness, regression risk) plus seven conditional (test coverage, security, documentation, backward compatibility, observability, dependency hygiene, accessibility & i18n) that fire only when the diff touches their domain — followed by an optional `Worth keeping` section (concrete bright spots) and an optional `To pass` action list grouped by severity (Blocker / Nice to have / Nit), closing with a tier (sound | wavering | off) and a short reasoning paragraph. A blockquote header at the top distils the bottom line — Merge / Hold / Refuse. The default and `branch` paths render to chat; the `comment` verb posts a URL-path verdict to the forge after a confirm-once gate. The `bless` verb (alias `recheck`) re-weighs an amended PR/MR, finds its prior `comment`-verb post, and threads a follow-up reply — All resolve / Partial okay if the work has earned it; counsel withheld (chat-only) if not. Branch-path bears no `comment` or `bless` — local diffs have no PR to write on. Tone defaults differ by audience — read leans Tolkien (private counsel); comment and bless lean plain (public note). The `--plain` and `--lore` flags override either default. The `--deep` flag weighs each changed file on its own via a per-file subagent fan-out — depth that catches subtle per-file flaws a holistic pass dilutes; it composes with branch and read paths and with either tone. The `--verify` flag adds an adversarial second pass before any non-sound axis tier or `To pass` row is admitted to the render — a three-lens panel per candidate finding, two lenses asking whether the flaw exists (both must refute to drop it) and one whether it is graded right (refuting lowers it a step, never drops it); it composes with all four paths, with either tone, and with `--deep`. Its default follows the audience — off on the chat-bound branch and read paths, on for the forge-writing `comment` and `bless` verbs, where `--no-verify` opts out. Host-agnostic; routes to GitHub or GitLab from the URL.
+description: Use when the user runs /mithrandir, /mithrandir branch, /mithrandir <url>, /mithrandir comment <url>, or /mithrandir bless <url> (alias /mithrandir recheck <url>). With no argument or the `branch` verb, weighs the current local branch against its base; with a URL, weighs a pull request or merge request. Renders a multi-axis verdict — six always-on (stability, performance, coding style, maintainability, correctness, regression risk) plus seven conditional (test coverage, security, documentation, backward compatibility, observability, dependency hygiene, accessibility & i18n) that fire only when the diff touches their domain — followed by an optional `Worth keeping` section (concrete bright spots) and an optional `To pass` action list grouped by severity (Blocker / Nice to have / Nit), closing with a tier (sound | wavering | off) and a short reasoning paragraph. A blockquote header at the top distils the bottom line — Merge / Hold / Refuse. The default and `branch` paths render to chat; the `comment` verb posts a URL-path verdict to the forge after a confirm-once gate. The `bless` verb (alias `recheck`) re-weighs an amended PR/MR, finds its prior `comment`-verb post, and threads a follow-up reply — All resolve / Partial okay if the work has earned it; counsel withheld (chat-only) if not. Branch-path bears no `comment` or `bless` — local diffs have no PR to write on. Tone defaults differ by audience — read leans Tolkien (private counsel); comment and bless lean plain (public note). The `--plain` and `--lore` flags override either default. The `--deep` flag weighs each changed file on its own via a per-file subagent fan-out — depth that catches subtle per-file flaws a holistic pass dilutes; it composes with branch and read paths and with either tone. The `--verify` flag adds an adversarial second pass before any non-sound axis tier or `To pass` row is admitted to the render — a three-lens panel per candidate finding, two lenses asking whether the flaw exists (both must refute to drop it) and one whether it is graded right (refuting lowers it a step, never drops it); it composes with all four paths, with either tone, and with `--deep`. Its default follows the audience — off on the chat-bound branch and read paths, on for the forge-writing `comment` and `bless` verbs, where `--no-verify` opts out. The `--fix` flag mends the branch's `Nit` rows in the working tree after the render — branch-path only, implies `--verify`, never commits; Blocker and Nice-to-have rows are left for the author. Host-agnostic; routes to GitHub or GitLab from the URL.
 purpose: Renders a multi-axis code-quality verdict for a branch or PR/MR.
 user_invocable: true
 stage: weigh
@@ -14,7 +14,7 @@ Where Lindir reads what is written, Mithrandir weighs it. The Grey Pilgrim has w
 ## Ethos
 
 - **Judges, does not describe.** Lindir lays the picture; Mithrandir renders verdict on it. No five-section brief here — that work belongs to Lindir.
-- **Read by default; speak only when summoned.** Plain `/mithrandir <url>` is read-only. The `comment` verb is the one path that writes, and it always asks once first.
+- **Read by default; speak only when summoned.** Plain `/mithrandir <url>` is read-only. The `comment` verb writes to the forge and always asks once first; the `--fix` flag writes to the local working tree — `Nit` rows only, never committed.
 - **Audience shapes voice.** A verdict spoken before Elrond may take the lore-tongue; a verdict posted on a shared forge defaults to plain English so coworkers are not made to read fairy tales.
 - **Grounded in the diff.** When a flaw is named, the file (and a line where it serves) is named with it. No speculation untethered from the change.
 - **Counsel, not doom.** Verdicts are advisory. The tier is a weight Elrond weighs further, not a final pronouncement.
@@ -33,6 +33,7 @@ Where Lindir reads what is written, Mithrandir weighs it. The Grey Pilgrim has w
 /mithrandir branch --verify        # branch, three-lens refutation panel
 /mithrandir <url> --verify         # read, three-lens refutation panel
 /mithrandir <url> --deep --verify  # read, per-file fan-out + refutation
+/mithrandir branch --fix           # branch, then mend the standing Nit rows in the working tree (implies --verify)
 /mithrandir comment <url>          # post, plain tone (default)
 /mithrandir comment <url> --lore   # post, lore tone (opt-in)
 /mithrandir bless <url>            # re-weigh + thread reply, plain tone (default)
@@ -59,7 +60,9 @@ The `--repo <path>` flag rides the **branch-path only**: it names the checkout t
 
 The `--verify` flag may also appear anywhere after the verb/URL, alongside `--deep` and either tone flag. It changes whether a finding survives a second, adversarial check before it is rendered — not which surface is touched, nor how deep the first read went. See *Verify mode* below.
 
-Verify mode's **default differs by audience**, as tone does. The read and branch paths render to chat and default it **off**: a wrong finding there costs a moment's reading, and the panel is not free. The `comment` and `bless` verbs write to the forge and default it **on**, because a wrong finding there is published against someone else's work. `--verify` forces it on where it is off; `--no-verify` forces it off where it is on. Either flag naming the default already in force is a no-op, not an error — `comment --verify` and `branch --no-verify` both run exactly as they would bare. The two are mutually exclusive. If both are passed, stop with: *"`--verify` and `--no-verify` cannot stand together; choose one counsel."*
+Verify mode's **default differs by audience**, as tone does. The read and branch paths render to chat and default it **off**: a wrong finding there costs a moment's reading, and the panel is not free. The `comment` and `bless` verbs write to the forge and default it **on**, because a wrong finding there is published against someone else's work. `--verify` forces it on where it is off, and so does `--fix` on the branch-path; `--no-verify` forces it off where it is on. Either flag naming the default already in force is a no-op, not an error — `comment --verify` and `branch --no-verify` both run exactly as they would bare. The two are mutually exclusive. If both are passed, stop with: *"`--verify` and `--no-verify` cannot stand together; choose one counsel."*
+
+The `--fix` flag rides the **branch-path only**, and may appear anywhere after the verb. It changes what happens *after* the verdict — the standing `Nit` rows are mended in the working tree — not how the weighing goes. See *Fix mode* below. On any URL path (read, `comment`, `bless`), stop before weighing with: *"`--fix` edits a local checkout; a URL names none."* It implies `--verify`: the panel runs on the branch-path whether or not `--verify` was passed, because the mend acts on the `To pass` list unattended. `--fix` and `--no-verify` are mutually exclusive; if both are passed, stop with: *"`--fix` acts on the verified list; it cannot stand with `--no-verify`."*
 
 ## Tone modes
 
@@ -150,6 +153,27 @@ The brief keeps its shape. Two differences:
 
 A verify run costs three opus calls per candidate finding — on a wavering branch bearing eight, twenty-four agents on top of the weighing itself. Reach for it where a wrong finding would cost something real: a verdict about to be posted publicly, a branch whose correctness is subtle, a mend loop that will act on the `To pass` list unattended. Not for a routine read.
 
+## Fix mode (`--fix`) — mend the Nits
+
+The verdict is counsel; `--fix` lets the Pilgrim lend a hand with the smallest of it. After the brief renders, the `### Nit` rows are fixed in the working tree. It is a flag, not a verb, and it rides the branch-path only: a local checkout is the one place an edit has somewhere to land. Blocker and Nice-to-have rows are never touched — they carry a judgment the author owes, and they stay in `## To pass` as rendered.
+
+### Mechanism
+
+1. **Weigh first, with the panel.** Run the branch-path as usual with Verify mode forced on. The rows to mend are the `### Nit` rows of the *reconciled* list — a row the panel dropped is gone, and a Nice-to-have the severity lens lowered to Nit counts as a Nit.
+2. **Skip what is not safe to mend.** Leave a row untouched, and name it with its reason in the report, when it is:
+   - `(contested)` — one existence lens argued it away, so the flaw is not settled enough to act on;
+   - without a `file:line`, or needing a decision only the author can make;
+   - in a file bearing uncommitted changes, or outside the files the diff changed.
+3. **Fix the rest.** Read the cited `file:line` first, then make the smallest edit that answers the row. Touch nothing the row does not name.
+4. **Check once.** Run the project's static analysis (whatever `/argonath`'s detection names, or the repo's own lint command) once after the edits. On a failure, mend it and re-run once; if it still fails, restore the edited files with `git checkout -- <files>` — safe, since step 2 admitted only clean files — and report the failure plainly. With no such command, say so.
+5. **Stop at the tree.** No `git add`, no commit, no push — the fixes stand as an uncommitted diff for the author to read, keep, or discard.
+
+### Render delta
+
+The brief is unchanged: it shows the verdict as weighed, before the mend. One line follows the closing paragraph: *"Fix mode — fixed K of N Nit rows; left: <row — reason>, …"*. Verify mode's tail line, where present, stands above it.
+
+The fix pass is the skill body's own work. Deep-mode and verify-mode subagents stay read-only.
+
 ## URL dispatch
 
 Match the URL against two host-agnostic patterns (case-insensitive):
@@ -216,6 +240,10 @@ The axis weighing wants a metadata block. Compose it from local git:
 Run **steps 4 and 5 of the read-path** verbatim — the axis weighing and the brief render. The branch-path uses the same render shape; only the diff source differs.
 
 The `comment` verb is **not available** on the branch-path. There is no PR to comment on — the verdict renders to chat alone. If the user wants a public verdict, they must open a PR/MR first and run `/mithrandir comment <url>` against it.
+
+### 6. Fix the Nits (only with `--fix`)
+
+With `--fix`, run *Fix mode* above on the rendered `To pass` list, then append its one-line report. Without the flag, the path ends at step 5.
 
 ## Workflow — read-path (URL only)
 
@@ -580,6 +608,7 @@ One short block:
 ## Rules
 
 - Read-path is silent on writes — it only fetches and renders.
+- `--fix` is the one local write: branch-path only, `Nit` rows only, uncommitted, and never on a `(contested)` row or a file already bearing uncommitted changes. It implies `--verify`, and it refuses `--no-verify` and every URL path.
 - Write-path and bless-path always ask once. No opt-out flag in v1; the gate is unconditional.
 - Branch-path is local-only: no URL, no `comment`, no `bless`, no forge write. If the user wants public counsel on a branch, they must open a PR/MR first and run `comment` (or later `bless`) against the URL.
 - Branch-path refuses to ride on the default branch (`master` / `main` / the resolved base). When the current branch *is* the base, there is nothing to review — stop and say so.
