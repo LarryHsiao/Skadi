@@ -81,7 +81,10 @@ Order: spec compliance first (missing pieces AND unasked-for additions),
 then quality. Over-built is as much a failure as under-built.
 Read-only — report, do not fix.
 Acceptance: every finding carries file:line, what is wrong, and severity
-(blocker / minor / nit); a clean pass says PASS explicitly.
-Report: verdict line first, then numbered findings, most severe first.
+(blocker / minor / nit); the report's final line is the literal
+`Compliance Review: PASS` or `Compliance Review: FAIL`, colon included —
+the pulse's `rule.compliance-review` matches that exact form.
+Report: a one-line plain verdict first, then numbered findings, most severe
+first, then the literal closing line above.
 Max <N> findings — if more exist, say so.
 ```
