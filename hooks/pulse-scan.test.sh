@@ -3307,6 +3307,29 @@ else
   echo "  skip · gateSeries DAY_MIN_N floor — node absent, JS not exercised"
 fi
 
+# ── · a reviewer's verdict delivered through SubagentHandback is read ──
+# Since 2026-09-15 a subagent files its report as a SubagentHandback tool call,
+# leaving its own assistant text empty. _agent_verdict read prose only, so every
+# such reviewer looked silent — 342 transcripts, 130 of them carrying the marker.
+d=$(tmpdir)
+cat >"$d/handback.jsonl" <<'JSON'
+{"type":"assistant","timestamp":"2026-10-13T06:05:14Z","message":{"content":[{"type":"tool_use","id":"t1","name":"SubagentHandback","input":{"message":"Verdict: sound.\n\nCompliance Review: PASS"}}]}}
+JSON
+cat >"$d/handback-bare.jsonl" <<'JSON'
+{"type":"assistant","timestamp":"2026-10-13T06:05:14Z","message":{"content":[{"type":"tool_use","id":"t1","name":"SubagentHandback","input":{"message":"Verdict: sound, no marker written."}}]}}
+JSON
+expected_handback="Compliance Review: PASS@2026-10-13T06:05:14Z|none"
+actual_handback=$(python3 - "$SCAN" "$d/handback.jsonl" "$d/handback-bare.jsonl" <<'PY'
+import importlib.util as u, re, sys
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+marker = re.compile(r"Compliance Review[:：]\s*(PASS|FAIL)")
+found = m._agent_verdict(m.read_turns(sys.argv[2]), marker, "2026-07-16")
+bare = m._agent_verdict(m.read_turns(sys.argv[3]), marker, "2026-07-16")
+print("%s|%s" % ("%s@%s" % (found["text"], found["ts"]) if found else "none", "none" if bare is None else bare["text"]))
+PY
+)
+check "a SubagentHandback report carries the verdict; one without the marker reads none" "$expected_handback" "$actual_handback"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
