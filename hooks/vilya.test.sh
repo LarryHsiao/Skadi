@@ -23,6 +23,9 @@ check() { # desc expected actual
 WORK=$(mktemp -d)
 export SKADI_VILYA_ROOT="$WORK/state"
 export SKADI_WINDOWS_DIR="$WORK/windows"
+# The hook refreshes the situation board after each state change; without this
+# seam every case below would overwrite the real ~/.skadi/board/vilya.json.
+export BOARD_DIR="$WORK/board"
 PROJECT="$WORK/project"
 mkdir -p "$PROJECT"
 
@@ -37,6 +40,8 @@ cleanup() {
   "$HOOK" stop --name slow --project "$PROJECT" >/dev/null 2>&1
   "$HOOK" stop --name wordless --project "$PROJECT" >/dev/null 2>&1
   "$HOOK" stop --name fading --project "$PROJECT" >/dev/null 2>&1
+  "$HOOK" stop --name boarded --project "$PROJECT" >/dev/null 2>&1
+  "$HOOK" stop --name broken --project "$PROJECT" >/dev/null 2>&1
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -85,6 +90,22 @@ await_departure() { # pid
     waited=$((waited + 1))
   done
   return 1
+}
+
+# The board write runs in the background, so the file lands a moment after the
+# verb returns; this patience belongs to the test, not to the hook. Prints the
+# board's field for one server — empty when the file or the server is absent —
+# once it equals $3, or after the budget runs out, whichever comes first.
+await_board_field() { # name field expected
+  local waited=0 got=""
+  while [ "$waited" -lt 100 ]; do
+    got="$(jq -r --arg n "$1" ".servers[]? | select(.name == \$n) | .$2" \
+      "$BOARD_DIR/vilya.json" 2>/dev/null)"
+    [ "$got" = "$3" ] && break
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+  printf '%s' "$got"
 }
 
 PORT="$(free_port)"
@@ -162,6 +183,49 @@ await_port "$PORT" no
 check "the port no longer answers" "$expected_gone" "$(port_answers "$PORT")"
 check "stop clears the standing window" "$expected_gone" \
   "$([ -f "$window_file" ] && echo yes || echo no)"
+
+# ── the board tile follows start, so it never shows a stale pid or address ──
+BOARDED_PORT="$(free_port)"
+"$HOOK" start --name boarded --project "$PROJECT" --url "http://example.test/first" \
+  -- python3 -m http.server "$BOARDED_PORT" --bind 127.0.0.1 >/dev/null 2>&1
+boarded_pid="$(cat "$SKADI_VILYA_ROOT/$project_slug/boarded/pid" 2>/dev/null)"
+check "start puts the server's url on the board" "http://example.test/first" \
+  "$(await_board_field boarded url http://example.test/first)"
+check "start puts the server's pid on the board" "$boarded_pid" \
+  "$(await_board_field boarded pid "$boarded_pid")"
+
+# The restart path: the server stands, so this start resumes it, and the new
+# address must reach the board as it reaches the statusline row.
+"$HOOK" start --name boarded --project "$PROJECT" --url "http://example.test/second" \
+  -- python3 -m http.server "$BOARDED_PORT" --bind 127.0.0.1 >/dev/null 2>&1
+check "a later start with a new --url updates the board" "http://example.test/second" \
+  "$(await_board_field boarded url http://example.test/second)"
+
+# stop removes the state directory the board is built from, so the row must go.
+"$HOOK" stop --name boarded --project "$PROJECT" >/dev/null 2>&1
+check "stop takes the server off the board" "" \
+  "$(await_board_field boarded pid "")"
+
+# A writer that fails, or is not there at all, must leave every verb's exit code
+# and word exactly as they were.
+BROKEN_DIR="$WORK/broken-root"
+mkdir -p "$BROKEN_DIR"
+cp "$HOOK" "$BROKEN_DIR/vilya.sh"
+printf '#!/bin/bash\nexit 1\n' > "$BROKEN_DIR/board-vilya.sh"
+chmod +x "$BROKEN_DIR/vilya.sh" "$BROKEN_DIR/board-vilya.sh"
+BROKEN_PORT="$(free_port)"
+broken_out="$("$BROKEN_DIR/vilya.sh" start --name broken --project "$PROJECT" \
+  -- python3 -m http.server "$BROKEN_PORT" --bind 127.0.0.1 2>&1)"
+check "start exits 0 though the board writer fails" "$expected_status" "$?"
+check "start still reports itself though the board writer fails" started \
+  "$(printf '%s' "$broken_out" | awk '{print $1}')"
+"$BROKEN_DIR/vilya.sh" stop --name broken --project "$PROJECT" >/dev/null 2>&1
+check "stop exits 0 though the board writer fails" "$expected_status" "$?"
+rm -f "$BROKEN_DIR/board-vilya.sh"
+"$BROKEN_DIR/vilya.sh" start --name broken --project "$PROJECT" \
+  -- python3 -m http.server "$BROKEN_PORT" --bind 127.0.0.1 >/dev/null 2>&1
+check "start exits 0 with no board writer installed" "$expected_status" "$?"
+"$BROKEN_DIR/vilya.sh" stop --name broken --project "$PROJECT" >/dev/null 2>&1
 
 # ── an explicit --url and --label outrank whatever the log says ──
 NAMED_PORT="$(free_port)"
@@ -280,6 +344,8 @@ check "a server that dies mid-wait exits 5" "$expected_died" "$fading_code"
 expected_cut_short=yes
 check "the wait ended with the server, not with the budget" "$expected_cut_short" \
   "$([ "$fading_elapsed" -lt 20 ] && echo yes || echo no)"
+check "a server found dead by ready is marked dead on the board" dead \
+  "$(await_board_field fading state dead)"
 "$HOOK" stop --name fading --project "$PROJECT" >/dev/null 2>&1
 
 expected_no_such=4

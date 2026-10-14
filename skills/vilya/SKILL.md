@@ -150,6 +150,10 @@ Two things to know rather than discover:
 - `--url` and `--label` are remembered in the server's meta. A later bare
   `start` keeps them, and the situation board shows the stored address in
   place of the one read from the log.
+- The situation board's Vilya tile follows `start`, `stop` and a `ready` that
+  finds the process gone on its own, through a detached best-effort refresh —
+  no `/board refresh` is owed, and a failing board writer never changes a
+  verb's exit code.
 
 ## What Vilya does not do
 
