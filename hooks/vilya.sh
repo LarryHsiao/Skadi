@@ -264,6 +264,18 @@ register_window() { # dir name
   return 0
 }
 
+# The situation board's tile is rebuilt from this tool's own state directory, so
+# it must be rebuilt whenever that state changes — else it shows a pid and an
+# address the server no longer has until the next `/board refresh`. Like the
+# statusline row, it is an ornament on the hold: the writer runs detached with
+# its output discarded, so a missing, slow or failing one neither slows a verb
+# nor changes its exit code. board-vilya.sh stays the single writer.
+refresh_board() {
+  [ -x "$SCRIPT_DIR/board-vilya.sh" ] || return 0
+  ( "$SCRIPT_DIR/board-vilya.sh" >/dev/null 2>&1 & )
+  return 0
+}
+
 meta_get() { # dir key
   [ -f "$1/meta" ] || return 1
   sed -n "s/^$2=//p" "$1/meta" | head -n 1
@@ -351,6 +363,7 @@ cmd_start() { # dir project name
     # dropped because the spawn was skipped.
     [ -n "$ready_pattern" ] && meta_set "$1" readyPattern "$ready_pattern"
     register_window "$1" "$3"
+    refresh_board
     echo "alive $3 · $2 · pid $(cat "$1/pid")"
     return 0
   fi
@@ -368,6 +381,7 @@ cmd_start() { # dir project name
   # later `start` finds it alive and registers it then — and the `ready` verb,
   # when it lands, is what will make the first attempt reliable.
   register_window "$1" "$3"
+  refresh_board
   echo "started $3 · $2 · pid $(cat "$1/pid")"
 }
 
@@ -380,7 +394,11 @@ cmd_status() { # dir project name
 cmd_ready() { # dir project name
   local pattern
   server_known "$1" || { echo "none $3 · $2 — no such server"; return 4; }
-  server_alive "$1" || { echo "dead $3 · $2 — the process is gone, start it again"; return 5; }
+  server_alive "$1" || {
+    refresh_board
+    echo "dead $3 · $2 — the process is gone, start it again"
+    return 5
+  }
   pattern="$(meta_get "$1" readyPattern)"
   [ -n "$pattern" ] || {
     echo "vilya: $3 carries no ready pattern — raise it with --ready-pattern to make readiness knowable" >&2
@@ -389,7 +407,11 @@ cmd_ready() { # dir project name
   await_ready "$1" "$since" "$pattern" "$timeout"
   case $? in
     0) echo "ready $3 · $2"; return 0 ;;
-    5) last_words "$1" "the server died before it was ready"; return 5 ;;
+    5)
+      refresh_board
+      last_words "$1" "the server died before it was ready"
+      return 5
+      ;;
     *)
       echo "vilya: $3 did not announce itself within ${timeout}s — treat what it serves as stale" >&2
       return 7
@@ -400,6 +422,7 @@ cmd_ready() { # dir project name
 cmd_stop() { # dir project name
   server_known "$1" || { echo "none $3 · $2 — no such server"; return 4; }
   reap "$1"
+  refresh_board
   echo "stopped $3 · $2"
 }
 
