@@ -175,6 +175,25 @@ check "an explicit --url outranks the log" "$expected_named_url" \
 expected_named_label="The Named One"
 check "an explicit --label names the row" "$expected_named_label" \
   "$(sed -n '2p' "$named_window" 2>/dev/null)"
+# ── a later bare start keeps what an earlier start named ──
+# The flags are remembered in meta, so a second `start` without them neither
+# falls back to the log's address nor re-labels the row with the plain name.
+"$HOOK" start --name named --project "$PROJECT" \
+  -- python3 -m http.server "$NAMED_PORT" --bind 127.0.0.1 >/dev/null 2>&1
+check "a bare second start keeps the named url" "$expected_named_url" \
+  "$(sed -n '1p' "$named_window" 2>/dev/null)"
+check "a bare second start keeps the named label" "$expected_named_label" \
+  "$(sed -n '2p' "$named_window" 2>/dev/null)"
+check "the named url is stored in meta" "url=$expected_named_url" \
+  "$(grep '^url=' "$(ls -d "$SKADI_VILYA_ROOT"/*/named/meta | head -n 1)" 2>/dev/null)"
+"$HOOK" start --name named --project "$PROJECT" --url "http://example.test/replaced" \
+  -- python3 -m http.server "$NAMED_PORT" --bind 127.0.0.1 >/dev/null 2>&1
+expected_replaced_url="http://example.test/replaced"
+check "a later --url replaces the stored one on the row" "$expected_replaced_url" \
+  "$(sed -n '1p' "$named_window" 2>/dev/null)"
+check "a later --url replaces the stored one in meta" "url=$expected_replaced_url" \
+  "$(grep '^url=' "$(ls -d "$SKADI_VILYA_ROOT"/*/named/meta | head -n 1)" 2>/dev/null)"
+
 "$HOOK" stop --name named --project "$PROJECT" >/dev/null 2>&1
 
 # ── a server that announces no address still starts; it simply draws no row ──
@@ -198,6 +217,11 @@ lone_code=$?
 check "a root without window-register.sh still starts a server" "$expected_status" "$lone_code"
 check "a root without window-register.sh draws no row" "$expected_gone" \
   "$([ -f "$SKADI_WINDOWS_DIR/vilya-$project_slug-lone" ] && echo yes || echo no)"
+"$LONE_DIR/vilya.sh" start --name lone --project "$PROJECT" --url "http://example.test/lone" \
+  -- python3 -m http.server "$LONE_PORT" --bind 127.0.0.1 >/dev/null 2>&1
+expected_lone_url="url=http://example.test/lone"
+check "a root without window-register.sh still stores the named url in meta" "$expected_lone_url" \
+  "$(grep '^url=' "$(ls -d "$SKADI_VILYA_ROOT"/*/lone/meta | head -n 1)" 2>/dev/null)"
 "$LONE_DIR/vilya.sh" stop --name lone --project "$PROJECT" >/dev/null 2>&1
 
 # ── ready waits on the server's own word, not on a clock ──

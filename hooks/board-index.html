@@ -368,6 +368,33 @@
         border-radius: 5px;
         padding: 0.5rem 0;
       }
+      /* Vilya band — one row per standing local server. Project and name are
+         identity text and ellipse; the address is an exact value and wraps
+         rather than clip (a cut port reads as a different port). Dot, state
+         word and void line are narya's own classes. */
+      .vrow {
+        display: grid;
+        grid-template-columns: 0.7rem minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr) auto;
+        align-items: center;
+        gap: 0.55rem;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: var(--panel);
+        padding: 0.3rem 0.5rem;
+        font-size: 0.74rem;
+      }
+      .vrow .nell {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: left;
+      }
+      .vurl {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.68rem;
+        color: var(--blue);
+        overflow-wrap: anywhere;
+      }
       .srow {
         border: 1px solid var(--line);
         border-radius: 5px;
@@ -427,6 +454,7 @@
         </div>
       </div>
       <div class="naryaband" id="narya"></div>
+      <div id="vilya"></div>
       <div class="sweepband" id="sweeps"></div>
       <div class="costband" id="cost"></div>
     </div>
@@ -538,6 +566,7 @@
         renderAttention(attention);
         renderBody(tickets);
         renderNarya(channels.find((c) => c.channel === "narya"));
+        renderVilya(channels.find((c) => c.channel === "vilya"));
         renderSweeps(sweeps);
         renderCost(cost);
       }
@@ -838,6 +867,39 @@
 
       function renderNarya(channel) {
         document.getElementById("narya").innerHTML = naryaBandHtml(channel);
+      }
+
+      // The local servers /vilya keeps standing. Absent channel -> no band; a
+      // written channel with no servers -> the empty state. Only an http(s)
+      // address becomes a link, so a hostile log line cannot plant a javascript:
+      // href. pid rides the row's tooltip; the address is shown whole.
+      function vilyaBandHtml(channel) {
+        if (!channel) return "";
+        const attr = (v) => esc(v).replace(/"/g, "&quot;");
+        const servers = channel.servers || [];
+        const head = `<div class="banddiv">vilya · local servers</div>`;
+        if (!servers.length) {
+          return `${head}<div class="nvoid">No stream runs. Run <code>/vilya start</code> to raise a server.</div>`;
+        }
+        const rows = servers
+          .map((s) => {
+            const linkable = /^https?:\/\//.test(s.url || "");
+            const url = linkable
+              ? `<a class="vurl" href="${attr(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a>`
+              : `<span class="vurl">—</span>`;
+            return `<div class="vrow" title="${attr(s.pid)}">
+      <span class="ndot ${attr(s.state)}"></span>
+      <span class="nell" title="${attr(s.project)}">${esc(s.project)}</span>
+      <span class="nell" title="${attr(s.name)}">${esc(s.name)}</span>
+      ${url}
+      <span class="nst ${attr(s.state)}">${esc(s.state)}</span></div>`;
+          })
+          .join("");
+        return `${head}<div class="nrows">${rows}</div>`;
+      }
+
+      function renderVilya(channel) {
+        document.getElementById("vilya").innerHTML = vilyaBandHtml(channel);
       }
 
       function renderBody(tickets) {
