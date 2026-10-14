@@ -63,19 +63,27 @@ JUDGE_TIMEOUT = 600
 GATE_QUESTION_REACH = 1
 
 
+def _block_text(block):
+    """One content block's prose. A SubagentHandback tool call counts as prose:
+    since 2026-09-15 a subagent files its whole report through it and leaves its
+    own assistant text empty, so the report would otherwise be invisible."""
+    if block.get("type") in ("text", "input_text", "output_text"):
+        return block.get("text", "")
+    if block.get("type") == "tool_use" and block.get("name") == "SubagentHandback":
+        return (block.get("input") or {}).get("message", "")
+    return ""
+
+
 def _turn_text(message):
-    """The concatenated text of a turn — user string content or assistant text blocks."""
+    """The concatenated text of a turn — user string content or assistant text
+    blocks, plus a subagent's SubagentHandback report (see _block_text)."""
     if not isinstance(message, dict):
         return ""
     content = message.get("content")
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        return "".join(
-            b.get("text", "")
-            for b in content
-            if isinstance(b, dict) and b.get("type") in ("text", "input_text", "output_text")
-        )
+        return "".join(_block_text(b) for b in content if isinstance(b, dict))
     return ""
 
 
