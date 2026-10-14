@@ -137,8 +137,9 @@ is wrong, but Vilya cannot help, so use a fixed settle and say so.
 ## The statusline row
 
 A server whose address can be learned becomes a clickable row on the
-statusline's standing-windows band. `--url` is authoritative; absent it, the
-first `http(s)://` the server printed in its own log is taken. Neither found
+statusline's standing-windows band. `--url` is authoritative, and once named
+it is kept in meta for later starts; absent it, the first `http(s)://` the
+server printed in its own log is taken. Neither found
 draws no row, and `start` still succeeds — the row is an ornament on the hold,
 never a condition of it.
 
@@ -146,9 +147,9 @@ Two things to know rather than discover:
 
 - A server slower to announce itself than the settle budget draws no row on
   that first `start`. A later `start` finds it alive and draws it then.
-- Nothing of `--url` or `--label` is remembered. A later bare `start` re-derives
-  the address from the log and re-labels the row with the plain name; pass the
-  flags again to keep them.
+- `--url` and `--label` are remembered in the server's meta. A later bare
+  `start` keeps them, and the situation board shows the stored address in
+  place of the one read from the log.
 
 ## What Vilya does not do
 

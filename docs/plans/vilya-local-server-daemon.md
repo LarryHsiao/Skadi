@@ -49,11 +49,11 @@ is smaller than narya, not a copy of it.
   is the slot.
 - **No `reload` / `restart` verbs.** A protocol-less server either watches its
   own files or wants a real bounce, and `stop` + `start` already is that bounce.
-- **URL resolution: explicit wins.** `--url` at `start` is authoritative; absent
-  it, grep the log for the first `http(s)://` (zola prints "Web server is
-  available at…", Vite prints "Local: …"), the same technique narya uses for the
-  DevTools banner. Neither found means no registration, and `start` still
-  succeeds.
+- **URL resolution: explicit wins.** `--url` at `start` is authoritative, and
+  is kept in meta for later starts; absent it, grep the log for the first
+  `http(s)://` (zola prints "Web server is available at…", Vite prints "Local:
+  …"), the same technique narya uses for the DevTools banner. Neither found
+  means no registration, and `start` still succeeds.
 - **Label defaults to the name.** `--label` overrides it for the statusline row.
 - **The lifecycle scaffolding repeats narya's** — and by more than the ~40
   lines first estimated. Written out, the near-verbatim surface is

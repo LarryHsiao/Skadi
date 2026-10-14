@@ -299,6 +299,71 @@ check "appId and pid stay reachable in the row" "reachable" "$(nfield EXACT)"
 check "a hostile name cannot break out of its attribute or tag" "safe" "$(nfield HOSTILE)"
 check "a null appId never prints 'null'" "clean" "$(nfield NULLAPP)"
 
+# ── The Vilya band ──
+# Same shape as the Narya band: a pure function of its channel, sliced from
+# vilyaBandHtml to where renderBody begins. Absent channel draws nothing; a
+# written channel with no servers draws the empty state.
+vilya_out=$(node - "$PAGE" <<'JS'
+const fs = require("fs");
+const page = fs.readFileSync(process.argv[2], "utf8");
+
+const start = page.indexOf("function vilyaBandHtml(");
+const end = page.indexOf("function renderBody(", start);
+if (start === -1 || end === -1) {
+  console.log("EXTRACT_FAILED");
+  process.exit(0);
+}
+const src = page.slice(start, end);
+
+const esc = (s) =>
+  String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+const fn = eval(src + "\nvilyaBandHtml;");
+
+const mk = (over) => ({
+  project: "Blog", name: "zola", url: "http://127.0.0.1:1111/", state: "alive", pid: 4242, ...over,
+});
+
+console.log("ABSENT " + JSON.stringify(fn(undefined)));
+console.log("EMPTY " + (fn({ servers: [] }).includes("No stream runs") ? "void" : "blank"));
+
+const two = fn({ servers: [mk({ state: "alive" }), mk({ state: "dead" })] });
+console.log("STATES " + [...two.matchAll(/class="nst ([a-z]+)"/g)].map((m) => m[1]).join(","));
+
+// A server with an address links to it; the address is shown whole.
+const linked = fn({ servers: [mk({})] });
+console.log("LINK " + (linked.includes('href="http://127.0.0.1:1111/"') ? "linked" : "bare"));
+
+// No address -> a dash and no anchor.
+const nourl = fn({ servers: [mk({ url: null })] });
+console.log("NOURL " + (!nourl.includes("<a ") && !nourl.includes("null") ? "dash" : "leaks"));
+
+// pid stays reachable in the row's tooltip.
+console.log("PID " + (linked.includes("4242") ? "reachable" : "lost"));
+
+// A hostile name cannot break out of its attribute or tag; a javascript: url never becomes a link.
+const hostile = fn({ servers: [mk({ project: 'a"b<i>', url: "javascript:alert(1)" })] });
+const titles = [...hostile.matchAll(/title="([^"]*)"/g)].map((m) => m[1]);
+console.log("HOSTILE " + (titles.includes("a&quot;b&lt;i&gt;") && !hostile.includes("<i>") && !hostile.includes("href=") ? "safe" : "unsafe"));
+JS
+)
+
+vfield() { printf '%s\n' "$vilya_out" | awk -v k="$1" '{ if ($1 == k) { $1=""; sub(/^ /,""); print; exit } }'; }
+
+expected_absent='""'
+expected_empty="void"
+expected_states="alive,dead"
+expected_linked="linked"
+expected_dash="dash"
+expected_pid="reachable"
+expected_safe="safe"
+check "vilya: an absent channel draws no band" "$expected_absent" "$(vfield ABSENT)"
+check "vilya: no servers draws the empty state" "$expected_empty" "$(vfield EMPTY)"
+check "vilya: rows carry their state class in the writer's order" "$expected_states" "$(vfield STATES)"
+check "vilya: a server with an address links to it" "$expected_linked" "$(vfield LINK)"
+check "vilya: no address shows a dash, never 'null'" "$expected_dash" "$(vfield NOURL)"
+check "vilya: pid stays reachable in the row" "$expected_pid" "$(vfield PID)"
+check "vilya: a hostile name or url cannot break out or become a link" "$expected_safe" "$(vfield HOSTILE)"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

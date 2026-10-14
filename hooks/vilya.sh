@@ -245,17 +245,22 @@ await_ready() { # dir offset pattern timeout
 # server that never printed an address must not fail `start` itself — this
 # always returns success.
 #
-# It reads this invocation's own --url and --label, and nothing of them is kept
-# in meta: a later bare `start` against the same standing server re-derives the
-# address from the log and re-labels the row with the plain name. That is the
-# ornament's price, and it is cheap — pass the flags again to keep them.
+# --url and --label are kept in meta whenever they are named, so a later bare
+# `start` against the same standing server keeps the address and the row's label
+# instead of re-deriving the one from the log and re-naming the other. The
+# stored values are written before the registrar is looked for: the situation
+# board reads them from meta whether or not a row is ever drawn.
 register_window() { # dir name
-  local address
+  local address label_text
+  [ -n "$url" ] && meta_set "$1" url "$url"
+  [ -n "$label" ] && meta_set "$1" label "$label"
   [ -x "$SCRIPT_DIR/window-register.sh" ] || return 0
-  address="${url:-$(first_url_in_log "$1")}"
+  address="$(meta_get "$1" url)"
+  address="${address:-$(first_url_in_log "$1")}"
   [ -n "$address" ] || return 0
+  label_text="$(meta_get "$1" label)"
   "$SCRIPT_DIR/window-register.sh" register "$(window_name "$1")" "$address" \
-    "${label:-$2}" >/dev/null 2>&1
+    "${label_text:-$2}" >/dev/null 2>&1
   return 0
 }
 
