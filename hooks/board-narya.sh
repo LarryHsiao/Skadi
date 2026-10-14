@@ -91,7 +91,10 @@ rows() {
 # as "no daemon stands".
 tmp="$(mktemp "$BOARD_DIR/.narya.XXXXXX")"
 trap 'rm -f "$tmp"' EXIT
-rows | jq -s '{channel: "narya", daemons: .}' >"$tmp"
+# `updated` is what the page's re-render signature keys on; without it a changed
+# row would not redraw until a channel arrived or left.
+rows | jq -s --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  '{channel: "narya", updated: $now, daemons: .}' >"$tmp"
 mv "$tmp" "$BOARD_DIR/narya.json"
 python3 "$SCRIPT_DIR/board-manifest.py" "$BOARD_DIR"
 echo "wrote $BOARD_DIR/narya.json"

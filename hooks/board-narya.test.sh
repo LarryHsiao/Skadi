@@ -141,6 +141,15 @@ expected_fallback="vitallink-ca"
 actual_fallback=$(jq -r '.daemons[0].project' "$b/narya.json")
 check "a row with no meta is named after its state directory, not blank" "$expected_fallback" "$actual_fallback"
 
+# ── 10 · the channel carries an `updated` stamp, so the page re-renders on a change ──
+# The page re-renders only when a channel's id:updated signature moves; without
+# a stamp a daemon changing state would not redraw its row.
+b=$(tmpdir); r=$(tmpdir)
+run "$b" "$r"
+expected_stamp="stamped"
+actual_stamp=$(jq -r 'if (.updated // "") | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T") then "stamped" else "bare" end' "$b/narya.json")
+check "the channel bears an ISO updated stamp" "$expected_stamp" "$actual_stamp"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]
