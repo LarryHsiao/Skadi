@@ -16,6 +16,7 @@ START = "<!-- skadi:start -->"
 END = "<!-- skadi:end -->"
 MANIFEST = ".skadi-installed-files"
 OWNED_PREFIXES = ("hooks/", "skills/", "docs/", "rules/")
+PYCACHE = "__pycache__"
 
 
 def fail(message: str) -> None:
@@ -126,6 +127,11 @@ def mark(destination: Path) -> None:
     installed.add(destination.relative_to(root).as_posix())
 
 
+def is_unowned(relative: Path) -> bool:
+    """Hidden paths and Python bytecode caches are local, not Skadi config."""
+    return any(part.startswith(".") or part == PYCACHE for part in relative.parts)
+
+
 merge_agents()
 merge_hooks()
 
@@ -136,7 +142,7 @@ mark(rules_destination)
 for tree_name in ("hooks", "docs"):
     source_root = repo / tree_name
     for source_path in sorted(source_root.rglob("*")):
-        if not source_path.is_file() or any(part.startswith(".") for part in source_path.relative_to(source_root).parts):
+        if not source_path.is_file() or is_unowned(source_path.relative_to(source_root)):
             continue
         destination = root / tree_name / source_path.relative_to(source_root)
         copy_or_render(source_path, destination)
@@ -144,7 +150,7 @@ for tree_name in ("hooks", "docs"):
 
 skills_root = repo / "skills"
 for source_path in sorted(skills_root.rglob("*")):
-    if not source_path.is_file() or any(part.startswith(".") for part in source_path.relative_to(skills_root).parts):
+    if not source_path.is_file() or is_unowned(source_path.relative_to(skills_root)):
         continue
     destination = root / "skills" / source_path.relative_to(skills_root)
     subprocess.run(
