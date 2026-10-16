@@ -46,7 +46,11 @@ does — it only looks, and says plainly what does not match.
 
 1. Shoot `<target>` once, the same way, for a visual sanity check — obvious
    breakage (overflow, misalignment, a missing element) is worth naming even with
-   no spec to measure against.
+   no spec to measure against. Where an icon and a text share a row, measure both
+   ink centres with `feanor-ink-centre.sh`, per Fëanor's *"Judge an icon and a
+   text sharing a row by their ink"* rule, and flag a gap over 1 logical px. The
+   sibling comparison below reads source values and cannot see this, because
+   both boxes can sit centred while the glyphs do not.
 2. Find at least one sibling of the component being weighed — another instance of
    the same widget in the same screen, or the same component family elsewhere in
    the working tree. Infer it from the target's source location; ask once if more

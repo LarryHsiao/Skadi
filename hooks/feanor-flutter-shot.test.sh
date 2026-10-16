@@ -94,6 +94,75 @@ out=$(PATH="$BARE_PATH" "$HOOK" "$target" 2>"$WORK/stderr.txt"); st=$?
 check "an unready device exits 4" "4" "$st"
 check "no screenshot file is left behind" "0" "$([[ -e "$target" ]] && echo 1 || echo 0)"
 check "flutter's own stderr is surfaced" "1" "$(grep -c "No connected devices" "$WORK/stderr.txt")"
+check "a failed shot with no widget names the inspector fallback" "1" "$(grep -c "third argument" "$WORK/stderr.txt")"
+
+# ── the inspector fallback, for devices `flutter screenshot` cannot shoot
+# (wireless iOS). A stub daemon stands in for flutter-daemon.sh's `log` verb
+# and a stub python3 for feanor-vm-shot.py, so no app or socket is needed. ──
+write_stub "$WORK/bin/flutter" '
+echo "Screenshot not supported for iPad (3) (wireless)." >&2
+'
+DAEMON="$WORK/daemon.sh"
+export DAEMON_LOG="$WORK/daemon-log.txt"
+write_stub "$DAEMON" 'cat "$DAEMON_LOG"'
+WS='ws://127.0.0.1:59841/AbC=/ws'
+printf '%s\n' "[{\"event\":\"app.debugPort\",\"params\":{\"port\":59841,\"wsUri\":\"$WS\"}}]" > "$DAEMON_LOG"
+write_stub "$WORK/bin/python3" '
+printf "FAKE-VM-PNG" > "$4"
+echo "$4"
+'
+
+: > "$STUB_LOG"
+target="$WORK/wireless.png"
+out=$(PATH="$BARE_PATH" FEANOR_FLUTTER_DAEMON="$DAEMON" "$HOOK" "$target" "ipad-1" "ResidentPage" 2>/dev/null); st=$?
+check "a wireless device with a widget falls back and exits 0" "0" "$st"
+check "the fallback prints the output path once" "$target" "$out"
+check "the fallback writes the inspector's screenshot" "FAKE-VM-PNG" "$(cat "$target" 2>/dev/null)"
+check "the daemon log is read for the named device" "1" "$(grep -c -- 'log -d ipad-1' "$STUB_LOG")"
+check "the VM shot gets the wsUri and widget" "1" "$(grep -c -- "$WS $target ResidentPage" "$STUB_LOG")"
+
+# ── a working `flutter screenshot` stays the first choice even with a widget ──
+write_stub "$WORK/bin/flutter" '
+for a in "$@"; do
+  case "$a" in
+    --out=*) printf "FAKE-PNG" > "${a#--out=}" ;;
+  esac
+done
+'
+: > "$STUB_LOG"
+target="$WORK/wired.png"
+out=$(PATH="$BARE_PATH" FEANOR_FLUTTER_DAEMON="$DAEMON" "$HOOK" "$target" "ipad-1" "ResidentPage" 2>/dev/null); st=$?
+check "a working flutter screenshot is used even when a widget is named" "FAKE-PNG" "$(cat "$target" 2>/dev/null)"
+check "the inspector path is not touched when flutter succeeds" "0" "$(grep -c -- 'feanor-vm-shot' "$STUB_LOG")"
+
+write_stub "$WORK/bin/flutter" '
+echo "Screenshot not supported for iPad (3) (wireless)." >&2
+'
+
+# ── no wsUri in the daemon log (app not run through /narya) fails with exit 5 ──
+echo "flutter run prose, no protocol yet" > "$DAEMON_LOG"
+target="$WORK/no-uri.png"
+out=$(PATH="$BARE_PATH" FEANOR_FLUTTER_DAEMON="$DAEMON" "$HOOK" "$target" "" "ResidentPage" 2>"$WORK/stderr.txt"); st=$?
+check "no wsUri in the daemon log exits 5" "5" "$st"
+check "the no-wsUri failure points at /narya" "1" "$(grep -c "narya" "$WORK/stderr.txt")"
+
+# ── no daemon standing at all (the log verb fails) is the same exit 5 ──
+write_stub "$DAEMON" 'echo "flutter-daemon: no daemon" >&2; exit 4'
+out=$(PATH="$BARE_PATH" FEANOR_FLUTTER_DAEMON="$DAEMON" "$HOOK" "$target" "" "ResidentPage" 2>/dev/null); st=$?
+check "no standing daemon exits 5" "5" "$st"
+
+# ── the VM shot itself failing surfaces its own reason and exits 4 ──
+write_stub "$DAEMON" 'cat "$DAEMON_LOG"'
+printf '%s\n' "[{\"event\":\"app.debugPort\",\"params\":{\"wsUri\":\"$WS\"}}]" > "$DAEMON_LOG"
+write_stub "$WORK/bin/python3" '
+echo "no ResidentPage in the summary tree" >&2
+exit 1
+'
+target="$WORK/vm-fail.png"
+out=$(PATH="$BARE_PATH" FEANOR_FLUTTER_DAEMON="$DAEMON" "$HOOK" "$target" "" "ResidentPage" 2>"$WORK/stderr.txt"); st=$?
+check "a failed VM shot exits 4" "4" "$st"
+check "the VM shot's own reason is surfaced" "1" "$(grep -c "no ResidentPage in the summary tree" "$WORK/stderr.txt")"
+check "a failed VM shot leaves no file behind" "0" "$([[ -e "$target" ]] && echo 1 || echo 0)"
 
 echo ""
 echo "── $pass passed, $fail failed ──"

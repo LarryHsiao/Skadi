@@ -214,6 +214,26 @@ larger than that icon by a factor of thirty, sat available from the first pass.
 The icon was the semantically obvious element to reach for; it was not the
 measurable one.
 
+**Judge an icon and a text sharing a row by their ink, not their boxes.** An
+AppBar's leading icon and title, a list row's icon and label, a button's icon
+and label: compare the vertical centres of the glyphs themselves, measuring the
+text on a descender-free word (one that sits between baseline and cap or
+x-height). Flag a gap over 1 logical px. Widget geometry cannot see this. A tall
+line height spreads its leading around the glyphs, so the text's ink falls below
+its box's centre while both boxes sit perfectly centred. One real case: a title
+at line height 1.6 put its glyphs about 3 logical px below the close icon, and a
+test comparing `tester.getCenter()` of title and icon passed on the broken
+render; line height 1.2 fixed it. Measure each span in one call:
+
+    ~/.claude/hooks/feanor-ink-centre.sh "<pass-or-spec.png>" <x0> <x1> [<y0> <y1>]
+
+prints `x <x0>-<x1>: rows <first>-<last>, centre <c>`. Run it over the icon's
+columns and over the word's, then divide the difference by the shot's pixel
+ratio. A pixel counts as ink when its R+G+B is under 500, which includes a
+54%-black icon; set `FEANOR_INK_SUM` for a tinted row. A dark-mode shot has
+light ink on a dark ground, so invert it first (`magick <in.png> -channel RGB
+-negate <out.png>`; a bare `-negate` inverts alpha too and can blank the image) rather than raising the threshold, which would count the ground.
+
 **The landmark an inset is measured from comes from the spec's visual nesting,
 never from the source's coordinate frame.** Before measuring any inset, find in
 the *spec image* which container the element visually sits inside — the nearest
@@ -422,10 +442,17 @@ For each pass `n` (1 to `--max`):
    is the device's, so `--viewport` does not apply):
 
        ~/.claude/hooks/feanor-flutter-shot.sh \
-         "$HOME/.skadi/henneth/feanor-pass-<n>.png" [<deviceId>]
+         "$HOME/.skadi/henneth/feanor-pass-<n>.png" [<deviceId>] [<Widget>]
 
    The shot includes the OS status/nav bars — name deltas against the **app content
    region**, not the system chrome.
+
+   `flutter screenshot` cannot shoot a **wireless** iOS device. For one, run the
+   app through `/narya` and name an on-screen widget as the third argument (the
+   page class, not the app root, whose offstage routes cannot be laid out). The
+   hook then falls back to the widget inspector over the VM service and writes
+   that widget alone, with no OS chrome, at exactly pixel ratio 2. Exit 5 means
+   no `/narya` daemon (or no wsUri in its log) stood to reach.
 
 2. **Compare.** Read the spec image and `feanor-pass-<n>.png`, full resolution,
    un-resized, un-fuzzed, side by side. Name the visual deltas as a concrete
@@ -677,7 +704,8 @@ written all the same, and the loop never blocks on the window.
   Windows; Chrome on macOS). Absent both, set `FEANOR_BROWSER` to a binary, or the
   loop fails loud at the first render rather than aligning to a blank.
 - **ImageMagick required for sampling, measuring, and region crops.**
-  `feanor-sample-color.sh`, `feanor-measure.sh`, and `feanor-crop.sh` all need
+  `feanor-sample-color.sh`, `feanor-measure.sh`, `feanor-ink-centre.sh`, and
+  `feanor-crop.sh` all need
   `magick` (or the legacy `convert`) on PATH. Absent both, set `FEANOR_MAGICK` to
   a binary, or each fails loud rather than returning a guessed color, an
   unmeasured scanline, or an empty crop.
