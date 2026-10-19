@@ -1,6 +1,6 @@
 ---
 name: manwe
-description: Use when a built UI component or screen needs weighing against what it should be — whether phrased as /manwe <target> [<spec>], or in plain words such as "does this look right", "check this against the mockup", "review the render". <target> is the built page or app view to weigh (a served http(s):// URL, or a Flutter app already running on a booted emulator/simulator — captured via feanor-flutter-shot, never auto-launched). <spec> is optional — a PNG, or an HTML page/URL rendered to one, or a Henneth-approved wireframe from the same working session. With a spec, shoots the target once and names the perceptual deltas against it, the same oracle Fëanor uses. Without one, reads the target's source beside at least one sibling component (same screen or widget family) and flags divergence in layout properties — padding, spacing, sizing, typography. A single pass, never a loop, and it never edits source — findings only. Reuses Fëanor's shot hooks; never launches a browser tab or a device itself.
+description: Use when a built UI component or screen needs weighing against what it should be — whether phrased as /manwe <target> [<spec>], or in plain words such as "does this look right", "check this against the mockup", "review the render". <target> is the built page or app view to weigh (a served http(s):// URL, or a Flutter app already running on a booted emulator/simulator — captured via feanor-flutter-shot, never auto-launched). <spec> is optional — a PNG, or an HTML page/URL rendered to one, or a Henneth-approved wireframe from the same working session. With a spec, shoots the target once and names the perceptual deltas against it, the same oracle Fëanor uses. Without one, reads the target's source beside at least one sibling component (same screen or widget family) and flags divergence in layout properties — padding, spacing, sizing, typography. A single pass, never a loop, and it never edits source — findings only. Reuses Fëanor's shot hooks; never launches a browser tab or a device itself. With --human, also renders a side-by-side comparison page (spec left, shot right, overlay slider) into Henneth, asks the human to confirm by eye, and carries their word beside the model's in the verdict.
 purpose: Weighs a built UI component's render against a spec, or against a sibling's actual values when no spec exists, and reports findings without editing source.
 user_invocable: true
 stage: forge
@@ -61,6 +61,38 @@ does — it only looks, and says plainly what does not match.
    check already applies to user-facing text, generalized to layout.
 4. Report `REASONABLE` (the shot looks sound and no compared property diverges) or
    `DIVERGENT` (name each divergent property, target's value beside the sibling's).
+
+## With `--human` — the eye's double confirm
+
+`/manwe <target> [<spec>] --human` runs the pass above unchanged, then puts the
+verdict before the human's eye. Without the flag nothing below happens.
+
+1. Take the pairs. One `<target> <spec>` pair, several of them, or captures
+   already in the session (a flow of frames against their shots) — one page
+   covers all. A pair with no spec or no shot yet is still listed.
+2. Write a manifest to the scratchpad and render it:
+
+       ~/.claude/hooks/manwe-compare.py <manifest.json>
+
+   Manifest fields are in the hook's docstring: `slug` (target or feature — one
+   page per run, never overwriting another's), `title`, and per pair `title`,
+   `spec`, `shot`, optional `specLabel`/`shotLabel`, `specHint`/`shotHint`
+   (what the human must do for a missing side, e.g. "choose a protocol and I'll
+   shoot it"), and `notes` (the measured deltas from the pass). The hook writes
+   `manwe-compare-<slug>.html` and copies the images into a
+   `manwe-compare-<slug>/` folder beside it (cleared on each run of the same
+   slug); the page draws spec left and shot right at the same CSS width, with a
+   collapsible Overlay and opacity slider per pair.
+   Where the spec and shot differ in device pixels (a 1024 lp PNG against a
+   2048 px iPad shot) the page's equal widths already line up one logical px.
+3. Print the page URL — the port is in `~/.skadi/henneth/.henneth-port` (boot
+   `/henneth` first if it is absent): `http://localhost:<port>/manwe-compare-<slug>.html`.
+4. Ask the human with `AskUserQuestion`: **Matches** or **Mismatch (describe)**.
+5. Carry both words in the verdict line, the model's first and the human's beside
+   it: `DELTAS (human: matches)`, `ALIGNED (human: mismatch — <their words>)`.
+   The two may disagree; report the disagreement, do not settle it.
+
+Still findings only — the flag adds an observer, not an editor.
 
 ## Notes
 
