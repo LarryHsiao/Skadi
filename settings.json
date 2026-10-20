@@ -94,6 +94,8 @@
       "Bash(~/.claude/hooks/working-jira-open.sh:*)",
       "Bash(~/.claude/hooks/working-jira-ticket.sh:*)",
       "Bash(~/.claude/hooks/working-jira-transitions.sh:*)",
+      "Bash(~/.claude/hooks/working-youtrack-open.sh:*)",
+      "Bash(~/.claude/hooks/working-youtrack-ticket.sh:*)",
       "Bash(~/.claude/hooks/rhovanion-youtrack-probe.sh:*)",
       "Bash(~/.claude/hooks/rhovanion-jira-probe.sh:*)",
       "Bash(~/.claude/hooks/skeleton-rung.py:*)",
