@@ -59,10 +59,16 @@ expected_or="deny:yes"
 actual_or=$(decision "$HOOK" "npm test || echo failed")
 check "test run followed by || echo is denied" "$expected_or" "$actual_or"
 
-# ── 5c · knowing exception, pinned: a quoted | reads as a pipe and is denied ──
-expected_quoted="deny:yes"
+# ── 5c · a | inside quotes is an argument, not a pipe, and passes ──
+expected_quoted="allow"
 actual_quoted=$(decision "$HOOK" 'pytest -k "parse|write"')
-check "quoted | is denied (accepted: inherited from /este's reading)" "$expected_quoted" "$actual_quoted"
+check "quoted | is not a pipe and passes" "$expected_quoted" "$actual_quoted"
+
+# ── 5c' · a test file named inside a quoted message is no run, and passes
+#          (the worklog send this guard false-denied on its first day) ──
+expected_msg="allow"
+actual_msg=$(decision "$HOOK" "printf '%s' \"exit 6 has a test (vilya.test.sh:332)\" | ~/.claude/hooks/handoff.sh send worklog-inbox")
+check "test file named inside a quoted message passes" "$expected_msg" "$actual_msg"
 
 # ── 5d · a deny exits 0 — the decision rides in the JSON, not the status ──
 expected_status="0"

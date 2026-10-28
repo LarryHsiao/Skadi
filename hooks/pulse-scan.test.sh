@@ -2746,6 +2746,35 @@ PY
 )
 check "verify classifiers: a check counts only in command position, never as a file-name argument" "$expected_cmdpos" "$actual_cmdpos"
 
+# ── 70b · quotes are data, not shell. A `(` or `;` inside a quoted string is no
+#          separator, so a check named there is no run; a `|` inside quotes is
+#          no pipe, so a run carrying one still owns its exit status ──
+expected_quoted="quoted-paren:none|quoted-semi:none|after-quoted:test:readable|quoted-pipe-arg:test:readable|single-quoted-pipe-arg:test:masked|quoted-pipe-before:test:readable"
+actual_quoted=$(python3 - "$SCAN" "$RUBRIC" <<'PY'
+import importlib.util as u, sys, json, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+pats = {r["id"].split(".")[1]: (re.compile(r["match"]), re.compile(r["exclude"]) if r.get("exclude") else None)
+        for r in rubric if r["kind"] == "verify"}
+cases = [("quoted-paren", "printf '%s' \"the exit path has a test (vilya.test.sh:332) now\" | handoff.sh send inbox"),
+         ("quoted-semi", "echo \"a; pytest\""),
+         ("after-quoted", "echo \"x; y\" && pytest"),
+         ("quoted-pipe-arg", "pytest -k \"parse|write\""),
+         ("single-quoted-pipe-arg", "pytest -k 'a|b' | tail -3"),
+         ("quoted-pipe-before", "echo \"x | y\" && pytest")]
+out = []
+for name, cmd in cases:
+    hit = "none"
+    for row, (rx, ex) in pats.items():
+        match = m._check_match(cmd, rx, ex)
+        if match:
+            hit = "%s:%s" % (row, "readable" if m._exit_belongs_to_check(cmd, match) else "masked")
+    out.append("%s:%s" % (name, hit))
+print("|".join(out))
+PY
+)
+check "verify classifiers: quoted separators and pipes are data, not shell" "$expected_quoted" "$actual_quoted"
+
 # ── 70b · a segment whose FIRST run was masked yields no verdict at all. The
 #          readable run that follows is the re-run after a fix, so scoring it
 #          would answer the opposite question — and it reads far cleaner for

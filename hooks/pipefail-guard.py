@@ -10,10 +10,11 @@ What counts as a test or lint run, and as a masked one, is /este's own reading:
 the rubric's verify patterns and pulse-scan.py's _check_match and
 _exit_belongs_to_check, loaded from beside this file. The guard and the metric
 therefore cannot drift apart — whatever the guard lets through, /este can read.
-That reading finds a pipe by character, so it also denies `|| echo`, which
-does mask the status, and two shapes that do not: a quoted `|` (`pytest -k
-"a|b"`) and a pipe on a later `&&` stage. Accepted knowingly: the prefix the
-reason names is harmless there and lets the command through at once.
+That reading treats quoted text as data, so a `|` or a test file named inside
+quotes is let through; it also denies `|| echo`, which does mask the status,
+and one shape that does not: a pipe on a later `&&` stage. Accepted knowingly:
+the prefix the reason names is harmless there and lets the command through at
+once.
 
 Fails open: a malformed payload, or a pulse-scan or rubric that cannot be
 loaded, lets the command through with one line on stderr. A broken guard must

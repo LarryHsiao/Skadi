@@ -597,7 +597,9 @@ _LAUNCHER_RE = re.compile(
     r"(?:(?:\w+=\S*|if|then|do|else|while|until|!|bash|sh|zsh|time|env|exec"
     r"|nice|nohup|sudo|xargs|rtk|npx|bunx|fvm|timeout\s+\S+|python3?(?:\s+-m)?|uv\s+run"
     r"|poetry\s+run|pnpm\s+exec)\s+)*")
-_SEPARATOR_RE = re.compile(r"[;&|(\n]")
+_SEPARATOR_CHARS = frozenset(";&|(\n")
+_PIPE = "|"
+_SINGLE_QUOTE, _DOUBLE_QUOTE, _ESCAPE = "'", '"', "\\"
 _MATCH_LEAD_RE = re.compile(r"[;&|(\s]*")
 _PATH_CHAR_RE = re.compile(r"[\w./~-]")
 
@@ -620,29 +622,68 @@ def _exit_belongs_to_check(cmd, match):
     CLAUDE.md now asks for that prefix, and why this row's coverage grows as
     the habit takes hold.
 
-    The pipe is found by character, not by parsing the shell, so a `|` inside
-    a quoted argument (`pytest -k "parse|write"`) or a `||` also reads as a
-    pipeline and costs that run its place. The error is one-directional — it
-    excludes runs that were in fact readable, never admits one that was not —
-    so it shrinks coverage rather than corrupting the rate."""
-    if "|" not in cmd[match.start():]:
+    A `|` inside quotes is an argument, not a pipe (`pytest -k "parse|write"`
+    stays readable); one outside them counts, `||` included — `npm test ||
+    echo failed` succeeds whatever the suite found, which masks it as surely
+    as a pipe. Quotes are read by _quoted, not by parsing the shell; see its
+    note on heredocs for the one way it can still misread."""
+    quoted = _quoted(cmd)
+    if not any(cmd[i] == _PIPE and not quoted[i]
+               for i in range(match.start(), len(cmd))):
         return True
     return bool(_PIPEFAIL_RE.search(cmd))
 
 
+def _quoted(cmd):
+    """Per character of cmd, whether the shell reads it as data: inside single
+    or double quotes (the quotes included), or escaped by a backslash outside
+    single quotes. A `(` or `|` so marked is no separator and no pipe — the
+    worklog send `printf '%s' "... (vilya.test.sh:332) ..." | ...` once read
+    its quoted `(` as a separator and its test file as a run.
+
+    Quotes are tracked by character, and heredocs are not parsed at all. So
+    an apostrophe inside a heredoc body (`don't`) flips the state, and a real
+    run after that body can read as quoted and be missed; and an unquoted
+    heredoc body is read as shell, so a line in it such as `(pytest)` can be
+    taken for a run."""
+    marks = []
+    quote = None
+    escaped = False
+    for ch in cmd:
+        if escaped:
+            escaped = False
+        elif ch == _ESCAPE and quote != _SINGLE_QUOTE:
+            escaped = True
+        elif quote:
+            quote = None if ch == quote else quote
+            marks.append(True)
+            continue
+        elif ch in (_SINGLE_QUOTE, _DOUBLE_QUOTE):
+            quote = ch
+        else:
+            marks.append(False)
+            continue
+        marks.append(True)
+    return marks
+
+
 def _in_command_position(cmd, match):
     """Whether this match is the command being run rather than an argument to
-    some other command. The token is widened left over path characters, so
-    `./hooks/a.test.sh` is weighed from `./`; the text from the last shell
-    separator up to it must then hold only launchers (_LAUNCHER_RE).
+    some other command. A match inside quotes is data, never a run. Otherwise
+    the token is widened left over path characters, so `./hooks/a.test.sh` is
+    weighed from `./`; the text from the last unquoted shell separator up to
+    it must then hold only launchers (_LAUNCHER_RE).
 
-    Separators are found by character, not by parsing, so a `;` inside a
-    quoted argument can make a mention look like a run, and `bash -c
-    "pytest"` reads as an argument and is missed. Both are rare."""
+    `bash -c "pytest"` therefore reads as quoted data and is missed. Rare."""
+    quoted = _quoted(cmd)
     start = match.start() + _MATCH_LEAD_RE.match(match.group()).end()
+    if quoted[start]:
+        return False
     while start > 0 and _PATH_CHAR_RE.match(cmd[start - 1]):
         start -= 1
-    head = _SEPARATOR_RE.split(cmd[:start])[-1].lstrip()
+    last_separator = max((i for i in range(start)
+                          if cmd[i] in _SEPARATOR_CHARS and not quoted[i]), default=-1)
+    head = cmd[last_separator + 1:start].lstrip()
     return _LAUNCHER_RE.fullmatch(head) is not None
 
 
