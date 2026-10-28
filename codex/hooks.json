@@ -24,7 +24,8 @@
         "hooks": [
           { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/dir-guard.sh", "statusMessage": "Checking directory..." },
           { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/protected-repo-guard.sh", "statusMessage": "Checking protected repos..." },
-          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/pre-commit-guard.sh" }
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/pre-commit-guard.sh" },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/pipefail-guard.py" }
         ]
       },
       {

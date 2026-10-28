@@ -225,6 +225,10 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/pre-commit-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/pipefail-guard.py"
           }
         ]
       },
