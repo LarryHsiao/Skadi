@@ -118,7 +118,6 @@ situation board.
 | `CLAUDE.md` | Global instructions loaded into every conversation |
 | `AGENTS.md` | Runtime-neutral global instructions installed into Codex homes |
 | `assets/` | The repo icon — a pen nib, embedded above |
-| `TODO.md` | The one item still open across the repo, kept so a successor session knows where to look |
 | `settings.json` | Model, permissions, plugins, and hook definitions |
 | `codex/hooks.json` | Native Codex lifecycle-hook definitions |
 | `codex/rules/skadi.rules` | Native Codex command escalation policy |
