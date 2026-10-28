@@ -2707,6 +2707,45 @@ PY
 )
 check "verify classifiers cover this repo's gates; a probe is dropped but a run after it survives" "$expected_classify" "$actual_classify"
 
+# ── 70a · a check counts only where it stands in command position. A file
+#          name merely passed to grep, cat, or written inside a heredoc is not
+#          a run — across the live roots ~800 such mentions had entered the
+#          unmeasured count as masked test runs ──
+expected_cmdpos="grep-mention:none|cat-mention:none|heredoc-edit:none|lint-mention:none|chmod-then-run:test|fvm:test|env-assign:test|cd-then-run:test|pipefail-run:test|tsc-after-sep:lint|rtk-wrapped:test|rtk-lint:lint|sudo:test|if-then:test|subshell:test|xargs:lint"
+actual_cmdpos=$(python3 - "$SCAN" "$RUBRIC" <<'PY'
+import importlib.util as u, sys, json, re
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+rubric = json.load(open(sys.argv[2], encoding="utf-8"))
+pats = {r["id"].split(".")[1]: (re.compile(r["match"]), re.compile(r["exclude"]) if r.get("exclude") else None)
+        for r in rubric if r["kind"] == "verify"}
+cases = [("grep-mention", "grep -n narya hooks/board-refresh-wiring.test.sh | head -5"),
+         ("cat-mention", "cat scripts/test_feed.py; sed -n 1,30p scripts/test_feed.py"),
+         ("heredoc-edit", "python3 - <<'EOF'\np='scripts/test_build_news_page.py'\ns=open(p).read()\nEOF"),
+         ("lint-mention", "grep -rn shellcheck docs/ | head -3"),
+         ("chmod-then-run", "chmod +x hooks/a.test.sh && ./hooks/a.test.sh | tail -3"),
+         ("fvm", "fvm flutter test test/foo_test.dart"),
+         ("env-assign", "PYTHONPATH=. pytest -q"),
+         ("cd-then-run", "cd app && flutter test 2>&1 | tail -5"),
+         ("pipefail-run", "set -o pipefail; flutter test | tail -3"),
+         ("tsc-after-sep", "cd web; tsc --noEmit"),
+         ("rtk-wrapped", "cd app && rtk flutter test 2>&1 | tail -5"),
+         ("rtk-lint", "rtk npx eslint ."),
+         ("sudo", "sudo pytest -q"),
+         ("if-then", "if pytest -q; then echo ok; fi"),
+         ("subshell", "echo $(make test)"),
+         ("xargs", "git diff --name-only | xargs shellcheck")]
+out = []
+for name, cmd in cases:
+    hit = "none"
+    for row, (rx, ex) in pats.items():
+        if m._check_match(cmd, rx, ex):
+            hit = row
+    out.append("%s:%s" % (name, hit))
+print("|".join(out))
+PY
+)
+check "verify classifiers: a check counts only in command position, never as a file-name argument" "$expected_cmdpos" "$actual_cmdpos"
+
 # ── 70b · a segment whose FIRST run was masked yields no verdict at all. The
 #          readable run that follows is the re-run after a fix, so scoring it
 #          would answer the opposite question — and it reads far cleaner for

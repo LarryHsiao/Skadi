@@ -584,12 +584,22 @@ def _tool_result_for(turns, i, call_id):
     return results[0] if len(results) == 1 else None
 
 
-# A command that asks whether a tool EXISTS rather than running it — `command
-# -v golangci-lint`, `which shellcheck`. Matched against the text standing
-# before the classifier's own match, so only the probe verb governing that
-# tool disqualifies it. Without this, 27 such probes entered the lint
-# denominator, every one of them "failing" because the tool was absent.
-_PROBE_RE = re.compile(r"(?:command\s+-v|which|type|hash)\s+$")
+# What may stand between a shell separator and a check while the check is
+# still the command being run: shell keywords, env assignments, and wrappers
+# that exec their arguments (an interpreter handed a script, a timer, fvm).
+# Anything else there makes the check's name an ARGUMENT — `grep x a.test.sh`,
+# `cat test_feed.py`, a heredoc line `p='test_x.py'` — and not a run. Across
+# the live roots ~800 such mentions had entered verify.test's unmeasured
+# count. It also drops existence probes (`command -v golangci-lint`, `which
+# shellcheck`), 27 of which once entered the lint denominator, each "failing"
+# only because the tool was absent.
+_LAUNCHER_RE = re.compile(
+    r"(?:(?:\w+=\S*|if|then|do|else|while|until|!|bash|sh|zsh|time|env|exec"
+    r"|nice|nohup|sudo|xargs|rtk|npx|bunx|fvm|timeout\s+\S+|python3?(?:\s+-m)?|uv\s+run"
+    r"|poetry\s+run|pnpm\s+exec)\s+)*")
+_SEPARATOR_RE = re.compile(r"[;&|(\n]")
+_MATCH_LEAD_RE = re.compile(r"[;&|(\s]*")
+_PATH_CHAR_RE = re.compile(r"[\w./~-]")
 
 # `set -o pipefail` in any of its spellings (`set -euo pipefail` too). The
 # option must be switched ON: matching the bare word would read `set +o
@@ -620,12 +630,29 @@ def _exit_belongs_to_check(cmd, match):
     return bool(_PIPEFAIL_RE.search(cmd))
 
 
+def _in_command_position(cmd, match):
+    """Whether this match is the command being run rather than an argument to
+    some other command. The token is widened left over path characters, so
+    `./hooks/a.test.sh` is weighed from `./`; the text from the last shell
+    separator up to it must then hold only launchers (_LAUNCHER_RE).
+
+    Separators are found by character, not by parsing, so a `;` inside a
+    quoted argument can make a mention look like a run, and `bash -c
+    "pytest"` reads as an argument and is missed. Both are rare."""
+    start = match.start() + _MATCH_LEAD_RE.match(match.group()).end()
+    while start > 0 and _PATH_CHAR_RE.match(cmd[start - 1]):
+        start -= 1
+    head = _SEPARATOR_RE.split(cmd[:start])[-1].lstrip()
+    return _LAUNCHER_RE.fullmatch(head) is not None
+
+
 def _check_match(cmd, match_re, exclude_re=None):
     """The first mention of this check that is an actual run, or None if the
     command only ever names it. Every mention is weighed, not just the
     first: `command -v ruff && ruff check .` probes the tool and then runs
-    it, and reading only the leading mention would throw the genuine run away
-    with the probe.
+    it, and `chmod +x a.test.sh && ./a.test.sh` names the script before
+    running it; reading only the leading mention would throw the genuine run
+    away with the probe or the argument.
 
     exclude_re, when given, disqualifies the whole command — used to keep a
     hook's own `*.test.sh` out of verify.lint, where the bare word `eslint`
@@ -638,7 +665,7 @@ def _check_match(cmd, match_re, exclude_re=None):
     if exclude_re is not None and exclude_re.search(cmd):
         return None
     for match in match_re.finditer(cmd):
-        if not _PROBE_RE.search(cmd[:match.start()]):
+        if _in_command_position(cmd, match):
             return match
     return None
 
