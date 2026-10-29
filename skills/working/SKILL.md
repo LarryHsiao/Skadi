@@ -125,6 +125,19 @@ When the error names missing credentials, also tell the user the routed tracker'
 
 > YouTrack creds resolve via `secret.sh` — store a Vaultwarden item `youtrack` (uri / password holding a permanent token), or set `YOUTRACK_URL` and `YOUTRACK_TOKEN` in your environment.
 
+### 3b. Readiness check (only when the goal is obvious)
+
+Read the summary and description stashed in step 3. Run this check only if the goal is obvious: you can write, without guessing, one sentence saying what is different when the work is done. If you cannot, print `Goal not evident from the ticket; skipping readiness check.` and continue to step 4. Do not infer a goal in order to analyze it.
+
+When the goal is obvious, answer from the ticket text alone:
+
+1. Is each acceptance line an observable outcome?
+2. Is the scope bounded?
+3. Are blockers and unknowns named?
+4. Does the description say everything the goal needs?
+
+Print `READY` on one line only if all four answer yes, and continue to step 4; otherwise print `GAPS` with each gap quoting the ticket line it rests on. A gap with no quote is dropped. Never edit the ticket. After `GAPS`, ask via AskUserQuestion: proceed, or stop here.
+
 ### 4. Transition ticket to "in progress"
 
 Throughout this step the **in-progress keyword set** is `progress`, `doing`, `active`, `start`, `working` (case-insensitive substring match — `start` also catches "started").
