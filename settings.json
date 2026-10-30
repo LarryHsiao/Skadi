@@ -142,6 +142,7 @@
       "Bash(~/.claude/hooks/feanor-ink-centre.sh:*)",
       "Bash(~/.claude/hooks/manwe-compare.py:*)",
       "Bash(~/.claude/hooks/flutter-daemon.sh:*)",
+      "Bash(~/.claude/hooks/shadowfax-toolchain.sh:*)",
       "Bash(~/.claude/hooks/vilya.sh:*)",
       "Bash(~/.claude/hooks/handoff.sh:*)",
       "Bash(~/.claude/hooks/handoff-autosub.sh:*)",
