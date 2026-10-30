@@ -52,7 +52,12 @@
 #
 # State lives under $SKADI_FLUTTER_ROOT (default $HOME/.skadi/flutter)/
 # <slug>/<device-slug>/ — the command file, the daemon's log, the two pids, and
-# a meta file naming the project, device, flavor, entry and appId.
+# a meta file naming the project, device, flavor, entry, appId and the Flutter
+# SDK the daemon was raised under.
+#
+# The SDK follows the project: one pinning its Flutter (.fvmrc or .fvm/ at its
+# root) starts through `fvm flutter`, not the flutter first on PATH — see
+# find_flutter. A pin kept in a parent directory is not seen.
 #
 # Device id, flavor and entry point are arguments, never baked in: this hook must
 # read true in any Flutter project on any machine.
@@ -102,7 +107,22 @@ than one stands (log requires -d then, to avoid interleaving transcripts).
 USAGE
 }
 
-find_flutter() {
+# The Flutter command a project asks for. A pin is a .fvmrc or .fvm/ at the
+# project root — fvm's own markers. A pinned project goes through `fvm flutter`
+# (spoken from the project root, where fvm reads the pin) because the flutter
+# first on PATH is the machine's default, and a pinned framework compiled
+# against another engine fails at DevFS sync. With no fvm on PATH the pin is
+# reached by its cache path; failing that the PATH flutter is used, aloud.
+# An unpinned project keeps `flutter`, then `fvm flutter`.
+find_flutter() { # project
+  local version sdk
+  if [ -f "$1/.fvmrc" ] || [ -d "$1/.fvm" ]; then
+    if command -v fvm >/dev/null 2>&1; then echo "fvm flutter"; return 0; fi
+    version="$(sed -n 's/.*"flutter"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1/.fvmrc" 2>/dev/null | head -n 1)"
+    sdk="${FVM_CACHE_PATH:-$HOME/fvm}/versions/$version/bin/flutter"
+    if [ -n "$version" ] && [ -x "$sdk" ]; then echo "$sdk"; return 0; fi
+    echo "flutter-daemon: $1 pins its Flutter SDK, but fvm is not on PATH and the pin could not be resolved in the fvm cache — using the flutter on PATH" >&2
+  fi
   if command -v flutter >/dev/null 2>&1; then echo "flutter"; return 0; fi
   if command -v fvm >/dev/null 2>&1; then echo "fvm flutter"; return 0; fi
   return 1
@@ -273,12 +293,26 @@ next_id() { # dir
   echo "$n"
 }
 
+# What a daemon runs under, for `start` and `status` to name: the Flutter version
+# the chosen command reports, then the command itself. Asked of the project root,
+# where fvm reads the pin; stdin is closed so a stray prompt cannot hang the ask.
+sdk_label() { # project
+  local version
+  # shellcheck disable=SC2086
+  version="$( cd "$1" && $fl --version --machine 2>/dev/null </dev/null \
+    | sed -n 's/.*"frameworkVersion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1 )"
+  printf '%s (%s)\n' "${version:-unknown}" "$fl"
+}
+
 spawn_daemon() { # dir project
-  local daemon
+  local daemon sdk
   mkdir -p "$1" || return 1
   : > "$1/cmds" || return 1
   : > "$1/log"
   rm -f "$1/holder.pid"
+  # Asked before the daemon is spawned: two flutter commands starting together
+  # can contend for its startup lock.
+  sdk="$(sdk_label "$2")"
   # shellcheck disable=SC2086
   # `flutter run` must be spoken from the project root, not from wherever the
   # caller stood; `exec` keeps the pid the subshell was given, so $! still names
@@ -303,6 +337,7 @@ spawn_daemon() { # dir project
   meta_set "$1" device "${device:-default}"
   meta_set "$1" flavor "${flavor:-none}"
   meta_set "$1" entry "${entry:-default}"
+  meta_set "$1" sdk "$sdk"
   meta_set "$1" started "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 
@@ -412,12 +447,21 @@ poke() { # dir reload|restart
   await_result "$1" "$offset" "$id" "$timeout" "$2"
 }
 
+# " · sdk <version> (<command>)" for a daemon that recorded one; nothing for a
+# daemon raised before this hook kept the field.
+sdk_field() { # dir
+  local sdk
+  sdk="$(meta_get "$1" sdk)"
+  [ -n "$sdk" ] && printf ' · sdk %s' "$sdk"
+  return 0
+}
+
 cmd_start() { # dir project
   local app
   if daemon_alive "$1"; then
     if app="$(resolve_appid "$1")"; then
       register_devtools_window "$1" "$2"
-      echo "alive $app · $2 · device $(meta_get "$1" device)"
+      echo "alive $app · $2 · device $(meta_get "$1" device)$(sdk_field "$1")"
       return 0
     fi
   else
@@ -429,7 +473,7 @@ cmd_start() { # dir project
   if app="$(await_started "$1" "$timeout")"; then
     daemon_alive "$1" || { last_words "$1" "the app started, then the daemon died"; return 5; }
     register_devtools_window "$1" "$2"
-    echo "started $app · $2 · device $(meta_get "$1" device)"
+    echo "started $app · $2 · device $(meta_get "$1" device)$(sdk_field "$1")"
     return 0
   fi
   daemon_alive "$1" || { last_words "$1" "the daemon died before the app started"; return 5; }
@@ -442,7 +486,7 @@ cmd_status() { # dir project
   [ -d "$1" ] || { echo "none $2 — no daemon"; return 4; }
   daemon_alive "$1" || { echo "dead $2 — the daemon is gone, start it again"; return 5; }
   if app="$(resolve_appid "$1")"; then
-    echo "alive $app · $2 · device $(meta_get "$1" device) · pid $(cat "$1/daemon.pid")"
+    echo "alive $app · $2 · device $(meta_get "$1" device)$(sdk_field "$1") · pid $(cat "$1/daemon.pid")"
     return 0
   fi
   echo "starting $2 · pid $(cat "$1/daemon.pid") — no app.started yet"
@@ -565,7 +609,7 @@ case "$verb" in
       echo "flutter-daemon: no pubspec.yaml in $proj — name the project with --project <dir>" >&2
       exit 4
     }
-    fl="$(find_flutter)" || {
+    fl="$(find_flutter "$proj")" || {
       echo "flutter-daemon: flutter not found — install Flutter or fvm" >&2
       exit 3
     }

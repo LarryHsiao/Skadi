@@ -27,7 +27,7 @@ Every verb runs through one hook:
 | `start` | Builds, installs, launches, and leaves the daemon standing. Pays the full build once. |
 | `reload` | Hot reload — Dart source only. Under a second. This is the bare `/narya` default. |
 | `restart` | Hot restart — re-runs `main()`, loses app state, keeps the daemon and the binary. |
-| `status` | Is the flame alive, against which device, with which appId. |
+| `status` | Is the flame alive, against which device, with which appId and Flutter SDK. |
 | `stop` | Closes the pipe, reaps the daemon, clears the state. |
 | `log` | The daemon's own transcript — where a failed build explains itself. |
 
@@ -66,6 +66,23 @@ name the device when more than one is attached (`flutter devices` lists them):
 The first build is the slow one; report the wait plainly rather than letting it
 look like a hang. If it outlasts `--timeout` the daemon is left standing, and a
 later `status` picks the app up once it starts.
+
+**The SDK follows the project.** A project that pins its Flutter — a `.fvmrc` or
+`.fvm/` at its root — is started through `fvm flutter`, not the `flutter` first on
+PATH. That one is the machine's default and may be another version: a pinned
+framework compiled against a different engine fails at the first `reload` with
+`DevFS synchronization failed`. `start` and `status` name the SDK in use
+(`sdk 3.35.7 (fvm flutter)`), so a wrong one shows at once. A project with no pin
+keeps the PATH `flutter`. With no `fvm` on PATH the pin is reached through
+`${FVM_CACHE_PATH:-~/fvm}/versions/<pin>`; failing that, the hook warns on stderr
+and uses the PATH `flutter`.
+
+Two things outlast a switch of SDK, and Narya touches neither. A project built under
+the other SDK needs `fvm flutter clean` once, or Xcode reuses a stale precompiled
+header. And a global pub tool activated under another Dart can fail an Xcode build
+phase with `Invalid SDK hash` (seen with `flutterfire_cli`); reactivate it under
+`fvm dart pub global activate <tool>` from the pinned project, knowing the global tool then serves
+one Dart at a time.
 
 ## Multiple simulators
 

@@ -71,6 +71,10 @@ cat > "$WORK/bin/flutter" <<'STUB'
 #!/bin/bash
 echo "$*" >> "$STUB_LOG"
 echo "cwd=$PWD" >> "$STUB_LOG"
+if [ "${1:-}" = "--version" ]; then
+  if [ "${STUB_NO_VERSION:-0}" = "1" ]; then echo "Flutter (stub, no machine output)"; exit 0; fi
+  echo "{\"frameworkVersion\": \"${STUB_FW:-3.38.7}\"}"; exit 0
+fi
 if [ "${STUB_NO_DEVTOOLS:-0}" != "1" ]; then
   echo 'The Flutter DevTools debugger and profiler is available at: http://127.0.0.1:9101?uri=http://127.0.0.1:50505/abc123=/'
 fi
@@ -407,6 +411,97 @@ export STUB_IN="$WORK/j.in"
 out=$(PATH="$BARE_PATH" "$BARE_HOOK" start --project "$projJ" --timeout 20 2>&1); st=$?
 check "start with no sibling window-register.sh still exits 0" "0" "$st"
 PATH="$BARE_PATH" "$BARE_HOOK" stop --project "$projJ" >/dev/null 2>&1
+
+# ── a project's pinned Flutter SDK wins over the one first on PATH ──
+# `fvm` stands in for the pin's resolver: it logs an "fvm ..." line, then runs
+# the ordinary stub, so the log shows which route the daemon was started by.
+# The PATH `flutter` is the stub above — the "global" SDK the pin must override.
+mkdir -p "$WORK/fvmbin" "$WORK/cache/versions/3.35.7/bin"
+cat > "$WORK/fvmbin/fvm" <<'STUB'
+#!/bin/bash
+echo "fvm $*" >> "$STUB_LOG"
+[ "$1" = flutter ] || exit 64
+shift
+export STUB_FW=3.35.7
+exec "$FVM_REAL_FLUTTER" "$@"
+STUB
+chmod +x "$WORK/fvmbin/fvm"
+export FVM_REAL_FLUTTER="$WORK/bin/flutter"
+# A pinned SDK sitting in the fvm cache, reached by its path when `fvm` is absent.
+cat > "$WORK/cache/versions/3.35.7/bin/flutter" <<'STUB'
+#!/bin/bash
+echo "pinned-direct $*" >> "$STUB_LOG"
+export STUB_FW=3.35.7
+exec "$FVM_REAL_FLUTTER" "$@"
+STUB
+chmod +x "$WORK/cache/versions/3.35.7/bin/flutter"
+FVM_PATH="$WORK/fvmbin:$BARE_PATH"
+
+start_logged() { # project path -> output; the stub's argv log is left in $STUB_LOG
+  : > "$STUB_LOG"
+  PATH="$2" FVM_CACHE_PATH="$WORK/cache" "$HOOK" start --project "$1" --timeout 20 2>&1
+  PATH="$2" "$HOOK" stop --project "$1" >/dev/null 2>&1
+}
+
+projP=$(new_project pinned)
+printf '{"flutter": "3.35.7"}\n' > "$projP/.fvmrc"
+export STUB_IN="$WORK/p.in"; : > "$STUB_IN"
+start_logged "$projP" "$FVM_PATH" >/dev/null
+check "a pinned project starts through fvm, not the PATH flutter" "1" "$(grep -c '^fvm flutter run' "$STUB_LOG")"
+
+projU=$(new_project unpinned)
+export STUB_IN="$WORK/u.in"; : > "$STUB_IN"
+start_logged "$projU" "$FVM_PATH" >/dev/null
+check "a project with no pin keeps the PATH flutter" "0" "$(grep -c '^fvm ' "$STUB_LOG")"
+check_has "an unpinned start still reaches flutter run" "run --machine" "$(cat "$STUB_LOG")"
+
+projL=$(new_project legacypin)
+mkdir -p "$projL/.fvm"
+export STUB_IN="$WORK/l.in"; : > "$STUB_IN"
+start_logged "$projL" "$FVM_PATH" >/dev/null
+check "a .fvm/ directory alone counts as a pin" "1" "$(grep -c '^fvm flutter run' "$STUB_LOG")"
+
+export STUB_IN="$WORK/p.in"; : > "$STUB_IN"
+start_logged "$projP" "$BARE_PATH" >/dev/null
+check "a pin with no fvm on PATH runs the SDK from the fvm cache" "1" "$(grep -c '^pinned-direct run' "$STUB_LOG")"
+
+projM=$(new_project missingpin)
+printf '{"flutter": "9.9.9"}\n' > "$projM/.fvmrc"
+export STUB_IN="$WORK/m.in"; : > "$STUB_IN"
+out=$(start_logged "$projM" "$BARE_PATH")
+check_has "a pin that cannot be honoured says so" "pins its Flutter SDK" "$out"
+check_has "and the PATH flutter still starts the daemon" "started stub-app-1" "$out"
+
+# ── start and status name the SDK the daemon runs under ──
+projS=$(new_project sdkpin)
+printf '{"flutter": "3.35.7"}\n' > "$projS/.fvmrc"
+export STUB_IN="$WORK/s.in"; : > "$STUB_IN"
+out=$(PATH="$FVM_PATH" "$HOOK" start --project "$projS" --timeout 20 2>&1)
+check_has "start names the pinned SDK it chose" "sdk 3.35.7 (fvm flutter)" "$out"
+out=$(PATH="$FVM_PATH" "$HOOK" status --project "$projS" 2>&1)
+check_has "status names the same SDK" "sdk 3.35.7 (fvm flutter)" "$out"
+out=$(PATH="$FVM_PATH" "$HOOK" start --project "$projS" --timeout 20 2>&1)
+check_has "a second start, finding it alive, names it too" "sdk 3.35.7 (fvm flutter)" "$out"
+PATH="$FVM_PATH" "$HOOK" stop --project "$projS" >/dev/null 2>&1
+
+projT=$(new_project sdkpath)
+export STUB_IN="$WORK/t.in"; : > "$STUB_IN"
+out=$(PATH="$FVM_PATH" "$HOOK" start --project "$projT" --timeout 20 2>&1)
+check_has "an unpinned start names the PATH SDK" "sdk 3.38.7 (flutter)" "$out"
+
+# A daemon raised by an older hook recorded no SDK: status must stay quiet about it.
+metaT="$(grep -l "^project=$projT\$" "$SKADI_FLUTTER_ROOT"/*/*/meta)"
+grep -v '^sdk=' "$metaT" > "$metaT.new" && mv "$metaT.new" "$metaT"
+out=$(PATH="$FVM_PATH" "$HOOK" status --project "$projT" 2>&1); st=$?
+check "status on a daemon with no recorded SDK exits 0" "0" "$st"
+check "and prints no sdk field" "0" "$(printf '%s' "$out" | grep -c ' · sdk ')"
+PATH="$FVM_PATH" "$HOOK" stop --project "$projT" >/dev/null 2>&1
+
+projV=$(new_project sdkunknown)
+export STUB_IN="$WORK/v.in"; : > "$STUB_IN"
+out=$(STUB_NO_VERSION=1 PATH="$FVM_PATH" "$HOOK" start --project "$projV" --timeout 20 2>&1)
+check_has "an unreadable Flutter version reads as unknown" "sdk unknown (flutter)" "$out"
+PATH="$FVM_PATH" "$HOOK" stop --project "$projV" >/dev/null 2>&1
 
 echo ""
 echo "── $pass passed, $fail failed ──"
