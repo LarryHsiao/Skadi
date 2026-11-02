@@ -31,6 +31,11 @@ export LC_ALL=C.UTF-8
 DIR="$(cd "$(dirname "$0")" && pwd)"
 BOARD_DIR="${BOARD_DIR:-$HOME/.skadi/board}"
 BOARD_PORT="${BOARD_PORT:-10000}"
+
+# A local probe gives up after this long. A port nothing listens on may drop
+# the connection rather than refuse it, and curl unbounded waits minutes or more.
+PROBE_TIMEOUT_S=2
+
 HENNETH_DIR="$HOME/.skadi/henneth"
 THEME_SRC="$HENNETH_DIR/skadi-theme.css"
 SKILLS_CHEATSHEET_DEST="$HENNETH_DIR/skills-cheatsheet.html"
@@ -214,7 +219,7 @@ PY
     # The port is fixed (BOARD_PORT, default 10000) so the URL never drifts
     # across restarts. Reuse a live server already bound there.
     port="$BOARD_PORT"
-    if curl -sf -o /dev/null "http://127.0.0.1:$port/index.html"; then
+    if curl -sf -o /dev/null --max-time "$PROBE_TIMEOUT_S" "http://127.0.0.1:$port/index.html"; then
       echo "http://localhost:$port/"
       exit 0
     fi
@@ -225,7 +230,7 @@ PY
     # loudly rather than silently falling back to a different port.
     nohup python3 "$DIR/board-server.py" "$port" "$BOARD_DIR" >"$BOARD_DIR/.board-log" 2>&1 &
     disown
-    if curl -sf -o /dev/null --retry 15 --retry-delay 1 --retry-connrefused "http://127.0.0.1:$port/index.html"; then
+    if curl -sf -o /dev/null --max-time "$PROBE_TIMEOUT_S" --retry 15 --retry-delay 1 --retry-connrefused "http://127.0.0.1:$port/index.html"; then
       echo "http://localhost:$port/"
     else
       echo "board: server did not answer on $port — see $BOARD_DIR/.board-log" >&2

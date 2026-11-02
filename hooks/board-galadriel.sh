@@ -18,6 +18,10 @@ BOARD_DIR="${BOARD_DIR:-$HOME/.skadi/board}"
 GALADRIEL_DIR="${GALADRIEL_DIR:-$HOME/.claude/galadriel}"
 PORT_FILE="$GALADRIEL_DIR/.galadriel-port"
 
+# A local probe gives up after this long. A port nothing listens on may drop
+# the connection rather than refuse it, and curl unbounded waits minutes or more.
+PROBE_TIMEOUT_S=2
+
 mkdir -p "$BOARD_DIR"
 
 port="${BOARD_GALADRIEL_PORT:-}"
@@ -26,7 +30,7 @@ port="${BOARD_GALADRIEL_PORT:-}"
 # A live server is proven by a quick GET to its index.json, not by the lockfile
 # alone — a stale lockfile may name a port nothing listens on.
 url="null"
-if [[ -n "$port" ]] && curl -sf -o /dev/null "http://127.0.0.1:$port/index.json"; then
+if [[ -n "$port" ]] && curl -sf -o /dev/null --max-time "$PROBE_TIMEOUT_S" "http://127.0.0.1:$port/index.json"; then
   url="\"http://localhost:$port/\""
 fi
 
