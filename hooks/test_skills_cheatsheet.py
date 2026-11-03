@@ -119,12 +119,12 @@ class DescriptionBranchTest(unittest.TestCase):
 
     def test_a_slash_inside_a_path_is_not_read_as_an_invocation(self):
         """`build/publish/` is a directory; the real clause sits two sentences later."""
-        expected = ["/publish [platform...]"]
+        expected = ["/publish-flutter [platform...]"]
         description = (
             "Build Flutter release archives and collect into build/publish/. "
-            "Use /publish [platform...] to build. Default platforms: android ios."
+            "Use /publish-flutter [platform...] to build. Default platforms: android ios."
         )
-        self.assertEqual(expected, cheatsheet.invocations("publish", description, ""))
+        self.assertEqual(expected, cheatsheet.invocations("publish-flutter", description, ""))
 
     def test_a_form_ending_the_sentence_keeps_no_full_stop(self):
         expected = ["/cleanup-dev [--no-analyze]"]
@@ -305,11 +305,11 @@ class CorpusTest(unittest.TestCase):
         with_params = [s for s in parsed if s[3]]
         self.assertGreaterEqual(len(with_params), int(len(parsed) * 0.85))
 
-    def test_publish_is_read_past_the_path_in_its_own_description(self):
+    def test_publish_flutter_is_read_past_the_path_in_its_own_description(self):
         """The real file, not a fixture — its description opens with `build/publish/`."""
-        expected = ["/publish [platform...]"]
+        expected = ["/publish-flutter [platform...]"]
         by_name = {s[0]: s for s in cheatsheet.collect(SKILLS_DIR)}
-        self.assertEqual(expected, by_name["publish"][3])
+        self.assertEqual(expected, by_name["publish-flutter"][3])
 
 
 if __name__ == "__main__":

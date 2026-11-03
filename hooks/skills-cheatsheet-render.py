@@ -85,7 +85,7 @@ SKILL_GROUPS = {
     "git-reset": "Git & Repo",
     "celebrant": "Git & Repo",
     "sirion": "Git & Repo",
-    "publish": "Release",
+    "publish-flutter": "Release",
     "publish-macos": "Release",
     "cleanup-dev": "Maintenance & Utility",
     "preflight": "Maintenance & Utility",

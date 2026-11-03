@@ -1,6 +1,6 @@
 ---
-name: publish
-description: Build Flutter release archives for selected platforms and collect into build/publish/. macOS builds are signed (Developer ID) and notarized via Apple's notary service. Use /publish [platform...] to build. Default platforms: android ios.
+name: publish-flutter
+description: Build Flutter release archives for selected platforms and collect into build/publish/. macOS builds are signed (Developer ID) and notarized via Apple's notary service. Use /publish-flutter [platform...] to build. Default platforms: android ios.
 purpose: Builds Flutter release archives for selected platforms.
 user_invocable: true
 args: "[platform...]"
@@ -13,7 +13,7 @@ Builds Flutter release archives for one or more platforms and collects them into
 
 ## Arguments
 
-`/publish [platform...]`
+`/publish-flutter [platform...]`
 
 - `platform`: one or more of `android`, `ios`, `web`, `macos`, `windows`, `linux`
 - If omitted, defaults to `android ios`
@@ -382,6 +382,22 @@ cp -r build/windows/x64/runner/Release build/publish/windows
 cp -r build/linux/x64/release/bundle build/publish/linux
 ```
 
+### 6.5. Collect iOS dSYMs (ios only — skip if `ios` is not in the platform list)
+
+An `.ipa` built with Crashlytics needs its dSYMs uploaded, or crash reports arrive unsymbolicated. Check whether the project uses Crashlytics, and if so gather the dSYMs from the archive:
+
+```bash
+~/.claude/hooks/publish-dsym.sh detect .
+```
+
+- exit 2 (no `pubspec.yaml`): stop and report the error.
+- `disabled|…` (exit 1): note "Crashlytics not enabled — dSYM steps skipped" in the report and go to step 7.
+- `enabled|<evidence>` (exit 0): run `~/.claude/hooks/publish-dsym.sh collect .`.
+  - `collected|N|build/publish/dSYMs` (exit 0): `build/publish/dSYMs.zip` is written beside the `.ipa`.
+  - `none|…` (exit 1): say plainly in the report that Crashlytics is enabled but the archive held no dSYMs, so the upload reminder cannot be satisfied from this build.
+
+Never upload the dSYMs from this skill; the report in step 7 tells the user how.
+
 ### 7. Report results
 
 List contents of `build/publish/` and show a summary:
@@ -394,6 +410,17 @@ Build complete — N platform(s):
 All archives collected in build/publish/
 ```
 
+When step 6.5 collected dSYMs, add a closing block so the upload is not forgotten:
+
+```
+Crashlytics is enabled (EVIDENCE) — upload the dSYMs for this build:
+  ios/Pods/FirebaseCrashlytics/upload-symbols \
+    -gsp ios/Runner/GoogleService-Info.plist -p ios build/publish/dSYMs
+  or drag build/publish/dSYMs.zip into Firebase console → Crashlytics → dSYMs
+```
+
+The `upload-symbols` and `GoogleService-Info.plist` paths are the Flutter defaults; adjust them if the project's layout differs.
+
 ## Rules
 
 - Verify `pubspec.yaml` exists before doing anything else
@@ -403,4 +430,5 @@ All archives collected in build/publish/
 - macOS path signs the .app with Developer ID, hardened runtime, then notarizes and staples; other platforms are not signed
 - macOS path also packages a DMG (with TCC fallback) and uploads both the DMG and stapled zip to the GitHub release matching `pubspec.yaml`'s version (`v<MAJOR.MINOR.PATCH>`); creates the release if absent, clobbers assets if present
 - Resolve Apple credentials via `~/.claude/hooks/secret.sh` (vault item `apple-notarization`); never read tokens directly from env
+- iOS path checks for Crashlytics (`firebase_crashlytics` in `pubspec.yaml`) via `~/.claude/hooks/publish-dsym.sh`; when enabled, collect the archive's dSYMs into `build/publish/dSYMs` (+ `.zip`) and remind the user to upload them — never upload them here
 - Do not bump versions or upload to other stores (App Store Connect, etc.) — `/publish-macos` is the skill for version bumps and Mac App Store uploads
