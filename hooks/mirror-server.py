@@ -372,7 +372,7 @@ function paintStage(key, a){
   stage.innerHTML = !a ? ""
     : a.type === "image"
     ? `<img src="${esc(a.url)}" alt="${esc(a.label)}">`
-    : `<iframe src="${esc(a.url)}" sandbox="allow-scripts"></iframe>`;
+    : `<iframe src="${esc(a.url)}" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe>`;
   if(a && a.type === "image")
     stage.querySelector("img").onclick = () => stage.classList.toggle("zoomed");
 }
