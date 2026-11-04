@@ -187,6 +187,8 @@ Use `skill: celebrimbor`, `args: "<tracker> <project> --ticket <ticket-id>"` (ap
 
 The `--ticket` flag bypasses Celebrimbor's own qualifier-pick prompt (see Celebrimbor's step 2 — when `--ticket` is set, the candidate set is just that one ticket). Aulë's outer gate replaces the inner prompt.
 
+Each Celebrimbor that opens a PR/MR sends its own worklog entry (its step 9d), so a sweep leaves one entry per ticket forged. Aulë sends none of its own — a second entry over the same work would only duplicate it.
+
 Capture each Celebrimbor run's outcome for the report. A Celebrimbor-side abort (counsel bears unresolved Open questions, smith returned `[ABORT]`, push or PR-open failed) does not stop the sweep — Aulë records the row and proceeds to the next ticket.
 
 ### 5b. Close the merged

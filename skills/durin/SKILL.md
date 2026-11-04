@@ -165,6 +165,20 @@ Outcome vocabulary:
 
 Do not reproduce per-comment commit shas in this report — they live on Narvi's per-URL report blocks (already rendered by each Narvi dispatch in step 5). Durin's aggregate is the bird's-eye view.
 
+### 7. Send the worklog entry
+
+Only when at least one URL's outcome is `forged N/N` or `forged M/N` — a push landed. A sweep that forged nothing completed no task and earns no entry.
+
+Send one entry for the whole sweep (not one per PR/MR — Narvi skips its own entry under `--no-confirm`), with the body on stdin:
+
+```bash
+printf '%s' "$ENTRY" | ~/.claude/hooks/handoff.sh send worklog-inbox
+```
+
+`$ENTRY` opens with `[work] <repo basename>` — the basename of the swept repo (the `--repo` tree when given, else the cwd's git root), never a worktree name. The paragraph beneath names the PR/MR URLs mended, the forged and aborted counts, and any `verify-failed` or `weigh-failed` rows. Under `/moria`, each hall's Durin sends its own entry, so a sweep of N repos leaves N entries, each labelled with its own repo; Moria sends none of its own.
+
+A failed send is one trailing report line, `Worklog: send failed (<error>)`, never a stop. On success print `Worklog: sent`.
+
 ## Rules
 
 - One repo per invocation. The sweep scopes to one repo — the cwd's git tree, or the `--repo <path>` tree when given — via its `origin` remote only. `--repo` retargets that single sweep; it does not make the sweep span repos. Many repos are swept by calling Durin once per root (what `/moria` does).
@@ -176,3 +190,4 @@ Do not reproduce per-comment commit shas in this report — they live on Narvi's
 - Do not duplicate Narvi's per-comment commit-and-push logic — dispatch the skill instead. One source of truth for the per-URL workflow.
 - Do not surface forge tokens in logs, responses, or saved files.
 - Sweep order is the order returned by the list hook.
+- After the report, one worklog entry goes to `worklog-inbox` (step 7) when any push landed. A failed send is reported, never fatal.

@@ -116,6 +116,10 @@ each report.
 A Durin-side error or abort on one root does not halt Moria — record the row and ride
 on to the next.
 
+Each Durin sends its own worklog entry for its repo (its step 7), so a sweep leaves one
+entry per mended hall, each labelled with that repo's basename. Moria sends none —
+a second entry over the same work would only duplicate it.
+
 ### 4. Aggregate the report and verdict
 
 Print one block:

@@ -440,6 +440,20 @@ d. The hook prints `replied: forge=<f> ...` on success or `{"error":"..."}` on f
 
 If step 8's push was skipped (no FORGED entries) or failed, skip this whole step — the commits referenced by the replies are not on the remote, so the links would 404.
 
+### 9b. Send the worklog entry
+
+Only when at least one entry returned `[FORGED]` and step 8's push succeeded — a run that forged nothing, or halted before the push, completed no task and earns no entry.
+
+Send one entry, after the replies and before the report, with the body on stdin:
+
+```bash
+printf '%s' "$ENTRY" | ~/.claude/hooks/handoff.sh send worklog-inbox
+```
+
+`$ENTRY` opens with the header line `[work] <repo basename>` — the basename of the source repo from pre-flight step 1c, never the workspace or worktree name (the reminder hook's default project is the worktree's, and reads false here). The paragraph beneath says what was done, why, and the outcome: the PR/MR URL, how many comments were forged and aborted, and the `Weighed:` value.
+
+A failed send is a line in the report (`Worklog: send failed (<error>)`), never a stop. Skip this step when invoked with `--no-confirm` — that is sweep mode, where `/durin` sends one entry per repo swept (and so `/moria` one per hall) rather than one per PR.
+
 ### 10. Report and release
 
 Render one block:
@@ -455,8 +469,15 @@ Narvi at <url> — <branch>
 
 Weighed: <one of the five below>
 Pushed: yes / no (<reason>)
+Worklog: sent / skipped (<reason>) / send failed (<error>)
 Workspace: released / kept at <path> (<reason>)
 ```
+
+Close the report with the Compliance Review line. Step 7b's weigh stands in for the reviewer dispatch — it already reads the cumulative amendment diff by Mithrandir's axes before the push:
+
+- `Compliance Review: PASS (step 7b weigh)` when `Weighed:` reads `sound` or `sound after mend (<N> closed)`.
+- `Compliance Review: FAIL (step 7b weigh)` when it reads `<N> blocker(s) standing`.
+- No verdict line when `Weighed:` reads `skipped (nothing forged)` or `not reached (<reason>)` — no weigh ran, so none earned a verdict; say so in the report rather than writing `SKIPPED`.
 
 The `Weighed:` row takes exactly one of five values, and between them they cover every way step 7b can be left. Naming the state precisely is what lets `/durin` tell a `weigh-failed` outcome from a `verify-failed` one:
 
@@ -518,5 +539,6 @@ Narvi does not auto-invoke either. The verbs stay separate so the human chooses 
 - The workspace is **released on the success path** (verification passed or was skipped, the weigh left no Blocker, push succeeded, no scope-miss) and **kept on any abort or failure**. The release verb is idempotent; the human may re-run it at any time to clean up a kept workspace.
 - Before any push, the branch is verified once via the same detection hooks `/argonath` uses (`argonath-detect.sh` + `argonath-run.sh`, tests and lint). A failing command halts the run exactly like a scope-miss: no push, workspace kept, the failure named in the report. No detected command is not a failure — it is named `skipped`, the same honesty `/argonath` renders for an absent command.
 - Before any push, the smith's own code is weighed once by Mithrandir's axes over `<pre>..HEAD` — the amendment alone, never the whole branch. A standing `Blocker` halts the run like a failing test; `Nice to have` and `Nit` rows are reported and passed over. The gate guards the reviewer's next read: a flaw Narvi introduces would earn a fresh comment, and Narvi would be summoned to answer its own leavings.
+- After a successful push, one worklog entry goes to `worklog-inbox` (step 9b) — direct invocations only, labelled with the source repo's basename. A failed send is reported, never fatal.
 - Do not surface forge tokens in logs, responses, or saved files.
 - Aborts are first-class outcomes, not failures. Name the flaw plainly; do not retry.

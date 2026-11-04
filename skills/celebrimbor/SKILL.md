@@ -398,6 +398,20 @@ If the ticket is not yet resolved, proceed:
 
 The hook is idempotent — `noop:` is a normal outcome. On JSON error, surface the message in the report; do not roll back the PR or the comment.
 
+### 9d. Send the worklog entry
+
+Only when step 9a opened a PR/MR — a ticket that aborted, was declined, ran `--dry-run`, or failed before PR-open completed no task and earns no entry. `--skeleton` mode carves bones and opens no PR/MR, so it sends none either.
+
+Send one entry per ticket forged, with the body on stdin:
+
+```bash
+printf '%s' "$ENTRY" | ~/.claude/hooks/handoff.sh send worklog-inbox
+```
+
+`$ENTRY` opens with `[work] <repo basename>` — the basename of the source repo, never the workspace or worktree name. The paragraph beneath names the ticket id, the PR/MR URL, the branch, and the verification verdict from step 7. Under `/aule`, each dispatched Celebrimbor sends its own entry, so a sweep leaves one entry per ticket forged; Aulë sends none of its own.
+
+A failed send is a report line (`Worklog: send failed (<error>)`), never a stop and never a rollback of the PR.
+
 ### 10. Cleanup and report
 
 Decide the workspace fate by outcome:
@@ -423,6 +437,7 @@ Report — one short block:
 - The action taken: `forged` / `aborted (<reason>)` / `dry-run` / `skipped (declined at confirm)` / `error (<reason>)`.
 - The verification verdict (step 7): the static checks' result (`clean` / `n/a` / `debt carried`), Mithrandir's tier, the count of mend passes, and any known debt carried into the PR body.
 - The workspace disposition: `released` / `kept at <path> (<reason>)`.
+- The worklog entry: `sent` / `skipped (<reason>)` / `send failed (<error>)`.
 
 Do not reproduce the smith's full diff — it lives on the PR now.
 
@@ -435,5 +450,6 @@ Do not reproduce the smith's full diff — it lives on the PR now.
 - `--dry-run` overrides `--confirm` — nothing to confirm if nothing is posted.
 - The workspace is **released on the success path** (PR opened, `[GWAITH]` posted) and **kept on any abort or failure** (including `--dry-run` and `--confirm` declined where the user may want to inspect). The release verb is idempotent; the human may re-run it at any time.
 - `[GWAITH]` post failure does not roll back the PR. Surface the error and let the user reconcile.
+- After the PR/MR opens, one worklog entry goes to `worklog-inbox` (step 9d). A failed send is reported, never fatal.
 - Do not surface tracker or forge tokens in logs, responses, or saved files.
 - Aborts are first-class outcomes, not failures. Name the flaw plainly; do not retry.
