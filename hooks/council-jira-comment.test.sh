@@ -55,4 +55,13 @@ out=$(printf 'Some text.\n\n[[PLAN-PREVIEW]] extra text\n\nMore text.' | JIRA_AT
 check "sentinel-plus-extra -> no pointer text" "0" "$(printf '%s' "$out" | grep -c 'Diagram attached to this issue')"
 check "sentinel-plus-extra -> literal text preserved" "1" "$(printf '%s' "$out" | grep -c 'PLAN-PREVIEW.. extra text')"
 
+# 5. UTF-8 body over 1 KB with a 3-byte character straddling byte 1024 -> accepted.
+# Apple's iconv reads a file in 1024-byte chunks and rejects valid UTF-8 split there,
+# after which the CP1252 fallback silently re-encodes the body as mojibake.
+long_body=$(python3 -c "import sys; sys.stdout.write('a' * 1022 + '中' * 200)")
+out=$(printf '%s' "$long_body" | "$HOOK" MET-1)
+check "UTF-8 char across byte 1024 -> not rejected" "0" "$(printf '%s' "$out" | grep -c 'neither valid UTF-8')"
+# The CP1252 fallback used to turn 中 into mojibake (ä¸­) instead.
+check "UTF-8 char across byte 1024 -> decoded as UTF-8, not mojibake" "1" "$(printf '%s' "$out" | grep -c '中')"
+
 exit $fail

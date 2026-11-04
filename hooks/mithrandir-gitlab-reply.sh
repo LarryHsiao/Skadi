@@ -52,14 +52,7 @@ if [[ ! -s "$body_file" ]]; then
   exit 1
 fi
 
-if ! iconv -f UTF-8 -t UTF-8 "$body_file" >/dev/null 2>&1; then
-  if iconv -f WINDOWS-1252 -t UTF-8 "$body_file" > "$body_file.utf8" 2>/dev/null; then
-    mv "$body_file.utf8" "$body_file"
-  else
-    echo '{"error":"comment body is neither valid UTF-8 nor CP1252"}'
-    exit 1
-  fi
-fi
+"$(dirname "$0")/body-to-utf8.sh" "$body_file" || exit 1
 
 # Build the JSON payload via jq so multi-line markdown is escaped safely.
 jq -Rs '{body: .}' < "$body_file" > "$payload_file"

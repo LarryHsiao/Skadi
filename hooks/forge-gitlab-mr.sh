@@ -74,14 +74,7 @@ body_file=$(mktemp)
 trap 'rm -f "$body_file" "${push_log:-}" "${create_log:-}"' EXIT
 cat > "$body_file"
 
-if ! iconv -f UTF-8 -t UTF-8 "$body_file" >/dev/null 2>&1; then
-  if iconv -f WINDOWS-1252 -t UTF-8 "$body_file" > "$body_file.utf8" 2>/dev/null; then
-    mv "$body_file.utf8" "$body_file"
-  else
-    echo '{"error":"MR body is neither valid UTF-8 nor CP1252"}'
-    exit 1
-  fi
-fi
+"$(dirname "$0")/body-to-utf8.sh" "$body_file" MR || exit 1
 
 # Push the branch.
 push_log=$(mktemp)
