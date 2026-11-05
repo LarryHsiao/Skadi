@@ -8,6 +8,9 @@
 #   --assignee U  assign the PR to user U (e.g. @me); omitted = unassigned
 # Pushes the branch to origin, then opens a PR via `gh`.
 # On success prints one line: opened: forge=github url=<pr-url> number=<n>
+# Two other lines exit 0 and change nothing: `skipped: forge=github reason=no-commits`
+# (branch not ahead of base — nothing pushed) and `exists: forge=github url=<pr-url>`
+# (an open PR for the branch already stands).
 # On failure prints {"error":"...","response":"..."} and exits non-zero.
 #
 # Auth note: requires `gh auth login` to have been completed for the host.
@@ -75,6 +78,20 @@ trap 'rm -f "$body_file" "${push_log:-}" "${create_log:-}"' EXIT
 cat > "$body_file"
 
 "$(dirname "$0")/body-to-utf8.sh" "$body_file" PR || exit 1
+
+# Nothing to ship yet: a PR needs at least one commit past the base.
+ahead=$(git rev-list --count "$BASE..$BRANCH")
+if [[ "$ahead" -eq 0 ]]; then
+  echo "skipped: forge=github reason=no-commits"
+  exit 0
+fi
+
+# Re-run safety: an open PR for this branch is reported, never duplicated.
+existing=$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url // empty' 2>/dev/null || true)
+if [[ -n "$existing" ]]; then
+  printf 'exists: forge=github url=%s\n' "$existing"
+  exit 0
+fi
 
 # Push the branch.
 push_log=$(mktemp)

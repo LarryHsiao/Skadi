@@ -212,7 +212,7 @@
           </tr>
           <tr>
             <td><span class="name">working-jira-ticket</span>, <span class="name">working-jira-open</span>, <span class="name">working-jira-transitions</span></td>
-            <td>Resolve a ticket, open its draft PR/MR, and drive its state transitions for <code>/working</code></td>
+            <td>Resolve a ticket, list the open ones, and drive its state transitions for <code>/working</code></td>
           </tr>
           <tr>
             <td><span class="name">jira-daily</span>, <span class="name">prs-check</span>, <span class="name">mrs-check</span>, <span class="name">eod-git-check</span></td>
@@ -227,7 +227,7 @@
         <tbody>
           <tr>
             <td><span class="name">forge-github-pr</span>, <span class="name">forge-gitlab-mr</span></td>
-            <td>Push a branch and open a PR/MR on GitHub or GitLab via <code>gh</code>/<code>glab</code>; body taken from stdin, optional <code>--assignee</code> (used by <code>/celebrimbor</code> and <code>/working</code>)</td>
+            <td>Push a branch and open a PR/MR on GitHub or GitLab via <code>gh</code>/<code>glab</code>; body taken from stdin, optional <code>--assignee</code> (used by <code>/celebrimbor</code> and <code>/working</code>). Safe to re-run: a branch with no commits past the base prints <code>skipped</code> and pushes nothing, and a branch whose PR/MR is already open prints <code>exists</code> with its URL</td>
           </tr>
           <tr>
             <td><span class="name">aule-github-merged</span>, <span class="name">aule-gitlab-merged</span></td>

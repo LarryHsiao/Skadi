@@ -1,7 +1,7 @@
 ---
 name: working
-description: Use when the user runs /working [[tracker:]ticket-id] [type] to begin a Jira or YouTrack ticket. Resolves the ticket (prompts a list when none given), checks out an existing feature branch or cuts a new one from the chosen base, moves the ticket to In Progress on its tracker, then pushes the branch and opens a draft PR/MR self-assigned to the author — a GitHub PR via `gh` or a GitLab MR via `glab`, whichever the origin remote points to — when the forge CLI is authenticated.
-purpose: Begins a Jira or YouTrack ticket — branches, transitions status, and opens a draft PR/MR.
+description: Use when the user runs /working [[tracker:]ticket-id] [type] to begin a Jira or YouTrack ticket. Resolves the ticket (prompts a list when none given), checks out an existing feature branch or cuts a new one from the chosen base, moves the ticket to In Progress on its tracker. A fresh branch holds no commits, so the draft PR/MR is not opened then; re-running `/working <ticket>` on the branch after the first commit pushes it and opens the draft, self-assigned to the author — a GitHub PR via `gh` or a GitLab MR via `glab`, whichever the origin remote points to — when the forge CLI is authenticated.
+purpose: Begins a Jira or YouTrack ticket — branches, transitions status, and opens a draft PR/MR once the branch has a commit.
 stage: forge
 ---
 
@@ -89,14 +89,18 @@ git branch -a --format='%(refname:short)' | grep -iE '(^|/)JIRA-NUMBER/'
 The `(^|/)JIRA-NUMBER/` anchor matches the ticket key only as a whole branch segment — `PROJ-12` will not match `PROJ-123/...`. The trailing `/` is the branch-format separator (`JIRA-NUMBER/type/...`).
 
 - **No matches** → continue to step 3.
-- **Exactly one match** → check it out and stop:
+- **Exactly one match** → check it out:
   ```bash
   git checkout <branch>
   git pull
   ```
-- **Multiple matches** → present them via AskUserQuestion, let the user pick one, check it out with `git pull`, then stop.
+- **Multiple matches** → present them via AskUserQuestion, let the user pick one, then check it out with `git pull`.
 
-If the user picks an existing branch, the workflow ends here — no tracker API calls, no new branch.
+Either way, no new branch is cut and the ticket is not transitioned again. Then run the **draft catch-up**: this is where a draft PR/MR opens once the branch carries commits, since a fresh branch has none (see step 8f).
+
+1. Resolve the base from `dev_branch.md` (step 8a) — no prompt unless it is unsaved. Take `type` from the branch's second segment (`KEY/<type>/…`).
+2. Fetch the ticket through step 3's hook, for the summary the title and body need.
+3. Run step 8f's hook call. It is safe to repeat: it prints `skipped: … reason=no-commits` when the branch is not yet ahead of the base, and `exists: … url=<url>` when a draft already stands. Report either plainly — neither is an error.
 
 ### 3. Get the ticket description
 
@@ -269,6 +273,8 @@ Truncate the description at the nearest whitespace at-or-before 800 chars (don't
 
 **f. Push the branch and open a draft PR/MR — host-agnostic:**
 
+**A freshly cut branch stops here.** It holds no commits yet, and a PR/MR with nothing to compare is refused by the forge, so do not call the hook for it. Print one line — `Branch ready; the draft PR/MR opens once you have committed — run /working <KEY> again after your first commit.` — and end the workflow. The call below runs only from step 2's draft catch-up, when the branch already carries commits.
+
 Detect the forge from the origin remote, then hand the push and draft-open to the matching forge hook. Each hook pushes the branch, opens the PR/MR self-assigned to `@me`, and prints one line — `opened: forge=<github|gitlab> url=<url> number=<n>` — or `{"error":"..."}` on failure. The two hooks share one argument contract, so the skill is forge-blind below the detection.
 
 ```bash
@@ -299,7 +305,7 @@ printf '%s\n\n%s\n' "$ticket_link" "TICKET_SUMMARY" \
 - **Title** format: `[JIRA-NUMBER] type: <ticket summary>` — the original ticket summary (not the slug), sentence-case.
 - **Base**: the branch chosen in step 8b.
 - The hook self-checks that `gh`/`glab` is installed and authenticated; on a missing CLI or failed auth it prints `{"error":"..."}` — surface that and stop. The branch is created locally either way.
-- Read the `opened:` line and show the user the PR/MR URL.
+- Read the hook's one line and show it: `opened:` or `exists:` carry the PR/MR URL; `skipped: … reason=no-commits` means the branch is not ahead of the base yet.
 
 ## Rules
 

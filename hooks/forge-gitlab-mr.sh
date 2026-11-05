@@ -8,6 +8,9 @@
 #   --assignee U  assign the MR to user U (e.g. @me); omitted = unassigned
 # Pushes the branch to origin, then opens an MR via `glab`.
 # On success prints one line: opened: forge=gitlab url=<mr-url> number=<n>
+# Two other lines exit 0 and change nothing: `skipped: forge=gitlab reason=no-commits`
+# (branch not ahead of base — nothing pushed) and `exists: forge=gitlab url=<mr-url>`
+# (an open MR for the branch already stands).
 # On failure prints {"error":"...","response":"..."} and exits non-zero.
 #
 # Auth note: requires `glab auth login` to have been completed for the host.
@@ -75,6 +78,20 @@ trap 'rm -f "$body_file" "${push_log:-}" "${create_log:-}"' EXIT
 cat > "$body_file"
 
 "$(dirname "$0")/body-to-utf8.sh" "$body_file" MR || exit 1
+
+# Nothing to ship yet: an MR needs at least one commit past the base.
+ahead=$(git rev-list --count "$BASE..$BRANCH")
+if [[ "$ahead" -eq 0 ]]; then
+  echo "skipped: forge=gitlab reason=no-commits"
+  exit 0
+fi
+
+# Re-run safety: an open MR for this branch is reported, never duplicated.
+existing=$(glab mr list --source-branch "$BRANCH" -F json 2>/dev/null | jq -r '.[0].web_url // empty' || true)
+if [[ -n "$existing" ]]; then
+  printf 'exists: forge=gitlab url=%s\n' "$existing"
+  exit 0
+fi
 
 # Push the branch.
 push_log=$(mktemp)
