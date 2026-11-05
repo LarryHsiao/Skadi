@@ -31,6 +31,8 @@ Governed by the `tolkien-narrator` output style (`output-styles/tolkien-narrator
 
 Every URL in chat output is written as a markdown link — `[label](url)` — never as a bare URL. A bare URL bearing an underscore (a login link with `wY1B4ok_ujc…` or `VitalLink_Dev` in its path) has those underscores read by the Markdown renderer as emphasis delimiters, which splits the terminal's auto-detected clickable link at that point — a click then opens only a truncated prefix, not the whole address. The `[label](url)` form sidesteps it: the parenthesized target is treated as a literal string, not re-parsed for emphasis. This governs chat output only — a bare URL in a PR/MR body or other Markdown surface renders fine and is left as it is.
 
+**Ticket keys are links too.** A key like `PSG-4000` printed in chat is written `[PSG-4000](url)`. Resolve the tracker from the key's prefix through the `tracker_routing.md` state (`~/.claude/hooks/skadi-state.sh path "${SKADI_PROFILE:-default}" "$PWD" tracker_routing.md`), and the base URL with `~/.claude/hooks/secret.sh jira|youtrack uri` — never hard-code a host here. Jira: `<base>/browse/<KEY>`; YouTrack: `<base>/issue/<KEY>`. Leave the key plain when the prefix is not in the routing map or the tracker is otherwise unknown, when it names a project rather than an issue (`PSG`, not `PSG-4000`), or when it sits in a code span or file path. Chat only, like the rule above.
+
 ## Verdict First
 
 Governed by the `tolkien-narrator` output style alongside `Tone` — lead with the answer, reasoning beneath; exempt only when a question genuinely bears no verdict.
@@ -301,6 +303,10 @@ never a deliberate scan of the tree.
 ## Shell Compatibility
 
 When a needed command is missing on the current shell, do not reach for a different terminal to escape the gap — no spawning bash from PowerShell, no calling PowerShell from bash to borrow its cmdlets. Name the missing tool plainly and ask the user to install it (e.g. `zip` absent from Git Bash). If a native substitute exists in the current shell (`tar`, `Compress-Archive`), use that instead.
+
+## Cross-OS Scripts
+
+Every script, hook, or skill helper considers each OS the config is installed on — at minimum Windows (PowerShell / Git Bash) and macOS — before it is written. Name the platforms it supports in the change summary. Where the logic would otherwise need one version per shell, prefer a single script in a language present on all of them (Python 3, standard library only) over a `.sh` plus a `.ps1` pair, and never have a `.sh` call `powershell.exe` or the reverse (that breaks *Shell Compatibility*). A platform branch that cannot be tested on the author's host says so plainly — test skipped, not faked, and a one-line verification command for the other OS in the README — rather than being reported as verified.
 
 ## Flutter Hot Reload
 
