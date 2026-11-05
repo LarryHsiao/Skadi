@@ -13,7 +13,8 @@
 #   env_override  Env var name to fall back to. Default: auto-mapped.
 #                 Pass "-" to skip env fallback entirely (vault-only).
 #
-# Auto env-var = <SERVICE_UPPER>_<SUFFIX>, where:
+# Auto env-var = <SERVICE_UPPER>_<SUFFIX> (hyphens in the service become
+# underscores, since bash rejects hyphenated variable names), where:
 #   password -> TOKEN
 #   uri      -> URL
 #   username -> USERNAME
@@ -65,7 +66,7 @@ fi
 
 if [[ "$ENV_OVERRIDE" != "-" ]]; then
   if [[ -z "$ENV_OVERRIDE" ]]; then
-    service_upper=$(printf '%s' "$SERVICE" | tr '[:lower:]' '[:upper:]')
+    service_upper=$(printf '%s' "$SERVICE" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
     case "$FIELD" in
       password) suffix=TOKEN ;;
       uri)      suffix=URL ;;
