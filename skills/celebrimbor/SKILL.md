@@ -91,7 +91,7 @@ branch absent on origin **aborts** the forge — see step 5.
 | `github` | `~/.claude/hooks/forge-github-pr.sh` |
 | `gitlab` | `~/.claude/hooks/forge-gitlab-mr.sh` |
 
-Both hooks honour the same contract — `<branch> <base> <title> [--draft|--ready] [--assignee <user>]` with body on stdin — and print the same success line: `opened: forge=<github|gitlab> url=<url> number=<n>`. The skill body is forge-blind below this line. Celebrimbor passes only the first four positionals; the optional `--assignee` is left to other callers (e.g. `/working`).
+Both hooks honour the same contract — `<branch> <base> <title> [--draft|--ready] [--assignee <user>]` with body on stdin — and print one result line: `opened: forge=<github|gitlab> url=<url> number=<n>` on success, `exists: forge=<f> url=<url>` when an open PR/MR for the branch already stands, or `skipped: forge=<f> reason=no-commits` when the branch is not ahead of the base. The skill body is forge-blind below this line. Celebrimbor passes only the first four positionals; the optional `--assignee` is left to other callers (e.g. `/working`).
 
 ## State transition
 
@@ -363,7 +363,13 @@ a. **Open.** `$BODY` is the latest `[FORGED]` body — the smith's, after any me
 printf '%s' "$BODY" | <forge-hook> <branch> <base> <title> <draft-flag>
 ```
 
-`<draft-flag>` is `--draft` unless `--ready` was set. On success the hook prints `opened: forge=<f> url=<u> number=<n>`. On failure surface the JSON error and go to step 10 — keep the workspace; the branch is on the remote already, the human reconciles by hand.
+`<draft-flag>` is `--draft` unless `--ready` was set. Read the hook's one line:
+
+- `opened: forge=<f> url=<u> number=<n>` — success; carry the URL into `[GWAITH]`.
+- `exists: forge=<f> url=<u>` — an open PR/MR for this branch already stood, so this run opened none. Treat it as success: reuse the URL for `[GWAITH]`, which a half-finished earlier run may never have posted. It carries no `number`, and this run sends no step 9d worklog entry, since no PR/MR was opened by it.
+- `skipped: forge=<f> reason=no-commits` — the smith returned `[FORGED]` yet the branch is not ahead of the base, so there is nothing to ship. Treat it as a failure: surface it plainly and go to step 10, keeping the workspace; post no `[GWAITH]`.
+
+On a JSON error surface it and go to step 10 — keep the workspace; the branch is on the remote already, the human reconciles by hand.
 
 b. **Post `[GWAITH]`.** Build the comment body:
 
@@ -425,7 +431,7 @@ Decide the workspace fate by outcome:
 - **Smith aborted before any commit**: release the workspace; nothing of value was made.
 - **Declined at `--confirm`**: release the workspace; the smith's commits are discarded with it.
 - **`--dry-run`**: keep the workspace so the user can inspect the smith's commits.
-- **PR-open or push failed after the smith forged**: keep the workspace. The branch may already be on the remote (push succeeded but PR-open failed); the smith's commits at minimum live in the workspace. The user reconciles by hand.
+- **PR-open or push failed after the smith forged, or the hook reported `skipped: … reason=no-commits`**: keep the workspace. The branch may already be on the remote (push succeeded but PR-open failed); the smith's commits at minimum live in the workspace. The user reconciles by hand.
 
 No `git checkout <base>` on the source repo is needed — Celebrimbor never modified its HEAD. No `git branch -D <branch>` on the source repo either — the branch lives in the workspace (and on the remote once pushed), not in the source repo.
 
@@ -433,7 +439,7 @@ Report — one short block:
 
 - The ticket id and a link to the ticket (from the comment hook's success line if `[GWAITH]` was posted).
 - The branch name.
-- The PR/MR URL (if opened).
+- The PR/MR URL (if opened, or already open per an `exists:` line).
 - The action taken: `forged` / `aborted (<reason>)` / `dry-run` / `skipped (declined at confirm)` / `error (<reason>)`.
 - The verification verdict (step 7): the static checks' result (`clean` / `n/a` / `debt carried`), Mithrandir's tier, the count of mend passes, and any known debt carried into the PR body.
 - The workspace disposition: `released` / `kept at <path> (<reason>)`.
