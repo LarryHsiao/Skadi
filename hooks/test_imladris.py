@@ -545,6 +545,107 @@ class DoneTest(ImladrisCase):
         self.assertEqual(1, result.returncode)
         self.assertEqual(0o555, self.ws.stat().st_mode & 0o777)
 
+    def _tag_a_side_commit_on_the_remote(self):
+        """A release-style tag whose commit is on no branch, pushed to origin and fetched."""
+        seed = self.root / "alpha-seed"
+        git(seed, "checkout", "-b", "side")
+        (seed / "rel.txt").write_text("release")
+        git(seed, "add", ".")
+        git(seed, "commit", "-m", "release")
+        git(seed, "tag", "rel1")
+        git(seed, "push", "origin", "rel1")
+        git(seed, "checkout", "main")
+        git(self.ws / "alpha", "fetch", "--tags", "--quiet")
+
+    def test_a_tag_the_remote_also_holds_does_not_block(self):
+        self._tag_a_side_commit_on_the_remote()
+        result = self.run_cli("done")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("clean: alpha", result.stdout)
+
+    def test_a_local_only_tag_on_an_unpushed_commit_blocks(self):
+        local = self.ws / "alpha"
+        git(local, "checkout", "--detach")
+        (local / "mine.txt").write_text("local")
+        git(local, "add", ".")
+        git(local, "commit", "-m", "local")
+        git(local, "tag", "mine")
+        git(local, "checkout", "main")
+        git(local, "reflog", "expire", "--expire=now", "--all")
+        result = self.run_cli("done", "--confirm")
+        self.assertEqual(1, result.returncode)
+        self.assertEqual(["alpha", "beta"], self.present())
+
+    def test_a_remote_tag_moved_locally_to_an_unpushed_commit_blocks(self):
+        self._tag_a_side_commit_on_the_remote()
+        local = self.ws / "alpha"
+        (local / "mine.txt").write_text("local")
+        git(local, "add", ".")
+        git(local, "commit", "-m", "local")
+        git(local, "tag", "-f", "rel1")
+        git(local, "reflog", "expire", "--expire=now", "--all")
+        git(local, "reset", "--hard", "origin/main")
+        result = self.run_cli("done", "--confirm")
+        self.assertEqual(1, result.returncode)
+        self.assertEqual(["alpha", "beta"], self.present())
+
+    def test_tags_that_cannot_be_confirmed_with_the_remote_block_and_say_why(self):
+        self._tag_a_side_commit_on_the_remote()
+        git(self.ws / "alpha", "remote", "set-url", "origin", str(self.root / "gone.git"))
+        result = self.run_cli("done", "--confirm")
+        self.assertEqual(1, result.returncode)
+        self.assertIn("could not be read", result.stdout)
+        self.assertEqual(["alpha", "beta"], self.present())
+
+    def _local_tag_on_an_unpushed_commit(self, clone):
+        git(clone, "checkout", "--detach")
+        (clone / "mine.txt").write_text("local")
+        git(clone, "add", ".")
+        git(clone, "commit", "-m", "local")
+        git(clone, "tag", "mine")
+        git(clone, "checkout", "main")
+        git(clone, "reflog", "expire", "--expire=now", "--all")
+
+    def test_a_remote_that_is_the_clone_itself_does_not_vouch_for_its_tags(self):
+        local = self.ws / "alpha"
+        self._local_tag_on_an_unpushed_commit(local)
+        git(local, "remote", "add", "selfie", str(local / ".git"))
+        result = self.run_cli("done", "--confirm")
+        self.assertEqual(1, result.returncode)
+        self.assertIn("blocked: alpha", result.stdout)
+        self.assertEqual(["alpha", "beta"], self.present())
+
+    def test_a_remote_that_is_a_sibling_clone_does_not_vouch_for_its_tags(self):
+        local = self.ws / "alpha"
+        self._local_tag_on_an_unpushed_commit(local)
+        git(self.ws / "beta", "fetch", "--quiet", str(local), "refs/tags/mine:refs/tags/mine")
+        git(local, "remote", "add", "sibling", str(self.ws / "beta"))
+        result = self.run_cli("done", "--confirm")
+        self.assertEqual(1, result.returncode)
+        self.assertIn("blocked: alpha", result.stdout)
+        self.assertEqual(["alpha", "beta"], self.present())
+
+    def test_a_remote_that_stalls_is_given_up_on_and_the_clone_is_blocked(self):
+        self._tag_a_side_commit_on_the_remote()
+        local = self.ws / "alpha"
+        git(local, "remote", "set-url", "origin", "ssh://example.invalid/x")
+        git(local, "config", "core.sshCommand", 'sh -c "sleep 6" --')
+        result = self.run_cli("done", "--confirm", env={"IMLADRIS_REMOTE_TIMEOUT": "1"})
+        self.assertEqual(1, result.returncode)
+        self.assertIn("timed out", result.stdout)
+        self.assertEqual(["alpha", "beta"], self.present())
+
+    def test_a_remote_named_like_an_upload_pack_option_runs_nothing(self):
+        self._tag_a_side_commit_on_the_remote()
+        marker = self.root / "pwned.txt"
+        script = self.root / "evil.sh"
+        script.write_text(f"#!/bin/sh\ntouch {marker}\n")
+        script.chmod(0o755)
+        local = self.ws / "alpha"
+        git(local, "remote", "add", "--", f"--upload-pack={script}", str(self.alpha))
+        self.run_cli("done")
+        self.assertFalse(marker.exists())
+
     def test_a_stash_blocks(self):
         local = self.ws / "alpha"
         (local / "README.md").write_text("stash me")

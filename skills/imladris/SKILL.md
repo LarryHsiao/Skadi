@@ -131,6 +131,12 @@ Say these plainly if the user asks how safe the check is:
 
 - It trusts the clone's remote-tracking refs. A push that failed after a ref was
   updated locally is not caught; `git fetch` inside the clone first if in doubt.
+- Tags are weighed against the remote: a tag the remote also holds does not block,
+  and a tag only this clone has, or one moved here, does. That needs the remote
+  reachable; offline, or after 30 seconds without an answer, a clone whose only
+  unpushed-looking commits are tagged reads `blocked: git could not be read`, never
+  `clean`. A remote that is the clone itself or another clone in the workspace is
+  not asked, since it is deleted along with the workspace.
 - Commits reachable only from the reflog block the teardown, including ones the
   user abandoned on purpose (a deleted branch, a reset). They clear when the user
   pushes them or lets git's own reflog expiry drop them — that is the user's call.

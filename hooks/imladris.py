@@ -46,6 +46,8 @@ REPO_LINE = re.compile(r"^(?P<name>[\w.-]+)\s*=\s*(?P<source>\S+)$")
 GROUP_LINE = re.compile(r"^(?P<name>[\w.-]+):\s+(?P<members>.+)$")
 PROTECTED_LINE = re.compile(r"^-\s+(?P<path>.+?)\s+(?:→|->)\s+")
 IGNORED_SHOWN = 3
+# Seconds to wait for a remote when confirming its tags; override for tests.
+REMOTE_TIMEOUT = int(os.environ.get("IMLADRIS_REMOTE_TIMEOUT", "30"))
 # Variables that tell git which repository to act on. Left in the caller's
 # environment they override `git -C <repo>`, so every probe would read another
 # repo (git itself sets GIT_DIR for the hooks it runs).
@@ -198,9 +200,14 @@ def read_marker(workspace):
     return repos
 
 
-def _run(prefix, args):
+def _run(prefix, args, timeout=None):
     return subprocess.run(
-        [*prefix, *args], capture_output=True, text=True, errors="replace", env=_git_env()
+        [*prefix, *args],
+        capture_output=True,
+        text=True,
+        errors="replace",
+        env=_git_env(),
+        timeout=timeout,
     )
 
 
@@ -219,9 +226,22 @@ def _checked(done, args):
     return done.stdout.strip()
 
 
+def _probe(prefix, *args, timeout=None):
+    """Stdout of a git probe; a failure of any kind raises, so silence never reads as 'clean'."""
+    try:
+        return _checked(_run(prefix, args, timeout), args)
+    except subprocess.TimeoutExpired as why:
+        raise GitError(f"git {args[0]} timed out after {timeout}s") from why
+    except OSError as why:
+        raise GitError(f"git {args[0]} could not be run ({why})") from why
+
+
+def _repo_prefix(repo):
+    return ["git", "-C", str(repo)]
+
+
 def git_text(repo, *args):
-    """Stdout of a git probe; a non-zero exit raises, so silence never reads as 'clean'."""
-    return _checked(_git(repo, *args), args)
+    return _probe(_repo_prefix(repo), *args)
 
 
 def _fast_forward(destination):
@@ -287,10 +307,64 @@ def _module_gitdirs(repo):
     return found
 
 
+def _local_path(url):
+    """The filesystem path a remote URL names, or None for a network address."""
+    if url.startswith("file://"):
+        return Path(url.removeprefix("file://"))
+    if "://" in url or ":" in url.split("/", 1)[0]:
+        return None
+    return Path(url).expanduser()
+
+
+def _remote_is_within(url, repo, workspace):
+    """True when a remote is the clone itself or a sibling clone — not a place work is safe."""
+    path = _local_path(url)
+    if path is None:
+        return False
+    target = (path if path.is_absolute() else repo / path).resolve()
+    root = workspace.resolve()
+    return target == root or root in target.parents
+
+
+def _tags_held_by_remotes(prefix, repo):
+    """Objects of the local tags a remote also holds under the same name.
+
+    A fetched tag is indistinguishable from a local one by ref alone, and a
+    release tag may point at a commit on no branch; only the remote can say.
+    Remotes lying inside the workspace are not asked: they die with it.
+    """
+    held = set()
+    for remote in _probe(prefix, "remote").split():
+        if _remote_is_within(_probe(prefix, "remote", "get-url", "--", remote), repo, repo.parent):
+            continue
+        listing = _probe(
+            prefix, "ls-remote", "--tags", "--refs", "--", remote, timeout=REMOTE_TIMEOUT
+        )
+        for line in listing.splitlines():
+            sha, _, ref = line.partition("\t")
+            held.add((ref, sha))
+    local = _probe(prefix, "for-each-ref", "refs/tags", "--format=%(refname) %(objectname)")
+    pairs = (line.split(" ", 1) for line in local.splitlines())
+    return [sha for ref, sha in pairs if (ref, sha) in held]
+
+
+def _unpushed_count(prefix, repo):
+    """Commits on any ref or in the reflog that no remote holds, as a string.
+
+    Tags count at first; only when they are what stands between the clone and
+    zero does the remote get asked which of them it already holds.
+    """
+    count = _probe(prefix, *UNPUSHED)
+    if count == "0":
+        return count
+    pushed_tags = _tags_held_by_remotes(prefix, repo)
+    return _probe(prefix, *UNPUSHED, *pushed_tags) if pushed_tags else count
+
+
 def _unpushed_in_modules(repo):
     """Submodule history lives in .git/modules and is deleted with the clone."""
     for gitdir in _module_gitdirs(repo):
-        count = _checked(_run(["git", "--git-dir", str(gitdir)], UNPUSHED), UNPUSHED)
+        count = _unpushed_count(["git", "--git-dir", str(gitdir)], repo)
         if count != "0":
             name = gitdir.relative_to(repo / ".git" / "modules")
             return f"submodule {name} holds {count} commit(s) no remote has"
@@ -312,7 +386,7 @@ def _unsaved_in(repo):
         return "a stash holds work"
     if _linked_worktrees(repo):
         return "a linked worktree is attached — `git worktree remove` it first"
-    unpushed = git_text(repo, *UNPUSHED)
+    unpushed = _unpushed_count(_repo_prefix(repo), repo)
     if unpushed != "0":
         return f"{unpushed} commit(s) not pushed to any remote (the reflog counts)"
     return _ignored_repo(repo) or _unpushed_in_modules(repo)
