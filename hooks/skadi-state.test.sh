@@ -28,6 +28,12 @@ check "paired default roots share state" "$default_dir" "$paired_dir"
 check "personal profile remains isolated" different "$([ "$default_dir" != "$personal_dir" ] && echo different || echo same)"
 check "path resolves below profile project" "$default_dir/jira_config.md" "$(HOME="$TEST_HOME" "$HERE/skadi-state.sh" path default "$PROJECT" jira_config.md)"
 
+expected_profile_path="$TEST_HOME/.skadi/profiles/personal/repo_groups.md"
+check "profile-path ignores the working directory" "$expected_profile_path" "$(cd "$PROJECT" && HOME="$TEST_HOME" "$HERE/skadi-state.sh" profile-path personal repo_groups.md)"
+check "profile-path maps the codex alias to its profile" "$TEST_HOME/.skadi/profiles/work/repo_groups.md" "$(HOME="$TEST_HOME" "$HERE/skadi-state.sh" profile-path .codex-work repo_groups.md)"
+HOME="$TEST_HOME" "$HERE/skadi-state.sh" profile-path personal >/dev/null 2>&1
+check "profile-path refuses a missing filename" 1 "$?"
+
 canonical_project="$(cd "$PROJECT" && pwd -P)"
 legacy_key="${canonical_project//\//-}"
 legacy="$TEST_HOME/.claude/projects/$legacy_key/memory"

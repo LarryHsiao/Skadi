@@ -65,6 +65,15 @@ case "$verb" in
     printf '%s/%s\n' "$dir" "$file"
     ;;
 
+  profile-path)
+    profile="${2:-default}"
+    file="${3:-}"
+    [ -n "$file" ] || die "profile-path: missing filename"
+    dir="$HOME/.skadi/profiles/$(slug_profile "$profile")"
+    mkdir -p "$dir"
+    printf '%s/%s\n' "$dir" "$file"
+    ;;
+
   migrate)
     profile="${2:-default}"
     project="${3:-$PWD}"
@@ -92,6 +101,6 @@ case "$verb" in
     ;;
 
   *)
-    die "expected project-dir <profile> [project], path <profile> <project> <file>, or migrate <profile> <project> [claude-root]"
+    die "expected project-dir <profile> [project], path <profile> <project> <file>, profile-path <profile> <file>, or migrate <profile> <project> [claude-root]"
     ;;
 esac
