@@ -454,6 +454,31 @@ printf '%s' "$ENTRY" | ~/.claude/hooks/handoff.sh send worklog-inbox
 
 A failed send is a line in the report (`Worklog: send failed (<error>)`), never a stop. Skip this step when invoked with `--no-confirm` — that is sweep mode, where `/durin` sends one entry per repo swept (and so `/moria` one per hall) rather than one per PR.
 
+### 9c. Report Mithrandir's gaps
+
+Only when at least one entry returned `[FORGED]` and step 8's push succeeded. Unlike 9b, this step runs in every mode, `--no-confirm` included: a gap is a lesson about one PR, and the sweep skills have no path to aggregate it. A sweep may therefore send one message per PR that shows a gap.
+
+The question: did a reviewer flag a defect that Mithrandir's earlier verdict on this PR should have listed and did not? If so, tell the skadi session so the user can review a proposed change to `skills/mithrandir/SKILL.md`. Narvi only proposes; it never edits Mithrandir.
+
+a. **Find the prior verdict.** Run the forge's prior-finder from `/mithrandir`'s bless-path (`~/.claude/hooks/mithrandir-github-prior.sh` or `~/.claude/hooks/mithrandir-gitlab-prior.sh`) on the URL. Empty stdout means Mithrandir never spoke on this PR, so there is nothing to miss: skip, and the report row reads `none (no prior verdict)`. Otherwise take the verdict's `To pass` rows from the step 2 array entry whose URL matches. The array lists only unresolved or not-yet-answered comments, so a verdict already resolved (a GitLab thread) or answered by an earlier Narvi run is absent. Accept that and skip with `skipped (verdict unavailable)`; do not fetch it by another route. An unattended sweep thus skips silently in that case, and the report row names it.
+
+b. **Classify each forged comment** — the comment behind each `[FORGED]` entry — written by someone other than the verdict's author (the author of the matched array entry) and other than Narvi. Skip a comment that names no defect (a question, a taste note, praise). Compare the rest with every `To pass` row, Nits included:
+   - **covered** — a row names the same flaw. Not a gap.
+   - **axis-silent** — one of the thirteen axes covers the flaw's domain, yet the verdict lists nothing for it. The weighing missed what its rubric already asks for.
+   - **no-axis** — no axis or conditional check covers the flaw. The rubric itself has a hole.
+
+   If every comment is covered or skipped, send nothing and the row reads `none`.
+
+c. **Send one message** per run, listing every gap, to the skadi channel (the skadi session auto-joins it, and `dir-guard` bars editing that repo from here):
+
+   ```bash
+   printf '%s' "$GAPS" | ~/.claude/hooks/handoff.sh send skadi
+   ```
+
+   `$GAPS` opens with the header line `[gap] mithrandir <PR/MR url>`. Beneath it, per gap: the comment URL, the narvi commit `<sha7>`, the class (`axis-silent` or `no-axis`), the `path:line` and the hunk, the axis it belongs to, why the verdict stayed silent, and a drafted wording change for `skills/mithrandir/SKILL.md`. Write the draft as a proposal for the user to review, not an instruction.
+
+A failed send is a line in the report (`Mithrandir gaps: send failed (<error>)`), never a stop.
+
 ### 10. Report and release
 
 Render one block:
@@ -470,6 +495,7 @@ Narvi at <url> — <branch>
 Weighed: <one of the five below>
 Pushed: yes / no (<reason>)
 Worklog: sent / skipped (<reason>) / send failed (<error>)
+Mithrandir gaps: <N> sent to skadi / none / none (no prior verdict) / skipped (<reason>) / send failed (<error>)
 Workspace: released / kept at <path> (<reason>)
 ```
 
@@ -540,5 +566,6 @@ Narvi does not auto-invoke either. The verbs stay separate so the human chooses 
 - Before any push, the branch is verified once via the same detection hooks `/argonath` uses (`argonath-detect.sh` + `argonath-run.sh`, tests and lint). A failing command halts the run exactly like a scope-miss: no push, workspace kept, the failure named in the report. No detected command is not a failure — it is named `skipped`, the same honesty `/argonath` renders for an absent command.
 - Before any push, the smith's own code is weighed once by Mithrandir's axes over `<pre>..HEAD` — the amendment alone, never the whole branch. A standing `Blocker` halts the run like a failing test; `Nice to have` and `Nit` rows are reported and passed over. The gate guards the reviewer's next read: a flaw Narvi introduces would earn a fresh comment, and Narvi would be summoned to answer its own leavings.
 - After a successful push, one worklog entry goes to `worklog-inbox` (step 9b) — direct invocations only, labelled with the source repo's basename. A failed send is reported, never fatal.
+- After a successful push, a reviewer flaw that `/mithrandir`'s prior verdict on the PR/MR should have listed goes to the skadi channel as a proposal (step 9c) — in every mode, `--no-confirm` included, one message per run. Narvi never edits `skills/mithrandir/SKILL.md`; the user reviews the proposal in the skadi session. A failed send is reported, never fatal.
 - Do not surface forge tokens in logs, responses, or saved files.
 - Aborts are first-class outcomes, not failures. Name the flaw plainly; do not retry.
