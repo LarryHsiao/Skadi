@@ -314,6 +314,10 @@ Every script, hook, or skill helper considers each OS the config is installed on
 
 In any Flutter project, default to `/narya` (`~/.claude/hooks/flutter-daemon.sh`) over a plain `flutter run` relaunch when driving the app to show an edit. The rebuild-install-launch cost is paid once at `start`; every edit after that is a `reload` (or `restart`, when the edit needs it) in under a second, with the app never dropping back to its first screen. `narya/SKILL.md` carries the full verb table and the judgment for choosing among `reload` / `restart` / a real rebuild — read it before the first use in a session. Reach for a full rebuild only when that table says one is owed (native code, `pubspec.yaml` dependencies, assets or fonts, anything under `ios/` or `android/`).
 
+## Copyable Blocks (Orthanc)
+
+When a reply hands the user a multi-line shell or code block to copy and run by hand, save it first, then mark it. Pipe the block into `~/.claude/hooks/orthanc-copy.py block-1.sh` (quoted heredoc; `.sh` for bash, `.ps1` for PowerShell, else the language's own), then write `⧉ copy:block-1.sh` on its own line directly above the block in the reply — the helper's output only confirms the file; the marker the user sees is the one you type. In an Orthanc pane that line is a click-to-copy link giving the block's exact text; elsewhere it is one stray line. One file per block (`block-1.sh`, `block-2.sh`; names are reused and overwritten). The file must exist before the marker is written — the helper's own output confirms it. Skip one-line commands and code shown only to be read. The name rules and folder are in the helper's docstring.
+
 ## Code Style
 
 Always loaded:

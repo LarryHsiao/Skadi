@@ -142,6 +142,7 @@
       "Bash(~/.claude/hooks/feanor-measure.sh:*)",
       "Bash(~/.claude/hooks/feanor-ink-centre.sh:*)",
       "Bash(~/.claude/hooks/manwe-compare.py:*)",
+      "Bash(~/.claude/hooks/orthanc-copy.py:*)",
       "Bash(~/.claude/hooks/flutter-daemon.sh:*)",
       "Bash(~/.claude/hooks/publish-dsym.sh:*)",
       "Bash(~/.claude/hooks/shadowfax-toolchain.sh:*)",
