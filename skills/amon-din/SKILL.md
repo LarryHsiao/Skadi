@@ -1,7 +1,7 @@
 ---
 name: amon-din
-description: Use when the user runs /amon-din [<count>], /amon-din all [<count>], /amon-din add <id>[:<label>]..., or /amon-din remove <id>... — render the most recent CI runs (default 3, override with <count>) for the current branch (or all branches with `all`), or mutate the per-project `ci_routing.md` auto-memory (`add`/`remove`, TeamCity only). Dispatches to GitLab CI (via glab) or TeamCity (via REST). Never triggers, retries, or cancels CI itself. First run on an unbound repo prompts once.
-purpose: Renders recent CI runs for the current branch (or all branches) from GitLab CI or TeamCity.
+description: Use when the user runs /amon-din [<count>], /amon-din all [<count>], /amon-din add <id>[:<label>]..., or /amon-din remove <id>... — render the most recent CI runs (default 3, override with <count>) for the current branch (or all branches with `all`), or mutate the per-project `ci_routing.md` auto-memory (`add`/`remove`, TeamCity only). Dispatches to GitLab CI (via glab), GitHub Actions (via gh) or TeamCity (via REST). Never triggers, retries, or cancels CI itself. First run on an unbound repo prompts once.
+purpose: Renders recent CI runs for the current branch (or all branches) from GitLab CI, GitHub Actions or TeamCity.
 user_invocable: true
 stage: weigh
 ---
@@ -25,7 +25,7 @@ The first beacon of Gondor, the watchtower of Anórien. When fire kindles, it sp
 
 `<count>` is a positive integer between **1 and 50**. Default is **3** when omitted. The render-verb tokens are **order-independent**: `/amon-din 10 all` and `/amon-din all 10` mean the same thing — "10 across all branches". Numbers outside 1..50 are rejected with: *"Amon Dîn counts in measure — the lookback must be between 1 and 50."*
 
-**Binding-management verbs** (TeamCity only; reject on GitLab):
+**Binding-management verbs** (TeamCity only; reject on GitLab and GitHub):
 
 - `/amon-din add <id>[:<label>] [<id>[:<label>] ...]` — append entries to the `buildTypes` list. Idempotent: ids already present are skipped with a one-line note. Labels default to the id when the colon form is omitted.
 - `/amon-din remove <id> [<id> ...]` — drop entries from the `buildTypes` list. Alias: `rm`. Ids not present surface a one-line note and are otherwise ignored.
@@ -82,6 +82,20 @@ buildTypes:
     label: Test
 ```
 
+or
+
+```
+flavor: github
+repo: owner/name
+workflows:
+  - id: ci.yml
+    label: CI
+  - id: release.yml
+    label: Release
+```
+
+A GitHub binding names the repository explicitly (`repo`) rather than reading it from the cwd, so a caller outside the repo — the board's CI sweep — can read it. Each `workflows` entry is a workflow file name or name; `label` is optional and defaults to the id.
+
 A repo may carry **one or more** TeamCity buildTypes (build, test, deploy, per-platform variants); the skill renders a section per id. The `label` field is optional — when absent, the id stands as its own label.
 
 **Legacy single-buildType form** is still accepted on read:
@@ -95,7 +109,7 @@ The skill normalises this to a single-entry list (`label = id`) at load time.
 
 If the file is **absent** from the auto-memory:
 
-1. Prompt via `AskUserQuestion` — "Which CI serves this repo?" with options `gitlab`, `teamcity`.
+1. Prompt via `AskUserQuestion` — "Which CI serves this repo?" with options `gitlab`, `github`, `teamcity`. If `github`, prompt a second question — "GitHub repo (`owner/name`) and workflow files (comma-separated, optionally `file:label`)?" and write the `repo` / `workflows` form above.
 2. If `teamcity`, prompt a second question — "TeamCity buildTypeIds (comma-separated, optionally `id:label` per entry)?" (open input via `Other`). Examples:
    - `PetProject_Build` — one buildType, label defaults to id.
    - `PetProject_Build, PetProject_Test` — two buildTypes, labels default to ids.
@@ -104,7 +118,7 @@ If the file is **absent** from the auto-memory:
 4. Write the file using the standard memory protocol (see global "How to save memories"); add a `- [CI Routing](ci_routing.md) — <one-line>` pointer to `MEMORY.md`.
 5. Continue.
 
-If the file **is** present but malformed (no `flavor`, or `flavor: teamcity` with neither `buildTypes` nor `buildTypeId`), surface the problem plainly and stop:
+If the file **is** present but malformed (no `flavor`, `flavor: teamcity` with neither `buildTypes` nor `buildTypeId`, or `flavor: github` without both `repo` and `workflows`), surface the problem plainly and stop:
 
 > Amon Dîn cannot read its binding — `ci_routing.md` is missing required fields. Edit or delete it, then summon again.
 
@@ -113,11 +127,14 @@ If the file **is** present but malformed (no `flavor`, or `flavor: teamcity` wit
 | Flavor   | Hook                                        | Args                                   |
 |----------|---------------------------------------------|----------------------------------------|
 | gitlab   | `~/.claude/hooks/amon-din-gitlab.sh`        | `<count> [<branch>]`                   |
+| github   | `~/.claude/hooks/amon-din-github.sh`        | `<owner/repo> <workflow> <count> [<branch>]` |
 | teamcity | `~/.claude/hooks/amon-din-teamcity.sh`      | `<buildTypeId> <count> [<branch>]`     |
 
 `<count>` is the value the caller supplied (or 3 when omitted). When the verb is `all`, omit the branch argument.
 
 For **GitLab**, dispatch is a single hook call.
+
+For **GitHub**, iterate over the `workflows` list and call the hook once per id, exactly as TeamCity iterates its `buildTypes`; each workflow renders as its own subsection. A GitHub run's default branch is whatever the repo names it, so on the current-branch render pass the branch captured in step 1.
 
 For **TeamCity**, iterate over the `buildTypes` list and call the hook **once per id** (in the order they appear in `ci_routing.md`). Each call returns the rows for that one buildType, rendered as its own subsection (see step 4).
 
@@ -129,7 +146,7 @@ The hook prints zero or more pipe-delimited lines:
 
 `<status>` is one of: `success`, `failed`, `running`, `queued`, `cancelled`, `unknown`. The hook has already normalised the forge's native vocabulary into this set; the skill body does no further translation.
 
-If a hook call exits non-zero, surface the stderr verbatim, mark that subsection as unavailable (`⚠  unavailable — <short reason>`), and continue with the rest of the list. The skill does not abort the whole render on a single TeamCity buildType failure. For GitLab — single dispatch — a non-zero exit stops the run.
+If a hook call exits non-zero, surface the stderr verbatim, mark that subsection as unavailable (`⚠  unavailable — <short reason>`), and continue with the rest of the list. The skill does not abort the whole render on a single TeamCity buildType or GitHub workflow failure. For GitLab — single dispatch — a non-zero exit stops the run.
 
 ### 4. Render
 
@@ -150,13 +167,14 @@ Below the blockquote, one header line:
 `amon-din  <branch> · <flavor> · <project-name>`
 
 - For `gitlab`: `<project-name>` is the repo's `group/project` path.
+- For `github`: `<project-name>` is the binding's `owner/name`.
 - For `teamcity`: `<project-name>` is the joined labels of every buildType, e.g. `Build, Test, Deploy`. Single-buildType repos render just the one label.
 
 If the verb is `all`, replace the branch slot with `(all branches)`.
 
 #### Subsections
 
-Render one block per buildType (TeamCity) or one block (GitLab). Each subsection:
+Render one block per buildType (TeamCity) or workflow (GitHub), or one block (GitLab). Each subsection:
 
 ```
 ▓ <label> (<buildTypeId or project>)
@@ -168,7 +186,7 @@ Render one block per buildType (TeamCity) or one block (GitLab). Each subsection
   1 of 3 green · 1 failed · 1 running
 ```
 
-The `▓ <label>` subheader is omitted for GitLab and for single-buildType TeamCity repos — go straight to the row table.
+The `▓ <label>` subheader is omitted for GitLab and for single-buildType TeamCity or single-workflow GitHub repos — go straight to the row table.
 
 Symbols:
 
@@ -227,7 +245,7 @@ Both verbs mutate `ci_routing.md` and never call a hook.
 ### Preconditions
 
 - The binding must exist. If `ci_routing.md` is absent, stop with: *"No binding to mutate — run `/amon-din` to record one first."*
-- The binding's `flavor` must be `teamcity`. If it is `gitlab`, stop with: *"GitLab repos have no buildTypes — the binding is a single project ref."*
+- The binding's `flavor` must be `teamcity`. If it is `gitlab`, stop with: *"GitLab repos have no buildTypes — the binding is a single project ref."* If it is `github`, stop with: *"GitHub bindings list workflows, not buildTypes — edit the `workflows` list in the binding file."*
 
 ### `add` workflow
 
@@ -268,10 +286,10 @@ Markers:
 
 ## Rules
 
-- Read-only against the CI — never triggers a build, retries a job, or cancels a run. The `add` / `remove` verbs only ever touch the local `ci_routing.md`; they never reach TeamCity or GitLab.
+- Read-only against the CI — never triggers a build, retries a job, or cancels a run. The `add` / `remove` verbs only ever touch the local `ci_routing.md`; they never reach TeamCity, GitHub or GitLab.
 - No fallback between backends — if the named flavor errors, surface the error and stop.
 - The binding lives in `ci_routing.md`; an explicit `cd` does not override it. Three paths to change it: `add` / `remove` for incremental edits, direct file edit for restructuring, or delete the file (with its `MEMORY.md` pointer) to re-prompt from scratch.
-- Tokens never appear in logs or output. Hooks resolve them via `secret.sh teamcity` (TeamCity) or `glab` config (GitLab) and pass nothing through stdout.
+- Tokens never appear in logs or output. Hooks resolve them via `secret.sh teamcity` (TeamCity) `glab` config (GitLab) or `gh` auth (GitHub) and pass nothing through stdout.
 - The skill never edits `~/.claude/`, `~/.bashrc`, or any file outside the project tree's auto-memory.
-- `add` and `remove` are TeamCity-only — they have no meaning for GitLab and are rejected on a `gitlab` binding.
+- `add` and `remove` are TeamCity-only — they have no meaning for GitLab or GitHub and are rejected on a `gitlab` or `github` binding (a GitHub binding's `workflows` list is edited in the file directly).
 - `remove` will not leave the binding empty; the last entry must be removed by deleting the file, not by emptying the list.

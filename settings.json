@@ -133,6 +133,7 @@
       "Bash(~/.claude/hooks/argonath-merged-test.sh:*)",
       "Bash(~/.claude/hooks/amon-din-gitlab.sh:*)",
       "Bash(~/.claude/hooks/amon-din-teamcity.sh:*)",
+      "Bash(~/.claude/hooks/amon-din-github.sh:*)",
       "Bash(~/.claude/hooks/skadi-worktree.sh:*)",
       "Bash(~/.claude/hooks/feanor-shot.sh:*)",
       "Bash(~/.claude/hooks/feanor-flutter-shot.sh:*)",

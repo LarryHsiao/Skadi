@@ -368,6 +368,134 @@
         border-radius: 5px;
         padding: 0.5rem 0;
       }
+      /* CI block — one lamp per build, grouped by source then project. Build and
+         project labels are identity text and ellipse; the number and age are
+         exact values and never do. */
+      .ci-sec {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        padding: 0.55rem 0.7rem;
+        margin-bottom: 0.5rem;
+      }
+      .ci-head {
+        display: flex;
+        align-items: baseline;
+        gap: 0.6rem;
+        margin-bottom: 0.45rem;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.62rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--accent);
+      }
+      .ci-tot {
+        margin-left: auto;
+        text-transform: none;
+        letter-spacing: 0;
+      }
+      .ci-grp {
+        display: grid;
+        grid-template-columns: 8.5rem 1fr;
+        gap: 0.6rem;
+        align-items: start;
+        padding: 0.4rem 0;
+        border-top: 1px solid var(--line);
+      }
+      .ci-grp:first-of-type {
+        border-top: 0;
+        padding-top: 0;
+      }
+      .ci-repo {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.76rem;
+        font-weight: 600;
+        min-width: 0;
+      }
+      .ci-t {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .ci-gd {
+        flex: none;
+        width: 0.6rem;
+        height: 0.6rem;
+        border-radius: 50%;
+      }
+      .ci-lamps {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        min-width: 0;
+      }
+      .ci-lamp {
+        display: grid;
+        grid-template-columns: 1rem minmax(0, 9rem);
+        column-gap: 0.45rem;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--raise);
+        padding: 0.3rem 0.55rem;
+        min-width: 0;
+        color: inherit;
+        text-decoration: none;
+      }
+      .ci-lamp.ci-bad {
+        border-color: var(--red);
+      }
+      .ci-lamp.ci-fresh {
+        box-shadow: 0 0 0 2px var(--blue);
+      }
+      .ci-l {
+        grid-row: 1 / 3;
+        width: 0.95rem;
+        height: 0.95rem;
+        border-radius: 50%;
+      }
+      .ci-n {
+        font-size: 0.72rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .ci-m {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.6rem;
+        color: var(--accent);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .ci-more {
+        align-self: center;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.66rem;
+        color: var(--accent);
+      }
+      .ci-ok .ci-l,
+      .ci-gd.ci-ok {
+        background: var(--green);
+      }
+      .ci-bad .ci-l,
+      .ci-gd.ci-bad {
+        background: var(--red);
+      }
+      .ci-run .ci-l,
+      .ci-gd.ci-run {
+        background: var(--accent);
+      }
+      .ci-q .ci-l,
+      .ci-gd.ci-q {
+        background: var(--line);
+      }
+      .ci-unk .ci-l,
+      .ci-gd.ci-unk {
+        background: transparent;
+        border: 2px dashed var(--accent);
+      }
       /* Vilya band — one row per standing local server. Project and name are
          identity text and ellipse; the address is an exact value and wraps
          rather than clip (a cut port reads as a different port). Dot, state
@@ -448,6 +576,7 @@
         <div class="strip" id="strip"></div>
       </div>
       <div class="attentionband" id="attention"></div>
+      <div class="ciband" id="ci"></div>
       <div class="bento" id="bento">
         <div class="empty">
           No ticket channels yet. Run the writer to raise one.
@@ -564,6 +693,7 @@
         const cost = channels.find((c) => c.channel === "cost");
         renderStrip(tickets, growth, sweeps, pulse, stabilityChannels);
         renderAttention(attention);
+        renderCi(channels.find((c) => c.channel === "ci"));
         renderBody(tickets);
         renderNarya(channels.find((c) => c.channel === "narya"));
         renderVilya(channels.find((c) => c.channel === "vilya"));
@@ -837,6 +967,82 @@
 
       function renderAttention(items) {
         document.getElementById("attention").innerHTML = attentionBandHtml(items);
+      }
+
+      // The CI block: one lamp per build, grouped by CI source, then project.
+      // Absent channel -> no block (the writer has never run); a written channel
+      // with no sources -> the empty state. A lamp that could not be read is
+      // hollow, never green. Only an http(s) address becomes a link, so a hostile
+      // value cannot plant a javascript: href. A build that finished inside the
+      // channel's window wears a ring, so a quiet green finish stays visible.
+      function ciAge(finished, now) {
+        const t = Date.parse(finished || "");
+        if (Number.isNaN(t)) return "";
+        const s = Math.max(0, Math.round((now - t) / 1000));
+        if (s < 3600) return Math.max(1, Math.round(s / 60)) + "m";
+        if (s < 86400) return Math.round(s / 3600) + "h";
+        return Math.round(s / 86400) + "d";
+      }
+
+      // `esc` leaves quotes alone, so a value bound for an attribute is quoted here.
+      function ciAttr(v) {
+        return esc(v).replace(/"/g, "&quot;");
+      }
+
+      const CI_MAX_LAMPS = 6;
+      const CI_ORDER = ["failed", "running", "queued", "unknown", "cancelled", "success"];
+      const CI_LIGHT = { success: "ci-ok", failed: "ci-bad", running: "ci-run",
+                         queued: "ci-q", cancelled: "ci-q", unknown: "ci-unk" };
+
+      function ciLampMeta(l, now) {
+        if (l.number == null) return l.error || l.status;
+        if (l.status === "running" || l.status === "queued") return "#" + l.number + " · " + l.status;
+        const age = ciAge(l.finished, now);
+        const word = l.status === "success" ? "" : l.status + " ";
+        return "#" + l.number + " · " + word + age;
+      }
+
+      function ciLampHtml(l, windowMs, now) {
+        const t = Date.parse(l.finished || "");
+        const done = l.status === "success" || l.status === "failed";
+        const fresh = done && !Number.isNaN(t) && now - t <= windowMs ? " ci-fresh" : "";
+        const cls = `ci-lamp ${CI_LIGHT[l.status] || "ci-unk"}${fresh}`;
+        const tip = ciAttr([l.label, l.branch, l.status].filter(Boolean).join(" · "));
+        const inner = `<span class="ci-l"></span><span class="ci-n" title="${ciAttr(l.label)}">${esc(l.label)}</span><span class="ci-m">${esc(ciLampMeta(l, now))}</span>`;
+        return /^https?:\/\//.test(l.url || "")
+          ? `<a class="${cls}" title="${tip}" href="${ciAttr(l.url)}" target="_blank" rel="noopener">${inner}</a>`
+          : `<div class="${cls}" title="${tip}">${inner}</div>`;
+      }
+
+      function ciGroupHtml(p, windowMs, now) {
+        const ranked = [...p.lamps].sort((a, b) => CI_ORDER.indexOf(a.status) - CI_ORDER.indexOf(b.status));
+        const shown = ranked.slice(0, CI_MAX_LAMPS).map((l) => ciLampHtml(l, windowMs, now)).join("");
+        const folded = ranked.slice(CI_MAX_LAMPS);
+        const names = ciAttr(folded.map((l) => l.label).join(", "));
+        const more = folded.length ? `<span class="ci-more" title="${names}">+${folded.length} more</span>` : "";
+        return `<div class="ci-grp"><div class="ci-repo"><span class="ci-gd ${CI_LIGHT[p.worst] || "ci-unk"}"></span><span class="ci-t" title="${ciAttr(p.name)}">${esc(p.name)}</span></div><div class="ci-lamps">${shown}${more}</div></div>`;
+      }
+
+      function ciBlockHtml(channel, now) {
+        if (!channel) return "";
+        const head = `<div class="banddiv">ci · build lights</div>`;
+        const sources = channel.sources || [];
+        if (!sources.length) {
+          return `${head}<div class="nvoid">No CI bound yet. Run <code>/amon-din</code> in a repo to record its binding.</div>`;
+        }
+        const windowMs = (channel.fresh_window_hours || 6) * 3600000;
+        const sections = sources.map((s) => {
+          const lamps = s.projects.flatMap((p) => p.lamps);
+          const red = lamps.filter((l) => l.status === "failed").length;
+          const total = `${lamps.length} builds · ${red} red${s.unreachable ? " · unreachable" : ""}`;
+          const groups = s.projects.map((p) => ciGroupHtml(p, windowMs, now)).join("");
+          return `<div class="ci-sec"><div class="ci-head"><span>${esc(s.label)}</span><span class="ci-tot">${esc(total)}</span></div>${groups}</div>`;
+        });
+        return head + sections.join("");
+      }
+
+      function renderCi(channel) {
+        document.getElementById("ci").innerHTML = ciBlockHtml(channel, Date.now());
       }
 
       // The Flutter daemons /narya keeps standing. Absent channel -> no band (the

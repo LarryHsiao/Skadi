@@ -35,7 +35,7 @@ refresh_case=$(awk '/^  refresh\)/{f=1} f{print} f&&/^    ;;/{exit}' "$BOARD")
 # above), board-stability.py (opt-in behind --stability-scrape), and
 # board-manifest.py / board-active.py / board-server.py, which are not channel
 # writers at all.
-for writer in board-attention.sh board-growth.sh board-cost.py \
+for writer in board-attention.sh board-growth.sh board-cost.py board-ci.py \
               board-henneth.sh board-galadriel.sh board-narya.sh board-vilya.sh; do
   expected="invoked"
   actual=$(printf '%s' "$refresh_case" | grep -q -- "$writer" && echo invoked || echo missing)
