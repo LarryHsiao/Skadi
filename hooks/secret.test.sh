@@ -36,6 +36,50 @@ expected_plain="jira-secret"
 actual_plain="$(JIRA_TOKEN="$expected_plain" "$HERE/secret.sh" jira 2>/dev/null)"
 check "plain service still reads JIRA_TOKEN" "$expected_plain" "$actual_plain"
 
+# A vault whose /status hangs but whose item list answers. A preflight on /status
+# turns that into a silent skip of the whole lookup (see the note in secret.sh).
+# The list call carries its own timeout, so the lookup must not depend on /status.
+FAKE_DIR="$(mktemp -d)"
+cat >"$FAKE_DIR/vault.py" <<'PY'
+import http.server, json, socketserver, time
+
+ITEMS = {"success": True, "data": {"data": [{
+    "name": "svc", "notes": None,
+    "login": {"password": "pw", "username": "u", "uris": [{"uri": "https://vault.example.test"}]}}]}}
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/status":
+            time.sleep(30)
+            return
+        body = json.dumps(ITEMS).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    daemon_threads = True
+
+
+server = Server(("127.0.0.1", 0), Handler)
+print(server.server_address[1], flush=True)
+server.serve_forever()
+PY
+python3 "$FAKE_DIR/vault.py" >"$FAKE_DIR/port" &
+FAKE_PID=$!
+trap 'kill "$FAKE_PID" 2>/dev/null; rm -rf "$FAKE_DIR"' EXIT
+for _ in $(seq 50); do [ -s "$FAKE_DIR/port" ] && break; sleep 0.1; done
+
+expected_uri="https://vault.example.test"
+actual_uri="$(BW_SERVE_URL="http://127.0.0.1:$(cat "$FAKE_DIR/port")" "$HERE/secret.sh" svc uri - 2>/dev/null)"
+check "a vault whose /status hangs still answers from its item list" "$expected_uri" "$actual_uri"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [ "$fail" -eq 0 ]

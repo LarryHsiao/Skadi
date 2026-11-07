@@ -43,24 +43,28 @@ esac
 
 SERVE_URL="${BW_SERVE_URL:-http://localhost:8087}"
 
-if curl -sS --max-time 3 "$SERVE_URL/status" >/dev/null 2>&1; then
-  items_resp=$(curl -sS --max-time 5 "$SERVE_URL/list/object/items" 2>/dev/null || true)
-  if [[ -n "$items_resp" ]]; then
-    case "$FIELD" in
-      password) jq_field='.login.password // empty' ;;
-      username) jq_field='.login.username // empty' ;;
-      uri)      jq_field='.login.uris[0].uri // empty' ;;
-      notes)    jq_field='.notes // empty' ;;
-    esac
-    value=$(printf '%s' "$items_resp" \
-      | jq -r --arg name "$SERVICE" \
-          "select(.success == true) | .data.data[] | select(.name == \$name) | $jq_field" \
-          2>/dev/null \
-      | head -n1 || true)
-    if [[ -n "$value" ]]; then
-      printf '%s' "$value"
-      exit 0
-    fi
+# No /status preflight before the list: it was a second connection per call whose
+# 3 s timeout fired under load (measured 2026-11-08: 4 to 16 of 24 concurrent
+# calls failed that way), and a failed probe skipped the whole lookup in silence.
+# The list call carries its own timeout, and an unreachable vault yields nothing
+# from it just as the probe did, so the fall-through to the env var is unchanged.
+# The one cost: a host that hangs on connect now waits up to 5 s here, not 3 s.
+items_resp=$(curl -sS --max-time 5 "$SERVE_URL/list/object/items" 2>/dev/null || true)
+if [[ -n "$items_resp" ]]; then
+  case "$FIELD" in
+    password) jq_field='.login.password // empty' ;;
+    username) jq_field='.login.username // empty' ;;
+    uri)      jq_field='.login.uris[0].uri // empty' ;;
+    notes)    jq_field='.notes // empty' ;;
+  esac
+  value=$(printf '%s' "$items_resp" \
+    | jq -r --arg name "$SERVICE" \
+        "select(.success == true) | .data.data[] | select(.name == \$name) | $jq_field" \
+        2>/dev/null \
+    | head -n1 || true)
+  if [[ -n "$value" ]]; then
+    printf '%s' "$value"
+    exit 0
   fi
 fi
 
