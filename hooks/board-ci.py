@@ -71,9 +71,11 @@ def parse_binding(text):
         if match:
             lamps.append({"id": match.group(1), "label": match.group(1)})
             continue
-        match = re.match(r"^\s*-\s*id:\s*(\S+)", line)
+        # The rest of the line, not the first word: a GitHub workflow name may hold spaces.
+        match = re.match(r"^\s*-\s*id:\s*(.+)$", line)
         if match:
-            lamps.append({"id": match.group(1), "label": match.group(1)})
+            lamp_id = match.group(1).strip()
+            lamps.append({"id": lamp_id, "label": lamp_id})
             continue
         match = re.match(r"^\s+label:\s*(.+)$", line)
         if match and lamps:

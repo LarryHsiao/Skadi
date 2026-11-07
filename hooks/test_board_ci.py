@@ -41,6 +41,12 @@ class ParseBindingTest(unittest.TestCase):
         expected = {"flavor": "github", "repo": "o/r", "lamps": [{"id": "ci.yml", "label": "CI"}]}
         self.assertEqual(expected, board_ci.parse_binding(text))
 
+    def test_a_workflow_name_with_spaces_is_kept_whole(self):
+        text = FRONTMATTER + "flavor: github\nrepo: o/r\nworkflows:\n  - id: E2E verify\n    label: e2e verify\n  - id: Release NA staging\n"
+        expected = [{"id": "E2E verify", "label": "e2e verify"},
+                    {"id": "Release NA staging", "label": "Release NA staging"}]
+        self.assertEqual(expected, board_ci.parse_binding(text)["lamps"])
+
     def test_a_file_without_a_flavor_is_unreadable(self):
         self.assertIsNone(board_ci.parse_binding(FRONTMATTER + "nothing useful\n"))
 
