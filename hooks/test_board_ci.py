@@ -145,6 +145,26 @@ class CollectTest(unittest.TestCase):
         lamp = channel["sources"][0]["projects"][0]["lamps"][0]
         self.assertEqual(("unknown", True), (lamp["status"], lamp["error"] is not None))
 
+    def test_a_hook_that_fails_once_and_then_succeeds_yields_its_real_status(self):
+        write_binding(self.profiles, "personal", "snotra-aaaaaaaaaaaa", "flavor: teamcity\nbuildTypes:\n  - id: S\n")
+        replies = iter([(1, ""), TC_RUN_OK])
+        expected = "success"
+        channel = board_ci.collect(self.profiles, lambda flavor, repo, lamp_id: next(replies))
+        self.assertEqual(expected, channel["sources"][0]["projects"][0]["lamps"][0]["status"])
+
+    def test_a_hook_that_fails_twice_is_tried_exactly_twice_and_reads_hollow(self):
+        write_binding(self.profiles, "personal", "snotra-aaaaaaaaaaaa", "flavor: teamcity\nbuildTypes:\n  - id: S\n")
+        calls = []
+
+        def always_fails(flavor, repo, lamp_id):
+            calls.append(lamp_id)
+            return 1, ""
+
+        expected = (2, "unknown", board_ci.HOOK_FAILED)
+        channel = board_ci.collect(self.profiles, always_fails)
+        lamp = channel["sources"][0]["projects"][0]["lamps"][0]
+        self.assertEqual(expected, (len(calls), lamp["status"], lamp["error"]))
+
     def test_a_source_is_unreachable_only_when_every_lamp_failed(self):
         write_binding(self.profiles, "personal", "p-aaaaaaaaaaaa", "flavor: teamcity\nbuildTypes:\n  - id: A\n  - id: B\n")
         both_down = board_ci.collect(self.profiles, self.hook({("teamcity", "A"): (1, ""), ("teamcity", "B"): (1, "")}))

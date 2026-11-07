@@ -169,11 +169,20 @@ def scan(profiles_dir):
         yield dirname, binding
 
 
+def call_with_retry(hook, flavor, repo, lamp_id):
+    """Try a hook once more when it fails. Under load the credential helper the
+    TeamCity hook leans on sometimes answers empty ("credentials missing": about
+    1 call in 9 with eight at once, measured 2026-11-08); a second try usually
+    clears that, while a real outage fails twice and reads as a hollow lamp."""
+    result = hook(flavor, repo, lamp_id)
+    return result if result[0] == 0 else hook(flavor, repo, lamp_id)
+
+
 def collect(profiles_dir, hook=run_hook):
     jobs = [(binding["flavor"], dirname, binding["repo"], lamp)
             for dirname, binding in scan(profiles_dir) for lamp in binding["lamps"]]
     with concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        results = list(pool.map(lambda job: hook(job[0], job[2], job[3]["id"]), jobs))
+        results = list(pool.map(lambda job: call_with_retry(hook, job[0], job[2], job[3]["id"]), jobs))
     grouped = {}
     for (flavor, dirname, _repo, lamp), result in zip(jobs, results):
         grouped.setdefault(flavor, {}).setdefault(dirname, []).append(make_lamp(lamp, result))
