@@ -145,24 +145,44 @@ The `compliance-review-reminder.sh` hook re-injects this review's trigger with e
 The closing report of a task whose gate read **medium** or **heavy** carries a `Done` block, so the user sees in one place what was proven, what was not, and what waits for them. A `minimum` task is unchanged: no block, though its verdict line and worklog entry are still owed under their own sections. There is no per-step list — a step closes by its own verification, per the Implementation Loop.
 
 ```
-Done — size ▰▰▱ medium
-- [x] Acceptance 1: <the line> — <same-turn evidence>
-- [x] Fresh verification — <command, result>
-- [x] Compliance Review — <PASS|FAIL|SKIPPED (reason)|not run (dispatch refused)>
-- [x] Worklog — <sent|failed (why)|not configured>
-- n/a: <conditional rows that did not apply>
-- Not done: <anything left, and why>
+✅ Done — size ▰▰▱ medium
+- Acceptance 1: <the line> — <same-turn evidence>
+- Fresh verification — <command, result>
+- Compliance Review — <PASS|FAIL|SKIPPED (reason)>
+- Worklog — <sent>
+n/a: <conditional rows that did not apply>
+
+⬜ Not done
+- <work waiting on the user's word or deferred by choice, and why>
+
+🚫 Blocked
+- <work that cannot proceed until something changes, and what is needed>
 ```
 
-- **One row per Acceptance line** from the gate, ticked only with evidence from this turn beside it. No evidence, no tick.
-- **These rows stand on every Done Block:** the Acceptance lines, fresh verification, Compliance Review, worklog. Each row's requirements live in its own section; the block points at them and does not restate them.
-- **A row is ticked `[x]` only when its work is done.** Compliance Review: `PASS`, `SKIPPED` (a reasoned waiver), or `FAIL` whose findings were all fixed or named as knowing exceptions. `not run (dispatch refused)` stays `[ ]`. Worklog: `sent` is ticked; `failed` and `not configured` stay `[ ]` with the reason.
-- **Conditional rows appear only when they apply:** the sibling-string check, `/manwe`, the DI entry-point check, `/install` (config changed), the mechanism cache (a `file:line` fact was learned), commit and push (when asked). Name the ones that did not apply on the single `n/a` line; never omit them silently.
-- **Anything left undone** goes on the `Not done` line, per *Fail Loud*. A skipped or unavailable review is stated as such in its row and never ticked as PASS.
+- **Status is the section, not a mark on the row.** A row stands under ✅ Done only with evidence from this turn beside it; no evidence, not in Done. A row's text follows its outcome — the template shows the Done form, so a failed review or worklog is written as such under ⬜ Not done, never copied into Done. One row per Acceptance line from the gate.
+- **These rows are reported on every Done Block:** the Acceptance lines, fresh verification, Compliance Review, worklog. Each lands in a section by its outcome, below (the worklog on the `n/a` line when not configured); its requirements live in its own section and the block does not restate them.
+
+| Outcome | Section |
+|---|---|
+| Acceptance line with same-turn evidence | ✅ Done |
+| Acceptance line without evidence | ⬜ Not done |
+| Acceptance line that cannot be met until something outside the session changes | 🚫 Blocked, and what is needed |
+| Review `PASS`, `SKIPPED` (a reasoned waiver), or `FAIL` whose findings were all fixed or named as knowing exceptions | ✅ Done |
+| Review `FAIL` with findings still open | ⬜ Not done |
+| Review not run because the dispatch was refused | 🚫 Blocked: no verdict line, and ask for the restriction to be lifted |
+| Tests skipped, or not named, in the verification run | ⬜ Not done, naming them — a skipped test proves nothing |
+| Worklog sent | ✅ Done |
+| Worklog send failed | ⬜ Not done, with the reason |
+| Worklog not configured on this machine | the `n/a` line — not a debt |
+| Changes stand uncommitted and no commit was requested | ⬜ Not done: waits for the user's word |
+
+- **Conditional rows appear only when they apply:** the sibling-string check, `/manwe`, the DI entry-point check, `/install` (config changed), the mechanism cache (a `file:line` fact was learned), commit and push (✅ Done when asked for and landed; ⬜ Not done when asked but not landed, or when changes stand uncommitted and none was requested; the `n/a` line when there is nothing to commit). A conditional row that applies lands by its outcome like any other: done under ✅ Done, left undone under ⬜ Not done. Name the ones that did not apply on the single `n/a` line; never omit them silently.
+- **Print rules.** ✅ Done always prints. ⬜ Not done always prints, reading `nothing` when empty, so an empty section cannot be mistaken for a forgotten one — *Fail Loud*. 🚫 Blocked prints only when something is blocked.
+- **Chat only.** Each header pairs its emoji with its word. Commit messages, PR bodies and tracker posts carry no emoji.
 - **The block sits above the verdict line.** `Compliance Review: PASS`, `FAIL` or `SKIPPED (reason)` stays the literal last line of the report, unchanged, because the pulse reads it. When the review was not run, write no verdict line, per *Compliance Review*.
 
-Good: `- [x] Acceptance 2: a page past the last prints "no more results" — pytest test_paging.py::test_past_last: passed`
-Bad: `- [x] Tests pass` — no command, no result, and possibly from an earlier turn.
+Good: `- Acceptance 2: a page past the last prints "no more results" — pytest test_paging.py::test_past_last: passed`
+Bad: `- Tests pass` — no command, no result, and possibly from an earlier turn.
 
 ## Context Cleanup
 
