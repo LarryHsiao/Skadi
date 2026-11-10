@@ -100,7 +100,7 @@ If a step turns out heavier than its gauge billed — reach widens, depth deepen
 
 The loop closes only when the verification produces what the plan called for. Do not bend the verification to fit the slip — return to the code.
 
-**Verification must be fresh.** When the time comes to report the task done, run the verification once more in the current turn — prior runs do not count. A passing test from three messages ago, a build that succeeded before the last edit, a Compliance Review fix applied after the last green run: none of these prove the *current* state of the tree. The evidence the user reads must come from the same turn as the claim it backs; a claim without a same-turn run is a guess wearing the clothes of a fact. The end-of-task gates run in order: Compliance Review first, then its fixes, then this fresh verification — the last gate before "done".
+**Verification must be fresh.** When the time comes to report the task done, run the verification once more in the current turn — prior runs do not count. A passing test from three messages ago, a build that succeeded before the last edit, a Compliance Review fix applied after the last green run: none of these prove the *current* state of the tree. The evidence the user reads must come from the same turn as the claim it backs; a claim without a same-turn run is a guess wearing the clothes of a fact. The end-of-task gates run in order: Compliance Review first, then its fixes, then this fresh verification — the last gate before "done". A medium or heavy task's closing report is laid out in *Done Block* below.
 
 **Analysis and tests have named moments.** The project's static analysis — `flutter analyze`, `tsc`, `eslint`, `cargo clippy` — closes **each step**: a step is not finished until it reads clean. The full test suite runs once, at the **end-of-task fresh verification**, carrying the project's own mandated flags (a vitallink-ca-style `--exclude-tags golden,golden_jp`, and their like). Neither belongs in a `PostToolUse` hook: a check firing after every edit bills its cost per edit rather than per step, and one that pipes its output away reports nothing to anyone. Run both as your own Bash call, unpiped or `set -o pipefail`-prefixed, so the exit status is yours to read.
 
@@ -139,6 +139,30 @@ A third line, `Compliance Review: SKIPPED (reason: <one line>)`, replaces the re
 **When the dispatch is unavailable, the review is missed — not waived.** A harness restriction, a disabled Agent tool, or a sandbox that forbids subagents does not lower the bar. Do not write `PASS`: no reviewer earned it. Do not write `SKIPPED`: that waives the segment out of the measurement, and is reserved for the case above. Write **no verdict line at all** — then say plainly in the summary that a review was owed, that the dispatch was refused, and why, and ask for the restriction to be lifted. The segment scores as a miss, which is what happened. No new marker is needed: the scanner already reads an absent line as a review never run.
 
 The `compliance-review-reminder.sh` hook re-injects this review's trigger with every prompt, as `gate-reminder.sh` does for the Free-Form Gate; this section is its specification. Why it fires every turn, and why it names the agent dispatch rather than the verdict line alone, is recorded in `docs/workflow/maintenance.md`.
+
+## Done Block
+
+The closing report of a task whose gate read **medium** or **heavy** carries a `Done` block, so the user sees in one place what was proven, what was not, and what waits for them. A `minimum` task is unchanged: no block, though its verdict line and worklog entry are still owed under their own sections. There is no per-step list — a step closes by its own verification, per the Implementation Loop.
+
+```
+Done — size ▰▰▱ medium
+- [x] Acceptance 1: <the line> — <same-turn evidence>
+- [x] Fresh verification — <command, result>
+- [x] Compliance Review — <PASS|FAIL|SKIPPED (reason)|not run (dispatch refused)>
+- [x] Worklog — <sent|failed (why)|not configured>
+- n/a: <conditional rows that did not apply>
+- Not done: <anything left, and why>
+```
+
+- **One row per Acceptance line** from the gate, ticked only with evidence from this turn beside it. No evidence, no tick.
+- **These rows stand on every Done Block:** the Acceptance lines, fresh verification, Compliance Review, worklog. Each row's requirements live in its own section; the block points at them and does not restate them.
+- **A row is ticked `[x]` only when its work is done.** Compliance Review: `PASS`, `SKIPPED` (a reasoned waiver), or `FAIL` whose findings were all fixed or named as knowing exceptions. `not run (dispatch refused)` stays `[ ]`. Worklog: `sent` is ticked; `failed` and `not configured` stay `[ ]` with the reason.
+- **Conditional rows appear only when they apply:** the sibling-string check, `/manwe`, the DI entry-point check, `/install` (config changed), the mechanism cache (a `file:line` fact was learned), commit and push (when asked). Name the ones that did not apply on the single `n/a` line; never omit them silently.
+- **Anything left undone** goes on the `Not done` line, per *Fail Loud*. A skipped or unavailable review is stated as such in its row and never ticked as PASS.
+- **The block sits above the verdict line.** `Compliance Review: PASS`, `FAIL` or `SKIPPED (reason)` stays the literal last line of the report, unchanged, because the pulse reads it. When the review was not run, write no verdict line, per *Compliance Review*.
+
+Good: `- [x] Acceptance 2: a page past the last prints "no more results" — pytest test_paging.py::test_past_last: passed`
+Bad: `- [x] Tests pass` — no command, no result, and possibly from an earlier turn.
 
 ## Context Cleanup
 
