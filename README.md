@@ -57,6 +57,25 @@ alias claude-work='CLAUDE_CONFIG_DIR="$HOME/.claude-work" claude'
 alias codex-work='CODEX_HOME="$HOME/.codex-work" codex'
 ```
 
+### The terminal: Orthanc
+
+Skadi works in any terminal, but it is built beside
+[Orthanc](https://github.com/LarryHsiao/orthanc), a desktop terminal for macOS
+and Windows that holds several sessions in one window. Install it from its
+[releases page](https://github.com/LarryHsiao/orthanc/releases). Each pane
+starts a shell, so type `claude` or `codex` in it as usual.
+
+- **Click-to-copy blocks.** When a reply hands you a multi-line command, Skadi
+  marks it with a `⧉ copy:<name>` line (`hooks/orthanc-copy.py`). In an Orthanc
+  pane that line is a link; one click copies the block exactly, with no gutter
+  or hard wraps. Elsewhere it is one stray line.
+- **Several sessions side by side.** Split panes by hotkey and run a different
+  profile in each (`CLAUDE_CONFIG_DIR=… claude`). A pane that finishes a burst of
+  activity while unfocused lights its bar until you look.
+- **Files as references.** With Claude running, drop or paste a file onto a pane
+  and Orthanc writes its path as an `@`-reference; Claude Code then reads the
+  file or loads the image.
+
 ## Using it
 
 Skills are slash commands — `/name` in Claude, `$name` in Codex — and the
@@ -124,6 +143,7 @@ situation board.
 | `statusline.sh` | The terminal status line — eight rows of project, diff, model, quota, standing windows, and sky. See handbook chapter VIII |
 | `hooks/` | Shell scripts that run before/after tool calls, or serve as a skill's hands. See handbook chapter IX |
 | `hooks/lint.sh` | Shellcheck gate over the scripts a branch changed — `./hooks/lint.sh` (add paths to widen it) |
+| `hooks/orthanc-copy.py` | Saves a block meant for hand-copying and prints the `⧉ copy:` marker [Orthanc](#the-terminal-orthanc) turns into a click-to-copy link |
 | `skills/` | Custom slash-command skills. See handbook chapters III and VI |
 | `docs/` | Style guides, tool guides, and workflow notes referenced from `CLAUDE.md` via `@docs/...` |
 | `output-styles/` | Output style definitions, copied into `~/.claude/output-styles/`; `tolkien-narrator` is the default `outputStyle` in `settings.json` |
