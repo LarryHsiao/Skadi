@@ -32,6 +32,11 @@ fallback below — this file's own parent — is right only when the server runs
 from the repo; the copy install.sh lays under a config root has no handbook
 above it, so the variable, not the fallback, is what carries these two routes.
 
+The server also keeps the board current on its own: it runs the jobs named in
+<board-dir>/schedule.json (by default board-ci.py every five minutes) on a timer
+while it is up — see board_schedule.py. BOARD_SCHEDULE=off turns that off, which
+the tests set so no server they boot reaches GitHub or TeamCity.
+
 Test seam: BOARD_STABILITY_BIN overrides which script the stability routes
 shell out to, so board-server.test.sh can point at a stub and exercise the
 real HTTP routing offline, the same seam board-growth.sh's BOARD_GROWTH_OUT
@@ -50,6 +55,8 @@ import sys
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
+
+import board_schedule
 
 HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
 SKADI_ROOT = os.environ.get("BOARD_SKADI_ROOT") or os.path.dirname(HOOKS_DIR)
@@ -168,6 +175,8 @@ def main():
     port = int(sys.argv[1])
     board = sys.argv[2]
     handler = partial(BoardHandler, directory=board)
+    if os.environ.get("BOARD_SCHEDULE") != "off":
+        board_schedule.start(board, HOOKS_DIR, dict(os.environ, BOARD_DIR=board))
     ThreadingHTTPServer(("127.0.0.1", port), handler).serve_forever()
 
 

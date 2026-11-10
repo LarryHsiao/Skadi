@@ -5,6 +5,11 @@
 # Run: bash board-server.test.sh
 set -uo pipefail
 
+# Every server this file boots starts with its timed jobs off: the default job
+# is board-ci.py, which would call GitHub and TeamCity. Section 11 turns the
+# schedule on for one server, against a stub script and a fake hooks folder.
+export BOARD_SCHEDULE=off
+
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SERVER="$HERE/board-server.py"
 pass=0
@@ -20,6 +25,8 @@ cleanup() {
   # there is no PID to hold, so it is felled by the port it was given.
   [[ -n "${PORT2:-}" ]] && pkill -f "board-server.py $PORT2" 2>/dev/null
   [[ -n "${PORT3:-}" ]] && pkill -f "board-server.py $PORT3" 2>/dev/null
+  [[ -n "${SCHED_PID:-}" ]] && kill "$SCHED_PID" 2>/dev/null
+  [[ -n "${BAD_PID:-}" ]] && kill "$BAD_PID" 2>/dev/null
   rm -rf "$ROOT"
 }
 trap cleanup EXIT
@@ -168,6 +175,59 @@ expected_stale_board="200"
 actual_stale_board="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT3/index.html")"
 check "and the board still serves despite the stale record" \
   "$expected_stale_board" "$actual_stale_board"
+
+# ── 11 · the board server runs its own timed jobs ──
+# A fake hooks folder holds copies of the server and the schedule module plus a
+# stub job that writes a file into the board dir — the same on-disk effect a real
+# writer has. The server must run it unprompted, and keep serving when the
+# schedule file is bad.
+SCHED_HOOKS="$ROOT/sched-hooks"
+mkdir -p "$SCHED_HOOKS"
+cp "$HERE/board-server.py" "$HERE/board_schedule.py" "$SCHED_HOOKS/"
+cat >"$SCHED_HOOKS/tick.py" <<'PY'
+import os
+open(os.path.join(os.environ["BOARD_DIR"], "ticked"), "w").write("tick")
+PY
+SCHED_BOARD="$ROOT/sched-board"
+mkdir -p "$SCHED_BOARD"
+printf '%s' '{"jobs":[{"name":"tick","script":"tick.py","every_s":10}]}' >"$SCHED_BOARD/schedule.json"
+SCHED_PORT="$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")"
+env -u BOARD_SCHEDULE python3 "$SCHED_HOOKS/board-server.py" "$SCHED_PORT" "$SCHED_BOARD" 2>"$ROOT/sched.log" &
+SCHED_PID=$!
+
+ticked=""
+for _ in $(seq 1 40); do
+  [[ -f "$SCHED_BOARD/ticked" ]] && { ticked="yes"; break; }
+  sleep 0.25
+done
+expected_ticked="yes"
+check "a due job runs on its own once the server is up" "$expected_ticked" "$ticked"
+
+for _ in $(seq 1 40); do
+  grep -q 'tick ok' "$ROOT/sched.log" && break
+  sleep 0.25
+done
+expected_logged="1"
+actual_logged="$(grep -c 'tick ok' "$ROOT/sched.log")"
+check "and the run is logged" "$expected_logged" "$actual_logged"
+
+BAD_BOARD="$ROOT/bad-sched-board"
+mkdir -p "$BAD_BOARD"
+printf '%s' '{"jobs":[{"name":"x","script":"../evil.sh","every_s":10}]}' >"$BAD_BOARD/schedule.json"
+BAD_PORT="$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")"
+env -u BOARD_SCHEDULE python3 "$SCHED_HOOKS/board-server.py" "$BAD_PORT" "$BAD_BOARD" 2>"$ROOT/bad.log" &
+BAD_PID=$!
+bad_up=""
+for _ in $(seq 1 40); do
+  [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$BAD_PORT/")" == "200" ]] && { bad_up="200"; break; }
+  sleep 0.25
+done
+expected_bad_up="200"
+check "a bad schedule file does not stop the server serving" "$expected_bad_up" "$bad_up"
+
+expected_bad_logged="1"
+actual_bad_logged="$(grep -c 'evil.sh' "$ROOT/bad.log")"
+check "and the bad entry is named in the log" "$expected_bad_logged" "$actual_bad_logged"
 
 echo ""
 echo "── $pass passed, $fail failed ──"

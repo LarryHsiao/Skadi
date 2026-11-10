@@ -224,6 +224,16 @@ interactively, or don't pass the flag.
   within a poll (~8 s). It does **not** poll Jira or BigQuery — fresh numbers are a
   pull: run `add`/`refresh`. A scheduled `refresh` (via `/loop` or cron) closes
   that gap when wanted. The Stability tile is a further exception — see above.
+- **The server keeps CI current on its own.** While it runs, the board server
+  executes `board-ci.py` every five minutes (the default `ci` job) and the page
+  picks the file up within a poll. More writers can join: list them in
+  `~/.skadi/board/schedule.json` as `{"jobs": [{"name", "script", "args",
+  "every_s", "timeout_s"}]}`, where `script` is a bare `.py` or `.sh` name in the
+  hooks folder (`board.sh` with `args` covers `attention mrs`, and the like).
+  The timer lives and dies with the server, and a job's run or failure is one
+  line in `~/.skadi/board/.board-log` (reset only when the server restarts). Heavy or model-bound writers — growth,
+  cost, the stability scrape, mail — are not scheduled by default.
+  `BOARD_SCHEDULE=off` turns it off. See `hooks/board_schedule.py`.
 - **One server, one fixed port.** `serve` binds port 10000 (override with
   `BOARD_PORT`) and reuses it whenever it still answers, rather than
   multiplying servers — the URL never drifts across restarts. The handbook
