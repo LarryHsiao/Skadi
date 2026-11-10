@@ -11,7 +11,8 @@
  * Utility vocabulary a preview may lean on:
  *   layout   .wrap (2-col grid) · .panel · .panel.full (span both columns)
  *   heading  h1 · .sub (italic subtitle) · h2 (panel heading)
- *   status   .badge (pill) · .done/.yes (green) · .no (red)
+ *   status   .badge (pill) · .badge.yes/.badge.done (green pill) · .badge.no (red pill)
+ *            · .badge.info (blue pill) · bare .done/.yes (green text) · bare .no (red text)
  *   blocks   .gauge (task-size bar) · .prec (mono call-out) · .note / .open (left-rule callouts)
  *   inline   code · .name (mono accent span, e.g. a token)
  *   table    plain <table> is themed; .v is a green italic verify line
@@ -70,6 +71,27 @@ h2 {
   padding: 0.25rem 0.7rem;
   border-radius: 12px;
   margin-bottom: 1.4rem;
+}
+
+/* Status pills: the colour classes set the fill, text stays cream. */
+.badge.yes,
+.badge.done {
+  background: var(--green);
+  color: var(--bg);
+}
+.badge.no {
+  background: var(--red);
+  color: var(--bg);
+}
+.badge.info {
+  background: var(--blue);
+  color: var(--bg);
+}
+/* A pill inside a heading sits on the text line, not 1.4rem below it. */
+h2 .badge {
+  margin-bottom: 0;
+  vertical-align: middle;
+  margin-left: 0.4rem;
 }
 
 /* Task-size gauge bar. */
