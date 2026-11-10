@@ -71,5 +71,38 @@ check "a stderr notice from gh does not break the parse" \
 expected_args="run list --repo o/r --workflow ci.yml --limit 1 --json number,status,conclusion,headBranch,updatedAt,url --branch dev"
 check "the repo, workflow, count and branch reach gh" "$expected_args" "$(cat "$ROOT/gh.args")"
 
+# ── 6 · an account names whose token reads the repo, whichever gh account is active ──
+# A fake `gh` that knows one login ("work"), logs every call, and records the
+# GH_TOKEN a `run list` call was made with.
+cat >"$ROOT/gh-accounts" <<EOF
+#!/bin/bash
+echo "\$@" >>"$ROOT/acct.calls"
+if [[ "\$1 \$2" == "auth token" ]]; then
+  [[ "\$4" == "work" ]] && { echo "tok-work"; exit 0; }
+  echo "no token found for \$4" >&2; exit 1
+fi
+echo "\${GH_TOKEN-unset}" >"$ROOT/acct.token"
+cat "$ROOT/runs.json"
+EOF
+chmod +x "$ROOT/gh-accounts"
+
+rm -f "$ROOT/acct.calls" "$ROOT/acct.token"
+actual="$(env -u GH_TOKEN AMON_DIN_GITHUB_ACCOUNT=work AMON_DIN_GITHUB_GH="$ROOT/gh-accounts" bash "$HOOK" o/r ci.yml 1 2>/dev/null | head -1)"
+check "an account's runs are read" \
+  "7|running|main|2026-11-07T10:00:00Z|https://github.com/o/r/actions/runs/7" "$actual"
+check "gh run list is called with the account's token" "tok-work" "$(cat "$ROOT/acct.token")"
+
+rm -f "$ROOT/acct.calls" "$ROOT/acct.token"
+env -u GH_TOKEN AMON_DIN_GITHUB_ACCOUNT=ghost AMON_DIN_GITHUB_GH="$ROOT/gh-accounts" \
+  bash "$HOOK" o/r ci.yml >/dev/null 2>"$ROOT/acct.err"
+check "an account gh does not hold exits 1" "1" "$?"
+check "the failure names the account" "1" "$(grep -c 'ghost' "$ROOT/acct.err")"
+check "no run list is attempted for an unknown account" "0" "$(grep -c '^run list' "$ROOT/acct.calls")"
+
+rm -f "$ROOT/acct.calls" "$ROOT/acct.token"
+env -u GH_TOKEN AMON_DIN_GITHUB_GH="$ROOT/gh-accounts" bash "$HOOK" o/r ci.yml 1 >/dev/null 2>&1
+check "without an account the active gh account is used (no token set)" "unset" "$(cat "$ROOT/acct.token")"
+check "without an account no token lookup is made" "0" "$(grep -c '^auth token' "$ROOT/acct.calls")"
+
 echo "pass=$pass fail=$fail"
 [[ $fail -eq 0 ]]

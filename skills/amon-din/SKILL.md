@@ -87,6 +87,7 @@ or
 ```
 flavor: github
 repo: owner/name
+account: gh-login
 workflows:
   - id: ci.yml
     label: CI
@@ -95,6 +96,8 @@ workflows:
 ```
 
 A GitHub binding names the repository explicitly (`repo`) rather than reading it from the cwd, so a caller outside the repo — the board's CI sweep — can read it. Each `workflows` entry is a workflow file name or name; `label` is optional and defaults to the id.
+
+`account` is optional: the `gh` login that can see the repo, for a machine that holds several (a work org's private repos 404 under a personal login). When present, export it as `AMON_DIN_GITHUB_ACCOUNT` on every `amon-din-github.sh` call; the hook then reads that account's token for the call alone, never switches the active account, and exits 1 if `gh` holds no such login. Absent, the active account is used.
 
 A repo may carry **one or more** TeamCity buildTypes (build, test, deploy, per-platform variants); the skill renders a section per id. The `label` field is optional — when absent, the id stands as its own label.
 

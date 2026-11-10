@@ -5,6 +5,7 @@ import importlib.util
 import shutil
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -27,18 +28,18 @@ def write_binding(profiles, profile, project_dir, body):
 class ParseBindingTest(unittest.TestCase):
     def test_teamcity_build_types_carry_their_labels(self):
         text = FRONTMATTER + "flavor: teamcity\nbuildTypes:\n  - id: A_Build\n    label: android\n  - id: A_Ios\n"
-        expected = {"flavor": "teamcity", "repo": None,
+        expected = {"flavor": "teamcity", "repo": None, "account": None,
                     "lamps": [{"id": "A_Build", "label": "android"}, {"id": "A_Ios", "label": "A_Ios"}]}
         self.assertEqual(expected, board_ci.parse_binding(text))
 
     def test_the_legacy_single_build_type_form_becomes_one_lamp(self):
         text = FRONTMATTER + "flavor: teamcity\nbuildTypeId: Old_Build\n"
-        expected = {"flavor": "teamcity", "repo": None, "lamps": [{"id": "Old_Build", "label": "Old_Build"}]}
+        expected = {"flavor": "teamcity", "repo": None, "account": None, "lamps": [{"id": "Old_Build", "label": "Old_Build"}]}
         self.assertEqual(expected, board_ci.parse_binding(text))
 
     def test_a_github_binding_names_its_repo_and_workflows(self):
         text = FRONTMATTER + "flavor: github\nrepo: o/r\nworkflows:\n  - id: ci.yml\n    label: CI\n"
-        expected = {"flavor": "github", "repo": "o/r", "lamps": [{"id": "ci.yml", "label": "CI"}]}
+        expected = {"flavor": "github", "repo": "o/r", "account": None, "lamps": [{"id": "ci.yml", "label": "CI"}]}
         self.assertEqual(expected, board_ci.parse_binding(text))
 
     def test_a_workflow_name_with_spaces_is_kept_whole(self):
@@ -46,6 +47,11 @@ class ParseBindingTest(unittest.TestCase):
         expected = [{"id": "E2E verify", "label": "e2e verify"},
                     {"id": "Release NA staging", "label": "Release NA staging"}]
         self.assertEqual(expected, board_ci.parse_binding(text)["lamps"])
+
+    def test_a_github_binding_may_name_the_gh_account_that_reads_it(self):
+        text = FRONTMATTER + "flavor: github\nrepo: o/r\naccount: work-login\nworkflows:\n  - id: ci.yml\n"
+        expected = "work-login"
+        self.assertEqual(expected, board_ci.parse_binding(text)["account"])
 
     def test_a_file_without_a_flavor_is_unreadable(self):
         self.assertIsNone(board_ci.parse_binding(FRONTMATTER + "nothing useful\n"))
@@ -101,6 +107,24 @@ class HookArgvTest(unittest.TestCase):
         self.assertEqual(["o/r", "ci.yml", "1"], argv[2:])
 
 
+class HookEnvTest(unittest.TestCase):
+    def test_an_account_rides_the_environment_of_the_call(self):
+        expected = "work-login"
+        env = board_ci.hook_env("work-login", {"PATH": "/bin"})
+        self.assertEqual(expected, env["AMON_DIN_GITHUB_ACCOUNT"])
+
+    def test_no_account_clears_one_inherited_from_the_shell(self):
+        env = board_ci.hook_env(None, {"PATH": "/bin", "AMON_DIN_GITHUB_ACCOUNT": "stale"})
+        self.assertNotIn("AMON_DIN_GITHUB_ACCOUNT", env)
+
+    def test_run_hook_hands_the_account_to_the_subprocess(self):
+        expected = "work-login"
+        done = unittest.mock.Mock(returncode=0, stdout="")
+        with unittest.mock.patch.object(board_ci.subprocess, "run", return_value=done) as run:
+            board_ci.run_hook("github", "o/r", "ci.yml", "work-login")
+        self.assertEqual(expected, run.call_args.kwargs["env"]["AMON_DIN_GITHUB_ACCOUNT"])
+
+
 class CollectTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -108,7 +132,7 @@ class CollectTest(unittest.TestCase):
         self.profiles = self.tmp.name
 
     def hook(self, results):
-        def run(flavor, repo, lamp_id):
+        def run(flavor, repo, lamp_id, account=None):
             return results[(flavor, lamp_id)]
         return run
 
@@ -126,6 +150,18 @@ class CollectTest(unittest.TestCase):
         expected = [("github", ["jubo"]), ("teamcity", ["snotra"])]
         actual = [(s["source"], [p["name"] for p in s["projects"]]) for s in channel["sources"]]
         self.assertEqual(expected, actual)
+
+    def test_the_binding_account_reaches_the_hook(self):
+        write_binding(self.profiles, "work", "jubo-bbbbbbbbbbbb",
+                      "flavor: github\nrepo: o/r\naccount: work-login\nworkflows:\n  - id: ci.yml\n")
+        seen = []
+
+        def run(flavor, repo, lamp_id, account=None):
+            seen.append(account)
+            return GH_RUN_OK
+        board_ci.collect(self.profiles, run)
+        expected = ["work-login"]
+        self.assertEqual(expected, seen)
 
     def test_a_lamp_carries_the_latest_run(self):
         write_binding(self.profiles, "personal", "snotra-aaaaaaaaaaaa",
@@ -155,14 +191,14 @@ class CollectTest(unittest.TestCase):
         write_binding(self.profiles, "personal", "snotra-aaaaaaaaaaaa", "flavor: teamcity\nbuildTypes:\n  - id: S\n")
         replies = iter([(1, ""), TC_RUN_OK])
         expected = "success"
-        channel = board_ci.collect(self.profiles, lambda flavor, repo, lamp_id: next(replies))
+        channel = board_ci.collect(self.profiles, lambda flavor, repo, lamp_id, account=None: next(replies))
         self.assertEqual(expected, channel["sources"][0]["projects"][0]["lamps"][0]["status"])
 
     def test_a_hook_that_fails_twice_is_tried_exactly_twice_and_reads_hollow(self):
         write_binding(self.profiles, "personal", "snotra-aaaaaaaaaaaa", "flavor: teamcity\nbuildTypes:\n  - id: S\n")
         calls = []
 
-        def always_fails(flavor, repo, lamp_id):
+        def always_fails(flavor, repo, lamp_id, account=None):
             calls.append(lamp_id)
             return 1, ""
 

@@ -9,7 +9,9 @@
 #     count      — number of runs (default 3)
 #     branch     — branch name (optional)
 #
-# Auth: whatever `gh auth status` already holds. No token is read here.
+# Auth: whatever `gh auth status` already holds, unless AMON_DIN_GITHUB_ACCOUNT
+# names a gh login — then that account's token (`gh auth token --user`) is used
+# for this call only. An account gh does not hold exits 1.
 #
 # Output (stdout): zero or more pipe-delimited lines
 #   <number>|<status>|<branch>|<timestamp>|<url>
@@ -41,6 +43,18 @@ else
   if ! command -v "$GH" >/dev/null 2>&1; then
     echo "gh CLI not found on PATH" >&2
     exit 1
+  fi
+  # A binding may name the gh account that can see the repo; its token rides
+  # this process only, so the active account is never switched and a failure
+  # here stays loud rather than falling back to whichever account is active.
+  ACCOUNT="${AMON_DIN_GITHUB_ACCOUNT:-}"
+  if [[ -n "$ACCOUNT" ]]; then
+    token=$("$GH" auth token --user "$ACCOUNT" 2>/dev/null) || token=""
+    if [[ -z "$token" ]]; then
+      echo "gh holds no token for account '$ACCOUNT' (run: gh auth login)" >&2
+      exit 1
+    fi
+    export GH_TOKEN="$token"
   fi
   args=(run list --repo "$REPO" --workflow "$WORKFLOW" --limit "$COUNT"
         --json "number,status,conclusion,headBranch,updatedAt,url")

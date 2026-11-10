@@ -29,6 +29,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 FRESH_HOURS = int(os.environ.get("CI_FRESH_HOURS", "6"))
 HOOK_TIMEOUT_S = 30
+ACCOUNT_VAR = "AMON_DIN_GITHUB_ACCOUNT"
 WORKERS = 8
 
 # Section order on the board, and each source's display label.
@@ -54,8 +55,8 @@ def project_name(dirname):
 
 
 def parse_binding(text):
-    """Read a ci_routing.md body into {flavor, repo, lamps}; None if it names no flavor."""
-    flavor = repo = None
+    """Read a ci_routing.md body into {flavor, repo, account, lamps}; None if it names no flavor."""
+    flavor = repo = account = None
     lamps = []
     for raw in _body(text).splitlines():
         line = raw.rstrip()
@@ -66,6 +67,10 @@ def parse_binding(text):
         match = re.match(r"^repo:\s*(\S+)", line)
         if match:
             repo = match.group(1)
+            continue
+        match = re.match(r"^account:\s*(\S+)", line)
+        if match:
+            account = match.group(1)
             continue
         match = re.match(r"^buildTypeId:\s*(\S+)", line)
         if match:
@@ -82,7 +87,7 @@ def parse_binding(text):
             lamps[-1]["label"] = match.group(1).strip()
     if flavor is None:
         return None
-    return {"flavor": flavor, "repo": repo, "lamps": lamps}
+    return {"flavor": flavor, "repo": repo, "account": account, "lamps": lamps}
 
 
 def _body(text):
@@ -119,11 +124,23 @@ def hook_argv(flavor, repo, lamp_id):
     return [bash, os.path.join(HERE, "amon-din-github.sh"), repo or "", lamp_id, "1"]
 
 
-def run_hook(flavor, repo, lamp_id):
+def hook_env(account, base=None):
+    """The environment for one hook call. A binding's gh account rides in
+    AMON_DIN_GITHUB_ACCOUNT; with none named, one inherited from the shell is
+    dropped so the active gh account stays the only reader."""
+    env = dict(os.environ if base is None else base)
+    env.pop(ACCOUNT_VAR, None)
+    if account:
+        env[ACCOUNT_VAR] = account
+    return env
+
+
+def run_hook(flavor, repo, lamp_id, account=None):
     """Call the backend hook for one build; returns (returncode, stdout)."""
     argv = hook_argv(flavor, repo, lamp_id)
     try:
-        done = subprocess.run(argv, capture_output=True, text=True, timeout=HOOK_TIMEOUT_S)
+        done = subprocess.run(argv, capture_output=True, text=True, timeout=HOOK_TIMEOUT_S,
+                              env=hook_env(account))
     except (OSError, subprocess.TimeoutExpired) as err:
         return 1, str(err)
     return done.returncode, done.stdout
@@ -171,22 +188,22 @@ def scan(profiles_dir):
         yield dirname, binding
 
 
-def call_with_retry(hook, flavor, repo, lamp_id):
+def call_with_retry(hook, flavor, repo, lamp_id, account=None):
     """Try a hook once more when it fails. Under load the credential helper the
     TeamCity hook leans on sometimes answers empty ("credentials missing": about
     1 call in 9 with eight at once, measured 2026-11-08); a second try usually
     clears that, while a real outage fails twice and reads as a hollow lamp."""
-    result = hook(flavor, repo, lamp_id)
-    return result if result[0] == 0 else hook(flavor, repo, lamp_id)
+    result = hook(flavor, repo, lamp_id, account)
+    return result if result[0] == 0 else hook(flavor, repo, lamp_id, account)
 
 
 def collect(profiles_dir, hook=run_hook):
-    jobs = [(binding["flavor"], dirname, binding["repo"], lamp)
+    jobs = [(binding["flavor"], dirname, binding["repo"], binding["account"], lamp)
             for dirname, binding in scan(profiles_dir) for lamp in binding["lamps"]]
     with concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        results = list(pool.map(lambda job: call_with_retry(hook, job[0], job[2], job[3]["id"]), jobs))
+        results = list(pool.map(lambda job: call_with_retry(hook, job[0], job[2], job[4]["id"], job[3]), jobs))
     grouped = {}
-    for (flavor, dirname, _repo, lamp), result in zip(jobs, results):
+    for (flavor, dirname, _repo, _account, lamp), result in zip(jobs, results):
         grouped.setdefault(flavor, {}).setdefault(dirname, []).append(make_lamp(lamp, result))
     sources = []
     for flavor, label in SOURCES:
