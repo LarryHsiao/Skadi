@@ -48,7 +48,7 @@ If no upstream is configured, mark the header `· no upstream`.
 
 Returns JSON: `{stack, lint, format, build, test, install, test_scope, source}`. If `stack` is `unknown` and every command is empty, render every artefact row as `⚪ skipped — no command`, run the secret scan and advisory rows, and finish.
 
-`install` is not an artefact row and is never run here — this tree is already installed. It belongs to step 7, which materialises a fresh checkout that carries none of the project's dependencies.
+`install` is not an artefact row and is never run here — this tree is already installed. It belongs to step 7, which materialises a fresh checkout that carries none of the project's dependencies. For a Flutter project whose `pubspec.yaml` lists `build_runner`, `install` also runs `build_runner build --delete-conflicting-outputs` after `pub get`: generated Dart kept out of version control (`*.freezed.dart`, `*.g.dart`) does not exist in that fresh checkout, and without the codegen every import of it fails to compile. A project that commits its generated files pays the extra seconds for the same result; a `.skadi/argonath.yaml` `install:` override replaces the whole line.
 
 When `source` is `override` or `merged`, append `(via .skadi/argonath.yaml)` after the stack name in the header.
 

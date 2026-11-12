@@ -134,6 +134,44 @@ out=$(cd "$FVM_PKG" && "$HOOK" 2>/dev/null)
 expected_build=""
 check "an fvm flutter package names no build" "$expected_build" "$(field "$out" build)"
 
+# A Flutter project that keeps its generated Dart (*.freezed.dart, *.g.dart) out
+# of version control has none of it in the merged-tree probe's fresh checkout,
+# so a bare `pub get` leaves every import of a generated file unresolved. When
+# pubspec.yaml lists build_runner, the install carries the codegen step too.
+CODEGEN_PLAIN="$WORK/codegen-plain"
+stack_repo "$CODEGEN_PLAIN"
+printf 'name: app\ndev_dependencies:\n  build_runner: ^2.4.0\n' > "$CODEGEN_PLAIN/pubspec.yaml"
+out=$(cd "$CODEGEN_PLAIN" && "$HOOK" 2>/dev/null)
+expected_install="flutter pub get && dart run build_runner build --delete-conflicting-outputs"
+check "a flutter project listing build_runner installs with codegen" "$expected_install" "$(field "$out" install)"
+
+CODEGEN_FVM="$WORK/codegen-fvm"
+stack_repo "$CODEGEN_FVM"
+printf 'name: app\ndev_dependencies:\n  build_runner: ^2.4.0\n' > "$CODEGEN_FVM/pubspec.yaml"
+printf '{}\n' > "$CODEGEN_FVM/.fvmrc"
+out=$(cd "$CODEGEN_FVM" && "$HOOK" 2>/dev/null)
+expected_install="fvm flutter pub get && fvm dart run build_runner build --delete-conflicting-outputs"
+check "an fvm flutter project listing build_runner installs with fvm codegen" "$expected_install" "$(field "$out" install)"
+
+expected_install="flutter pub get"
+check "a flutter project without build_runner keeps a bare pub get" "$expected_install" "$(field "$(cd "$FLUTTER_APP" && "$HOOK" 2>/dev/null)" install)"
+
+CODEGEN_COMMENTED="$WORK/codegen-commented"
+stack_repo "$CODEGEN_COMMENTED"
+printf 'name: app\ndev_dependencies:\n  # build_runner: ^2.4.0\n' > "$CODEGEN_COMMENTED/pubspec.yaml"
+out=$(cd "$CODEGEN_COMMENTED" && "$HOOK" 2>/dev/null)
+expected_install="flutter pub get"
+check "a commented-out build_runner does not earn codegen" "$expected_install" "$(field "$out" install)"
+
+CODEGEN_OVERRIDDEN="$WORK/codegen-overridden"
+stack_repo "$CODEGEN_OVERRIDDEN"
+printf 'name: app\ndev_dependencies:\n  build_runner: ^2.4.0\n' > "$CODEGEN_OVERRIDDEN/pubspec.yaml"
+mkdir -p "$CODEGEN_OVERRIDDEN/.skadi"
+printf 'install: flutter pub get --offline\n' > "$CODEGEN_OVERRIDDEN/.skadi/argonath.yaml"
+out=$(cd "$CODEGEN_OVERRIDDEN" && "$HOOK" 2>/dev/null)
+expected_install="flutter pub get --offline"
+check "an override beats the codegen install" "$expected_install" "$(field "$out" install)"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

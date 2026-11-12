@@ -50,12 +50,23 @@ if [ -f "pubspec.yaml" ]; then
     build="fvm flutter build apk --debug"
     test_cmd="fvm flutter test"
     install_cmd="fvm flutter pub get"
+    dart_cmd="fvm dart"
   else
     lint="flutter analyze"
     format="dart format --output=none --set-exit-if-changed ."
     build="flutter build apk --debug"
     test_cmd="flutter test"
     install_cmd="flutter pub get"
+    dart_cmd="dart"
+  fi
+  # Generated Dart (*.freezed.dart, *.g.dart) is often kept out of version
+  # control, so a fresh checkout cannot compile until the codegen has run. A
+  # project that lists build_runner gets that step as part of its install; one
+  # that commits its generated files pays the extra seconds for the same result.
+  # Only a block-style entry is matched; a flow-style one
+  # (`dev_dependencies: {build_runner: ^2}`) falls back to the bare install.
+  if grep -Eq '^[[:space:]]+build_runner[[:space:]]*:' pubspec.yaml; then
+    install_cmd="$install_cmd && $dart_cmd run build_runner build --delete-conflicting-outputs"
   fi
   # An APK build needs an Android app module. A Flutter package (or an app
   # without an Android target) has none, so the build step is left empty and
