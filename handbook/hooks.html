@@ -355,11 +355,15 @@
           </tr>
           <tr>
             <td><span class="name">ithildin-report</span></td>
-            <td>Render the <code>/ithildin</code> proof page into Henneth: a row per acceptance criterion with its screenshot, a PASS / FAIL / UNCLEAR badge and one-line reason, five exact counts on top, and an optional screen recording that sits at the top, docks in a corner once scrolled away, and answers each row's play-from-here button</td>
+            <td>Render the <code>/ithildin</code> proof page into Henneth. Each acceptance criterion gets a row with its screenshot, a PASS / FAIL / UNCLEAR badge and one-line reason, and optionally a clip beside the screenshot; five exact counts head the page; and an optional whole recording sits at the top, docks in a corner once scrolled away, and answers each row's play-from-here button</td>
           </tr>
           <tr>
             <td><span class="name">ithildin-record</span></td>
             <td>Record the iOS Simulator for <code>/ithildin</code> as one continuous video: <code>start</code>, <code>mark</code> each criterion's moment, <code>stop</code> pads the end to the real duration and converts to an H.264 mp4 browsers play. macOS with Xcode and ffmpeg only</td>
+          </tr>
+          <tr>
+            <td><span class="name">ithildin-clips</span></td>
+            <td>Cut one clip per acceptance criterion out of an <code>/ithildin</code> recording: each from its mark to the next, re-encoded to H.264, with a stated reason for any criterion that gets none. Needs only ffmpeg and ffprobe, so unlike the recorder it is not macOS-only</td>
           </tr>
           <tr>
             <td><span class="name">mirror-server</span></td>

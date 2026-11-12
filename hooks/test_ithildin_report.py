@@ -466,6 +466,135 @@ class DockTest(unittest.TestCase):
         self.assertIn("addEventListener('resize', sync)", page)
 
 
+class ClipTest(unittest.TestCase):
+    CLIP_BYTES = b"fake-clip-bytes"
+
+    def _page(self, acs, with_video=False, **extra):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            built = []
+            for number, ac in enumerate(acs, 1):
+                ac = dict(ac)
+                if ac.pop("with_clip", False):
+                    clip = Path(src) / f"c{number}.mp4"
+                    clip.write_bytes(self.CLIP_BYTES)
+                    ac["clip"] = str(clip)
+                built.append({"text": f"AC {number}", **ac})
+            if with_video:
+                (Path(src) / "rec.mp4").write_bytes(b"x")
+                extra["video"] = str(Path(src) / "rec.mp4")
+            page = ithildin_report.render(_manifest(built, **extra), Path(out))
+            self.last_out = Path(out)
+            return page.read_text(encoding="utf-8")
+
+    def test_a_clip_gets_a_player_beside_the_screenshot(self):
+        page = self._page([{"with_clip": True}])
+        self.assertIn('<div class="media">', page)
+        expected = '<video class="clip" controls preload="auto" aria-label="Clip for criterion 1" src="ithildin-psg-1/clip-1.mp4"></video>'
+        self.assertIn(expected, page)
+
+    def test_the_clip_is_copied_beside_the_page(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            clip = Path(src) / "c.mp4"
+            clip.write_bytes(self.CLIP_BYTES)
+            ithildin_report.render(_manifest([{"text": "A", "clip": str(clip)}]), Path(out))
+            actual = (Path(out) / "ithildin-psg-1" / "clip-1.mp4").read_bytes()
+            self.assertEqual(self.CLIP_BYTES, actual)
+
+    def test_a_report_with_no_clips_is_exactly_as_before(self):
+        page = self._page([{"text": "A"}])
+        for absent in ('class="media"', 'class="clip"', "o.pause()"):
+            self.assertNotIn(absent, page)
+
+    def test_the_caption_shows_the_time_range_and_length_beside_the_recording(self):
+        page = self._page([{"with_clip": True, "at": 0, "clipEnd": 4.7}], with_video=True)
+        self.assertIn("clip \u00b7 0:00\u20130:04 (4.7 s)", page)
+
+    def test_the_caption_shows_the_length_alone_without_a_recording(self):
+        page = self._page([{"with_clip": True, "at": 4.705, "clipEnd": 8.596}])
+        self.assertIn("clip \u00b7 3.9 s", page)
+        self.assertNotIn("0:04", page)
+
+    def test_the_caption_is_plain_when_no_times_are_given(self):
+        page = self._page([{"with_clip": True}])
+        self.assertIn('<figcaption class="cap">clip</figcaption>', page)
+
+    def test_clips_only_has_no_top_player_and_no_jump_buttons(self):
+        page = self._page([{"with_clip": True, "at": 1.0, "clipEnd": 5.0}])
+        self.assertNotIn('id="recording"', page)
+        self.assertNotIn('class="jump"', page)
+
+    def test_both_keeps_the_recording_and_the_jump_button(self):
+        page = self._page([{"with_clip": True, "at": 1.0, "clipEnd": 5.0}], with_video=True)
+        self.assertIn('id="recording"', page)
+        self.assertIn('class="jump"', page)
+        self.assertIn('class="clip"', page)
+
+    def test_a_clip_that_was_not_made_shows_its_reason(self):
+        page = self._page([{"with_clip": True}, {"clipHint": "its clip would be shorter than 0.5 s"}])
+        self.assertIn('<div class="missing">its clip would be shorter than 0.5 s</div>', page)
+
+    def test_an_ac_with_no_clip_in_a_clip_report_says_so(self):
+        page = self._page([{"with_clip": True}, {}])
+        self.assertIn('<div class="missing">no clip</div>', page)
+
+    def test_a_clip_file_that_is_absent_is_a_missing_block_not_a_player(self):
+        page = self._page([{"clip": "/no/such.mp4", "clipHint": "ffmpeg exited 1"}])
+        self.assertIn('<div class="missing">ffmpeg exited 1</div>', page)
+        self.assertNotIn('class="clip"', page)
+
+    def test_the_clip_hint_is_escaped(self):
+        page = self._page([{"clipHint": "<b>x</b>"}])
+        self.assertIn("&lt;b&gt;x&lt;/b&gt;", page)
+
+    def test_an_ac_without_a_screenshot_still_gets_both_blocks(self):
+        page = self._page([{"with_clip": True, "hint": "shoot it"}])
+        self.assertIn('<div class="missing">shoot it</div>', page)
+        self.assertIn('class="clip"', page)
+
+    def test_starting_any_video_pauses_the_others(self):
+        page = self._page([{"with_clip": True}])
+        self.assertIn("addEventListener('play'", page)
+        self.assertIn("if (o !== v) o.pause();", page)
+
+    def test_the_clip_player_is_sized_to_its_shape_at_40vh_capped_at_320px(self):
+        page = self._page([{"with_clip": True}])
+        self.assertIn(".clip { height: min(40vh, 320px); width: auto; max-width: 100%;", page)
+
+    def test_a_rerun_without_the_clip_removes_the_old_file(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            clip = Path(src) / "c.mp4"
+            clip.write_bytes(self.CLIP_BYTES)
+            ithildin_report.render(_manifest([{"text": "A", "clip": str(clip)}]), Path(out))
+            ithildin_report.render(_manifest([{"text": "A", "clipHint": "gone"}]), Path(out))
+            self.assertFalse((Path(out) / "ithildin-psg-1" / "clip-1.mp4").exists())
+
+    def test_an_unusable_clip_end_raises_naming_the_ac(self):
+        for bad in (float("nan"), float("inf"), True, "soon", -1, 1.0, 0.5):
+            with self.subTest(clipEnd=bad):
+                with self.assertRaises(ValueError) as raised:
+                    self._page([{"with_clip": True}, {"with_clip": True, "at": 1.0, "clipEnd": bad}])
+                self.assertIn("AC 2", str(raised.exception))
+
+    def test_a_clip_player_has_an_accessible_name(self):
+        page = self._page([{}, {"with_clip": True}])
+        self.assertIn('aria-label="Clip for criterion 2"', page)
+
+    def test_a_bad_clip_end_is_refused_even_on_an_ac_with_no_clip(self):
+        with self.assertRaises(ValueError) as raised:
+            self._page([{"with_clip": True}, {"at": 1.0, "clipEnd": float("nan")}])
+        self.assertIn("AC 2", str(raised.exception))
+
+    def test_a_bad_clip_end_is_refused_in_a_report_with_no_clips_at_all(self):
+        with self.assertRaises(ValueError) as raised:
+            self._page([{"at": 1.0, "clipEnd": 0.5}])
+        self.assertIn("AC 1", str(raised.exception))
+
+    def test_a_clip_end_without_a_start_raises_naming_the_ac(self):
+        with self.assertRaises(ValueError) as raised:
+            self._page([{"with_clip": True, "clipEnd": 4.0}])
+        self.assertIn("AC 1", str(raised.exception))
+
+
 class CommandLineTest(unittest.TestCase):
     def _run(self, manifest, out):
         path = Path(out) / "manifest.json"

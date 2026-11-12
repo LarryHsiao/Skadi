@@ -1,7 +1,7 @@
 ---
 name: ithildin
-description: Use when the user runs /ithildin <ACs or a plan file>, or asks in plain words to "capture proof for each acceptance criterion", "screenshot every AC", "record the screen while I walk through the ACs", "make a report that proves the AC". Takes a list of acceptance criteria and shoots one screenshot of the running app for each, optionally alongside one continuous iOS Simulator recording with a start time marked per AC; reads each shot and gives the AC a pass, fail or unclear verdict with a one-line reason; and renders one HTML report into Henneth with a row per AC, a badge and tally for the verdicts, a play-from-here button per AC that seeks the recording (a player that docks in the corner as you scroll), and a plain missing-proof row for any capture that failed. Never drives the app — the user navigates, it captures. Built on Fëanor's shot hooks.
-purpose: Captures a screenshot (and optionally one screen recording) per acceptance criterion, judges each, and renders an HTML proof report with jump-to-the-moment links.
+description: Use when the user runs /ithildin <ACs or a plan file>, or asks in plain words to "capture proof for each acceptance criterion", "screenshot every AC", "record the screen while I walk through the ACs", "make a report that proves the AC". Takes a list of acceptance criteria and shoots one screenshot of the running app for each, optionally alongside one continuous iOS Simulator recording with a start time marked per AC, and optionally one clip cut for each AC; reads each shot and gives the AC a pass, fail or unclear verdict with a one-line reason; and renders one HTML report into Henneth with a row per AC, a badge and tally for the verdicts, a play-from-here button per AC that seeks the recording (a player that docks in the corner as you scroll) and the AC's own clip beside its screenshot, and a plain missing-proof row for any capture that failed. Never drives the app — the user navigates, it captures. Built on Fëanor's shot hooks.
+purpose: Captures a screenshot (and optionally one screen recording, whole or cut into a clip per criterion) per acceptance criterion, judges each, and renders an HTML proof report.
 args: "<ACs | plan file>"
 user_invocable: true
 stage: forge
@@ -26,7 +26,9 @@ the human's eye, or with [Manwë](../manwe/SKILL.md) when a visual spec exists.
   The user boots the device and navigates; this skill only captures. Neither
   hook launches anything.
 - **For a video** (optional) — macOS with Xcode, a booted iOS Simulator, and
-  `ffmpeg`. Nothing else is recorded yet.
+  `ffmpeg`. Nothing else is recorded yet. Ask the user once, before recording,
+  which they want: the one whole recording (the default), one clip per criterion,
+  or both.
 
 ## The run
 
@@ -83,13 +85,28 @@ so install it and run `stop` again; the retry pads to when the recorder stopped,
 and `start` refuses to overwrite the unfinished recording meanwhile. State and
 the recorder's log live in `~/.skadi/ithildin/`.
 
+When the user wants a clip per criterion, save `stop`'s JSON to a file in the
+scratchpad (`stop.json`) and cut the clips from it:
+
+    ~/.claude/hooks/ithildin-clips.py <scratchpad>/stop.json --out-dir <scratchpad>/clips
+
+It prints `clips` (each `{"label", "at", "end", "clip"}`), `skipped` and `failed`
+(each `{"label", "reason"}`). For each AC give the `clip` and `clipEnd` (the
+entry's `end`) of the clip labelled `ac-<n>`, alongside the `at` it already has; for an AC that appears under
+`skipped` or `failed`, set `clipHint` to its reason, so the page says why there
+is no clip. Leave `video` out of the manifest for clips only, keep it for both.
+Exit 4 means a clip failed (the rest were still cut), 3 that `ffmpeg` or
+`ffprobe` is missing, 2 that the input was unusable or two labels would share a
+file name. Each clip runs from its mark to the next one, so its tail can show the
+move to the next criterion's screen.
+
 Write a manifest to the scratchpad and render it:
 
     ~/.claude/hooks/ithildin-report.py <manifest.json>
 
 Manifest fields are in the hook's docstring: `slug`, `title`, optional `lede`,
 optional `video` and `videoHint`, and per AC `text`, `shot`, `hint` and optional
-`at`, `verdict`, `reason`, `verdictBy` and `notes`. `verdictBy` is `model`
+`at`, `clip`, `clipEnd`, `clipHint`, `verdict`, `reason`, `verdictBy` and `notes`. `verdictBy` is `model`
 (the default; the page labels it "model's reading") or `human` when the user
 confirmed or overrode it ("your reading"). A verdict needs a shot. The hook writes
 `ithildin-<slug>.html` and copies the shots into an `ithildin-<slug>/` folder
@@ -144,10 +161,23 @@ the session; `stop` repeats the last frame up to the real duration and converts
 to an H.264 `.mp4` browsers play. Without that, an AC marked after the final
 change would seek past the end.
 
+## One clip per criterion
+
+The report can also carry a clip for each criterion, cut from the recording by
+`ithildin-clips.py` (see step 2). Give an AC `clip` (the mp4), `clipEnd` (seconds,
+with `at`) and, when none could be made, `clipHint`. The clip plays in a small
+player right of the AC's screenshot, hugging its own shape at 40% of the window
+tall (never over 320 px), with a caption: its time range and length when the
+whole recording is on the page too (`clip · 0:04–0:08 (3.9 s)`), its length alone
+otherwise. An AC whose clip was not made shows a dashed block with the reason
+(`no clip` without one). A narrow row wraps the clip under the screenshot.
+
+Which parts appear follows the manifest: `video` only is as before; `clip`s only
+has no top player and no play-from-here buttons; both has both. Starting any
+video pauses the others.
+
 **Not yet built:** recording on Android, whose `screenrecord` stops at 3
-minutes and needs its own answer, and on the web. Splitting the recording into
-per-AC clips stays a possible later option: the `at` times are what such a
-split would cut on.
+minutes and needs its own answer, and on the web.
 
 ## Notes
 

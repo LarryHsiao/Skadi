@@ -9,7 +9,7 @@ The manifest names one page and its acceptance criteria:
      "video": "/abs/recording.mp4", "videoHint": "start the recording first",
      "acs": [{"text": "The empty list shows the placeholder",
               "shot": "/abs/ac-1.png",
-              "at": 83,
+              "at": 83, "clip": "/abs/clip-1.mp4", "clipEnd": 87.7,
               "verdict": "fail", "reason": "the list still shows 4 posts",
               "hint": "open the settings screen and I'll shoot it",
               "notes": ["optional line", ...]}]}
@@ -37,6 +37,16 @@ carries `at` (seconds into the recording) gets a "play from here" button that
 seeks the one player there. A `video` naming an absent file draws a missing
 block carrying `videoHint`, and no buttons. A negative or non-numeric `at` is a
 manifest error.
+
+An optional per-AC `clip` (the mp4 `ithildin-clips.py` cut for it) shows as a
+player beside the screenshot, hugging its own shape at 40% of the window tall
+(never over 320 px). `clipEnd` (seconds, with `at`) captions it with its length,
+and with its time range as well when the recording is on the page. An AC whose
+clip was not made, or whose file is absent, shows a dashed block carrying
+`clipHint` ("no clip" without one). A manifest with `video` only is as before;
+with `clip`s only there is no top player and no play-from-here buttons; with both
+the page has both. Starting any video pauses the others. A `clipEnd` that is not
+a finite number of seconds after `at` is a manifest error naming the AC.
 
 Images and the video are copied beside the page, one page and one image folder
 per slug, so the page is self-contained in the Henneth folder.
@@ -68,6 +78,8 @@ TALLY = (
 )
 
 INLINE_PLAYER_HEIGHT = "min(28vh, 260px)"
+CLIP_PLAYER_HEIGHT = "min(40vh, 320px)"
+DEFAULT_NO_CLIP_HINT = "no clip"
 DOCK_BOX_PX = 240
 OVERLAY_BOX_PX = 120
 GUTTER_PAD_PX = 24
@@ -102,10 +114,15 @@ STYLE = """
   .recording.has-player { min-height: @INLINE@; }
   .recording video { height: @INLINE@; width: auto; max-width: 100%; background: #000; display: block; }
   .jump { font: inherit; font-size: .85rem; margin: 0 0 8px; cursor: pointer; }
+  .media { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+  .media .missing { flex: 0 1 240px; padding: 24px 12px; }
+  .clipbox { margin: 0; }
+  .clip { height: @CLIP@; width: auto; max-width: 100%; background: #000; display: block; }
+  .cap { font-size: .78rem; opacity: .75; margin-top: 4px; }
   .proof.docked .recording video { position: fixed; top: 10px; right: 12px; z-index: 5; height: auto; width: auto; max-width: @DOCK@px; max-height: @DOCK@px; box-shadow: 0 2px 10px #0006; cursor: pointer; }
   .proof.docked.overlay .recording video { top: auto; bottom: 10px; max-width: @OVERLAY@px; max-height: @OVERLAY@px; }
   .proof.docked:not(.overlay) .ac { padding-right: var(--gutter, 0px); }
-""".replace("@INLINE@", INLINE_PLAYER_HEIGHT).replace("@DOCK@", str(DOCK_BOX_PX)).replace("@OVERLAY@", str(OVERLAY_BOX_PX))
+""".replace("@INLINE@", INLINE_PLAYER_HEIGHT).replace("@CLIP@", CLIP_PLAYER_HEIGHT).replace("@DOCK@", str(DOCK_BOX_PX)).replace("@OVERLAY@", str(OVERLAY_BOX_PX))
 
 SEEK_SCRIPT = """
   const recording = document.getElementById('recording');
@@ -158,6 +175,15 @@ DOCK_SCRIPT = """
     });
   })();
 """.replace("@PAD@", str(GUTTER_PAD_PX)).replace("@MIN_ROWS@", str(MIN_ROWS_PX))
+
+CLIPS_SCRIPT = """
+  (() => {
+    const players = [...document.querySelectorAll('video')];
+    players.forEach(v => v.addEventListener('play', () => {
+      players.forEach(o => { if (o !== v) o.pause(); });
+    }));
+  })();
+"""
 
 REASON_SCRIPT = """
   document.querySelectorAll('.reason').forEach(reason => {
@@ -281,16 +307,62 @@ def _state(key, has_shot):
     return "unjudged" if has_shot else "uncaptured"
 
 
-def _section(number, ac, images_dir, has_video):
+def _clip_end(number, ac, start):
+    """The clip's end offset in seconds, or None when the AC names none."""
+    raw = ac.get("clipEnd")
+    if raw is None:
+        return None
+    problem = f"AC {number}: clipEnd must be a finite number of seconds after at"
+    if isinstance(raw, bool) or start is None:
+        raise ValueError(problem)
+    try:
+        end = float(raw)
+    except (TypeError, ValueError):
+        raise ValueError(problem) from None
+    if not math.isfinite(end) or end <= start:
+        raise ValueError(problem)
+    return end
+
+
+def _clip_caption(start, end, has_video):
+    if start is None or end is None:
+        return "clip"
+    length = f"{end - start:.1f} s"
+    if not has_video:
+        return f"clip \u00b7 {length}"
+    return f"clip \u00b7 {_clock(start)}\u2013{_clock(end)} ({length})"
+
+
+def _clip_block(number, ac, images_dir, has_video):
+    """The clip's player and caption, or a dashed block saying why there is none."""
+    start = _start_time(number, ac)
+    end = _clip_end(number, ac, start)
+    if not _present(ac.get("clip")):
+        return f'<div class="missing">{_text(ac.get("clipHint") or DEFAULT_NO_CLIP_HINT)}</div>'
+    source = _copy_file(ac["clip"], images_dir, f"clip-{number}")
+    player = f'<video class="clip" controls preload="auto" aria-label="Clip for criterion {number}" src="{_text(source)}"></video>'
+    caption = f'<figcaption class="cap">{_clip_caption(start, end, has_video)}</figcaption>'
+    return f'<figure class="clipbox">{player}{caption}</figure>'
+
+
+def _media(number, ac, images_dir, shot, has_video, has_clips):
+    proof = _proof(shot, ac.get("hint"))
+    if not has_clips:
+        return proof
+    return f'<div class="media">{proof}{_clip_block(number, ac, images_dir, has_video)}</div>'
+
+
+def _section(number, ac, images_dir, has_video, has_clips):
     shot = _copy_file(ac["shot"], images_dir, f"ac-{number}") if _present(ac.get("shot")) else None
     key = _verdict(number, ac, shot is not None)
     badge, judgment = _judgment(number, ac, key) if key else ("", "")
     start = _start_time(number, ac)
+    _clip_end(number, ac, start)  # a bad clipEnd is refused even where no clip is shown
     jump = _jump(start) if has_video and start is not None else ""
     classes = f"ac {key}" if key else "ac"
     return (
         f'<section id="ac-{number}" class="{classes}"><h2>{number}. {_text(ac["text"])}{badge}</h2>'
-        f'{jump}{judgment}{_proof(shot, ac.get("hint"))}{_notes(ac.get("notes"))}</section>',
+        f'{jump}{judgment}{_media(number, ac, images_dir, shot, has_video, has_clips)}{_notes(ac.get("notes"))}</section>',
         _state(key, shot is not None),
     )
 
@@ -315,9 +387,9 @@ def _recording(manifest, images_dir):
     return f'<div class="recording has-player">{player}</div>', True
 
 
-def _page(manifest, sections, tally, recording, has_reasons):
+def _page(manifest, sections, tally, recording, has_reasons, has_clips):
     player, has_video = recording
-    scripts = [SEEK_SCRIPT, DOCK_SCRIPT] * has_video + [REASON_SCRIPT] * has_reasons
+    scripts = [SEEK_SCRIPT, DOCK_SCRIPT] * has_video + [CLIPS_SCRIPT] * has_clips + [REASON_SCRIPT] * has_reasons
     script = "".join(f"<script>{code}</script>\n" for code in scripts)
     lede = f'<p class="lede">{_text(manifest["lede"])}</p>' if manifest.get("lede") else ""
     title = _text(manifest["title"])
@@ -335,15 +407,16 @@ def render(manifest, out_dir):
     images_dir = out_dir / f"{PAGE_PREFIX}{slug}"
     shutil.rmtree(images_dir, ignore_errors=True)
     recording = _recording(manifest, images_dir)
+    has_clips = any(ac.get("clip") or ac.get("clipHint") for ac in manifest["acs"])
     rows = [
-        _section(number, ac, images_dir, recording[1])
+        _section(number, ac, images_dir, recording[1], has_clips)
         for number, ac in enumerate(manifest["acs"], start=1)
     ]
     tally = _tally([state for _, state in rows])
     has_reasons = any(ac.get("verdict") and ac.get("reason") for ac in manifest["acs"])
     out_dir.mkdir(parents=True, exist_ok=True)
     page = out_dir / f"{PAGE_PREFIX}{slug}.html"
-    page.write_text(_page(manifest, [row for row, _ in rows], tally, recording, has_reasons), encoding="utf-8")
+    page.write_text(_page(manifest, [row for row, _ in rows], tally, recording, has_reasons, has_clips), encoding="utf-8")
     return page
 
 
