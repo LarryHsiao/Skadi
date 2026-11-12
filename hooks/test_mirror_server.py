@@ -384,5 +384,133 @@ class PinnedSortTest(unittest.TestCase):
             self.assertIn(marker, mirror.PAGE)
 
 
+class RangeTest(unittest.TestCase):
+    """Video seeking needs 206 partial content; the stock handler ignores Range."""
+
+    CLIP = b"0123456789"
+
+    def setUp(self):
+        import threading
+        from functools import partial
+        from http.server import ThreadingHTTPServer
+
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self._tmp.name)
+        (self.dir / "clip.mp4").write_bytes(self.CLIP)
+        self.server = ThreadingHTTPServer(
+            ("127.0.0.1", 0), partial(mirror.Handler, directory=str(self.dir)))
+        self.port = self.server.server_address[1]
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self._tmp.cleanup()
+
+    def _get(self, path, range_header=None):
+        import http.client
+
+        conn = http.client.HTTPConnection("127.0.0.1", self.port)
+        headers = {"Range": range_header} if range_header else {}
+        conn.request("GET", path, headers=headers)
+        resp = conn.getresponse()
+        return resp, resp.read()
+
+    def test_closed_range_returns_206_with_the_slice(self):
+        expected_body = b"2345"
+        resp, body = self._get("/clip.mp4", "bytes=2-5")
+        self.assertEqual(206, resp.status)
+        self.assertEqual(expected_body, body)
+        self.assertEqual("bytes 2-5/10", resp.headers["Content-Range"])
+        self.assertEqual("4", resp.headers["Content-Length"])
+
+    def test_open_ended_range_runs_to_the_end(self):
+        expected_body = b"789"
+        resp, body = self._get("/clip.mp4", "bytes=7-")
+        self.assertEqual(206, resp.status)
+        self.assertEqual(expected_body, body)
+        self.assertEqual("bytes 7-9/10", resp.headers["Content-Range"])
+
+    def test_suffix_range_returns_the_last_bytes(self):
+        expected_body = b"789"
+        resp, body = self._get("/clip.mp4", "bytes=-3")
+        self.assertEqual(206, resp.status)
+        self.assertEqual(expected_body, body)
+
+    def test_end_past_the_file_is_clamped(self):
+        expected_body = b"89"
+        resp, body = self._get("/clip.mp4", "bytes=8-99")
+        self.assertEqual(expected_body, body)
+        self.assertEqual("bytes 8-9/10", resp.headers["Content-Range"])
+
+    def test_start_past_the_file_is_416_with_the_size(self):
+        resp, _ = self._get("/clip.mp4", "bytes=20-")
+        self.assertEqual(416, resp.status)
+        self.assertEqual("bytes */10", resp.headers["Content-Range"])
+
+    def test_malformed_range_serves_the_whole_file(self):
+        resp, body = self._get("/clip.mp4", "bytes=abc")
+        self.assertEqual(200, resp.status)
+        self.assertEqual(self.CLIP, body)
+
+    def test_plain_request_advertises_range_support(self):
+        resp, body = self._get("/clip.mp4")
+        self.assertEqual(200, resp.status)
+        self.assertEqual(self.CLIP, body)
+        self.assertEqual("bytes", resp.headers["Accept-Ranges"])
+
+    def test_partial_response_keeps_the_media_type(self):
+        expected_type = "video/mp4"
+        resp, _ = self._get("/clip.mp4", "bytes=0-1")
+        self.assertEqual(expected_type, resp.headers["Content-Type"])
+
+    def test_range_on_a_missing_file_is_404(self):
+        resp, _ = self._get("/ghost.mp4", "bytes=0-1")
+        self.assertEqual(404, resp.status)
+
+    def test_range_traversal_is_refused(self):
+        outside = self.dir.parent / "henneth-range-outside.mp4"
+        outside.write_bytes(self.CLIP)
+        try:
+            expected_status = 404
+            resp, _ = self._get("/../henneth-range-outside.mp4", "bytes=0-1")
+            self.assertEqual(expected_status, resp.status)
+        finally:
+            outside.unlink()
+
+    def test_range_on_a_directory_is_not_served_partially(self):
+        (self.dir / "folder").mkdir()
+        resp, _ = self._get("/folder/", "bytes=0-1")
+        self.assertNotEqual(206, resp.status)
+
+    def test_unit_name_is_case_insensitive(self):
+        expected_body = b"01"
+        resp, body = self._get("/clip.mp4", "Bytes=0-1")
+        self.assertEqual(206, resp.status)
+        self.assertEqual(expected_body, body)
+
+
+class ParseByteRangeTest(unittest.TestCase):
+    def test_reversed_range_is_ignored(self):
+        expected = None
+        self.assertEqual(expected, mirror.parse_byte_range("bytes=5-2", 10))
+
+    def test_bare_dash_is_ignored(self):
+        expected = None
+        self.assertEqual(expected, mirror.parse_byte_range("bytes=-", 10))
+
+    def test_empty_file_is_unsatisfiable(self):
+        with self.assertRaises(ValueError):
+            mirror.parse_byte_range("bytes=0-", 0)
+
+    def test_zero_length_suffix_is_unsatisfiable(self):
+        with self.assertRaises(ValueError):
+            mirror.parse_byte_range("bytes=-0", 10)
+
+    def test_suffix_longer_than_the_file_returns_the_whole_file(self):
+        expected = (0, 9)
+        self.assertEqual(expected, mirror.parse_byte_range("bytes=-99", 10))
+
+
 if __name__ == "__main__":
     unittest.main()

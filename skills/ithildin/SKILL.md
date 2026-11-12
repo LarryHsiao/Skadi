@@ -53,7 +53,8 @@ Write a manifest to the scratchpad and render it:
     ~/.claude/hooks/ithildin-report.py <manifest.json>
 
 Manifest fields are in the hook's docstring: `slug`, `title`, optional `lede`,
-and per AC `text`, `shot`, `hint` and optional `notes`. The hook writes
+optional `video` and `videoHint`, and per AC `text`, `shot`, `hint` and optional
+`at` and `notes`. The hook writes
 `ithildin-<slug>.html` and copies the shots into an `ithildin-<slug>/` folder
 beside it in `~/.skadi/henneth/`. An AC with no shot draws a dashed
 missing-proof row carrying its hint, and the page opens with a count
@@ -67,17 +68,32 @@ first if it is absent): `http://localhost:<port>/ithildin-<slug>.html`.
 Lead with the tally. Name each AC that has no proof and why. Do not call the
 work verified on the strength of this report: it holds pictures, not verdicts.
 
-## Not yet built
+## The video
 
-Screen video, and per-AC jump links into it, are planned but not part of this
-version. Splitting the recording into per-AC clips is a possible later option;
-the intent is to record each AC's start time when the video lands, so clips can
-be cut afterward without re-recording.
+The report can carry one screen recording. Give the manifest `video` (a path to
+an `.mp4`) and, per AC, `at` (seconds into the recording where that AC begins).
+The page embeds the video once, pinned at the top, and each AC with an `at`
+gets a `▶ m:ss` button that seeks the player there and plays it. A `video` that
+names an absent file draws a missing block carrying `videoHint`, with no
+buttons; a negative, non-finite or non-numeric `at` stops the render and names
+the AC.
+
+Seeking needs the server to answer HTTP range requests. Henneth does, since
+`hooks/mirror-server.py` serves `206 Partial Content`; opened straight from disk
+(`file://`) the page seeks without a server.
+
+**Not yet built:** the recording itself. Nothing here starts or stops a screen
+recording, or reads the start time of each AC off one. For now the user supplies
+the `.mp4` and the `at` times. A recording hook for the iOS Simulator
+(`xcrun simctl io booted recordVideo`) is the planned next layer; Android's
+`screenrecord` stops at 3 minutes, which needs its own answer. Splitting the
+recording into per-AC clips stays a possible later option: the `at` times are
+what such a split would cut on.
 
 ## Notes
 
-- **Shots land in the report folder**, copied beside the page, so the page is
-  self-contained and can be zipped and sent.
+- **Shots and the video land in the report folder**, copied beside the page, so
+  the page is self-contained and can be zipped and sent.
 - **Re-running a slug clears its image folder** before copying, so a stale shot
   never outlives a failed re-capture.
 - **Headless browser / Flutter requirements** are Fëanor's — see its *Notes*.

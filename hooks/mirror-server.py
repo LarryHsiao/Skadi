@@ -9,6 +9,7 @@ latest unless pinned. The folder is the only state — caller-chosen, restart-sa
 """
 
 import json
+import re
 import sys
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -451,9 +452,40 @@ FAVICON = r"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
 """
 
 
+RANGE_CHUNK_BYTES = 64 * 1024
+RANGE_PATTERN = re.compile(r"bytes=(\d*)-(\d*)", re.IGNORECASE)
+
+
+def parse_byte_range(header, size):
+    """Resolve one `bytes=` range against a file of `size` bytes.
+
+    Returns (start, end), both inclusive. Returns None when the header is not a
+    single well-formed range, so the caller serves the whole file, as RFC 9110
+    allows. Raises ValueError when the range lies wholly past the end (416).
+    """
+    match = RANGE_PATTERN.fullmatch(header.strip())
+    if not match or match.group(1) == match.group(2) == "":
+        return None
+    first, last = match.groups()
+    if size == 0:
+        raise ValueError("empty file")
+    if first == "":  # suffix form: the last N bytes
+        count = int(last)
+        if count == 0:
+            raise ValueError("empty suffix")
+        return max(size - count, 0), size - 1
+    start = int(first)
+    if last and int(last) < start:
+        return None
+    if start >= size:
+        raise ValueError("start past end")
+    return start, min(int(last), size - 1) if last else size - 1
+
+
 class Handler(SimpleHTTPRequestHandler):
     """Serves the gallery at /, the favicon at /favicon.svg, the folder scan at
-    /index.json, files otherwise."""
+    /index.json, files otherwise — with byte ranges, so a browser can seek in a
+    video."""
 
     def do_GET(self):
         if self.path.split("?")[0] == "/":
@@ -463,7 +495,58 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.split("?")[0] == "/index.json":
             body = json.dumps(scan(self.directory)).encode("utf-8")
             return self._send(body, "application/json")
+        if self._serve_range():
+            return None
         return super().do_GET()
+
+    def end_headers(self):
+        self.send_header("Accept-Ranges", "bytes")
+        super().end_headers()
+
+    def _serve_range(self):
+        """Answer a Range request for a file; False leaves the request to the stock handler."""
+        header = self.headers.get("Range")
+        path = Path(self.translate_path(self.path))
+        if not header or not path.is_file():
+            return False
+        size = path.stat().st_size
+        try:
+            span = parse_byte_range(header, size)
+        except ValueError:
+            self._send_unsatisfiable(size)
+            return True
+        if span is None:
+            return False
+        self._send_range(path, size, *span)
+        return True
+
+    def _send_unsatisfiable(self, size):
+        self.send_response(416)
+        self.send_header("Content-Range", f"bytes */{size}")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _send_range(self, path, size, start, end):
+        length = end - start + 1
+        self.send_response(206)
+        self.send_header("Content-Type", self.guess_type(str(path)))
+        self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        self.send_header("Content-Length", str(length))
+        self.end_headers()
+        try:
+            self._stream(path, start, length)
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # a browser aborts range requests whenever it seeks again
+
+    def _stream(self, path, start, length):
+        with path.open("rb") as clip:
+            clip.seek(start)
+            while length > 0:
+                chunk = clip.read(min(RANGE_CHUNK_BYTES, length))
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                length -= len(chunk)
 
     def guess_type(self, path):
         # Stock handler answers bare "text/html"; browsers then guess the

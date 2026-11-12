@@ -122,6 +122,111 @@ class OptionalFieldsTest(unittest.TestCase):
             self.assertIn('<p class="lede">second pass</p>', page)
 
 
+class VideoTest(unittest.TestCase):
+    MP4_BYTES = b"fake-mp4-bytes"
+
+    def _video(self, directory, name="rec.mp4"):
+        path = Path(directory) / name
+        path.write_bytes(self.MP4_BYTES)
+        return str(path)
+
+    def test_video_is_embedded_once_with_controls(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            manifest = _manifest([{"text": "A"}, {"text": "B"}], video=self._video(src))
+            page = _html(out, manifest)
+            self.assertEqual(1, page.count("<video "))
+            self.assertIn('src="ithildin-psg-1/recording.mp4"', page)
+            self.assertIn("controls", page)
+
+    def test_video_is_copied_beside_the_page(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            expected = self.MP4_BYTES
+            _html(out, _manifest([{"text": "A"}], video=self._video(src)))
+            actual = (Path(out) / "ithildin-psg-1" / "recording.mp4").read_bytes()
+            self.assertEqual(expected, actual)
+
+    def test_ac_start_time_becomes_a_jump_button(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            manifest = _manifest([{"text": "A", "at": 83}], video=self._video(src))
+            page = _html(out, manifest)
+            self.assertIn('data-at="83"', page)
+            self.assertIn("\u25b6 1:23", page)
+
+    def test_start_time_past_an_hour_shows_hours(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            manifest = _manifest([{"text": "A", "at": 3725}], video=self._video(src))
+            page = _html(out, manifest)
+            self.assertIn("\u25b6 1:02:05", page)
+
+    def test_absent_video_file_is_a_missing_block_without_buttons(self):
+        with TemporaryDirectory() as out:
+            expected_hint = "start the recording first"
+            manifest = _manifest(
+                [{"text": "A", "at": 5}], video="/no/such.mp4", videoHint=expected_hint)
+            page = _html(out, manifest)
+            self.assertIn(expected_hint, page)
+            self.assertNotIn("<video ", page)
+            self.assertNotIn("data-at=", page)
+
+    def test_no_video_key_means_no_player_and_no_buttons(self):
+        with TemporaryDirectory() as out:
+            page = _html(out, _manifest([{"text": "A", "at": 5}]))
+            self.assertNotIn("<video ", page)
+            self.assertNotIn("data-at=", page)
+
+    def test_jump_script_present_only_with_a_video(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            with_video = _html(out, _manifest([{"text": "A", "at": 1}], video=self._video(src)))
+            without = _html(out, _manifest([{"text": "A"}]))
+            self.assertIn("currentTime", with_video)
+            self.assertNotIn("currentTime", without)
+
+    def test_zero_start_time_still_gets_a_button(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            manifest = _manifest([{"text": "A", "at": 0}], video=self._video(src))
+            page = _html(out, manifest)
+            self.assertIn('data-at="0"', page)
+            self.assertIn("\u25b6 0:00", page)
+
+    def test_fractional_start_time_is_kept_exactly(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            manifest = _manifest([{"text": "A", "at": 12345.678}], video=self._video(src))
+            page = _html(out, manifest)
+            self.assertIn('data-at="12345.678"', page)
+
+    def test_ac_without_start_time_has_no_button_when_video_present(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            page = _html(out, _manifest([{"text": "A"}], video=self._video(src)))
+            self.assertIn("<video ", page)
+            self.assertNotIn("data-at=", page)
+
+    def test_absent_video_without_hint_says_not_captured(self):
+        with TemporaryDirectory() as out:
+            page = _html(out, _manifest([{"text": "A"}], video="/no/such.mp4"))
+            self.assertIn(ithildin_report.DEFAULT_MISSING_HINT, page)
+
+    def test_unusable_start_times_raise_naming_the_ac(self):
+        for bad in (float("nan"), float("inf"), True, "soon", -1):
+            with self.subTest(at=bad), TemporaryDirectory() as src, TemporaryDirectory() as out:
+                manifest = _manifest(
+                    [{"text": "ok"}, {"text": "A", "at": bad}], video=self._video(src))
+                with self.assertRaises(ValueError) as raised:
+                    ithildin_report.render(manifest, Path(out))
+                self.assertIn("AC 2", str(raised.exception))
+
+    def test_negative_start_time_raises(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            manifest = _manifest([{"text": "A", "at": -1}], video=self._video(src))
+            with self.assertRaises(ValueError):
+                ithildin_report.render(manifest, Path(out))
+
+    def test_non_numeric_start_time_raises(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            manifest = _manifest([{"text": "A", "at": "soon"}], video=self._video(src))
+            with self.assertRaises(ValueError):
+                ithildin_report.render(manifest, Path(out))
+
+
 class CommandLineTest(unittest.TestCase):
     def _run(self, manifest, out):
         path = Path(out) / "manifest.json"
