@@ -59,6 +59,27 @@ class CapturedAcTest(unittest.TestCase):
             self.assertIn("ac-2.png", page)
 
 
+class LayoutTest(unittest.TestCase):
+    def test_a_tall_screenshot_is_capped_to_the_viewport(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            expected_rule = "max-height: 55vh"
+            page = _html(out, _manifest([{"text": "A", "shot": _image(src, "a.png")}]))
+            self.assertIn(expected_rule, page)
+
+    def test_a_pinned_video_leaves_room_for_a_whole_screenshot(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            expected_rule = "max-height: 40vh"
+            manifest = _manifest([{"text": "A"}], video=str(Path(src) / "v.mp4"))
+            (Path(src) / "v.mp4").write_bytes(b"x")
+            self.assertIn(expected_rule, _html(out, manifest))
+
+    def test_section_spacing_pins_the_compare_page_values(self):
+        with TemporaryDirectory() as out:
+            page = _html(out, _manifest([{"text": "A"}]))
+            self.assertIn("section { margin: 0 0 40px; }", page)
+            self.assertIn("section h2 { margin: 0 0 8px; font-size: 1.15rem; }", page)
+
+
 class MissingProofTest(unittest.TestCase):
     def test_ac_without_shot_is_a_missing_proof_row(self):
         with TemporaryDirectory() as out:

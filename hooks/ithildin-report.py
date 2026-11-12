@@ -49,13 +49,13 @@ STYLE = """
   h1 { margin: 0 0 4px; }
   .lede { margin: 0 0 8px; opacity: .8; }
   .tally { margin: 0 0 24px; font-weight: 600; }
-  section { margin: 0 0 36px; }
-  section h2 { margin: 0 0 8px; font-size: 1.1rem; }
-  img { max-width: 100%; height: auto; display: block; border: 1px solid #0003; }
+  section { margin: 0 0 40px; }
+  section h2 { margin: 0 0 8px; font-size: 1.15rem; }
+  img { max-width: 100%; max-height: 55vh; width: auto; height: auto; display: block; border: 1px solid #0003; }
   .missing { border: 1px dashed #0004; padding: 40px 16px; text-align: center; font-size: .9rem; opacity: .7; }
   .notes { font-size: .88rem; margin: 6px 0 0; padding-left: 18px; }
   .recording { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 8px 0 12px; margin: 0 0 16px; }
-  .recording video { width: 100%; max-height: 45vh; background: #000; display: block; }
+  .recording video { width: 100%; max-height: 40vh; background: #000; display: block; }
   .jump { font: inherit; font-size: .85rem; margin: 0 0 8px; cursor: pointer; }
 """
 
