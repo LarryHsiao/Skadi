@@ -273,6 +273,69 @@ class FailureTest(ClipsTestCase):
         self.assertEqual(["ac-2"], [entry["label"] for entry in report["failed"]])
 
 
+class TrimTest(ClipsTestCase):
+    def _lengths(self):
+        return [call.split("-t ")[1].split()[0] for call in self.ffmpeg_calls()]
+
+    def test_trim_end_stops_each_clip_but_the_last_before_the_next_mark(self):
+        result = self.run_hook(self.stop_json(THREE), "--trim-end", "0.5")
+        self.assertEqual(0, result.returncode, result.stderr)
+        expected = ["3.500", "3.500", "4.000"]
+        self.assertEqual(expected, self._lengths())
+
+    def test_the_reported_end_moves_with_the_trim(self):
+        result = self.run_hook(self.stop_json(THREE), "--trim-end", "0.5")
+        expected = [3.5, 7.5, 12.0]
+        self.assertEqual(expected, [clip["end"] for clip in json.loads(result.stdout)["clips"]])
+
+    def test_the_last_clip_is_never_trimmed(self):
+        self.run_hook(self.stop_json(THREE), "--trim-end", "2", extra_env={"FAKE_DURATION": "11.5"})
+        expected_last = "3.500"
+        self.assertEqual(expected_last, self._lengths()[-1])
+
+    def test_no_option_and_zero_both_mean_no_trim(self):
+        self.run_hook(self.stop_json(THREE))
+        without = self._lengths()
+        self.log.unlink()
+        self.run_hook(self.stop_json(THREE), "--trim-end", "0")
+        self.assertEqual(without, self._lengths())
+        self.assertEqual(["4.000", "4.000", "4.000"], without)
+
+    def test_a_clip_left_under_half_a_second_by_the_trim_is_skipped_naming_the_trim(self):
+        marks = _marks(("ac-1", 0.0), ("ac-2", 0.8), ("ac-3", 5.0))
+        result = json.loads(self.run_hook(self.stop_json(marks), "--trim-end", "0.5").stdout)
+        skipped = {entry["label"]: entry["reason"] for entry in result["skipped"]}
+        self.assertEqual(["ac-1"], list(skipped))
+        self.assertIn("shorter than 0.5", skipped["ac-1"])
+        self.assertIn("trimming 0.5", skipped["ac-1"])
+        self.assertEqual(["ac-2", "ac-3"], [clip["label"] for clip in result["clips"]])
+
+    def test_a_trim_longer_than_the_gap_skips_the_clip_naming_the_trim(self):
+        marks = _marks(("ac-1", 0.0), ("ac-2", 1.0), ("ac-3", 6.0))
+        result = json.loads(self.run_hook(self.stop_json(marks), "--trim-end", "2").stdout)
+        self.assertEqual(["ac-1"], [entry["label"] for entry in result["skipped"]])
+        self.assertIn("trimming 2", result["skipped"][0]["reason"])
+
+    def test_a_clip_left_at_exactly_half_a_second_by_the_trim_is_kept(self):
+        marks = _marks(("ac-1", 0.0), ("ac-2", 1.0), ("ac-3", 6.0))
+        result = json.loads(self.run_hook(self.stop_json(marks), "--trim-end", "0.5").stdout)
+        self.assertEqual(["ac-1", "ac-2", "ac-3"], [clip["label"] for clip in result["clips"]])
+        self.assertEqual([], result["skipped"])
+
+    def test_a_skip_without_a_trim_does_not_mention_trimming(self):
+        marks = _marks(("ac-1", 0.0), ("ac-2", 0.2), ("ac-3", 5.0))
+        result = json.loads(self.run_hook(self.stop_json(marks)).stdout)
+        self.assertNotIn("trimming", result["skipped"][0]["reason"])
+
+    def test_an_unusable_trim_is_refused_with_exit_2(self):
+        for bad in ("-1", "nan", "inf", "soon", ""):
+            with self.subTest(trim=bad):
+                result = self.run_hook(self.stop_json(THREE), "--trim-end", bad)
+                self.assertEqual(2, result.returncode, result.stderr)
+                self.assertIn("trim-end", result.stderr)
+                self.assertEqual([], self.ffmpeg_calls())
+
+
 class MissingToolTest(ClipsTestCase):
     with_ffmpeg = False
 

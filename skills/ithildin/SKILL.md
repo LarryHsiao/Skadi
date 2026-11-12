@@ -98,7 +98,11 @@ is no clip. Leave `video` out of the manifest for clips only, keep it for both.
 Exit 4 means a clip failed (the rest were still cut), 3 that `ffmpeg` or
 `ffprobe` is missing, 2 that the input was unusable or two labels would share a
 file name. Each clip runs from its mark to the next one, so its tail can show the
-move to the next criterion's screen.
+move to the next criterion's screen. If it does, cut again with
+`--trim-end <seconds>`, which stops every clip but the last that long before the
+next mark. The right value is roughly how long you paused between changing the
+screen and marking, perhaps a little less: look at a clip's last frames and raise
+it until the move is gone (after a 1.5 s pause, 1 s was not enough and 1.3 s was).
 
 Write a manifest to the scratchpad and render it:
 

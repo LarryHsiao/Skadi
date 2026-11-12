@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cut one clip per acceptance criterion out of an /ithildin recording.
 
-Usage: ithildin-clips.py <stop.json> [--out-dir DIR]
+Usage: ithildin-clips.py <stop.json> [--out-dir DIR] [--trim-end SECONDS]
 
 <stop.json> is what `ithildin-record.py stop` printed: {"video", "marks",
 "duration"}. Marks are taken in time order. Each starts a clip that ends where
@@ -12,21 +12,31 @@ as clip-<label>.mp4. A mark is stamped once the screen it names is up, so a
 clip opens on that screen; it runs to the next mark, so its tail can show the
 move to the next criterion's screen.
 
+--trim-end SECONDS (default 0) stops every clip but the last that many seconds
+before the next mark, so its tail does not show the move to the next screen. The
+last clip ends with the video and is never trimmed. The right value depends on
+how long passed between the screen changing and the next mark, so there is no
+sound default: cut, look at a clip's last frames, and raise the value until the
+move to the next screen is gone. In one real recording, made with a 1.5 s pause
+before each mark, the screen changed 1.2 s before the clip ended: a trim of 1 s
+left the tail in and 1.3 s removed it.
+
 Two labels that would share a file name (case ignored, as macOS and Windows
 disks do) are refused. A clip left in DIR by an earlier run is overwritten when
 this run makes one of the same label, and left alone otherwise.
 
-A mark whose clip would be shorter than 0.5 s, or that starts at or after the
-end of the video, makes no clip and is listed under "skipped" with its reason.
-A clip ffmpeg could not cut is listed under "failed"; the rest are still cut.
+A mark whose clip would be shorter than 0.5 s (after any trim), or that starts
+at or after the end of the video, makes no clip and is listed under "skipped"
+with its reason. A clip ffmpeg could not cut is listed under "failed"; the rest
+are still cut.
 
 Prints one JSON object: {"clips": [{"label", "at", "end", "clip"}],
 "skipped": [{"label", "reason"}], "failed": [{"label", "reason"}]}.
 
 Needs ffmpeg and ffprobe; any OS that has them. Stdlib only.
 
-Exit codes: 2 the input is unusable, 3 ffmpeg or ffprobe is missing, 4 one or
-more clips failed.
+Exit codes: 2 the input is unusable (including a bad option value), 3 ffmpeg or
+ffprobe is missing, 4 one or more clips failed.
 """
 
 import argparse
@@ -96,19 +106,24 @@ def _duration(video):
         raise Failure(2, f"cannot read the length of {video}") from None
 
 
-def _plan(marks, duration):
+def _plan(marks, duration, trim_end):
     """(label, start, end) for each clip worth cutting, and the marks skipped."""
     cuts, skipped = [], []
-    ends = [mark["at"] for mark in marks[1:]] + [duration]
+    ends = [mark["at"] - trim_end for mark in marks[1:]] + [duration]
     for mark, end in zip(marks, ends):
         start = mark["at"]
         if start >= duration:
             skipped.append({"label": mark["label"], "reason": "starts at or after the end of the video"})
         elif end - start < MIN_CLIP_S:
-            skipped.append({"label": mark["label"], "reason": f"its clip would be shorter than {MIN_CLIP_S} s"})
+            skipped.append({"label": mark["label"], "reason": _too_short(trim_end)})
         else:
             cuts.append((mark["label"], start, end))
     return cuts, skipped
+
+
+def _too_short(trim_end):
+    reason = f"its clip would be shorter than {MIN_CLIP_S} s"
+    return f"{reason} after trimming {trim_end:g} s" if trim_end else reason
 
 
 def _cut(video, start, end, out):
@@ -123,7 +138,7 @@ def _require_tools():
         raise Failure(3, f"{' and '.join(missing)} needed to cut the clips")
 
 
-def make_clips(stop_json, out_dir=None):
+def make_clips(stop_json, out_dir=None, trim_end=0.0):
     video, marks = _load(stop_json)
     report = {"clips": [], "skipped": [], "failed": []}
     if not marks:
@@ -134,7 +149,7 @@ def make_clips(stop_json, out_dir=None):
         target.mkdir(parents=True, exist_ok=True)
     except OSError as reason:
         raise Failure(2, f"cannot make {target}: {reason}") from None
-    cuts, report["skipped"] = _plan(marks, _duration(video))
+    cuts, report["skipped"] = _plan(marks, _duration(video), trim_end)
     for label, start, end in cuts:
         out = target / f"{CLIP_PREFIX}{_safe_name(label)}.mp4"
         status = _cut(video, start, end, out)
@@ -145,13 +160,25 @@ def make_clips(stop_json, out_dir=None):
     return report
 
 
+def _seconds(text):
+    """argparse type: a finite, non-negative number of seconds."""
+    try:
+        value = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a number of seconds") from None
+    if not math.isfinite(value) or value < 0:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a finite, non-negative number of seconds")
+    return value
+
+
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("stop_json")
     parser.add_argument("--out-dir")
+    parser.add_argument("--trim-end", type=_seconds, default=0.0, metavar="SECONDS")
     args = parser.parse_args(argv)
     try:
-        report = make_clips(args.stop_json, args.out_dir)
+        report = make_clips(args.stop_json, args.out_dir, args.trim_end)
     except Failure as failure:
         print(f"ithildin-clips: {failure}", file=sys.stderr)
         return failure.code
