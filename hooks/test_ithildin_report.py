@@ -66,13 +66,6 @@ class LayoutTest(unittest.TestCase):
             page = _html(out, _manifest([{"text": "A", "shot": _image(src, "a.png")}]))
             self.assertIn(expected_rule, page)
 
-    def test_a_pinned_video_leaves_room_for_a_whole_screenshot(self):
-        with TemporaryDirectory() as src, TemporaryDirectory() as out:
-            expected_rule = "max-height: 40vh"
-            manifest = _manifest([{"text": "A"}], video=str(Path(src) / "v.mp4"))
-            (Path(src) / "v.mp4").write_bytes(b"x")
-            self.assertIn(expected_rule, _html(out, manifest))
-
     def test_section_spacing_pins_the_compare_page_values(self):
         with TemporaryDirectory() as out:
             page = _html(out, _manifest([{"text": "A"}]))
@@ -386,19 +379,91 @@ class ReasonClampTest(unittest.TestCase):
         self.assertNotIn("scrollHeight", page)
 
 
-class AnchorTest(unittest.TestCase):
-    def test_a_pinned_video_marks_the_page_so_anchors_clear_the_player(self):
+class PlayerLayoutTest(unittest.TestCase):
+    def _page(self, with_video=True, **manifest):
         with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            video = {"video": str(Path(src) / "v.mp4")} if with_video else {}
             (Path(src) / "v.mp4").write_bytes(b"x")
-            page = _html(out, _manifest([{"text": "A"}], video=str(Path(src) / "v.mp4")))
-            self.assertIn('class="proof has-video"', page)
-            self.assertIn(".proof.has-video .ac { scroll-margin-top:", page)
+            return _html(out, _manifest([{"text": "A"}], **video, **manifest))
 
-    def test_without_a_video_anchors_get_no_extra_margin(self):
+    def test_the_inline_player_hugs_the_video_at_28vh_capped_at_260px(self):
+        page = self._page()
+        self.assertIn("height: min(28vh, 260px); width: auto; max-width: 100%", page)
+
+    def test_the_player_is_not_pinned(self):
+        self.assertNotIn("position: sticky", self._page())
+
+    def test_the_slot_holds_the_players_space_so_docking_does_not_jump_the_page(self):
+        page = self._page()
+        self.assertIn('class="recording has-player"', page)
+        self.assertIn(".recording.has-player { min-height: min(28vh, 260px)", page)
+
+    def test_a_missing_video_block_is_not_a_player_slot(self):
         with TemporaryDirectory() as out:
-            page = _html(out, _manifest([{"text": "A"}]))
-            self.assertIn('class="proof"', page)
-            self.assertNotIn('class="proof has-video"', page)
+            absent = _html(out, _manifest([{"text": "A"}], video="/no/such.mp4"))
+        self.assertNotIn('class="recording has-player"', absent)
+        self.assertIn('<div class="recording"><div class="missing">', absent)
+
+    def test_the_old_pinned_scroll_margin_is_gone(self):
+        self.assertNotIn("scroll-margin-top", self._page())
+
+
+class DockTest(unittest.TestCase):
+    def _page(self, with_video=True):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            video = {"video": str(Path(src) / "v.mp4")} if with_video else {}
+            (Path(src) / "v.mp4").write_bytes(b"x")
+            return _html(out, _manifest([{"text": "A"}], **video))
+
+    def test_the_dock_script_watches_the_inline_slot(self):
+        page = self._page()
+        self.assertIn("new IntersectionObserver", page)
+        self.assertIn("docked = !entries[entries.length - 1].isIntersecting", page)
+
+    def test_no_video_means_no_dock_script(self):
+        self.assertNotIn("IntersectionObserver", self._page(with_video=False))
+
+    def test_the_docked_player_fits_the_dock_box_in_the_top_right(self):
+        box = ithildin_report.DOCK_BOX_PX
+        expected = f"max-width: {box}px; max-height: {box}px;"
+        page = self._page()
+        self.assertIn(".proof.docked .recording video { position: fixed; top: 10px; right: 12px;", page)
+        self.assertIn(expected, page)
+
+    def test_docked_rows_keep_a_gutter_the_width_of_the_player(self):
+        page = self._page()
+        self.assertIn(".proof.docked:not(.overlay) .ac { padding-right: var(--gutter, 0px); }", page)
+        self.assertIn("setProperty('--gutter'", page)
+        self.assertIn(f"const GUTTER_PAD_PX = {ithildin_report.GUTTER_PAD_PX}", page)
+
+    def test_a_narrow_window_docks_as_a_smaller_bottom_right_overlay(self):
+        box = ithildin_report.OVERLAY_BOX_PX
+        page = self._page()
+        self.assertIn(f".proof.docked.overlay .recording video {{ top: auto; bottom: 10px; max-width: {box}px; max-height: {box}px; }}", page)
+        self.assertIn(f"const MIN_ROWS_PX = {ithildin_report.MIN_ROWS_PX}", page)
+        self.assertIn("classList.add('overlay')", page)
+
+    def test_tapping_the_docked_player_plays_or_pauses_it(self):
+        page = self._page()
+        self.assertIn("const toggle = () => (video.paused ? video.play() : video.pause());", page)
+        self.assertIn("if (docked) toggle();", page)
+
+    def test_the_docked_player_can_be_operated_from_the_keyboard(self):
+        page = self._page()
+        for expected in ("video.tabIndex = 0;", "setAttribute('aria-label', 'Play or pause the recording')",
+                         "e.key === ' ' || e.key === 'Enter'", "removeAttribute('tabindex')",
+                         "removeAttribute('aria-label')"):
+            self.assertIn(expected, page)
+
+    def test_native_controls_return_when_the_player_is_inline_again(self):
+        page = self._page()
+        self.assertIn("video.controls = false;", page)
+        self.assertIn("video.controls = true;", page)
+
+    def test_the_dock_follows_the_window_and_the_video_shape(self):
+        page = self._page()
+        self.assertIn("addEventListener('loadedmetadata', sync)", page)
+        self.assertIn("addEventListener('resize', sync)", page)
 
 
 class CommandLineTest(unittest.TestCase):

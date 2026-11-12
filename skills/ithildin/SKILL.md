@@ -115,8 +115,20 @@ their strength alone. When the user confirms or overrules a verdict, set
 
 The report can carry one screen recording. Give the manifest `video` (a path to
 an `.mp4`) and, per AC, `at` (seconds into the recording where that AC begins).
-The page embeds the video once, pinned at the top, and each AC with an `at`
-gets a `▶ m:ss` button that seeks the player there and plays it. A `video` that
+The page embeds the video once, and each AC with an `at` gets a `▶ m:ss` button
+that seeks the player there and plays it.
+
+**The player follows you.** At the top it hugs the recording: 28% of the window
+tall (never over 260 px), as wide as the recording's shape needs, so a phone,
+portrait-tablet or landscape-tablet recording each looks right. Once it scrolls
+out of the window it docks in the top-right corner, fitting a 240 × 240 px box
+in the recording's own shape (a phone recording 135 × 240, a landscape tablet one
+240 × 167), and the rows keep a gutter of its width plus 24 px so nothing sits
+under it. Where that gutter would leave the rows under 520 px (a window under
+about 710–820 px wide, by shape) it docks as a smaller bottom-right overlay with
+no gutter. Tapping the docked player plays or pauses it; the jump buttons work
+in both states. The shape is read from the video file itself, so the manifest
+needs nothing for it. A `video` that
 names an absent file draws a missing block carrying `videoHint`, with no
 buttons; a negative, non-finite or non-numeric `at` stops the render and names
 the AC.

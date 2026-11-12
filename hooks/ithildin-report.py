@@ -26,14 +26,20 @@ manifest error naming the AC. The page opens with five exact counts (pass, fail,
 unclear, not judged, not captured), every AC in exactly one, and a link to the
 first failure when there is one.
 
-An optional `video` is embedded once, pinned at the top of the page. An AC that
+An optional `video` is embedded once. At the top of the page the player hugs
+the recording: 28% of the window tall (never over 260 px) and as wide as the
+recording's shape needs. Once it scrolls out of the window it docks in the
+top-right corner, fitting a 240 x 240 px box in the recording's own shape, and
+the rows keep a gutter of its width plus 24 px; where that would leave the rows
+under 520 px it docks as a smaller bottom-right overlay instead. Tapping the
+docked player, or pressing Space or Enter on it, plays or pauses it. An AC that
 carries `at` (seconds into the recording) gets a "play from here" button that
 seeks the one player there. A `video` naming an absent file draws a missing
 block carrying `videoHint`, and no buttons. A negative or non-numeric `at` is a
 manifest error.
 
-Images and the video are copied beside the page, one page and one image folder per slug, so
-the page is self-contained in the Henneth folder.
+Images and the video are copied beside the page, one page and one image folder
+per slug, so the page is self-contained in the Henneth folder.
 
 Prints the page path on stdout; any failure exits non-zero with a reason on
 stderr. Stdlib only.
@@ -61,6 +67,12 @@ TALLY = (
     ("uncaptured", "none", "not captured"),
 )
 
+INLINE_PLAYER_HEIGHT = "min(28vh, 260px)"
+DOCK_BOX_PX = 240
+OVERLAY_BOX_PX = 120
+GUTTER_PAD_PX = 24
+MIN_ROWS_PX = 520
+
 STYLE = """
   body { margin: 0; }
   .proof { max-width: 1100px; margin: 0 auto; padding: 16px; }
@@ -76,7 +88,6 @@ STYLE = """
   .ac.pass { border-left-color: var(--green); }
   .ac.fail { border-left-color: var(--red); }
   .ac.unclear { border-left-color: #8a8472; }
-  .proof.has-video .ac { scroll-margin-top: calc(40vh + 36px); }
   .ac h2 { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; }
   .ac h2 .badge { flex: none; margin: 0 0 0 auto; }
   .badge.unclear { background: #8a8472; color: var(--bg); }
@@ -87,10 +98,14 @@ STYLE = """
   img { max-width: 100%; max-height: 55vh; width: auto; height: auto; display: block; border: 1px solid #0003; }
   .missing { border: 1px dashed #0004; padding: 40px 16px; text-align: center; font-size: .9rem; opacity: .7; }
   .notes { font-size: .88rem; margin: 6px 0 0; padding-left: 18px; }
-  .recording { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 8px 0 12px; margin: 0 0 16px; }
-  .recording video { width: 100%; max-height: 40vh; background: #000; display: block; }
+  .recording { margin: 0 0 16px; }
+  .recording.has-player { min-height: @INLINE@; }
+  .recording video { height: @INLINE@; width: auto; max-width: 100%; background: #000; display: block; }
   .jump { font: inherit; font-size: .85rem; margin: 0 0 8px; cursor: pointer; }
-"""
+  .proof.docked .recording video { position: fixed; top: 10px; right: 12px; z-index: 5; height: auto; width: auto; max-width: @DOCK@px; max-height: @DOCK@px; box-shadow: 0 2px 10px #0006; cursor: pointer; }
+  .proof.docked.overlay .recording video { top: auto; bottom: 10px; max-width: @OVERLAY@px; max-height: @OVERLAY@px; }
+  .proof.docked:not(.overlay) .ac { padding-right: var(--gutter, 0px); }
+""".replace("@INLINE@", INLINE_PLAYER_HEIGHT).replace("@DOCK@", str(DOCK_BOX_PX)).replace("@OVERLAY@", str(OVERLAY_BOX_PX))
 
 SEEK_SCRIPT = """
   const recording = document.getElementById('recording');
@@ -101,6 +116,48 @@ SEEK_SCRIPT = """
     });
   });
 """
+
+DOCK_SCRIPT = """
+  (() => {
+    const proof = document.querySelector('.proof');
+    const slot = document.querySelector('.recording.has-player');
+    const video = document.getElementById('recording');
+    const GUTTER_PAD_PX = @PAD@;
+    const MIN_ROWS_PX = @MIN_ROWS@;
+    let docked = false;
+    const toggle = () => (video.paused ? video.play() : video.pause());
+    const undock = () => {
+      proof.classList.remove('docked', 'overlay');
+      proof.style.removeProperty('--gutter');
+      video.controls = true;
+      video.removeAttribute('tabindex');
+      video.removeAttribute('aria-label');
+    };
+    const dock = () => {
+      proof.classList.remove('overlay');
+      proof.classList.add('docked');
+      video.controls = false;
+      video.tabIndex = 0;
+      video.setAttribute('aria-label', 'Play or pause the recording');
+      const gutter = video.getBoundingClientRect().width + GUTTER_PAD_PX;
+      const row = document.querySelector('.ac');
+      const room = row ? row.getBoundingClientRect().width : proof.clientWidth;
+      if (room - gutter < MIN_ROWS_PX) proof.classList.add('overlay');
+      else proof.style.setProperty('--gutter', gutter + 'px');
+    };
+    const sync = () => (docked ? dock() : undock());
+    new IntersectionObserver(entries => {
+      docked = !entries[entries.length - 1].isIntersecting;
+      sync();
+    }).observe(slot);
+    video.addEventListener('loadedmetadata', sync);
+    window.addEventListener('resize', sync);
+    video.addEventListener('click', () => { if (docked) toggle(); });
+    video.addEventListener('keydown', e => {
+      if (docked && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); toggle(); }
+    });
+  })();
+""".replace("@PAD@", str(GUTTER_PAD_PX)).replace("@MIN_ROWS@", str(MIN_ROWS_PX))
 
 REASON_SCRIPT = """
   document.querySelectorAll('.reason').forEach(reason => {
@@ -247,7 +304,7 @@ def _tally(states):
 
 
 def _recording(manifest, images_dir):
-    """The pinned player, or a missing block; second value says whether a player stands."""
+    """The player slot, or a missing block; second value says whether a player stands."""
     if not manifest.get("video"):
         return "", False
     if not _present(manifest["video"]):
@@ -255,20 +312,19 @@ def _recording(manifest, images_dir):
         return f'<div class="recording"><div class="missing">{hint}</div></div>', False
     source = _copy_file(manifest["video"], images_dir, "recording")
     player = f'<video id="recording" controls preload="auto" src="{_text(source)}"></video>'
-    return f'<div class="recording">{player}</div>', True
+    return f'<div class="recording has-player">{player}</div>', True
 
 
 def _page(manifest, sections, tally, recording, has_reasons):
     player, has_video = recording
-    scripts = [SEEK_SCRIPT] * has_video + [REASON_SCRIPT] * has_reasons
+    scripts = [SEEK_SCRIPT, DOCK_SCRIPT] * has_video + [REASON_SCRIPT] * has_reasons
     script = "".join(f"<script>{code}</script>\n" for code in scripts)
-    page_class = "proof has-video" if has_video else "proof"
     lede = f'<p class="lede">{_text(manifest["lede"])}</p>' if manifest.get("lede") else ""
     title = _text(manifest["title"])
     return (
         '<!doctype html>\n<meta charset="utf-8">\n'
         f'<title>{title}</title>\n<link rel="stylesheet" href="skadi-theme.css">\n'
-        f'<style>{STYLE}</style>\n<div class="{page_class}">\n<h1>{title}</h1>\n{lede}\n{tally}\n'
+        f'<style>{STYLE}</style>\n<div class="proof">\n<h1>{title}</h1>\n{lede}\n{tally}\n'
         f'{player}\n{"".join(sections)}\n</div>\n{script}'
     )
 
