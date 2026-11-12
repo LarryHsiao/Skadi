@@ -198,8 +198,12 @@ same change.
 - **Handbook** — chapter VI (`handbook/skill-fellowship.html`) places every
   skill in a lane. Run `hooks/fellowship_graph.py` and commit the regenerated
   page; that covers the graph and the standalone lists. A skill whose behavior changed also
-  needs its prose in the handbook read and amended by hand; nothing checks it.
+  needs its prose in the handbook read and amended by hand; no lint reads that prose.
   A new skill needs its `stage` and `composes` keys first (see above).
+  `hooks/handbook_skills.py` fails when a skill is named on no handbook page, or
+  a page names a `/name` that is no skill. When the handbook mentions a built-in
+  command, add it to the `NOT_SKILLS` set in that file. `hooks/test_handbook_skills.py`
+  runs the lint.
 - **README** — the *What's Inside* table names `skills/` as one row and points
   to the handbook chapters, so a single skill needs no row. Edit the README only
   when a sentence there names the skill or states what it does.
