@@ -190,6 +190,25 @@ Three things read these keys, and nothing else keeps an edge list:
 - `hooks/skills-cheatsheet-render.py` — the Composes and Used by rows on each
   cheatsheet card, rebuilt on every `/board refresh`.
 
+## When a skill is created or changed
+
+A skill appears in three places besides its own `SKILL.md`. Settle each in the
+same change.
+
+- **Handbook** — chapter VI (`handbook/skill-fellowship.html`) places every
+  skill in a lane. Run `hooks/fellowship_graph.py` and commit the regenerated
+  page; that covers the graph and the standalone lists. A skill whose behavior changed also
+  needs its prose in the handbook read and amended by hand; nothing checks it.
+  A new skill needs its `stage` and `composes` keys first (see above).
+- **README** — the *What's Inside* table names `skills/` as one row and points
+  to the handbook chapters, so a single skill needs no row. Edit the README only
+  when a sentence there names the skill or states what it does.
+- **Skill sheet** — chapter III's cheatsheet cards are rebuilt by
+  `hooks/skills-cheatsheet-render.py` on every `/board refresh`. Give the
+  `SKILL.md` frontmatter a `description` that reads true; the card is drawn from it.
+
+Then run `/install`, as for any change to the live config.
+
 ## Handbook figures
 
 `previews/ithildin-report-top.png` and `previews/ithildin-report-docked.png` are
