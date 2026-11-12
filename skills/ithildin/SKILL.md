@@ -25,16 +25,34 @@ the human's eye, or with [Manwë](../manwe/SKILL.md) when a visual spec exists.
   app already running on a booted emulator/simulator (`feanor-flutter-shot.sh`).
   The user boots the device and navigates; this skill only captures. Neither
   hook launches anything.
+- **For a video** (optional) — macOS with Xcode, a booted iOS Simulator, and
+  `ffmpeg`. Nothing else is recorded yet.
 
 ## The run
 
 ### 1. Capture, one AC at a time
 
+When the user wants a video, start the recording once, before the first AC:
+
+    ~/.claude/hooks/ithildin-record.py start
+
+It prints the raw `.mov` path and returns once the simulator reports it has
+begun. Time zero is that instant. `--device <udid>` names a simulator when more
+than one is booted (default `booted`). If it exits non-zero, say why and carry
+on with screenshots alone; never fake a video. The codes, shared by all three
+verbs: 2 no recording in progress, 3 already recording or an unfinished
+recording is kept (or no `xcrun`: macOS with Xcode is required), 4 the recorder
+failed, 5 `ffmpeg` missing or failed.
+
 For each AC, in order:
 
 1. Say which AC is next and ask the user to put the app on the screen that
    proves it. Wait for their word.
-2. Shoot it into the scratchpad as `ac-<n>.png`:
+2. With a recording running, stamp the moment first:
+
+       ~/.claude/hooks/ithildin-record.py mark ac-<n>
+
+3. Shoot it into the scratchpad as `ac-<n>.png`:
 
        ~/.claude/hooks/feanor-flutter-shot.sh <scratchpad>/ac-<n>.png [<deviceId>]
        ~/.claude/hooks/feanor-shot.sh <url> <scratchpad>/ac-<n>.png
@@ -43,10 +61,22 @@ For each AC, in order:
    capture: note the AC's `hint` (what the user must do for the shot to work)
    and go on to the next AC. Never retry silently, and never substitute another
    AC's image.
-3. Read the image once to confirm it shows the screen the AC names. A shot of
+4. Read the image once to confirm it shows the screen the AC names. A shot of
    the wrong screen is a failed capture, not proof.
 
 ### 2. Render the report
+
+With a recording running, end it after the last AC:
+
+    ~/.claude/hooks/ithildin-record.py stop --out <scratchpad>/recording.mp4
+
+It prints one JSON object: `video`, `marks` (each `{"label", "at"}`) and
+`duration`. Put `video` in the manifest, and give each AC the `at` of the mark
+labelled `ac-<n>`. An AC with no mark (it was skipped) gets no `at`. If `stop`
+exits 5, `ffmpeg` is missing or failed: the raw `.mov` and the marks are kept,
+so install it and run `stop` again; the retry pads to when the recorder stopped,
+and `start` refuses to overwrite the unfinished recording meanwhile. State and
+the recorder's log live in `~/.skadi/ithildin/`.
 
 Write a manifest to the scratchpad and render it:
 
@@ -82,13 +112,17 @@ Seeking needs the server to answer HTTP range requests. Henneth does, since
 `hooks/mirror-server.py` serves `206 Partial Content`; opened straight from disk
 (`file://`) the page seeks without a server.
 
-**Not yet built:** the recording itself. Nothing here starts or stops a screen
-recording, or reads the start time of each AC off one. For now the user supplies
-the `.mp4` and the `at` times. A recording hook for the iOS Simulator
-(`xcrun simctl io booted recordVideo`) is the planned next layer; Android's
-`screenrecord` stops at 3 minutes, which needs its own answer. Splitting the
-recording into per-AC clips stays a possible later option: the `at` times are
-what such a split would cut on.
+**How the recording works.** `ithildin-record.py` wraps
+`xcrun simctl io booted recordVideo`. The simulator writes a frame only when the
+screen changes, so the raw file stops at the last change and runs shorter than
+the session; `stop` repeats the last frame up to the real duration and converts
+to an H.264 `.mp4` browsers play. Without that, an AC marked after the final
+change would seek past the end.
+
+**Not yet built:** recording on Android, whose `screenrecord` stops at 3
+minutes and needs its own answer, and on the web. Splitting the recording into
+per-AC clips stays a possible later option: the `at` times are what such a
+split would cut on.
 
 ## Notes
 

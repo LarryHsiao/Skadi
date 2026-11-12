@@ -138,6 +138,12 @@ class VideoTest(unittest.TestCase):
             self.assertIn('src="ithildin-psg-1/recording.mp4"', page)
             self.assertIn("controls", page)
 
+    def test_video_preloads_so_a_paused_seek_paints_a_frame(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            expected = 'preload="auto"'
+            page = _html(out, _manifest([{"text": "A"}], video=self._video(src)))
+            self.assertIn(expected, page)
+
     def test_video_is_copied_beside_the_page(self):
         with TemporaryDirectory() as src, TemporaryDirectory() as out:
             expected = self.MP4_BYTES

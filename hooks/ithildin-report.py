@@ -159,7 +159,7 @@ def _recording(manifest, images_dir):
         hint = _text(manifest.get("videoHint") or DEFAULT_MISSING_HINT)
         return f'<div class="recording"><div class="missing">{hint}</div></div>', False
     source = _copy_file(manifest["video"], images_dir, "recording")
-    player = f'<video id="recording" controls preload="metadata" src="{_text(source)}"></video>'
+    player = f'<video id="recording" controls preload="auto" src="{_text(source)}"></video>'
     return f'<div class="recording">{player}</div>', True
 
 
