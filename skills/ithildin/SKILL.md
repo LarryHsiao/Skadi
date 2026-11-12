@@ -1,7 +1,7 @@
 ---
 name: ithildin
-description: Use when the user runs /ithildin <ACs or a plan file>, or asks in plain words to "capture proof for each acceptance criterion", "screenshot every AC", "make a report that proves the AC". Takes a list of acceptance criteria, shoots one screenshot of the running app for each, and reads each shot and gives the AC a pass, fail or unclear verdict with a one-line reason, and renders one HTML report into Henneth with a row per AC, a badge and tally for the verdicts, and a plain missing-proof row for any capture that failed. Never drives the app — the user navigates, it captures. Built on Fëanor's shot hooks.
-purpose: Captures one screenshot per acceptance criterion, judges it, and renders an HTML proof report.
+description: Use when the user runs /ithildin <ACs or a plan file>, or asks in plain words to "capture proof for each acceptance criterion", "screenshot every AC", "record the screen while I walk through the ACs", "make a report that proves the AC". Takes a list of acceptance criteria and shoots one screenshot of the running app for each, optionally alongside one continuous iOS Simulator recording with a start time marked per AC; reads each shot and gives the AC a pass, fail or unclear verdict with a one-line reason; and renders one HTML report into Henneth with a row per AC, a badge and tally for the verdicts, a play-from-here button per AC that seeks the recording (a player that docks in the corner as you scroll), and a plain missing-proof row for any capture that failed. Never drives the app — the user navigates, it captures. Built on Fëanor's shot hooks.
+purpose: Captures a screenshot (and optionally one screen recording) per acceptance criterion, judges each, and renders an HTML proof report with jump-to-the-moment links.
 args: "<ACs | plan file>"
 user_invocable: true
 stage: forge

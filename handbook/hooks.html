@@ -354,8 +354,16 @@
             <td>Shoot the target to a PNG — a served page via headless Chrome/Edge, or a booted Flutter app — for <code>/feanor</code></td>
           </tr>
           <tr>
+            <td><span class="name">ithildin-report</span></td>
+            <td>Render the <code>/ithildin</code> proof page into Henneth: a row per acceptance criterion with its screenshot, a PASS / FAIL / UNCLEAR badge and one-line reason, five exact counts on top, and an optional screen recording that sits at the top, docks in a corner once scrolled away, and answers each row's play-from-here button</td>
+          </tr>
+          <tr>
+            <td><span class="name">ithildin-record</span></td>
+            <td>Record the iOS Simulator for <code>/ithildin</code> as one continuous video: <code>start</code>, <code>mark</code> each criterion's moment, <code>stop</code> pads the end to the real duration and converts to an H.264 mp4 browsers play. macOS with Xcode and ffmpeg only</td>
+          </tr>
+          <tr>
             <td><span class="name">mirror-server</span></td>
-            <td>Henneth's gallery server (port 10001): serves every artifact dropped into <code>~/.skadi/henneth/</code> newest-first, follows the latest unless pinned, and deletes on request</td>
+            <td>Henneth's gallery server (port 10001): serves every artifact dropped into <code>~/.skadi/henneth/</code> newest-first, follows the latest unless pinned, deletes on request, and answers byte-range requests with <code>206</code> so a browser can seek inside a video</td>
           </tr>
           <tr>
             <td><span class="name">henneth-group</span></td>
