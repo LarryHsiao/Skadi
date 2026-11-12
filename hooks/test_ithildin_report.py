@@ -98,12 +98,6 @@ class MissingProofTest(unittest.TestCase):
             page = _html(out, _manifest([{"text": "A"}]))
             self.assertIn(ithildin_report.DEFAULT_MISSING_HINT, page)
 
-    def test_summary_counts_captured_against_total(self):
-        with TemporaryDirectory() as src, TemporaryDirectory() as out:
-            acs = [{"text": "A", "shot": _image(src, "a.png")}, {"text": "B"}]
-            page = _html(out, _manifest(acs))
-            self.assertIn("1 of 2 captured", page)
-
 
 class PageShapeTest(unittest.TestCase):
     def test_ac_text_is_escaped(self):
@@ -252,6 +246,159 @@ class VideoTest(unittest.TestCase):
             manifest = _manifest([{"text": "A", "at": "soon"}], video=self._video(src))
             with self.assertRaises(ValueError):
                 ithildin_report.render(manifest, Path(out))
+
+
+class VerdictTest(unittest.TestCase):
+    def _page(self, *acs):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            built = [{"shot": _image(src, f"a{n}.png"), **ac} for n, ac in enumerate(acs, 1)]
+            return _html(out, _manifest(built))
+
+    def test_fail_shows_a_red_badge_and_a_red_rule(self):
+        page = self._page({"text": "A", "verdict": "fail"})
+        self.assertIn('<span class="badge no">FAIL</span>', page)
+        self.assertIn('class="ac fail"', page)
+
+    def test_pass_shows_a_green_badge_and_rule(self):
+        page = self._page({"text": "A", "verdict": "pass"})
+        self.assertIn('<span class="badge yes">PASS</span>', page)
+        self.assertIn('class="ac pass"', page)
+
+    def test_unclear_shows_a_grey_badge_and_rule(self):
+        page = self._page({"text": "A", "verdict": "unclear"})
+        self.assertIn('<span class="badge unclear">UNCLEAR</span>', page)
+        self.assertIn('class="ac unclear"', page)
+
+    def test_verdict_word_is_case_insensitive(self):
+        page = self._page({"text": "A", "verdict": " Fail "})
+        self.assertIn(">FAIL<", page)
+
+    def test_reason_is_shown_and_labelled_as_the_models_reading(self):
+        page = self._page({"text": "A", "verdict": "fail", "reason": "list still shows 4 posts"})
+        self.assertIn("list still shows 4 posts", page)
+        self.assertIn("model's reading", page)
+
+    def test_a_human_verdict_is_labelled_as_yours(self):
+        page = self._page({"text": "A", "verdict": "pass", "verdictBy": "human"})
+        self.assertIn("your reading", page)
+        self.assertNotIn("model's reading", page)
+
+    def test_reason_is_escaped(self):
+        page = self._page({"text": "A", "verdict": "fail", "reason": "<b>bold</b>"})
+        self.assertIn("&lt;b&gt;bold&lt;/b&gt;", page)
+
+    def test_no_verdict_means_no_badge_and_a_plain_rule(self):
+        page = self._page({"text": "A"})
+        for word in ("PASS", "FAIL", "UNCLEAR"):
+            self.assertNotIn(f">{word}<", page)
+        self.assertIn('class="ac"', page)
+
+    def test_unknown_verdict_raises_naming_the_ac(self):
+        with self.assertRaises(ValueError) as raised:
+            self._page({"text": "A"}, {"text": "B", "verdict": "maybe"})
+        self.assertIn("AC 2", str(raised.exception))
+
+    def test_verdict_without_a_shot_raises_naming_the_ac(self):
+        with TemporaryDirectory() as out:
+            manifest = _manifest([{"text": "A", "verdict": "pass"}])
+            with self.assertRaises(ValueError) as raised:
+                ithildin_report.render(manifest, Path(out))
+            self.assertIn("AC 1", str(raised.exception))
+
+    def test_a_non_text_reader_raises_naming_the_ac(self):
+        with self.assertRaises(ValueError) as raised:
+            self._page({"text": "A", "verdict": "pass", "verdictBy": ["model"]})
+        self.assertIn("AC 1", str(raised.exception))
+
+    def test_an_unknown_reader_raises_even_without_a_verdict(self):
+        with self.assertRaises(ValueError) as raised:
+            self._page({"text": "A", "verdictBy": "robot"})
+        self.assertIn("AC 1", str(raised.exception))
+
+    def test_a_reason_without_a_verdict_raises_naming_the_ac(self):
+        with self.assertRaises(ValueError) as raised:
+            self._page({"text": "A"}, {"text": "B", "reason": "looks wrong"})
+        self.assertIn("AC 2", str(raised.exception))
+
+    def test_unknown_reader_raises_naming_the_ac(self):
+        with self.assertRaises(ValueError) as raised:
+            self._page({"text": "A", "verdict": "pass", "verdictBy": "robot"})
+        self.assertIn("AC 1", str(raised.exception))
+
+
+class TallyTest(unittest.TestCase):
+    def _page(self, *acs):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            built = []
+            for number, ac in enumerate(acs, 1):
+                shot = {} if ac.pop("noshot", False) else {"shot": _image(src, f"a{number}.png")}
+                built.append({"text": f"AC {number}", **shot, **ac})
+            return _html(out, _manifest(built))
+
+    def test_every_ac_lands_in_exactly_one_count(self):
+        page = self._page(
+            {"verdict": "pass"}, {"verdict": "fail"}, {"verdict": "unclear"}, {}, {"noshot": True})
+        for expected in ("1 pass", "1 fail", "1 unclear", "1 not judged", "1 not captured"):
+            self.assertIn(expected, page)
+
+    def test_zero_counts_stay_visible(self):
+        page = self._page({"noshot": True})
+        for expected in ("0 pass", "0 fail", "0 unclear", "0 not judged", "1 not captured"):
+            self.assertIn(expected, page)
+
+    def test_counts_are_exact_past_ten(self):
+        page = self._page(*[{"verdict": "pass"} for _ in range(12)])
+        self.assertIn("12 pass", page)
+
+    def test_first_fail_link_points_at_the_first_failing_ac(self):
+        page = self._page({"verdict": "pass"}, {"verdict": "fail"}, {"verdict": "fail"})
+        self.assertIn('<a class="first" href="#ac-2">first fail', page)
+        self.assertEqual(1, page.count("first fail"))
+
+    def test_no_first_fail_link_without_a_failure(self):
+        page = self._page({"verdict": "pass"}, {})
+        self.assertNotIn("first fail", page)
+
+
+class ReasonClampTest(unittest.TestCase):
+    def _page(self, **ac):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            built = {"text": "A", "shot": _image(src, "a.png"), **ac}
+            return _html(out, _manifest([built]))
+
+    def test_a_reason_is_clamped_with_a_toggle_that_starts_hidden(self):
+        page = self._page(verdict="fail", reason="long text")
+        self.assertIn('class="reason clamp"', page)
+        self.assertIn('<button class="more" type="button" hidden>show full reason</button>', page)
+
+    def test_the_toggle_script_only_reveals_the_button_on_real_overflow(self):
+        page = self._page(verdict="fail", reason="long text")
+        self.assertIn("scrollHeight > ", page)
+
+    def test_no_reason_means_no_toggle_and_no_script(self):
+        page = self._page(verdict="fail")
+        self.assertNotIn("show full reason", page)
+        self.assertNotIn("scrollHeight", page)
+
+    def test_a_report_without_verdicts_carries_neither(self):
+        page = self._page()
+        self.assertNotIn("show full reason", page)
+        self.assertNotIn("scrollHeight", page)
+
+
+class AnchorTest(unittest.TestCase):
+    def test_a_pinned_video_marks_the_page_so_anchors_clear_the_player(self):
+        with TemporaryDirectory() as src, TemporaryDirectory() as out:
+            (Path(src) / "v.mp4").write_bytes(b"x")
+            page = _html(out, _manifest([{"text": "A"}], video=str(Path(src) / "v.mp4")))
+            self.assertIn('class="proof has-video"', page)
+            self.assertIn(".proof.has-video .ac { scroll-margin-top:", page)
+
+    def test_without_a_video_anchors_get_no_extra_margin(self):
+        with TemporaryDirectory() as out:
+            page = _html(out, _manifest([{"text": "A"}]))
+            self.assertIn('class="proof"', page)
+            self.assertNotIn('class="proof has-video"', page)
 
 
 class CommandLineTest(unittest.TestCase):

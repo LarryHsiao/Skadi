@@ -1,7 +1,7 @@
 ---
 name: ithildin
-description: Use when the user runs /ithildin <ACs or a plan file>, or asks in plain words to "capture proof for each acceptance criterion", "screenshot every AC", "make a report that proves the AC". Takes a list of acceptance criteria, shoots one screenshot of the running app for each, and renders one HTML report into Henneth with a row per AC and a plain missing-proof row for any capture that failed. Never drives the app — the user navigates, it captures. Built on Fëanor's shot hooks.
-purpose: Captures one screenshot per acceptance criterion and renders an HTML proof report.
+description: Use when the user runs /ithildin <ACs or a plan file>, or asks in plain words to "capture proof for each acceptance criterion", "screenshot every AC", "make a report that proves the AC". Takes a list of acceptance criteria, shoots one screenshot of the running app for each, and reads each shot and gives the AC a pass, fail or unclear verdict with a one-line reason, and renders one HTML report into Henneth with a row per AC, a badge and tally for the verdicts, and a plain missing-proof row for any capture that failed. Never drives the app — the user navigates, it captures. Built on Fëanor's shot hooks.
+purpose: Captures one screenshot per acceptance criterion, judges it, and renders an HTML proof report.
 args: "<ACs | plan file>"
 user_invocable: true
 stage: forge
@@ -61,8 +61,13 @@ For each AC, in order:
    capture: note the AC's `hint` (what the user must do for the shot to work)
    and go on to the next AC. Never retry silently, and never substitute another
    AC's image.
-4. Read the image once to confirm it shows the screen the AC names. A shot of
-   the wrong screen is a failed capture, not proof.
+4. Read the image once. If it does not show the screen the AC names, it is a
+   failed capture, not proof: say so and give the AC no verdict.
+5. Judge it. Keep a running note for the manifest: `verdict` (`pass` when the
+   screen shows the AC met, `fail` when it shows the AC not met, `unclear` when
+   you cannot tell from this one image) and `reason`, one sentence naming what
+   on the screen decided it. Never mark `pass` on a hope; `unclear` is the honest
+   word when the shot does not settle it.
 
 ### 2. Render the report
 
@@ -84,19 +89,27 @@ Write a manifest to the scratchpad and render it:
 
 Manifest fields are in the hook's docstring: `slug`, `title`, optional `lede`,
 optional `video` and `videoHint`, and per AC `text`, `shot`, `hint` and optional
-`at` and `notes`. The hook writes
+`at`, `verdict`, `reason`, `verdictBy` and `notes`. `verdictBy` is `model`
+(the default; the page labels it "model's reading") or `human` when the user
+confirmed or overrode it ("your reading"). A verdict needs a shot. The hook writes
 `ithildin-<slug>.html` and copies the shots into an `ithildin-<slug>/` folder
 beside it in `~/.skadi/henneth/`. An AC with no shot draws a dashed
-missing-proof row carrying its hint, and the page opens with a count
-(`2 of 3 captured`).
+missing-proof row carrying its hint. The page opens with five exact counts, every
+AC in exactly one (`pass`, `fail`, `unclear`, `not judged`, `not captured`), and
+a `first fail ↓` link when any AC failed. Each judged AC wears a PASS, FAIL or
+UNCLEAR badge, a left rule in its colour, and its reason clamped to three lines
+with a `show full reason` toggle when it overflows.
 
 Print the URL — the port is in `~/.skadi/henneth/.henneth-port` (boot `/henneth`
 first if it is absent): `http://localhost:<port>/ithildin-<slug>.html`.
 
 ### 3. Report
 
-Lead with the tally. Name each AC that has no proof and why. Do not call the
-work verified on the strength of this report: it holds pictures, not verdicts.
+Lead with the tally. Name each failed AC with its reason, then each unclear one,
+then each AC that has no proof and why. The verdicts are your reading of one
+screenshot each, not a test run: say so, and do not call the work verified on
+their strength alone. When the user confirms or overrules a verdict, set
+`verdictBy: human` (and the new `verdict`) and render again.
 
 ## The video
 
