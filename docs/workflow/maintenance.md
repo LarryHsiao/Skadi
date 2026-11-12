@@ -190,6 +190,32 @@ Three things read these keys, and nothing else keeps an edge list:
 - `hooks/skills-cheatsheet-render.py` — the Composes and Used by rows on each
   cheatsheet card, rebuilt on every `/board refresh`.
 
+## Handbook figures
+
+`previews/ithildin-report-top.png` and `previews/ithildin-report-docked.png` are
+static screenshots of a sample `/ithildin` report, shown in handbook chapter VI.
+Nothing regenerates them. Retake both when the report's look changes — its
+layout, the badges, the player.
+
+To retake them:
+
+1. Render a sample report with `hooks/ithildin-report.py <manifest.json>`: six
+   acceptance criteria with real screenshots, a recording, and one criterion
+   with verdict `fail`. The manifest fields are in the hook's docstring.
+2. Capture the top of the page in a headless Chrome sized 1280 × 800. Capture
+   the second picture after a *real* scroll to the second criterion. A one-shot
+   `feanor-shot.sh` does not deliver the scroll events the docking script waits
+   for, so the player never docks; use a browser session that can scroll, and
+   capture with the DevTools protocol's `Page.captureScreenshot`. Do not stage
+   the docked state with forced classes — the picture should be the page itself.
+3. Save both as lossless PNGs under `previews/`, optimised with
+   `magick in.png -strip -define png:compression-level=9 out.png` (about
+   150–200 KB each).
+
+`hooks/board-server.test.sh` checks both files are served as images under
+`/previews/`. The figure sits outside chapter VI's generated regions, so
+`fellowship_graph.py --check` is unaffected by it.
+
 ## Known degradation modes — and their preventions
 
 1. **Rule accretion.** Every incident adds a rule; the always-loaded weight

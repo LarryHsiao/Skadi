@@ -113,6 +113,13 @@ expected_theme_status="200"
 actual_theme_status="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/previews/henneth/skadi-theme.css")"
 check "the handbook's theme link resolves under /previews/" "$expected_theme_status" "$actual_theme_status"
 
+# ── 7b · the handbook's figures: the /ithildin report screenshots load as images ──
+for shot in ithildin-report-top ithildin-report-docked; do
+  expected_shot="200 image/png"
+  actual_shot="$(curl -s -o /dev/null -w '%{http_code} %{content_type}' "http://127.0.0.1:$PORT/previews/$shot.png")"
+  check "the handbook figure $shot.png is served as a png under /previews/" "$expected_shot" "$actual_shot"
+done
+
 # ── 8 · a /previews/../ escape can't reach files outside previews/ ──
 # --path-as-is stops curl from collapsing ".." itself, so this exercises what
 # the server actually does with the literal bytes a raw client can send.

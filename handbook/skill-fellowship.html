@@ -58,6 +58,35 @@
         font-size: 0.85rem;
         color: #6b5d44;
       }
+      .shots {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin: 0.8rem 0 1rem;
+      }
+      .shots figure {
+        margin: 0;
+      }
+      .shots img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+      }
+      .shots a {
+        display: block;
+      }
+      .shots figcaption {
+        font-size: 0.85rem;
+        color: #6b5d44;
+        margin-top: 0.4rem;
+      }
+      @media (max-width: 800px) {
+        .shots {
+          grid-template-columns: 1fr;
+        }
+      }
       .legend {
         display: flex;
         flex-wrap: wrap;
@@ -623,6 +652,85 @@ graph LR
           skill。一個 skill 是因為需要另一個 skill 的成果才長出箭頭，而它們不需要。Erestor 的筆記裡確實提
           過一次 <span class="name">/scribe</span>，說那是開票的其中一種途徑——但
           「提到」不等於「呼叫」，這正是上面兩種箭頭要分開的理由。
+        </p>
+      </div>
+
+      <div class="lang-en">
+        <h2>One skill, seen: /ithildin</h2>
+        <p>
+          <span class="name">/ithildin</span> stands alone on the map, yet it is
+          the one skill whose work you read as a page. Given a list of
+          acceptance criteria, it shoots the running app once for each — and, on
+          an iOS Simulator, records one continuous video with a start time
+          marked per criterion — judges each shot pass, fail or unclear with a
+          one-line reason, and renders the result into the Henneth window.
+        </p>
+        <div class="shots">
+          <figure>
+            <a href="../previews/ithildin-report-top.png">
+              <img
+                src="../previews/ithildin-report-top.png"
+                alt="The top of an /ithildin report: five counts, the recording player, and the first criterion with a green PASS badge and its screenshot."
+              />
+            </a>
+            <figcaption>
+              At the top — five exact counts, the recording at its own shape,
+              and a row per criterion with its verdict and a ▶ button that seeks
+              the recording.
+            </figcaption>
+          </figure>
+          <figure>
+            <a href="../previews/ithildin-report-docked.png">
+              <img
+                src="../previews/ithildin-report-docked.png"
+                alt="The same report scrolled down: the recording docked in the top-right corner, a PASS criterion with its screenshot and, below it, a FAIL criterion, all clear of the player."
+              />
+            </a>
+            <figcaption>
+              Scrolled — the recording docks in the corner and the rows keep
+              clear of it; the failing criterion carries a red rule and its
+              reason.
+            </figcaption>
+          </figure>
+        </div>
+        <p class="note">
+          A sample report, not a live one: six criteria on a simulator
+          recording, one failing on purpose. The right-hand picture is the page
+          scrolled to the second criterion. How to retake both is in
+          <code>docs/workflow/maintenance.md</code>.
+        </p>
+      </div>
+      <div class="lang-zh" hidden>
+        <h2>一個 skill，親眼看看：/ithildin</h2>
+        <p>
+          <span class="name">/ithildin</span> 在地圖上是獨行者，卻是唯一一個成果要當成一頁網頁來讀的 skill。給它一份驗收標準清單，它會替每一條對執行中的 app 截一張圖——在 iOS Simulator 上還能連續錄一段影片，並為每條標準標下起始時間點——再逐張判定 pass、fail 或 unclear，附上一句理由，最後把結果畫進 Henneth 視窗。
+        </p>
+        <div class="shots">
+          <figure>
+            <a href="../previews/ithildin-report-top.png">
+              <img
+                src="../previews/ithildin-report-top.png"
+                alt="/ithildin 報告的頁面頂端：五個計數、錄影播放器，以及第一條標準，附綠色 PASS 標章與截圖。"
+              />
+            </a>
+            <figcaption>
+              頁面頂端——五個精確的計數、依原始比例顯示的錄影，以及每條標準一列，附判定與可跳到錄影該刻的 ▶ 按鈕。
+            </figcaption>
+          </figure>
+          <figure>
+            <a href="../previews/ithildin-report-docked.png">
+              <img
+                src="../previews/ithildin-report-docked.png"
+                alt="同一份報告往下捲之後：錄影停靠在右上角，一條附截圖的 PASS 標準，其下是一條 FAIL 標準，各列都與播放器之間留有空隙。"
+              />
+            </a>
+            <figcaption>
+              往下捲之後——錄影停靠在角落，各列避開它；判定為 fail 的標準帶紅色邊線與理由。
+            </figcaption>
+          </figure>
+        </div>
+        <p class="note">
+          這是範例報告，不是實際跑出來的報告：一段模擬器錄影、六條標準，其中一條刻意讓它 fail。右邊那張是捲到第二條標準時的頁面。重新拍攝的方法寫在 <code>docs/workflow/maintenance.md</code>。
         </p>
       </div>
 

@@ -148,6 +148,7 @@ situation board.
 | `docs/` | Style guides, tool guides, and workflow notes referenced from `CLAUDE.md` via `@docs/...` |
 | `output-styles/` | Output style definitions, copied into `~/.claude/output-styles/`; `tolkien-narrator` is the default `outputStyle` in `settings.json` |
 | `previews/henneth/skadi-theme.css` | Shared parchment stylesheet copied beside the Henneth preview artifacts |
+| `previews/ithildin-report-*.png` | Two screenshots of a sample `/ithildin` report, shown in handbook chapter VI |
 | `install.sh` | Copy installer (idempotent, safe to re-run) |
 | `handbook/` | The HTML handbook — the cover plus the nine chapters above |
 | `handbook.sh` | Open the handbook, served by the situation board — `./handbook.sh` |
