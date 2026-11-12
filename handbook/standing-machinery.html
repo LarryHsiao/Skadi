@@ -91,15 +91,12 @@
         <h1>常駐機制</h1>
         <p class="sub">
           四樣活得比一個 turn 還久的東西——持續應答的伺服器、一次餵一行的
-          daemon、session 拿去外包工作而非自己生 subagent 的 runner，以及
-          記錄哪個 config root 屬於哪個 profile 的登記表。
+          daemon、session 拿去外包工作而非自己生 subagent 的 runner，以及記錄哪個 config root 屬於哪個 profile 的登記表。
         </p>
 
         <p class="note">
-          Chapter VI 按工作階段把每個 skill 都畫進圖裡。以下這些都不是那個
-          意義上的 skill——它們是那些 skill、以及呼叫它們的 session，在
-          turn 與 turn 之間讀寫的常駐狀態。它們跟著整個 fellowship 一起
-          長出來，卻從未被畫進那張圖。
+          Chapter VI 按工作階段把每個 skill 都畫進圖裡。以下這些都不是那個意義上的 skill——它們是那些 skill、以及呼叫它們的 session，在
+          turn 與 turn 之間讀寫的常駐狀態。它們跟著整個 fellowship 一起長出來，卻從未被畫進那張圖。
         </p>
       </div>
 
@@ -258,52 +255,36 @@ graph TD
           任何啟動本機伺服器、而使用者可能想點進去看的腳本——Flutter
           DevTools session、部落格預覽、或其他——都會透過
           <code>hooks/window-register.sh</code> 在
-          <code>~/.skadi/windows</code> 底下丟一個兩行檔：第一行是 url，
-          第二行是 label。<code>statusline.sh</code> 把每一筆都畫成 OSC 8
-          終端機超連結，所以連 port 都不佔狀態列的寬度，點一下就能開啟
-          那個視窗。
+          <code>~/.skadi/windows</code> 底下丟一個兩行檔：第一行是 url，第二行是 label。<code>statusline.sh</code> 把每一筆都畫成 OSC 8
+          終端機超連結，所以連 port 都不佔狀態列的寬度，點一下就能開啟那個視窗。
         </p>
         <p>
           存活判斷用的是 <code>/dev/tcp</code> 連線，而不是 curl 探測——
-          因為狀態列不斷重繪，較重的探測每次重繪都要付一次代價。伺服器
-          已經無聲的檔案會被見即清除——註冊用的腳本可能沒呼叫
+          因為狀態列不斷重繪，較重的探測每次重繪都要付一次代價。伺服器已經無聲的檔案會被見即清除——註冊用的腳本可能沒呼叫
           <code>unregister</code> 就死掉了，而一個打不開任何東西的
           label 比沒有 label 還糟——所以乾淨關閉時呼叫
           <code>unregister</code> 只是禮貌，不是必要。
         </p>
         <p>
-          已註冊的伺服器會出現在狀態列最上方自己的一列，排在原本就存在
-          的 Standing Windows 列（board、Henneth、plan mirror、skills
-          cheatsheet）之前：使用者剛剛選擇註冊的伺服器，最有可能是他們
-          現在就想點的那個，所以它排在最前面，不必等輪到它。
+          已註冊的伺服器會出現在狀態列最上方自己的一列，排在原本就存在的 Standing Windows 列（board、Henneth、plan mirror、skills
+          cheatsheet）之前：使用者剛剛選擇註冊的伺服器，最有可能是他們現在就想點的那個，所以它排在最前面，不必等輪到它。
         </p>
 
         <h2>II. Vilya 與 Narya——活得比一個 turn 久的 daemon</h2>
         <p>
           兩者都是每個具名的 slot 守住一個長駐 process。昂貴的初始化——
-          一次 Flutter build、一次 dev server 的冷啟動——只付一次；之後
-          每個 turn 或 session 戳一下常駐 process 都只是零錢的代價。兩者
-          都不開裝置、不開瀏覽器，也不做任何導覽——守住這個 process、
-          讀它的狀態，就是全部的工作。
+          一次 Flutter build、一次 dev server 的冷啟動——只付一次；之後每個 turn 或 session 戳一下常駐 process 都只是零錢的代價。兩者都不開裝置、不開瀏覽器，也不做任何導覽——守住這個 process、讀它的狀態，就是全部的工作。
         </p>
         <p>
           <span class="name">/narya</span> 在具名 pipe 後面守住一個
-          <code>flutter run --machine</code> session，讓原始碼的修改在
-          約一秒內就送進正在跑的 app，而不是 60–90 秒的重建，也不會
-          丟失你原本導覽到的畫面。<span class="name">/vilya</span> 守住
-          一個無協議的伺服器——Vite 或 webpack 的 dev server、Zola 或
+          <code>flutter run --machine</code> session，讓原始碼的修改在約一秒內就送進正在跑的 app，而不是 60–90 秒的重建，也不會丟失你原本導覽到的畫面。<span class="name">/vilya</span> 守住一個無協議的伺服器——Vite 或 webpack 的 dev server、Zola 或
           Hugo 的預覽、API mock——每個 <code>(project, name)</code>
           一份，它的 <code>ready</code> 動詞直接讀伺服器自己的 log
-          找特定樣式，而不是睡一下賭運氣，讓呼叫端能等一個訊號、而不是
-          用猜的。兩者都會自己註冊到上面的視窗列；任何呼叫端都能戳
-          其中一個——你在聊天視窗裡、<span class="name">/feanor</span>
+          找特定樣式，而不是睡一下賭運氣，讓呼叫端能等一個訊號、而不是用猜的。兩者都會自己註冊到上面的視窗列；任何呼叫端都能戳其中一個——你在聊天視窗裡、<span class="name">/feanor</span>
           在兩次修補之間、<span class="name">/manwe</span> 在拍照之前。
         </p>
         <p class="small">
-          Vilya 的計畫把 <span class="name">/feanor</span> 原本
-          「等幾秒再重拍」的做法換成真正的 <code>ready</code> 關卡，
-          計畫自己的驗證也已跑過：2026-09-11 對一個建置要六秒的替身伺服器、
-          和一個真正的 Vite 開發伺服器各跑了一次
+          Vilya 的計畫把 <span class="name">/feanor</span> 原本「等幾秒再重拍」的做法換成真正的 <code>ready</code> 關卡，計畫自己的驗證也已跑過：2026-09-11 對一個建置要六秒的替身伺服器、和一個真正的 Vite 開發伺服器各跑了一次
           <span class="name">/feanor</span>。結果記在
           <code>docs/plans/vilya-local-server-daemon.md</code>。
         </p>
@@ -313,18 +294,13 @@ graph TD
           <code>~/.skadi/profiles/&lt;profile&gt;/subagent-runner.md</code>
           記錄一個 session 拿去外包工作、而不是自己生一個 Agent-tool
           subagent 的 CLI，profile 取自 <code>SKADI_PROFILE</code>——
-          由 installer 寫進每個 root 自己的 <code>settings.json</code>。
-          第一行是這個 runner 的非互動指令樣板（prompt 走 stdin，
+          由 installer 寫進每個 root 自己的 <code>settings.json</code>。第一行是這個 runner 的非互動指令樣板（prompt 走 stdin，
           <code>{model}</code> 代表 model slug）；之後幾行把 delegation
           roster 的 <code>mechanical=</code>／<code>default=</code>／
-          <code>strong=</code> 三個分級對應到那個 runner 自己的 model。
-          所以 work profile 可以走 Codex 外包，personal profile 則仍然
-          用 Agent tool。
+          <code>strong=</code> 三個分級對應到那個 runner 自己的 model。所以 work profile 可以走 Codex 外包，personal profile 則仍然用 Agent tool。
         </p>
         <p>
-          這個檔案不存在，代表從沒被問過；內容寫死是 <code>none</code>，
-          代表問過但被拒絕了。<code>install.sh</code> 本身從不寫這個
-          檔案——只會替還沒設定的 profile 印出提示——因為某個 profile
+          這個檔案不存在，代表從沒被問過；內容寫死是 <code>none</code>，代表問過但被拒絕了。<code>install.sh</code> 本身從不寫這個檔案——只會替還沒設定的 profile 印出提示——因為某個 profile
           該用哪個 runner、背後是否還有餘裕的額度，是關於那個 profile
           與那台機器的選擇，不是設定檔自己能知道的事實。
         </p>
@@ -333,17 +309,14 @@ graph TD
         <p>
           <code>~/.skadi/install/roots.tsv</code> 每一列都是一組
           tab 分隔的 <code>profile</code> / <code>claude-root</code> /
-          <code>codex-root</code>。<code>install.sh --all</code> 會安裝
-          登記表裡的每一列；<code>--pair</code> 再多登記一組。
+          <code>codex-root</code>。<code>install.sh --all</code> 會安裝登記表裡的每一列；<code>--pair</code> 再多登記一組。
         </p>
         <p>
-          一台全新的機器只會登記<b>一組</b>，不是三組，這個理由值得
-          寫清楚：三個 home 裡有兩個會是空的，而且光是
+          一台全新的機器只會登記<b>一組</b>，不是三組，這個理由值得寫清楚：三個 home 裡有兩個會是空的，而且光是
           <code>~/.claude-*</code> 這種 sibling 存在，就會讓
           <code>~/.claude/CLAUDE.md</code> 在下一次執行時翻成 stub——
           悄悄把一個活著的 root 降級成路標。第二個 profile 是用
-          <code>--pair</code> 主動做出的選擇，絕不是替使用者預設好的。
-          配好之後要啟動某個 profile，就是
+          <code>--pair</code> 主動做出的選擇，絕不是替使用者預設好的。配好之後要啟動某個 profile，就是
           <code>CLAUDE_CONFIG_DIR</code> / <code>CODEX_HOME</code>，
           install 的提示文字會直接點名。
         </p>

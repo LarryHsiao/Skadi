@@ -245,21 +245,16 @@
           這張圖同時畫了兩件事，而且刻意分開表達。<b>位置</b>承載流程：一個
           skill 所在的欄位，就是它服務的工作階段，由左至右，從 Intake 到
           Watch。<b>箭頭</b>只承載一件事——真正的 dispatch，也就是某個 skill
-          確實會去呼叫另一個。不會只因為某階段接在另一階段後面就畫線——因為欄位
-          本身已經把順序說明了。所以你看到的每一支箭頭，都是真的會發生的呼叫。
+          確實會去呼叫另一個。不會只因為某階段接在另一階段後面就畫線——因為欄位本身已經把順序說明了。所以你看到的每一支箭頭，都是真的會發生的呼叫。
         </p>
 
         <p class="note">
           Chapter I 走過 Work Loop 的八個階段，但一個 skill 都沒點名；Chapter II
-          畫出 ticket 的路徑，點名了幾個。這一章兩者皆非——它是完整的名冊，以及把
-          名冊綁起來的那些箭頭。若你想看的是某個階段背後的道理而非它的卡司，請回
-          頭讀 I 或 II。
+          畫出 ticket 的路徑，點名了幾個。這一章兩者皆非——它是完整的名冊，以及把名冊綁起來的那些箭頭。若你想看的是某個階段背後的道理而非它的卡司，請回頭讀 I 或 II。
         </p>
 
         <p class="small" style="margin-top: 0">
-          由瀏覽器端的 mermaid 從 CDN 抓取渲染——離線時會退回顯示純文字原始碼，
-          仍然讀得懂。原始碼裡每個欄位標題都同時寫了兩種語言；上方的切換鈕挑一種
-          重畫，所以畫面上一次只會出現一種語言。
+          由瀏覽器端的 mermaid 從 CDN 抓取渲染——離線時會退回顯示純文字原始碼，仍然讀得懂。原始碼裡每個欄位標題都同時寫了兩種語言；上方的切換鈕挑一種重畫，所以畫面上一次只會出現一種語言。
         </p>
       </div>
 
@@ -552,27 +547,19 @@ graph LR
       <div class="lang-zh" hidden>
         <h2>唯一真正的迴路</h2>
         <p>
-          圖上其他每一支箭頭要嘛往前走，要嘛橫向流進某個儀表板。只有一條是往回走
-          的，所以它畫成紅色。一個已經鍛造、衡量、開成 PR 的變更，仍然可能收到留
-          言——<span class="name">/moria</span> 掃過所有 repo 找這些留言，
+          圖上其他每一支箭頭要嘛往前走，要嘛橫向流進某個儀表板。只有一條是往回走的，所以它畫成紅色。一個已經鍛造、衡量、開成 PR 的變更，仍然可能收到留言——<span class="name">/moria</span> 掃過所有 repo 找這些留言，
           <span class="name">/durin</span> 把範圍收斂到單一 repo，
-          <span class="name">/narvi</span> 則用程式碼回應單一則留言。那份程式碼重
-          新進入 Forge 欄位，而 <span class="name">/narvi</span> 在 push 之前會先
-          用 Mithrandir 的準則衡量自己的修補——於是這個環回到
+          <span class="name">/narvi</span> 則用程式碼回應單一則留言。那份程式碼重新進入 Forge 欄位，而 <span class="name">/narvi</span> 在 push 之前會先用 Mithrandir 的準則衡量自己的修補——於是這個環回到
           <span class="name">/mithrandir</span>，也就是它出發的地方。
         </p>
         <p class="note">
           這也是為什麼一個尚未解除的 <span class="name">/mithrandir</span>
-          Blocker 會讓 Narvi 停下、而不是硬推過去：一個會修補自己修補的迴路，沒有
-          東西攔得住它。這條紅環是整個系統裡唯一一處，skill 可以在沒有人介入的情
-          況下把工作交還給更早的階段，因此圍籬也下得特別重。
+          Blocker 會讓 Narvi 停下、而不是硬推過去：一個會修補自己修補的迴路，沒有東西攔得住它。這條紅環是整個系統裡唯一一處，skill 可以在沒有人介入的情況下把工作交還給更早的階段，因此圍籬也下得特別重。
         </p>
 
         <h2>Work Loop，以及服務它的 skill</h2>
         <p>
-          Chapter I 的八個階段大多是<i>規則</i>而非 skill——量尺、驗收條件、核可都
-          是你寫下來的東西，不是你呼叫的東西。八個階段裡只有五個真的有 skill 站在
-          裡面。把這件事講清楚，比畫一個八根輻條、其中一半是空的環要有用。
+          Chapter I 的八個階段大多是<i>規則</i>而非 skill——量尺、驗收條件、核可都是你寫下來的東西，不是你呼叫的東西。八個階段裡只有五個真的有 skill 站在裡面。把這件事講清楚，比畫一個八根輻條、其中一半是空的環要有用。
         </p>
         <table class="band">
           <tr>
@@ -644,14 +631,11 @@ graph LR
         <h2>獨行者</h2>
         <p>
           <!-- alone:zh:begin --><span class="name">/findegil</span>、<span class="name">/focus</span>、<span class="name">/imladris</span>、<span class="name">/ithildin</span>、<span class="name">/jira</span>、<span class="name">/pengolodh</span>、<span class="name">/publish-flutter</span>、<span class="name">/publish-macos</span>、<span class="name">/reset</span>、<span class="name">/scribe</span>、<span class="name">/shadowfax</span> 與 <span class="name">/working</span><!-- alone:zh:end -->
-          既不 dispatch 任何 skill，也不被任何 skill dispatch——因此邊框畫成虛線。
-          它們不是等著被接線的孤兒；每一個回應的都是這條路徑碰不到的需求。Findegil
+          既不 dispatch 任何 skill，也不被任何 skill dispatch——因此邊框畫成虛線。它們不是等著被接線的孤兒；每一個回應的都是這條路徑碰不到的需求。Findegil
           把筆記改寫成文章，Focus 顧著番茄鐘，Scribe 歸檔文件，Imladris（幽谷）把數個 repo 聚進一個空資料夾，讓同一個
           session 能跨 repo 作業，並在收工時修復或清空該資料夾；其餘的則是透過 hook
           與工具本身去碰 git、issue tracker、建置工具、筆記快取，而不經過另一個
-          skill。一個 skill 是因為需要另一個 skill 的成果才長出箭頭，而它們不需要。Erestor 的筆記裡確實提
-          過一次 <span class="name">/scribe</span>，說那是開票的其中一種途徑——但
-          「提到」不等於「呼叫」，這正是上面兩種箭頭要分開的理由。
+          skill。一個 skill 是因為需要另一個 skill 的成果才長出箭頭，而它們不需要。Erestor 的筆記裡確實提過一次 <span class="name">/scribe</span>，說那是開票的其中一種途徑——但「提到」不等於「呼叫」，這正是上面兩種箭頭要分開的理由。
         </p>
       </div>
 
@@ -756,16 +740,10 @@ graph LR
       <div class="lang-zh" hidden>
         <h2>同一張網，拿掉欄位</h2>
         <p>
-          上面那張圖強加了一種 skill 本身並不具備的順序。這裡把同樣這些 skill 放
-          開：沒有階段、沒有左到右，只有牽引與排斥。互相呼叫的會靠攏，誰都不呼叫
-          的則漂到邊緣。<b>滾輪縮放、拖曳畫布平移、拖曳節點把它拉開</b>——放手之
-          後，網會自己重新安定下來。
+          上面那張圖強加了一種 skill 本身並不具備的順序。這裡把同樣這些 skill 放開：沒有階段、沒有左到右，只有牽引與排斥。互相呼叫的會靠攏，誰都不呼叫的則漂到邊緣。<b>滾輪縮放、拖曳畫布平移、拖曳節點把它拉開</b>——放手之後，網會自己重新安定下來。
         </p>
         <p class="note">
-          這裡沒有任何新資料。這張網是直接讀上面那份 mermaid 原始碼建出來的——一
-          份邊清單、兩種畫法，所以它們不可能各說各話。顏色承載的是較粗的分帶而非
-          八個欄位，因為當任兩種顏色都可能並排出現時，八種色調無法可靠地分辨；欄
-          位本身寫在每個節點的提示上，按鈕則可以單獨標出其中一欄。
+          這裡沒有任何新資料。這張網是直接讀上面那份 mermaid 原始碼建出來的——一份邊清單、兩種畫法，所以它們不可能各說各話。顏色承載的是較粗的分帶而非八個欄位，因為當任兩種顏色都可能並排出現時，八種色調無法可靠地分辨；欄位本身寫在每個節點的提示上，按鈕則可以單獨標出其中一欄。
         </p>
       </div>
 

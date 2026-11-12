@@ -121,22 +121,18 @@
           <span class="name">/glorfindel</span>、
           <span class="name">/working</span>、
           <span class="name">/celebrimbor</span>、
-          <span class="name">/aule</span> 以及巡邏層
-          （<span class="name">/anduin</span>、
+          <span class="name">/aule</span> 以及巡邏層（<span class="name">/anduin</span>、
           <span class="name">/rhovanion</span>、
           <span class="name">/amon-sul</span>）——全都綁死在 tracker
-          上——這一章把它們全部拿掉。Forge 因此沒有替代的 skill 可用：由人
-          親自開分支、動手實作。但 Plan 並非完全空白——
+          上——這一章把它們全部拿掉。Forge 因此沒有替代的 skill 可用：由人親自開分支、動手實作。但 Plan 並非完全空白——
           <span class="name">/rumil</span>
-          直接讀規格與設計稿，不需要 ticket 也不需要 tracker，所以它留在
-          這裡，而綁死 tracker 的 <span class="name">/council</span>
+          直接讀規格與設計稿，不需要 ticket 也不需要 tracker，所以它留在這裡，而綁死 tracker 的 <span class="name">/council</span>
           留不住。沒有 tracker 可以召喚時，或整條路的形狀比哪個 skill
           驅動哪一步更重要時，就走這條路。
         </p>
 
         <p class="small" style="margin-top: 0">
-          由瀏覽器端的 mermaid 從 CDN 抓取渲染——離線時會退回顯示純文字
-          原始碼，仍然讀得懂。
+          由瀏覽器端的 mermaid 從 CDN 抓取渲染——離線時會退回顯示純文字原始碼，仍然讀得懂。
         </p>
       </div>
 
@@ -402,19 +398,13 @@ graph TD
         <ul>
           <li>
             <b>輸入與 Plan</b> — <span class="name">/rumil</span>
-            把 PRD 與 Figma 設計稿放在一起讀，把文字裡的規則跟設計稿裡的
-            畫面互相接上，把兜不攏的地方變成問題提出來、而不是悄悄自己
-            決定，並直接寫出計畫本身；<span class="name">/galadriel</span>
+            把 PRD 與 Figma 設計稿放在一起讀，把文字裡的規則跟設計稿裡的畫面互相接上，把兜不攏的地方變成問題提出來、而不是悄悄自己決定，並直接寫出計畫本身；<span class="name">/galadriel</span>
             把那份計畫檔渲染成進度鏡像。這一步的完整長文版見
             Chapter IV「The Rúmil Road」。
           </li>
           <li>
-            <b>Free-Form Gate</b> — Forge 開始之前，人會看到這件工作的
-            規模、它的 Acceptance 清單（測試或肉眼能核對的具體結果），
-            以及 Non-goals，確認過才動手。Acceptance Criteria 就活在這一
-            關——不是活在計畫文件裡，而是活在人親自把關的這一關。下面
-            Loop 裡每一步的驗證、以及 Compliance Review 的規格相符檢查，
-            兩者都是拿這裡畫下的線在核對。
+            <b>Free-Form Gate</b> — Forge 開始之前，人會看到這件工作的規模、它的 Acceptance 清單（測試或肉眼能核對的具體結果），以及 Non-goals，確認過才動手。Acceptance Criteria 就活在這一關——不是活在計畫文件裡，而是活在人親自把關的這一關。下面
+            Loop 裡每一步的驗證、以及 Compliance Review 的規格相符檢查，兩者都是拿這裡畫下的線在核對。
           </li>
           <li>
             <b>Forge</b> — 開一個分支，依計畫實作；
@@ -422,15 +412,9 @@ graph TD
             要等下面的 Implementation Loop 走完一輪才開。
           </li>
           <li>
-            <b>Implementation Loop</b> — 「依計畫實作」內部的節奏：一次
-            一個步驟，每一步疊加在已經能跑的東西上，而不是橫向切片。
-            unit test 就是在這裡寫出來的——新程式碼跟它的測試同一個步驟
-            落地，絕不是事後補。每一步的驗證同時核對測試、以及（若這步
-            驟剛好收尾了某條 Acceptance 線）那條線是否成立；測試沒過、
-            或規模已經走樣超出原本的判定，就停下來，不會硬推過去。全部
-            步驟收尾後，Compliance Review 先權衡規格是否相符——把 Gate
-            的 Acceptance 清單當成當初承諾的東西來讀——再看程式碼品質，
-            接著跑一次新鮮驗證——當輪重新跑一次靜態分析與測試——才讓
+            <b>Implementation Loop</b> — 「依計畫實作」內部的節奏：一次一個步驟，每一步疊加在已經能跑的東西上，而不是橫向切片。
+            unit test 就是在這裡寫出來的——新程式碼跟它的測試同一個步驟落地，絕不是事後補。每一步的驗證同時核對測試、以及（若這步驟剛好收尾了某條 Acceptance 線）那條線是否成立；測試沒過、或規模已經走樣超出原本的判定，就停下來，不會硬推過去。全部步驟收尾後，Compliance Review 先權衡規格是否相符——把 Gate
+            的 Acceptance 清單當成當初承諾的東西來讀——再看程式碼品質，接著跑一次新鮮驗證——當輪重新跑一次靜態分析與測試——才讓
             Loop 收尾、PR 開出。
           </li>
           <li>

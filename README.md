@@ -152,7 +152,7 @@ situation board.
 | `install.sh` | Copy installer (idempotent, safe to re-run) |
 | `handbook/` | The HTML handbook — the cover plus the nine chapters above |
 | `handbook.sh` | Open the handbook, served by the situation board — `./handbook.sh` |
-| `tests/` | Python tests for the Jira hooks and the skeleton-rung deriver; the rest ride beside their hooks as `*.test.sh` / `test_*.py` |
+| `tests/` | Python tests for the Jira hooks and the skeleton-rung deriver, plus a guard that no handbook page breaks a line inside Chinese text; the rest ride beside their hooks as `*.test.sh` / `test_*.py` |
 | `CLAUDE.stub.md` | The one-line marker left in `~/.claude/` pointing at whichever profile root holds the live config |
 
 ## Machine-local state
