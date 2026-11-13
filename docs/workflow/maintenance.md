@@ -282,3 +282,10 @@ always-loaded file carries the rule and not its defence.
 - **Cost, when trimming.** These two hooks are charged per prompt, not per
   task. A clause covering a rare branch does not belong in them; put it in the
   CLAUDE.md section instead, which is charged once per session.
+- **`orthanc-copy-reminder.sh` joined the family after a doc-only rule was
+  missed twice.** The Copyable Blocks rule named only "shell or code" blocks,
+  so a release note (prose) slipped past it, and no hook re-injected it. The
+  trigger now reads "any block the user will paste somewhere else", and the
+  hook restates it each turn. A Stop hook scanning replies for unmarked fenced
+  blocks is the next rung, held back because it would misfire on blocks shown
+  only to be read.
