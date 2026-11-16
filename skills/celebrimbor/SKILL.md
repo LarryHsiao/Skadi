@@ -189,7 +189,7 @@ When `--skeleton` is set, celebrimbor carves bones instead of forging code.
    - `redraft_skeleton` → edit via `jira-comment-edit.sh <ticket> <skeleton_id>`, then
      append `[VINYA] The skeleton is renewed — see the [SKELETON] comment above.` via
      `council-jira-comment.sh` (an in-place edit notifies no one, and the notice is
-     what marks the `[ENVINYA]` consumed). If the edit fails, stop — do not post the notice.
+     what marks the `[ENVINYA]` consumed). If the edit fails, stop — do not post the notice. A Register refusal (an error whose text holds `body grades a person's conduct`) is the exception here as in every post this skill makes: reword each sentence it names and run the hook once more first.
 8. **Release the worktree.** Report the ticket, the action taken, and the attachment.
 
 ### 1. Pre-flight resolution
@@ -369,7 +369,7 @@ printf '%s' "$BODY" | <forge-hook> <branch> <base> <title> <draft-flag>
 - `exists: forge=<f> url=<u>` — an open PR/MR for this branch already stood, so this run opened none. Treat it as success: reuse the URL for `[GWAITH]`, which a half-finished earlier run may never have posted. It carries no `number`, and this run sends no step 9d worklog entry, since no PR/MR was opened by it.
 - `skipped: forge=<f> reason=no-commits` — the smith returned `[FORGED]` yet the branch is not ahead of the base, so there is nothing to ship. Treat it as a failure: surface it plainly and go to step 10, keeping the workspace; post no `[GWAITH]`.
 
-On a JSON error surface it and go to step 10 — keep the workspace; the branch is on the remote already, the human reconciles by hand.
+On a JSON error surface it and go to step 10 — keep the workspace; the branch is on the remote already, the human reconciles by hand. The one exception is a Register refusal: an error whose text holds `body grades a person's conduct`. The hook raises it before anything is sent. Reword each sentence it names so the thing, not the person, is its subject, then run the hook once more with the new body; if that is refused too, surface it and go to step 10. A refusal comes before the hook opens the PR/MR, so none is open yet; the branch is already pushed.
 
 b. **Post `[GWAITH]`.** Build the comment body:
 
@@ -388,7 +388,7 @@ Pipe it into the council comment hook for the resolved tracker:
 printf '%s' "$GWAITH_BODY" | <comment-hook> <ticket-id>
 ```
 
-If the comment hook errors, the PR is already open — surface the error but do not roll back the PR. The user can post the link by hand.
+If the comment hook errors, the PR is already open — surface the error but do not roll back the PR. The user can post the link by hand. The one exception is a Register refusal: an error whose text holds `body grades a person's conduct`. The hook raises it before anything is sent. Reword each sentence it names so the thing, not the person, is its subject, then run the hook once more with the new body; if that is refused too, surface it and leave the PR open.
 
 c. **State transition (forged).** After `[GWAITH]` is on the ticket, look up the project's `forged` value in `state_mapping.md` (see "State transition" above). Bootstrap if missing. If the value is empty, skip silently. Otherwise:
 

@@ -91,6 +91,18 @@ blocking hook; the raw count overstates. The log is append-only and safe to
 delete. Its word list mirrors the Register bullet in
 `output-styles/tolkien-narrator.md`; change both together.
 
+**`register-check.py` guards without that evidence, knowingly.** It applies the
+same word list to a body the posting hooks are about to send (`mithrandir-*-comment`, `mithrandir-gitlab-reply`,
+`council-*-comment`, `*-comment-edit`, `forge-*`, `narvi-*-reply`) and refuses
+the post on a hit. The ladder asks for recorded misses first and there were
+none; the owner asked for the guard anyway, because a post is read by other
+people and cannot be unsaid, and a refusal costs one rewording before anything
+is sent. It has no override: a quoted word goes in quotation marks or a code
+span, anything else is reworded. `hooks/register-check-wiring.test.sh` fails
+when a poster sends a body unchecked; a poster that reads its body some new way
+must be named in that test. `scribe.sh` and `gh`/`glab` commands typed outside
+these hooks are not covered.
+
 ## Compaction thresholds
 
 The always-loaded set is CLAUDE.md plus the `@`-loaded style docs. Mind the

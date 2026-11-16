@@ -115,7 +115,7 @@
           </tr>
           <tr>
             <td><span class="name">register-scan</span></td>
-            <td>At session stop, log each conduct-grading word in the reply's own prose (<code>forgot</code>, <code>should have</code>, <code>忘了</code>, <code>早該</code> and the rest of the Register list) to <code>~/.skadi/register_log</code>; it only counts, never blocks or prints</td>
+            <td>At session stop, log each conduct-grading word in the reply's own prose (<code>forgot</code>, <code>should have</code>, <code>忘了</code>, <code>早該</code> and the rest of the Register list) to <code>~/.skadi/register_log</code>; it only counts, never blocks or prints. Separately, the posting hooks apply the same reading through <code>register-check.py</code>, which refuses a comment, PR or reply body holding one of those words before it is sent</td>
           </tr>
           <tr>
             <td><span class="name">session-readme</span></td>

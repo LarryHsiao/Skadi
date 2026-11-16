@@ -69,6 +69,8 @@ if [[ ! -s "$body_file" ]]; then
   exit 1
 fi
 
+python -I "$(dirname "$0")/register-check.py" "$body_file" reply || exit 1
+
 if [[ "$KIND" == "inline" ]]; then
   query='mutation($threadId: ID!, $body: String!) {
     addPullRequestReviewThreadReply(input: {

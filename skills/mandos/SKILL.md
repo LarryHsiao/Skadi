@@ -416,7 +416,7 @@ On success the hook prints one line:
 posted: id=... url=...
 ```
 
-On failure the hook surfaces the tracker's error verbatim and exits non-zero. Surface that error and stop. Do **not** retry.
+On failure the hook surfaces the tracker's error verbatim and exits non-zero. Surface that error and stop. Do **not** retry. The one exception is a Register refusal: an error whose text holds `body grades a person's conduct`. The hook raises it before anything is sent. Reword each sentence it names so the thing, not the person, is its subject, then run the hook once more with the new body; if that is refused too, surface the error and stop.
 
 Common failures the hook does not paper over:
 
@@ -479,7 +479,7 @@ On success the hook prints one line:
 commented: forge=<github|gitlab> url=<url> number=<n>
 ```
 
-On failure the hook surfaces the forge's error verbatim and exits non-zero. Surface that error and stop. Do **not** retry.
+On failure the hook surfaces the forge's error verbatim and exits non-zero. Surface that error and stop. Do **not** retry. The one exception is a Register refusal: an error whose text holds `body grades a person's conduct`. The hook raises it before anything is sent. Reword each sentence it names so the thing, not the person, is its subject, then run the hook once more with the new body; if that is refused too, surface the error and stop.
 
 Common failures the hook does not paper over:
 

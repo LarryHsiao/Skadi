@@ -78,6 +78,7 @@ trap 'rm -f "$body_file" "${push_log:-}" "${create_log:-}"' EXIT
 cat > "$body_file"
 
 "$(dirname "$0")/body-to-utf8.sh" "$body_file" MR || exit 1
+python -I "$(dirname "$0")/register-check.py" "$body_file" MR || exit 1
 
 # Nothing to ship yet: an MR needs at least one commit past the base.
 ahead=$(git rev-list --count "$BASE..$BRANCH")

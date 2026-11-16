@@ -397,13 +397,16 @@ step 2):
 
   Compose `$VINYA_BODY` per *The `[VINYA]` change notice* below. The edit must
   land before the notice; if the edit hook exits non-zero, surface the error and
-  stop — do **not** post the notice (it would point at an unchanged plan).
+  stop — do **not** post the notice (it would point at an unchanged plan). A
+  Register refusal is the exception named below: reword and run the edit once more first.
 
 The create/append hook prints `posted: id=<comment-id> created=<epoch-ms> url=<full-ticket-url>`;
 the edit hook prints `edited: id=<comment-id> url=<issue-url>`. On failure either
 prints `{"error":"...","response":"..."}` (the `response` field carries the
 server's actual error body). If a script exits non-zero, tell the user the error
 and stop.
+
+The one exception is a Register refusal: an error whose text holds `body grades a person's conduct`. The hook raises it before anything is sent. Reword each sentence it names so the thing, not the person, is its subject, then run the hook once more with the new body; if that is refused too, surface the error and stop.
 
 #### The `[VINYA]` change notice
 

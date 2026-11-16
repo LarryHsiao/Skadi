@@ -41,6 +41,7 @@ body_file=$(mktemp)
 trap 'rm -f "$body_file" "${payload_file:-}" "${response_file:-}"' EXIT
 printf '%s' "$body_raw" > "$body_file"
 "$(dirname "$0")/body-to-utf8.sh" "$body_file" || exit 1
+python -I "$(dirname "$0")/register-check.py" "$body_file" || exit 1
 
 payload_file=$(mktemp)
 jq -n --rawfile text "$body_file" '{text: $text}' > "$payload_file"

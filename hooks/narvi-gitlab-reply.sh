@@ -55,6 +55,8 @@ if [[ ! -s "$body_file" ]]; then
   exit 1
 fi
 
+python -I "$(dirname "$0")/register-check.py" "$body_file" reply || exit 1
+
 if ! glab api \
       "projects/$ENCODED/merge_requests/$IID/discussions/$DISCUSSION_ID/notes" \
       --method POST \

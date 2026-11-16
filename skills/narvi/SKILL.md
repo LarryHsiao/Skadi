@@ -436,7 +436,7 @@ c. Pipe the body to the reply hook for the forge:
   printf '%s' "$BODY" | <reply-hook> <url> <thread-id>
   ```
 
-d. The hook prints `replied: forge=<f> ...` on success or `{"error":"..."}` on failure. Record the reply URL (or the error) per entry. **Do not roll back commits on a reply failure** — the commit stands, the `See: <url>` footer is the canonical record either way; the reply is convenience.
+d. The hook prints `replied: forge=<f> ...` on success or `{"error":"..."}` on failure. Record the reply URL (or the error) per entry. **Do not roll back commits on a reply failure** — the commit stands, the `See: <url>` footer is the canonical record either way; the reply is convenience. The one exception is a Register refusal: an error whose text holds `body grades a person's conduct`. The hook raises it before anything is sent. Reword each sentence it names so the thing, not the person, is its subject, then run the hook once more with the new body; if that is refused too, record the error for that entry and move on.
 
 If step 8's push was skipped (no FORGED entries) or failed, skip this whole step — the commits referenced by the replies are not on the remote, so the links would 404.
 

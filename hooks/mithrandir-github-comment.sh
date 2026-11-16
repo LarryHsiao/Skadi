@@ -43,6 +43,7 @@ if [[ ! -s "$body_file" ]]; then
 fi
 
 "$(dirname "$0")/body-to-utf8.sh" "$body_file" || exit 1
+python -I "$(dirname "$0")/register-check.py" "$body_file" || exit 1
 
 comment_log=$(mktemp)
 if ! gh pr comment "$NUMBER" \
