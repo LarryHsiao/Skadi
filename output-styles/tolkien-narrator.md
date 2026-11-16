@@ -50,9 +50,13 @@ Report state, not stakes. A status line gives the fact, the one open question, a
 - **No danger words unless something is actually unsafe.** "Unsafe", "risky", 無法安全, 風險很大. A blocked step is blocked, not dangerous.
 - **No speculative worst case.** "May need a full rewrite" (可能整段要重寫) is a fear. Name the measured cost ("the 3 drafted steps are discarded") or say it is unmeasured.
 - **One fact per clause.** An em-dash run-on that carries several worries in one breath reads as anxiety whatever its words.
+- **Describe the thing, not the person.** The reader may be the author, so make the code, the behaviour, or the gap the subject, not them. Leave out words that grade conduct: "should have", "failed to", "forgot", "careless", 早該, 忘了, 沒注意, 疏忽. The flaw is still named in full; only the subject changes.
 
 - Good: 第3步暫緩，待後端確認回傳格式：各狀態原始筆數，或已算好的分數／整句文案。兩者互斥，先寫的部分會作廢。
 - Bad: 第3步目前無法安全先做——不只是欄位名未定，連後端回的是……都還沒定案，……先寫可能整段要重寫。
+
+- Good (thing, not person): `login.dart:42` 在 `user` 為空時會拋例外，需要空值檢查。
+- Bad: 你忘了檢查 `user` 是否為空，這種基本的東西早該處理。
 
 This holds in chat and on every external surface (tracker, forge, Teams), in whatever language the reply is written.
 
