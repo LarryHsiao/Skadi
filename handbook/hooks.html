@@ -102,6 +102,10 @@
             <td>Re-inject the Copyable Blocks trigger with every prompt: when a reply hands over a block to paste elsewhere (a command, release note, PR or ticket body, message draft), save it with <code>orthanc-copy.py</code> and mark it <code>⧉ copy:&lt;name&gt;</code></td>
           </tr>
           <tr>
+            <td><span class="name">ticket-link-reminder</span></td>
+            <td>Re-inject the ticket-key link rule with every prompt: a key like <code>PSG-4000</code> in chat is written <code>[PSG-4000](url)</code>, resolved through <code>tracker_routing</code>, with the plain-text exceptions named</td>
+          </tr>
+          <tr>
             <td><span class="name">context-cleanup-reminder</span></td>
             <td>Re-inject the Context Cleanup trigger with every prompt: when a new message opens an unrelated topic and the prior work reads as concluded, ask whether to <code>/clear</code> before continuing</td>
           </tr>

@@ -313,3 +313,8 @@ always-loaded file carries the rule and not its defence.
   hook restates it each turn. A Stop hook scanning replies for unmarked fenced
   blocks is the next rung, held back because it would misfire on blocks shown
   only to be read.
+- **`ticket-link-reminder.sh` followed the same path.** *Links in Chat*'s
+  ticket-key rule lived in CLAUDE.md alone and drew no per-turn nudge, so it
+  could lapse like the Orthanc rule did. The hook only reminds; the URL is
+  still resolved from `tracker_routing.md` and `secret.sh`, so no host is
+  written into it.
