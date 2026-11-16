@@ -79,6 +79,18 @@ a `pulse-rubric.json` row. For one that does not, the evidence is a counted
 recurrence in transcripts — name how many and over what span, rather than
 climbing on a feeling.
 
+**A hook may count before it guards.** When a guard is wanted but the evidence
+above is not there yet, a hook that only records misses gathers it at no cost
+to the session. `register-scan.py` is the case: the Register rule "describe the
+thing, not the person" had just been written, with no recorded miss, when the
+hook was asked for. It is a Stop hook that logs each listed word to
+`~/.skadi/register_log` and does nothing else: no output, so no tokens, and
+exit 0 always, so a false hit such as "the function should have a test" cannot
+interrupt a reply. Read the snippets in that log before promoting it to a
+blocking hook; the raw count overstates. The log is append-only and safe to
+delete. Its word list mirrors the Register bullet in
+`output-styles/tolkien-narrator.md`; change both together.
+
 ## Compaction thresholds
 
 The always-loaded set is CLAUDE.md plus the `@`-loaded style docs. Mind the

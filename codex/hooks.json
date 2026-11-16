@@ -40,7 +40,8 @@
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/grammar-counter.sh" }
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/grammar-counter.sh" },
+          { "type": "command", "command": "{{CODEX_ROOT}}/hooks/codex-hook-adapter.sh {{CODEX_ROOT}}/hooks/register-scan.py" }
         ]
       }
     ],

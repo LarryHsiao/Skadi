@@ -267,6 +267,10 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/grammar-counter.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/register-scan.py"
           }
         ]
       }
