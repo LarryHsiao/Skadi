@@ -57,6 +57,16 @@ PY
 )
 check "reminder tells the model not to mention it" "$expected_quiet" "$actual_quiet"
 
+expected_oneliner="covered:yes exempt:no"
+actual_oneliner=$(python3 - "$hook_out" <<'PY'
+import json, sys
+ctx = json.load(open(sys.argv[1], encoding="utf-8"))["hookSpecificOutput"]["additionalContext"]
+print("covered:%s exempt:%s" % ("yes" if "one-line command" in ctx else "no",
+                                "yes" if "Skip one-line commands" in ctx else "no"))
+PY
+)
+check "reminder covers one-line commands, no longer exempts them" "$expected_oneliner" "$actual_oneliner"
+
 rm -f "$hook_out"
 echo
 echo "── $pass passed, $fail failed ──"
