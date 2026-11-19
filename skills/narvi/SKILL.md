@@ -460,9 +460,22 @@ Only when at least one entry returned `[FORGED]` and step 8's push succeeded. Un
 
 The question: did a reviewer flag a defect that Mithrandir's earlier verdict on this PR should have listed and did not? If so, tell the skadi session so the user can review a proposed change to `skills/mithrandir/SKILL.md`. Narvi only proposes; it never edits Mithrandir.
 
-a. **Find the prior verdict.** Run the forge's prior-finder from `/mithrandir`'s bless-path (`~/.claude/hooks/mithrandir-github-prior.sh` or `~/.claude/hooks/mithrandir-gitlab-prior.sh`) on the URL. Empty stdout means Mithrandir never spoke on this PR, so there is nothing to miss: skip, and the report row reads `none (no prior verdict)`. Otherwise take the verdict's `To pass` rows from the step 2 array entry whose URL matches. The array lists only unresolved or not-yet-answered comments, so a verdict already resolved (a GitLab thread) or answered by an earlier Narvi run is absent. Accept that and skip with `skipped (verdict unavailable)`; do not fetch it by another route. An unattended sweep thus skips silently in that case, and the report row names it.
+a. **Find the prior verdict.** Run the forge's prior-finder from `/mithrandir`'s bless-path (`~/.claude/hooks/mithrandir-github-prior.sh` or `~/.claude/hooks/mithrandir-gitlab-prior.sh`) on the URL. Empty stdout means Mithrandir never posted on this PR; go to the saved branch verdict below. Otherwise take the verdict's `To pass` rows from the step 2 array entry whose URL matches. The array lists only unresolved or not-yet-answered comments, so a verdict already resolved (a GitLab thread) or answered by an earlier Narvi run is absent. Accept that and skip with `skipped (verdict unavailable)`; do not fetch it by another route. An unattended sweep thus skips silently in that case, and the report row names it.
 
-b. **Classify each forged comment** — the comment behind each `[FORGED]` entry — written by someone other than the verdict's author (the author of the matched array entry) and other than Narvi. Skip a comment that names no defect (a question, a taste note, praise). Compare the rest with every `To pass` row, Nits included:
+   **The saved branch verdict.** `/mithrandir branch` posts nothing on the forge, but saves its `To pass` list (its step 5b). When the prior-finder printed nothing, read it from the workspace, which stands on the PR's head branch:
+
+   ```bash
+   ~/.claude/hooks/mithrandir-verdict.sh read <workspace>
+   ```
+
+   - **Output** — line 1 is `sha: <commit the verdict weighed>`, the `To pass` rows follow. Use those rows in step b. A file with only the `sha:` line is a verdict that listed nothing; every defect a reviewer named is then a gap.
+   - **Empty output, exit 0** — no verdict was saved for this branch. Skip, and the report row reads `none (no prior verdict)`.
+   - **Exit 3** — the saved verdict's commit is no longer on the branch (it was rebased or rewritten), so the verdict weighed a different diff. Skip, and the report row reads `skipped (saved verdict stale)`.
+   - **Any other non-zero exit** — the saved file could not be read. Skip, and the report row reads `skipped (saved verdict unreadable)`.
+
+   A saved verdict is found only on the machine and profile that ran `/mithrandir branch`.
+
+b. **Classify each forged comment** — the comment behind each `[FORGED]` entry — written by someone other than the verdict's author (the author of the matched array entry; a saved branch verdict has none on the forge) and other than Narvi. Skip a comment that names no defect (a question, a taste note, praise). Compare the rest with every `To pass` row, Nits included:
    - **covered** — a row names the same flaw. Not a gap.
    - **axis-silent** — one of the thirteen axes covers the flaw's domain, yet the verdict lists nothing for it. The weighing missed what its rubric already asks for.
    - **no-axis** — no axis or conditional check covers the flaw. The rubric itself has a hole.

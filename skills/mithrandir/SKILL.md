@@ -14,7 +14,7 @@ Where Lindir reads what is written, Mithrandir weighs it. The Grey Pilgrim has w
 ## Ethos
 
 - **Judges, does not describe.** Lindir lays the picture; Mithrandir renders verdict on it. No five-section brief here — that work belongs to Lindir.
-- **Read by default; speak only when summoned.** Plain `/mithrandir <url>` is read-only. The `comment` verb writes to the forge and always asks once first; the `--fix` flag writes to the local working tree — `Nit` rows only, never committed.
+- **Read by default; speak only when summoned.** Plain `/mithrandir <url>` is read-only. The `comment` verb writes to the forge and always asks once first; the `--fix` flag writes to the local working tree — `Nit` rows only, never committed. The branch-path also saves its `To pass` list to Skadi state (step 5b), outside the repo.
 - **Audience shapes voice.** A verdict spoken before Elrond may take the lore-tongue; a verdict posted on a shared forge defaults to plain English so coworkers are not made to read fairy tales.
 - **Grounded in the diff.** When a flaw is named, the file (and a line where it serves) is named with it. No speculation untethered from the change.
 - **Counsel, not doom.** Verdicts are advisory. The tier is a weight Elrond weighs further, not a final pronouncement.
@@ -239,7 +239,19 @@ The axis weighing wants a metadata block. Compose it from local git:
 
 Run **steps 4 and 5 of the read-path** verbatim — the axis weighing and the brief render. The branch-path uses the same render shape; only the diff source differs.
 
-The `comment` verb is **not available** on the branch-path. There is no PR to comment on — the verdict renders to chat alone. If the user wants a public verdict, they must open a PR/MR first and run `/mithrandir comment <url>` against it.
+The `comment` verb is **not available** on the branch-path. There is no PR to comment on — the verdict renders to chat alone, apart from step 5b's local save. If the user wants a public verdict, they must open a PR/MR first and run `/mithrandir comment <url>` against it.
+
+### 5b. Save the `To pass` list
+
+After the render, save the rendered `## To pass` section — the reconciled one when `--verify` ran — so `/narvi`'s gap report has a verdict to compare against once the branch becomes a PR/MR:
+
+```bash
+~/.claude/hooks/mithrandir-verdict.sh save <repo-path> <<'EOF'
+<the `## To pass` section as rendered, every row with its `path:line`; empty when the section was omitted>
+EOF
+```
+
+`<repo-path>` is the `--repo` path, or `.` without it. Save even when the list is empty: an empty saved verdict tells Narvi the branch was weighed and nothing was listed. The hook stores the list with the branch's HEAD sha under the profile's state directory, keyed by origin remote and branch; it writes nothing in the repo. When it prints `skipped (no origin remote)` or `skipped (detached HEAD)`, or exits non-zero, carry on — the save is never a reason to stop.
 
 ### 6. Fix the Nits (only with `--fix`)
 
@@ -613,7 +625,7 @@ One short block:
 - Read-path is silent on writes — it only fetches and renders.
 - `--fix` is the one local write: branch-path only, `Nit` rows only, uncommitted, and never on a `(contested)` row or a file already bearing uncommitted changes. It implies `--verify`, and it refuses `--no-verify` and every URL path.
 - Write-path and bless-path always ask once. No opt-out flag in v1; the gate is unconditional.
-- Branch-path is local-only: no URL, no `comment`, no `bless`, no forge write. If the user wants public counsel on a branch, they must open a PR/MR first and run `comment` (or later `bless`) against the URL.
+- Branch-path is local-only: no URL, no `comment`, no `bless`, no forge write. Its one write outside chat is the saved `To pass` list (step 5b), kept in Skadi state, not in the repo. If the user wants public counsel on a branch, they must open a PR/MR first and run `comment` (or later `bless`) against the URL.
 - Branch-path refuses to ride on the default branch (`master` / `main` / the resolved base). When the current branch *is* the base, there is nothing to review — stop and say so.
 - One verdict per axis; one tier overall; one paragraph of reasoning. No bullet swarms.
 - Grounded in the diff — when a flaw is named, name the file (and line where it serves).
