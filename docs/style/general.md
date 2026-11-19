@@ -71,11 +71,14 @@ A string whose wording depends on a count — a verb, a noun, an article that ch
 
   ```
   {count, plural,
-    one {There is # unregistered offline data item.}
-    other {There are # unregistered offline data items.}
+    one {There is {count} unregistered offline data item.}
+    other {There are {count} unregistered offline data items.}
   }
   ```
+- **Name the count inside each branch; do not rely on `#`.** `#` is standard ICU, but Flutter's `gen_l10n` (3.35.7) leaves it as literal text in the generated string ("In # days"), so write the named placeholder (`{count}`) in every branch. Check the generated output once, not the ARB alone.
 - **A decorative count needs no plural block.** A badge or counter showing a bare number next to fixed text (no verb or noun agreement in play) is a formatted number, not a plural — leave it as a plain interpolation.
+- **A language with one plural form needs no plural block.** Chinese, Japanese and Korean carry one form, so a plain `{count}` reads right there; English and Spanish need `one`/`other`; Russian, Polish, Arabic and others need more categories. The template language may carry `other` alone.
+- **No ASCII apostrophe in a message.** ICU reads `'` as an escape character; write the typographic `’` (U+2019).
 - **Applies at string authorship, wherever it happens.** Whether the key is written by hand, generated, or drafted by a model translating a spec into copy, the same-count-dependent-wording test governs before the string reaches Tolgee (`docs/tools/tolgee.md`) or any other translation layer.
 
 ## Lists
