@@ -276,7 +276,10 @@ Changes: &lt;files and intent, one line&gt;</pre>
             </li>
             <li>
               <b>Code quality</b> — reads true against the style/tool guides and
-              local convention.
+              local convention. A feature that shows remote data is held to
+              <code>docs/style/layered.md</code>: UI → Data ← Web API
+              integration, with Data declaring the interfaces the other two
+              meet, so neither the UI nor Data imports the web API layer.
             </li>
           </ul>
           Three checks ride along when the change earns them, and each is easily
