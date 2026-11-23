@@ -20,6 +20,9 @@ ENV_FILE_FLAG = re.compile(r"--dart-define-from-file[= ]\s*([^\s'\"\\]+)")
 TARGET_FLAG = re.compile(r"(?:\s-t|--target)[= ]\s*([^\s'\"\\]+\.dart)")
 PLATFORM_HEADINGS = ("Android toolchain", "Android Studio", "Xcode", "Chrome", "Visual Studio", "Linux toolchain")
 LISTED_NAMES_SHOWN = 3
+DEFAULT_ARB_DIR = "lib/l10n"
+DEFAULT_L10N_FILE = "app_localizations.dart"
+SYNTHETIC_L10N_DIR = ".dart_tool/flutter_gen/gen_l10n"
 DYNAMIC_PATH = re.compile(r"[$%`{]")
 OFFLINE = re.compile(r"Failed host lookup|SocketException|Could not resolve host|No address associated|Network is unreachable", re.IGNORECASE)
 PUB_CAUSE = re.compile(r"^(Because |version solving|Error |Git error|fatal:|Could not )")
@@ -281,24 +284,41 @@ def stale_generated(root):
     return stale
 
 
+def l10n_setting(config, key, default):
+    match = re.search(rf"^{key}:[ \t]*['\"]?([^\s'\"#]+)", config, re.MULTILINE)
+    return match.group(1) if match else default
+
+
 def stale_l10n(root):
+    """True when an .arb is newer than the generated localizations; None when there is no l10n.yaml.
+
+    Flutter writes the output to output-dir, else beside the .arb files. Without an output-dir the
+    deprecated synthetic-package folder is read as well and the two are pooled, so a fresh leftover
+    there can hide a stale output. Only files shaped like Flutter's own (`stem.dart`,
+    `stem_<locale>.dart`) count, so a hand-written neighbour with the same prefix does not.
+    """
     config = read_text(Path(root) / "l10n.yaml")
     if not config:
         return None
-    arb = re.search(r"^arb-dir:\s*(\S+)", config, re.MULTILINE)
-    out = re.search(r"^output-dir:\s*(\S+)", config, re.MULTILINE)
-    sources = list((Path(root) / (arb.group(1) if arb else "lib/l10n")).glob("*.arb"))
-    outputs = [p for p in (Path(root) / (out.group(1) if out else ".dart_tool/flutter_gen/gen_l10n")).glob("*.dart")]
-    newest_source = max((p.stat().st_mtime for p in sources), default=0)
+    arb_dir = Path(root) / l10n_setting(config, "arb-dir", DEFAULT_ARB_DIR)
+    explicit = l10n_setting(config, "output-dir", "")
+    folders = [Path(root) / explicit] if explicit else [arb_dir, Path(root) / SYNTHETIC_L10N_DIR]
+    stem = Path(l10n_setting(config, "output-localization-file", DEFAULT_L10N_FILE)).stem
+    shape = re.compile(rf"{re.escape(stem)}(?:_[a-z]{{2,3}}(?:_[A-Za-z0-9]{{2,8}})*)?\.dart")
+    outputs = [p for folder in folders for p in folder.glob(f"{stem}*.dart") if shape.fullmatch(p.name)]
+    newest_source = max((p.stat().st_mtime for p in arb_dir.glob("*.arb")), default=0)
     return newest_source > max((p.stat().st_mtime for p in outputs), default=0)
 
 
 def codegen_rows(root):
     stale, l10n = stale_generated(root), stale_l10n(root)
+    rows = []
     if stale:
-        return [Finding(WARN, "codegen", f"{len(stale)} generated file(s) older than source: {listed(stale)} (run build_runner)")]
+        rows.append(Finding(WARN, "codegen", f"{len(stale)} generated file(s) older than source: {listed(stale)} (run build_runner)"))
     if l10n:
-        return [Finding(WARN, "codegen", "l10n output older than the .arb files (run flutter gen-l10n)")]
+        rows.append(Finding(WARN, "codegen", "l10n output older than the .arb files (run flutter gen-l10n)"))
+    if rows:
+        return rows
     has_generated = any(p.name.endswith(GENERATED_SUFFIXES) for p in (Path(root) / "lib").rglob("*.dart"))
     return [Finding(PASS, "codegen", "generated files current")] if (has_generated or l10n is not None) else []
 

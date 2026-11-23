@@ -259,6 +259,69 @@ class CodegenTest(Workdir):
         os.utime(self.root / ".dart_tool/flutter_gen/gen_l10n/app_localizations.dart", (old, old))
         self.assertEqual([(WARN, "codegen")], statuses(flutter.codegen_rows(self.root)))
 
+    def l10n(self, config, outputs, outputs_newer):
+        """An .arb at t0 and the named output files either a week newer or a week older."""
+        write(self.root, "l10n.yaml", config)
+        write(self.root, "lib/l10n/intl_zh.arb", "{}")
+        t0 = (self.root / "lib/l10n/intl_zh.arb").stat().st_mtime
+        for rel in outputs:
+            write(self.root, rel, "x")
+            at = t0 + 604800 if outputs_newer else t0 - 604800
+            os.utime(self.root / rel, (at, at))
+
+    def test_outputs_next_to_the_arb_files_are_current_when_newer(self):
+        self.l10n("arb-dir: lib/l10n\n", ["lib/l10n/app_localizations.dart", "lib/l10n/app_localizations_zh.dart"], True)
+        self.assertEqual([(PASS, "codegen")], statuses(flutter.codegen_rows(self.root)))
+
+    def test_outputs_next_to_the_arb_files_warn_when_older(self):
+        self.l10n("arb-dir: lib/l10n\n", ["lib/l10n/app_localizations.dart"], False)
+        self.assertEqual([(WARN, "codegen")], statuses(flutter.codegen_rows(self.root)))
+
+    def test_explicit_output_dir_is_the_one_consulted(self):
+        self.l10n("arb-dir: lib/l10n\noutput-dir: lib/gen\n", ["lib/gen/app_localizations.dart"], True)
+        self.assertEqual([(PASS, "codegen")], statuses(flutter.codegen_rows(self.root)))
+
+    def test_custom_output_file_name_decides_which_files_count(self):
+        self.l10n("arb-dir: lib/l10n\noutput-localization-file: strings.dart\n", ["lib/l10n/strings.dart"], False)
+        write(self.root, "lib/l10n/helper.dart", "hand written")
+        future = (self.root / "lib/l10n/intl_zh.arb").stat().st_mtime + 604800
+        os.utime(self.root / "lib/l10n/helper.dart", (future, future))
+        self.assertEqual([(WARN, "codegen")], statuses(flutter.codegen_rows(self.root)))
+
+    def test_empty_output_dir_value_does_not_swallow_the_next_key(self):
+        self.l10n("output-dir:\narb-dir: lib/l10n\n", ["lib/l10n/app_localizations.dart"], True)
+        self.assertEqual([(PASS, "codegen")], statuses(flutter.codegen_rows(self.root)))
+
+    def test_hand_written_file_sharing_the_prefix_does_not_mask_a_stale_output(self):
+        self.l10n("arb-dir: lib/l10n\n", ["lib/l10n/app_localizations.dart"], False)
+        write(self.root, "lib/l10n/app_localizations_extra_helper.dart", "hand written")
+        future = (self.root / "lib/l10n/intl_zh.arb").stat().st_mtime + 604800
+        os.utime(self.root / "lib/l10n/app_localizations_extra_helper.dart", (future, future))
+        self.assertEqual([(WARN, "codegen")], statuses(flutter.codegen_rows(self.root)))
+
+    def test_region_tagged_locale_output_counts_as_generated(self):
+        self.l10n("arb-dir: lib/l10n\n", ["lib/l10n/app_localizations_zh_TW.dart"], True)
+        self.assertEqual([(PASS, "codegen")], statuses(flutter.codegen_rows(self.root)))
+
+    def test_older_synthetic_package_location_is_still_read(self):
+        self.l10n("arb-dir: lib/l10n\n", [".dart_tool/flutter_gen/gen_l10n/app_localizations.dart"], True)
+        self.assertEqual([(PASS, "codegen")], statuses(flutter.codegen_rows(self.root)))
+
+    def test_quoted_directory_value_is_read(self):
+        self.l10n('arb-dir: "lib/l10n"\n', ["lib/l10n/app_localizations.dart"], True)
+        self.assertEqual([(PASS, "codegen")], statuses(flutter.codegen_rows(self.root)))
+
+    def test_stale_source_and_stale_l10n_are_each_reported(self):
+        self.l10n("arb-dir: lib/l10n\n", ["lib/l10n/app_localizations.dart"], False)
+        write(self.root, "lib/user.g.dart", "g")
+        write(self.root, "lib/user.dart", "s")
+        old = (self.root / "lib/user.dart").stat().st_mtime - 100
+        os.utime(self.root / "lib/user.g.dart", (old, old))
+        rows = flutter.codegen_rows(self.root)
+        self.assertEqual([(WARN, "codegen"), (WARN, "codegen")], statuses(rows))
+        self.assertIn("generated file(s) older than source", rows[0].text)
+        self.assertIn("l10n output older", rows[1].text)
+
     def test_project_with_no_generated_files_yields_no_row(self):
         write(self.root, "lib/main.dart", "x")
         self.assertEqual([], flutter.codegen_rows(self.root))

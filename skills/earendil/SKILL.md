@@ -76,7 +76,13 @@ Say these when they bear on the answer, rather than reporting a clean row as pro
   observed. The graph is one global stamp: a partial or filtered build that rewrites
   it hides an older stale source. A quiet miss was accepted over the false warnings
   it removes.
-  l10n has no such stamp and may warn when `flutter gen-l10n` rewrote nothing.
+- **The l10n check** compares the `.arb` files with the generated localizations named by
+  `output-localization-file` (`app_localizations.dart` and `app_localizations_<locale>.dart`
+  by default). They are read from `output-dir` when set; otherwise from beside the `.arb`
+  files (the current Flutter default) and from `.dart_tool/flutter_gen/gen_l10n` (older
+  Flutter) pooled, so a fresh leftover in the old folder can hide a stale output. It has
+  no build stamp, so it may warn when `flutter gen-l10n` rewrote nothing. A stale source
+  file and a stale l10n output each get their own row.
 - **Obfuscation is a heuristic.** `--obfuscate` lives in the build command, so the
   row searches `Makefile`, CI files, `fastlane/` and `scripts/`. `⚠️` means
   "not found there", not "absent" — a flag typed by hand is invisible.
