@@ -123,6 +123,20 @@ class DepsTest(Workdir):
         self.pubspec("  acme_ui:\n    git:\n      url: https://example.com/a.git\n      ref: v1.2.0\n")
         self.assertEqual([(PASS, "deps")], statuses(flutter.deps_rows(self.root, "flutter", commands=False)))
 
+    def test_git_dependency_with_a_path_subfolder_is_not_a_path_dependency(self):
+        self.pubspec("  acme_ui:\n    git:\n      url: https://example.com/a.git\n      path: packages/acme_ui\n      ref: v1.2.0\n")
+        self.assertEqual([(PASS, "deps")], statuses(flutter.deps_rows(self.root, "flutter", commands=False)))
+
+    def test_git_dependency_with_a_path_subfolder_but_no_ref_still_warns_once(self):
+        self.pubspec("  acme_ui:\n    git:\n      url: https://example.com/a.git\n      path: packages/acme_ui\n")
+        rows = flutter.deps_rows(self.root, "flutter", commands=False)
+        self.assertEqual([(WARN, "deps")], statuses(rows))
+        self.assertIn("no ref", rows[0].text)
+
+    def test_path_dependency_with_an_unusual_child_indent_still_warns(self):
+        self.pubspec("  acme_ui:\n   path: ../acme_ui\n")
+        self.assertEqual([(WARN, "deps")], statuses(flutter.deps_rows(self.root, "flutter", commands=False)))
+
     def test_path_dependency_warns(self):
         self.pubspec("  acme_ui:\n    path: ../acme_ui\n")
         self.assertEqual([(WARN, "deps")], statuses(flutter.deps_rows(self.root, "flutter", commands=False)))
@@ -185,6 +199,24 @@ class CodegenTest(Workdir):
         write(self.root, "lib/user.dart", "s")
         old = (self.root / "lib/user.g.dart").stat().st_mtime - 100
         os.utime(self.root / "lib/user.g.dart", (old, old))
+        self.assertEqual([(WARN, "codegen")], statuses(flutter.codegen_rows(self.root)))
+
+    def test_unchanged_output_is_current_when_build_runner_ran_after_the_source_edit(self):
+        write(self.root, "lib/user.g.dart", "g")
+        write(self.root, "lib/user.dart", "s")
+        write(self.root, ".dart_tool/build/abc123/asset_graph.json", "{}")
+        source = (self.root / "lib/user.dart").stat().st_mtime
+        os.utime(self.root / "lib/user.g.dart", (source - 100, source - 100))
+        os.utime(self.root / ".dart_tool/build/abc123/asset_graph.json", (source + 100, source + 100))
+        self.assertEqual([(PASS, "codegen")], statuses(flutter.codegen_rows(self.root)))
+
+    def test_source_edited_after_build_runner_last_ran_still_warns(self):
+        write(self.root, "lib/user.g.dart", "g")
+        write(self.root, "lib/user.dart", "s")
+        write(self.root, ".dart_tool/build/abc123/asset_graph.json", "{}")
+        source = (self.root / "lib/user.dart").stat().st_mtime
+        os.utime(self.root / "lib/user.g.dart", (source - 100, source - 100))
+        os.utime(self.root / ".dart_tool/build/abc123/asset_graph.json", (source - 50, source - 50))
         self.assertEqual([(WARN, "codegen")], statuses(flutter.codegen_rows(self.root)))
 
     def test_generated_file_newer_than_its_source_passes(self):

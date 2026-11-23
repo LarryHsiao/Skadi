@@ -68,6 +68,13 @@ Say these when they bear on the answer, rather than reporting a clean row as pro
 
 - **Gradle is read as text, not run.** A value computed in a script, or set per
   flavor, reads as unknown. `.xcconfig` build settings are not read either.
+- **Codegen staleness is an mtime comparison.** build_runner leaves an unchanged
+  output untouched, so the row also counts a source no newer than the newest
+  `.dart_tool/build/*/asset_graph.json` as built. That rule is an inference about
+  build_runner, not yet observed on a real project, and it is global: any build that
+  rewrites a graph (a partial or filtered one, or a leftover directory) hides an
+  older stale source. A quiet miss was accepted over the false warnings it removes.
+  l10n has no such stamp and may warn when `flutter gen-l10n` rewrote nothing.
 - **Obfuscation is a heuristic.** `--obfuscate` lives in the build command, so the
   row searches `Makefile`, CI files, `fastlane/` and `scripts/`. `⚠️` means
   "not found there", not "absent" — a flag typed by hand is invisible.

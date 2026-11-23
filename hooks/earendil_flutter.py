@@ -160,12 +160,21 @@ def dependency_blocks(root):
     return blocks
 
 
+def child_indent(block):
+    """Indent of a dependency block's first nested line, so git:/path: match at the block's own level."""
+    for line in block.splitlines()[1:]:
+        if line.strip():
+            return len(line) - len(line.lstrip(" "))
+    return 0
+
+
 def dependency_source_rows(root):
     rows, pubspec = [], Path(root) / "pubspec.yaml"
     for name, number, block in dependency_blocks(root):
-        if re.search(r"^\s+git:", block, re.MULTILINE) and "ref:" not in block:
+        pad = " " * child_indent(block)
+        if re.search(rf"^{pad}git:", block, re.MULTILINE) and "ref:" not in block:
             rows.append(Finding(WARN, "deps", f"git dependency `{name}` has no ref (follows the branch head)", anchor(root, pubspec, number)))
-        if re.search(r"^\s+path:", block, re.MULTILINE):
+        if re.search(rf"^{pad}path:", block, re.MULTILINE):
             rows.append(Finding(WARN, "deps", f"path dependency `{name}` is absent on other machines and CI", anchor(root, pubspec, number)))
     return rows
 
@@ -254,12 +263,19 @@ def assets_rows(root):
     return rows
 
 
+def build_runner_stamp(root):
+    """Newest build_runner asset-graph write; it leaves unchanged outputs untouched, so a source
+    older than this was built even when its generated file looks older still."""
+    graphs = (Path(root) / ".dart_tool" / "build").glob("*/asset_graph.json")
+    return max((graph.stat().st_mtime for graph in graphs), default=0)
+
+
 def stale_generated(root):
-    stale = []
+    stale, stamp = [], build_runner_stamp(root)
     for path in sorted((Path(root) / "lib").rglob("*.dart")):
         suffix = next((s for s in GENERATED_SUFFIXES if path.name.endswith(s)), "")
         source = path.with_name(path.name[: -len(suffix)] + ".dart") if suffix else None
-        if source and source.exists() and source.stat().st_mtime > path.stat().st_mtime:
+        if source and source.exists() and source.stat().st_mtime > max(path.stat().st_mtime, stamp):
             stale.append(path.relative_to(root).as_posix())
     return stale
 
