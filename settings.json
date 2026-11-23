@@ -148,6 +148,7 @@
       "Bash(~/.claude/hooks/ithildin-clips.py:*)",
       "Bash(~/.claude/hooks/orthanc-copy.py:*)",
       "Bash(~/.claude/hooks/flutter-daemon.sh:*)",
+      "Bash(~/.claude/hooks/earendil.py:*)",
       "Bash(~/.claude/hooks/publish-dsym.sh:*)",
       "Bash(~/.claude/hooks/shadowfax-toolchain.sh:*)",
       "Bash(~/.claude/hooks/vilya.sh:*)",
