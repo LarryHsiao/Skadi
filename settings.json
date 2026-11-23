@@ -272,6 +272,10 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/register-scan.py"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/orthanc-copy-scan.py"
           }
         ]
       }
