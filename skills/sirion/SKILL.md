@@ -85,7 +85,7 @@ Invoke `/mithrandir branch` via the Skill tool. Hold its verdict (Merge / Hold /
 | `blockers` | Blocker only |
 | `none` | none — skip to step 6 |
 
-Fix each selected row in the working tree, reading the cited `file:line` first. When a row cannot be fixed without a decision only the user can make, leave it and name it in the report. Run the project's static analysis once after the fixes (whatever `/argonath`'s detection names, or the repo's own lint command); on a failure, mend it and re-run once; if it still fails, stop per *Rules*. Then invoke `/commit` once for all the mends. No re-review — `/celebrant`'s `/argonath` gate weighs the result.
+Fix each selected row in the working tree, reading the cited `file:line` first. When the row carries a `Fix:` line, follow that route; if reading the cited line shows the route will not work, leave the row and name the reason in the report instead of improvising a different edit. When a row cannot be fixed without a decision only the user can make — a `Fix:` line that offers options or admits the route is unclear is one — leave it and name it in the report. Run the project's static analysis once after the fixes (whatever `/argonath`'s detection names, or the repo's own lint command); on a failure, mend it and re-run once; if it still fails, stop per *Rules*. Then invoke `/commit` once for all the mends. No re-review — `/celebrant`'s `/argonath` gate weighs the result.
 
 ### 6. Push
 
