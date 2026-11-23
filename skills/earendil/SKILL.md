@@ -105,6 +105,12 @@ Say these when they bear on the answer, rather than reporting a clean row as pro
   from a Flutter project root.
 - **Multiple app targets** (extensions): iOS settings come from the first non-test
   app target's Release configuration.
+- **A WebView's page content is invisible.** The iOS `plist` row checks usage strings
+  only for the eight plugins in its table. An app that loads a page through
+  `webview_flutter` (or `webview_flutter_wkwebview`) may need a camera or microphone
+  usage string depending on what that page asks for, and the check cannot see the
+  page. Found on a real app; the row reads `➖` there, and `➖` means "not checked",
+  not "clean".
 
 ## Judgment
 
