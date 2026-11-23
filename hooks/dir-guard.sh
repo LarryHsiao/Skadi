@@ -52,6 +52,33 @@ for _d in "${_RAW_DEV_DIRS[@]}"; do
   DEV_DIRS+=("$(normalize "$_d")")
 done
 
+# The memory repo this machine's /remember writes to. Its location is the one
+# line of ~/.skadi/memory-repo.md, so no repo name is written into settings.json
+# and a machine keeps its repo wherever it likes. Prints the normalized path, or
+# nothing when the pointer is absent, blank, relative, names no directory, or
+# names a directory too broad to be one repo: `/`, $HOME, or an ancestor of it.
+memory_root() {
+  local pointer="$HOME/.skadi/memory-repo.md" line root
+  [ -f "$pointer" ] || return 0
+  line=$(head -n 1 "$pointer")
+  line="${line//$'\r'/}"
+  line="${line#"${line%%[![:space:]]*}"}"
+  line="${line%"${line##*[![:space:]]}"}"
+  line="${line/#\~/$HOME}"
+  case "$line" in
+    /* | [A-Za-z]:[/\\]*) ;;
+    *) return 0 ;;
+  esac
+  [ -d "$line" ] || return 0
+  root=$(normalize "$line")
+  [ "$root" = / ] && return 0
+  case "$HOME_DIR/" in
+    "$root"/*) return 0 ;;
+  esac
+  printf '%s\n' "$root"
+}
+MEMORY_ROOT=$(memory_root)
+
 # Directories admitted whole — the root itself, or anything beneath it. Every
 # entry obeys the same two-pattern rule, so they share one loop below rather
 # than each spelling its own `X|X/*` case arm; the CLAUDE_DEV_DIRS entries join
@@ -83,6 +110,8 @@ ALLOWED_ROOTS=(
   "$TMPDIR_RAW"
   "${DEV_DIRS[@]}"
 )
+# Appended only when set: an empty entry would match every absolute path.
+[ -n "$MEMORY_ROOT" ] && ALLOWED_ROOTS+=("$MEMORY_ROOT")
 
 # Returns 0 if path is under project dir, an agent config root, .skadi, /tmp, or any dev dir
 in_allowed_dir() {

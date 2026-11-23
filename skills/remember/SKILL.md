@@ -22,7 +22,7 @@ are per-machine detail, never hardcoded here.
 
 ## Workflow
 
-### Step 0: Resolve the knowledge-base root, and check whether this session is rooted there
+### Step 0: Resolve the knowledge-base root, and check whether this session may write there
 
 Before anything else, resolve the absolute path to the knowledge-base repo —
 the same pointer file the Memory Bootstrap rule in CLAUDE.md uses, so the two
@@ -40,7 +40,7 @@ recorded (mirrors CLAUDE.md's Memory Bootstrap). Confirm the resolved path
 exists (`test -d "$MEMORY_REPO_ROOT"`); if it does not, tell the user plainly
 and stop — do not write the note into the cwd.
 
-**Then check the session's own root against it:**
+**Then check whether this session may write to it:**
 
 ```bash
 SESSION_ROOT=$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" 2>/dev/null && pwd)
@@ -49,16 +49,23 @@ SESSION_ROOT=$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" 2>/dev/null && pwd)
 - **If `$SESSION_ROOT` is `$MEMORY_REPO_ROOT` or nested under it** — proceed with
   Steps 1–5 below exactly as written; every file and git operation targets
   `$MEMORY_REPO_ROOT`.
-- **Otherwise** — this session is rooted outside the knowledge-base repo, so a
-  direct write is `dir-guard.sh`'s to refuse, and `protected-repo-guard.sh`
-  names the channel to route through instead. Skip straight to **Step 0b**
-  below instead of Steps 1, 4, and 5.
+- **If `$MEMORY_REPO_ROOT` is the directory `~/.skadi/memory-repo.md` names**
+  (the file's first line, trimmed and with a leading `~` expanded; compare
+  `cd <path> && pwd -P` for each side) — proceed with Steps 1–5 from here,
+  whatever the session's cwd. `dir-guard.sh`
+  admits exactly that directory, so the pointer file is what makes the repo
+  writable from any session. A `MEMORY_REPO_ROOT` override that points
+  elsewhere is not covered by it.
+- **Otherwise** — the session is rooted outside the repo and the guard would
+  refuse a direct write, and `protected-repo-guard.sh` names the channel to
+  route through instead. Skip straight to **Step 0b** below instead of Steps
+  1, 4, and 5.
 
 All paths named below (`work/…`, `personal/…`) are **relative to
 `$MEMORY_REPO_ROOT`**. Read, write, and commit against the absolute path;
 never against the working directory the session happens to sit in.
 
-### Step 0b: Redirect through /handoff (only when outside the knowledge-base repo)
+### Step 0b: Redirect through /handoff (only when Step 0 found no write access)
 
 Still run **Step 2 (category)** and **Step 3 (sub-category)** below to shape the
 note correctly — that judgment doesn't need the repo's tree, only the user's
@@ -82,9 +89,9 @@ repo to:
 printf '%s' "<composed note>" | ~/.claude/hooks/handoff.sh send memory
 ```
 
-Tell the user plainly: *"Not rooted in the knowledge-base repo — queued this
-note on the `memory` handoff channel instead of writing directly. Open a
-session there and run `/handoff read memory` to file it."* Do not proceed to
+Tell the user plainly: *"No write access to the knowledge-base repo from here —
+queued this note on the `memory` handoff channel instead of writing directly.
+Open a session there and run `/handoff read memory` to file it."* Do not proceed to
 Steps 4–5.
 
 ### Step 1: Check for Duplicates
@@ -200,7 +207,8 @@ options:
 ```
 
 - If **Save**: run the git steps against the knowledge-base repo, not the cwd —
-  `git -C "$MEMORY_REPO_ROOT" add <relative-path> && git -C "$MEMORY_REPO_ROOT" commit -m "Add note: <filename>" && git -C "$MEMORY_REPO_ROOT" push`
+  `git -C "$MEMORY_REPO_ROOT" add <relative-path> && git -C "$MEMORY_REPO_ROOT" commit -m "Add note: <filename>" && git -C "$MEMORY_REPO_ROOT" pull --rebase && git -C "$MEMORY_REPO_ROOT" push`
+  — the `pull --rebase` keeps two sessions saving at once from colliding.
 - If **Discard**: delete the file and notify the user.
 
 ## Rules

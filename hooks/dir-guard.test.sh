@@ -26,9 +26,9 @@ check() { # desc expected actual
 # command, and reports whether the result denies.
 run_cmd() { # command
   local decision
-  decision=$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" \
+  decision=$(cd "${GUARD_DIR:-$REPO}" && \
     printf '{"tool_input":{"command":%s}}' "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1")" \
-    | CLAUDE_PROJECT_DIR="$REPO" "$HOOK_BASH" "$HOOK" \
+    | HOME="${GUARD_HOME:-$HOME}" CLAUDE_PROJECT_DIR="${GUARD_DIR:-$REPO}" "$HOOK_BASH" "$HOOK" \
     | python3 -c "
 import json, sys
 raw = sys.stdin.read()
@@ -292,6 +292,32 @@ check "Write file_path inside CLAUDE_DEV_DIRS whitelist is allowed" "allow" "$(r
 # as write-protected as any other outside path. Widening what a command may
 # *reference* must never widen what a tool may *overwrite* ──
 check "Write file_path under a system bin dir is still denied" "deny" "$(run_write "/opt/homebrew/bin/glab")"
+
+# ── the memory repo named in ~/.skadi/memory-repo.md is admitted whole ──
+# Each case runs under a throwaway HOME and project so the real pointer cannot
+# leak in.
+# /etc stands in for the memory repo: it exists on every host and no other rule
+# admits it.
+MEM_HOME="$(mktemp -d)"
+trap 'rm -rf "$MEM_HOME"' EXIT
+mkdir -p "$MEM_HOME/.skadi" "$MEM_HOME/project"
+
+run_with_pointer() { # pointer-file-content command
+  if [[ -n "$1" ]]; then printf '%s' "$1" >"$MEM_HOME/.skadi/memory-repo.md"
+  else rm -f "$MEM_HOME/.skadi/memory-repo.md"; fi
+  GUARD_HOME="$MEM_HOME" GUARD_DIR="$MEM_HOME/project" run_cmd "$2"
+}
+
+check "a path under the pointer's directory is allowed" "allow" "$(run_with_pointer "/etc" "touch /etc/zz-note.md")"
+check "a pointer with a trailing newline is read the same" "allow" "$(run_with_pointer "/etc
+" "touch /etc/zz-note.md")"
+check "a pointer with CRLF line endings is read the same" "allow" "$(run_with_pointer $'/etc\r\n' "touch /etc/zz-note.md")"
+check "a path outside the pointer's directory is still denied" "deny" "$(run_with_pointer "/etc" "touch /opt/zz-note.md")"
+check "no pointer file admits nothing extra" "deny" "$(run_with_pointer "" "touch /etc/zz-note.md")"
+check "an empty pointer file admits nothing extra" "deny" "$(run_with_pointer " " "touch /etc/zz-note.md")"
+check "a relative pointer admits nothing" "deny" "$(run_with_pointer "etc" "touch /etc/zz-note.md")"
+check "a pointer to / admits nothing" "deny" "$(run_with_pointer "/" "touch /opt/zz-note.md")"
+check "a pointer to a missing directory admits nothing" "deny" "$(run_with_pointer "/zz-no-such-dir" "touch /zz-no-such-dir/note.md")"
 
 echo ""
 echo "── $pass passed, $fail failed ──"
