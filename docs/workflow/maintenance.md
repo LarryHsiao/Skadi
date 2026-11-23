@@ -310,9 +310,13 @@ always-loaded file carries the rule and not its defence.
   missed twice.** The Copyable Blocks rule named only "shell or code" blocks,
   so a release note (prose) slipped past it, and no hook re-injected it. The
   trigger now reads "any block the user will paste somewhere else", and the
-  hook restates it each turn. A Stop hook scanning replies for unmarked fenced
-  blocks is the next rung, held back because it would misfire on blocks shown
-  only to be read.
+  hook restates it each turn. The next rung, `orthanc-copy-scan.py`, is a Stop
+  hook that blocks a reply whose shell or markdown fence lacks a working
+  marker; it was added once the user reported the marker missing again. It
+  still misfires on a shell fence shown only to be read, an accepted cost of
+  one marker line. Untagged fences are exempt because the gate and Done blocks
+  use them. It is registered for Claude only; Codex's adapter handling of a
+  block decision is unverified.
 - **`ticket-link-reminder.sh` followed the same path.** *Links in Chat*'s
   ticket-key rule lived in CLAUDE.md alone and drew no per-turn nudge, so it
   could lapse like the Orthanc rule did. The hook only reminds; the URL is
