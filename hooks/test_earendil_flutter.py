@@ -210,6 +210,31 @@ class CodegenTest(Workdir):
         os.utime(self.root / ".dart_tool/build/abc123/asset_graph.json", (source + 100, source + 100))
         self.assertEqual([(PASS, "codegen")], statuses(flutter.codegen_rows(self.root)))
 
+    def test_graph_directly_under_dart_tool_build_counts_as_a_build(self):
+        write(self.root, "lib/user.g.dart", "g")
+        write(self.root, "lib/user.dart", "s")
+        write(self.root, ".dart_tool/build/asset_graph.json", "{}")
+        source = (self.root / "lib/user.dart").stat().st_mtime
+        os.utime(self.root / "lib/user.g.dart", (source - 100, source - 100))
+        os.utime(self.root / ".dart_tool/build/asset_graph.json", (source + 100, source + 100))
+        self.assertEqual([(PASS, "codegen")], statuses(flutter.codegen_rows(self.root)))
+
+    def test_only_the_source_edited_after_the_last_build_is_named(self):
+        for name in ("old", "fresh"):
+            write(self.root, f"lib/{name}.g.dart", "g")
+            write(self.root, f"lib/{name}.dart", "s")
+        write(self.root, ".dart_tool/build/asset_graph.json", "{}")
+        base = (self.root / "lib/old.dart").stat().st_mtime
+        for name, source_at in (("old", base - 50), ("fresh", base + 50)):
+            os.utime(self.root / f"lib/{name}.dart", (source_at, source_at))
+            os.utime(self.root / f"lib/{name}.g.dart", (base - 200, base - 200))
+        os.utime(self.root / ".dart_tool/build/asset_graph.json", (base, base))
+        rows = flutter.codegen_rows(self.root)
+        self.assertEqual([(WARN, "codegen")], statuses(rows))
+        self.assertIn("1 generated file(s)", rows[0].text)
+        self.assertIn("fresh.g.dart", rows[0].text)
+        self.assertNotIn("old.g.dart", rows[0].text)
+
     def test_source_edited_after_build_runner_last_ran_still_warns(self):
         write(self.root, "lib/user.g.dart", "g")
         write(self.root, "lib/user.dart", "s")

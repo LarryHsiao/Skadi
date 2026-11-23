@@ -266,8 +266,9 @@ def assets_rows(root):
 def build_runner_stamp(root):
     """Newest build_runner asset-graph write; it leaves unchanged outputs untouched, so a source
     older than this was built even when its generated file looks older still."""
-    graphs = (Path(root) / ".dart_tool" / "build").glob("*/asset_graph.json")
-    return max((graph.stat().st_mtime for graph in graphs), default=0)
+    build = Path(root) / ".dart_tool" / "build"
+    graphs = [build / "asset_graph.json", *build.glob("*/asset_graph.json")]  # 2.17.1 keeps it directly under build/
+    return max((graph.stat().st_mtime for graph in graphs if graph.is_file()), default=0)
 
 
 def stale_generated(root):
