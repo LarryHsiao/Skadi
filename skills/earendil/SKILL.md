@@ -103,8 +103,10 @@ Say these when they bear on the answer, rather than reporting a clean row as pro
 - **Keychain, profile and Xcode rows are macOS only;** elsewhere they read `n/a`.
   The hook is untested on Windows: verify with `py hooks\earendil.py --no-commands`
   from a Flutter project root.
-- **Multiple app targets** (extensions): iOS settings come from the first non-test
-  app target's Release configuration.
+- **Multiple app targets** (extensions): iOS settings come from the Release
+  configuration of the non-test target with the shortest bundle id, on the assumption
+  that an extension's id extends the app's. A project that breaks that assumption
+  would have its extension read as the app.
 - **A WebView's page content is invisible.** The iOS `plist` row checks usage strings
   only for the eight plugins in its table. An app that loads a page through
   `webview_flutter` (or `webview_flutter_wkwebview`) may need a camera or microphone
