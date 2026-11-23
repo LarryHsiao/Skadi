@@ -25,6 +25,7 @@ PROFILE_DIRS = ("~/Library/MobileDevice/Provisioning Profiles", "~/Library/Devel
 CONFIG_BLOCK = re.compile(r"isa = XCBuildConfiguration;(.*?)\n\t\t\};", re.DOTALL)
 SETTINGS_BLOCK = re.compile(r"buildSettings = \{(.*?)\n\t\t\t\};", re.DOTALL)
 SETTING_LINE = re.compile(r"^\s*(\"?[A-Za-z_][\w\[\]=*\".-]*)\s*=\s*(.+?);\s*$")
+VERSION_LINE = re.compile(r"^\s*(\d+(?:\.[0-9A-Za-z]+)+)\s*$", re.MULTILINE)  # 1.16.2, 1.16.0.rc.1; warnings hold spaces
 REFERENCE = re.compile(r"^\$\((\w+)\)$")
 DISTRIBUTION_IDENTITY = re.compile(r"\"(?:Apple|iPhone) Distribution: [^\"]*\(([A-Z0-9]{10})\)\"")
 # Plugins that crash or get rejected without a usage string in Info.plist.
@@ -176,7 +177,7 @@ def keychain_rows(settings, listing):
 
 def profile_rows(settings, profiles, now):
     if not is_manual(settings):
-        return []
+        return [Finding(NA, "profile", "automatic signing — no provisioning profile to check")]
     if profiles is None:
         return [Finding(NA, "profile", "macOS only (or --no-commands)")]
     wanted = settings.get("PROVISIONING_PROFILE_SPECIFIER", "")
@@ -227,9 +228,10 @@ def toolchain_rows(has_podfile, xcode_output, pod_output, ran=True):
     xcode = re.search(r"Xcode\s+(\S+)", xcode_output or "")
     if not xcode:
         return [Finding(FAIL, "toolchain", "xcodebuild not found or not usable")]
-    pods = (pod_output or "").strip()
+    versions = VERSION_LINE.findall(pod_output or "")  # a bare version line; Ruby gem warnings share the stream
+    pods = versions[-1] if versions else ""
     if has_podfile and not pods:
-        return [Finding(FAIL, "toolchain", "CocoaPods not found, but the project has a Podfile")]
+        return [Finding(FAIL, "toolchain", "CocoaPods not found or its version unreadable, but the project has a Podfile")]
     return [Finding(PASS, "toolchain", f"Xcode {xcode.group(1)}" + (f" · CocoaPods {pods}" if pods else ""))]
 
 
@@ -253,7 +255,7 @@ def usage_rows(ios_root, root):
     lock = read_text(Path(root) / "pubspec.lock")
     needed = {name: keys for name, keys in USAGE_KEYS.items() if re.search(rf"^  {name}:\s*$", lock, re.MULTILINE)}
     if not needed:
-        return []
+        return [Finding(NA, "plist", "no usage-string plugin in pubspec.lock — not checked")]
     plist_path = Path(ios_root) / "Runner" / "Info.plist"
     plist = load_plist(plist_path)
     missing = [f"{key} ({name})" for name, keys in needed.items() for key in keys if not str(plist.get(key, "")).strip()]
