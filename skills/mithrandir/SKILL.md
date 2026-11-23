@@ -1,6 +1,6 @@
 ---
 name: mithrandir
-description: Use when the user runs /mithrandir, /mithrandir branch, /mithrandir <url>, /mithrandir comment <url>, or /mithrandir bless <url> (alias /mithrandir recheck <url>). With no argument or the `branch` verb, weighs the current local branch against its base; with a URL, weighs a pull request or merge request. Renders a multi-axis verdict — six always-on (stability, performance, coding style, maintainability, correctness, regression risk) plus seven conditional (test coverage, security, documentation, backward compatibility, observability, dependency hygiene, accessibility & i18n) that fire only when the diff touches their domain — followed by an optional `Worth keeping` section (concrete bright spots) and an optional `To pass` action list grouped by severity (Blocker / Nice to have / Nit), closing with a tier (sound | wavering | off) and a short reasoning paragraph. A blockquote header at the top distils the bottom line — Merge / Hold / Refuse. The default and `branch` paths render to chat; the `comment` verb posts a URL-path verdict to the forge after a confirm-once gate. The `bless` verb (alias `recheck`) re-weighs an amended PR/MR, finds its prior `comment`-verb post, and threads a follow-up reply — All resolve / Partial okay if the work has earned it; counsel withheld (chat-only) if not. Branch-path bears no `comment` or `bless` — local diffs have no PR to write on. Tone defaults differ by audience — read leans Tolkien (private counsel); comment and bless lean plain (public note). The `--plain` and `--lore` flags override either default. The `--deep` flag weighs each changed file on its own via a per-file subagent fan-out — depth that catches subtle per-file flaws a holistic pass dilutes; it composes with branch and read paths and with either tone. The `--verify` flag adds an adversarial second pass before any non-sound axis tier or `To pass` row is admitted to the render — a three-lens panel per candidate finding, two lenses asking whether the flaw exists (both must refute to drop it) and one whether it is graded right (refuting lowers it a step, never drops it); it composes with all four paths, with either tone, and with `--deep`. Its default follows the audience — off on the chat-bound branch and read paths, on for the forge-writing `comment` and `bless` verbs, where `--no-verify` opts out. The `--fix` flag mends the branch's `Nit` rows in the working tree after the render — branch-path only, implies `--verify`, never commits; Blocker and Nice-to-have rows are left for the author. Host-agnostic; routes to GitHub or GitLab from the URL.
+description: Use when the user runs /mithrandir, /mithrandir branch, /mithrandir <url>, /mithrandir comment <url>, or /mithrandir bless <url> (alias /mithrandir recheck <url>). With no argument or the `branch` verb, weighs the current local branch against its base; with a URL, weighs a pull request or merge request. Renders a multi-axis verdict — six always-on (stability, performance, coding style, maintainability, correctness, regression risk) plus seven conditional (test coverage, security, documentation, backward compatibility, observability, dependency hygiene, accessibility & i18n) that fire only when the diff touches their domain — followed by an optional `Worth keeping` section (concrete bright spots) and an optional `To pass` list of problems, each with its expected fix route, grouped by severity (Blocker / Nice to have / Nit), closing with a tier (sound | wavering | off) and a short reasoning paragraph. A blockquote header at the top distils the bottom line — Merge / Hold / Refuse. The default and `branch` paths render to chat; the `comment` verb posts a URL-path verdict to the forge after a confirm-once gate. The `bless` verb (alias `recheck`) re-weighs an amended PR/MR, finds its prior `comment`-verb post, and threads a follow-up reply — All resolve / Partial okay if the work has earned it; counsel withheld (chat-only) if not. Branch-path bears no `comment` or `bless` — local diffs have no PR to write on. Tone defaults differ by audience — read leans Tolkien (private counsel); comment and bless lean plain (public note). The `--plain` and `--lore` flags override either default. The `--deep` flag weighs each changed file on its own via a per-file subagent fan-out — depth that catches subtle per-file flaws a holistic pass dilutes; it composes with branch and read paths and with either tone. The `--verify` flag adds an adversarial second pass before any non-sound axis tier or `To pass` row is admitted to the render — a three-lens panel per candidate finding, two lenses asking whether the flaw exists (both must refute to drop it) and one whether it is graded right (refuting lowers it a step, never drops it); it composes with all four paths, with either tone, and with `--deep`. Its default follows the audience — off on the chat-bound branch and read paths, on for the forge-writing `comment` and `bless` verbs, where `--no-verify` opts out. The `--fix` flag mends the branch's `Nit` rows in the working tree after the render — branch-path only, implies `--verify`, never commits; Blocker and Nice-to-have rows are left for the author. Host-agnostic; routes to GitHub or GitLab from the URL.
 purpose: Renders a multi-axis code-quality verdict for a branch or PR/MR.
 user_invocable: true
 stage: weigh
@@ -92,7 +92,7 @@ The default weighing reads the whole diff in one pass and renders one holistic v
 After the diff is captured (branch step 3, read step 3):
 
 1. **Partition** the captured diff into its changed files. Keep hand-written source; drop generated and low-signal files — `*.g.dart`, `*.freezed.dart`, anything under a `generated/` path, `messages_*.dart`, lockfiles, and other build output. If nothing hand-written remains, fall back to the holistic weigh (step 4) and note it in the brief.
-2. **Fan out.** Dispatch one read-only subagent per kept file, in parallel, as `general-purpose`. **Every Agent call in this fan-out MUST carry `model: opus` — pass it explicitly on each call. Omit it and the subagent silently inherits the parent session's model, under-powering the whole review; the slip stays invisible unless someone asks which model ran. Before dispatching, check the model field on every call in the loop.** Cap the concurrent count to a sane handful and queue the rest. Hand each agent **only its own file's hunks**, the per-symbol close-pass patterns (step 4's close pass), and the axis definitions. One exception: where a kept file has a paired test file in the diff — the same basename under the stack's test convention (`foo_test.dart`, `foo.test.ts`, `test_foo.py`, `FooTests.swift`) or a test in the diff that imports it — also hand that test file's hunks to the same agent as read-only context, so it can check the test against the source. That agent raises only Test coverage findings from it, anchored at the source file's line; the test file is still weighed on its own only if partition step 1 kept it. Brief it to read that one file as if it were the whole review: name every symbol the change adds or alters, hunt the high-signal patterns, and return per-file findings — each with a `path:line`, a one-line description, a severity (Blocker / Nice to have / Nit), and the axis it wounds (one of the thirteen axis names above). No per-file verdict — the tier is aggregated once across all files' findings, never declared per file. The agent reads only; it does not edit, commit, or post.
+2. **Fan out.** Dispatch one read-only subagent per kept file, in parallel, as `general-purpose`. **Every Agent call in this fan-out MUST carry `model: opus` — pass it explicitly on each call. Omit it and the subagent silently inherits the parent session's model, under-powering the whole review; the slip stays invisible unless someone asks which model ran. Before dispatching, check the model field on every call in the loop.** Cap the concurrent count to a sane handful and queue the rest. Hand each agent **only its own file's hunks**, the per-symbol close-pass patterns (step 4's close pass), and the axis definitions. One exception: where a kept file has a paired test file in the diff — the same basename under the stack's test convention (`foo_test.dart`, `foo.test.ts`, `test_foo.py`, `FooTests.swift`) or a test in the diff that imports it — also hand that test file's hunks to the same agent as read-only context, so it can check the test against the source. That agent raises only Test coverage findings from it, anchored at the source file's line; the test file is still weighed on its own only if partition step 1 kept it. Brief it to read that one file as if it were the whole review: name every symbol the change adds or alters, hunt the high-signal patterns, and return per-file findings — each with a `path:line`, a one-line description, the expected fix route (where, how, and the check, per the `## To pass` row shape), a severity (Blocker / Nice to have / Nit), and the axis it wounds (one of the thirteen axis names above). No per-file verdict — the tier is aggregated once across all files' findings, never declared per file. The agent reads only; it does not edit, commit, or post.
 3. **Aggregate.** Collect every agent's findings. Fold each, by its tagged axis, into that axis's verdict — a Blocker in any file pulls its axis to `off`, a Nice-to-have to `wavering` — and into the `## To pass` section, grouped by severity across all files. The overall tier aggregates as before: the highest concern among the rendered axes.
 
 ### Render delta
@@ -114,7 +114,7 @@ The default weighing renders a flaw the moment it is found, with nothing standin
 
 After the axes are weighed (holistic step 4, or Deep mode's aggregation step 3):
 
-1. **Collect candidate findings.** Every rendered axis whose tier is `wavering` or `off` — its evidence clause is the claim — plus every row queued for `## To pass`. Each candidate carries the axis it is tagged to, its severity or tier, its evidence text, and its `file:line` where one is named. When a `## To pass` row and an axis tier stem from the same close-pass observation — the same flaw named twice, once as evidence and once as an action — treat them as **one** candidate bearing both faces, so a single panel verdict governs both rather than two panels disagreeing about one flaw.
+1. **Collect candidate findings.** Every rendered axis whose tier is `wavering` or `off` — its evidence clause is the claim — plus every row queued for `## To pass`. Each candidate carries the axis it is tagged to, its severity or tier, its evidence text, its `file:line` where one is named, and — for a `## To pass` row — its `Fix:` route. When a `## To pass` row and an axis tier stem from the same close-pass observation — the same flaw named twice, once as evidence and once as an action — treat them as **one** candidate bearing both faces, so a single panel verdict governs both rather than two panels disagreeing about one flaw.
 
 2. **Fan out three reviewers per candidate, one per lens.** Dispatch `general-purpose` subagents in parallel. **Every Agent call in this fan-out MUST carry `model: opus` — passed explicitly on each call**, the same discipline Deep mode holds: omit it and the panel quietly loses the judgement it was convened for. Cap the concurrent count to a sane handful and queue the rest, as in Deep mode. Hand each reviewer the relevant diff hunk (the named file's hunk where a path is given, the full diff otherwise), the axis definition, and the candidate's exact wording. Each returns `REFUTED` or `STANDS` with a one-line reason, and reads only — it never edits, comments, or posts.
 
@@ -132,7 +132,7 @@ After the axes are weighed (holistic step 4, or Deep mode's aggregation step 3):
 3. **Count the votes — but not all in one tally.** The two questions are different, and a vote on one is no evidence about the other.
 
    - **Existence.** A candidate is dropped only when **both** the mechanism and the context lens return `REFUTED`. One of the two dissenting is not enough: the finding stands, and it stands *marked as contested*.
-   - **Grade.** The severity lens never drops anything. Its `REFUTED` lowers the finding one step — `Blocker` → `Nice to have` → `Nit` for a `## To pass` row, `off` → `wavering` for an axis tier — and the finding stands at the lower grade.
+   - **Grade.** The severity lens never drops anything. Its `REFUTED` lowers the finding one step — `Blocker` → `Nice to have` → `Nit` for a `## To pass` row, `off` → `wavering` for an axis tier — and the finding stands at the lower grade, its `Fix:` line re-trimmed to that grade's bound.
 
    Refusing to pool these is the whole reason the lenses are named. A severity reviewer saying *"real, but this is a Nit"* is agreeing the flaw exists; counting that as half of a drop would let one true objection and one taste objection erase a defect between them.
 
@@ -149,7 +149,7 @@ After the axes are weighed (holistic step 4, or Deep mode's aggregation step 3):
 The brief keeps its shape. Two differences:
 
 - A one-line tail sits under the blockquote header naming the pass: *"Verify mode — N findings weighed by panel, M refuted, K downgraded, J standing contested."* It is appended after Deep mode's tail line when both flags are active. Because the tallies are independent, the last two counts may name the same finding twice; they are properties, not buckets. Both earn their place — a downgraded finding and a contested one are each a different thing from an unopposed one, and the reader deserves to know which counsel the panel itself could not agree on before acting on it.
-- A `## To pass` row that survived on a split existence vote carries a trailing `(contested)` after its text — one existence lens argued it away and the other did not. The mark says nothing about the row's grade: a contested row that the severity lens also refuted renders at the lower grade *and* keeps the mark.
+- A `## To pass` row that survived on a split existence vote carries a trailing `(contested)` after the problem text, on the bullet's first line — one existence lens argued it away and the other did not. The mark says nothing about the row's grade: a contested row that the severity lens also refuted renders at the lower grade *and* keeps the mark.
 
 A verify run costs three opus calls per candidate finding — on a wavering branch bearing eight, twenty-four agents on top of the weighing itself. Reach for it where a wrong finding would cost something real: a verdict about to be posted publicly, a branch whose correctness is subtle, a mend loop that will act on the `To pass` list unattended. Not for a routine read.
 
@@ -164,7 +164,7 @@ The verdict is counsel; `--fix` lets the Pilgrim lend a hand with the smallest o
    - `(contested)` — one existence lens argued it away, so the flaw is not settled enough to act on;
    - without a `file:line`, or needing a decision only the author can make;
    - in a file bearing uncommitted changes, or outside the files the diff changed.
-3. **Fix the rest.** Read the cited `file:line` first, then make the smallest edit that answers the row. Touch nothing the row does not name.
+3. **Fix the rest.** Read the cited `file:line` first, then make the smallest edit that answers the row. When the row carries a `Fix:` line, follow that route; if reading the cited line shows the route will not work, leave the row untouched and name the reason in the report instead of improvising a different edit. A row whose `Fix:` line offers options or admits the route is unclear is one that needs the author's decision, and falls under step 2's second bullet. Touch nothing the row does not name.
 4. **Check once.** Run the project's static analysis (whatever `/argonath`'s detection names, or the repo's own lint command) once after the edits. On a failure, mend it and re-run once; if it still fails, restore the edited files with `git checkout -- <files>` — safe, since step 2 admitted only clean files — and report the failure plainly. With no such command, say so.
 5. **Stop at the tree.** No `git add`, no commit, no push — the fixes stand as an uncommitted diff for the author to read, keep, or discard.
 
@@ -247,7 +247,7 @@ After the render, save the rendered `## To pass` section — the reconciled one 
 
 ```bash
 ~/.claude/hooks/mithrandir-verdict.sh save <repo-path> <<'EOF'
-<the `## To pass` section as rendered, every row with its `path:line`; empty when the section was omitted>
+<the `## To pass` section as rendered, every row with its `path:line` and its nested `Fix:` line; empty when the section was omitted>
 EOF
 ```
 
@@ -398,13 +398,16 @@ Render in this order, in plain markdown. The title line and closing paragraph fo
 ## To pass           ← optional; render only if at least one row exists across the three groups
 
 ### Blocker          ← omit subsection if empty
-- `<file or path>` — <action ≤ 50 words>
+- `<file or path>` — <the problem ≤ 50 words>
+  - Fix: <expected route ≤ 30 words — where, how, and the check that shows it mended>
 
 ### Nice to have     ← omit subsection if empty
-- `<file or path>` — <action ≤ 50 words>
+- `<file or path>` — <the problem ≤ 50 words>
+  - Fix: <expected route ≤ 30 words>
 
 ### Nit              ← omit subsection if empty
-- `<file or path>` — <action ≤ 50 words>
+- `<file or path>` — <the problem ≤ 50 words>
+  - Fix: <expected route, one clause>
 
 ## Verdict <gauge>  <overall-tier>
 
@@ -439,13 +442,27 @@ The justification clause is ≤ 15 words and aligns with the chief concern named
 
 **Worth keeping section.** Optional. Render only when there are concrete bright spots — specific decisions, named files or patterns the work has done well. Heading is `## Worth keeping` in both modes. Each bullet ≤ 50 words; lead with a backticked file path or topic. Praise must be grounded in a specific decision the diff makes; do not pad with generic affirmations. If there is nothing genuine to keep, omit the section entirely — the praise must mean something or it loses weight.
 
-**To pass section.** Optional. The action list — concrete things the author should do for the work to merge — grouped by severity rather than by axis. Heading is `## To pass` in both modes. Three subsections, each rendered only if it has at least one row:
+**To pass section.** Optional. The problem-and-fix list — concrete things the author should do for the work to merge, each with its expected route — grouped by severity rather than by axis. Heading is `## To pass` in both modes. Three subsections, each rendered only if it has at least one row:
 
 - `### Blocker` — must mend before merge. The work cannot land in good conscience until each is addressed.
 - `### Nice to have` — worth doing; does not block merge. The work can land without these, but they round its edges.
 - `### Nit` — minor, stylistic, or follow-up bookkeeping. Optional even by suggestion.
 
-Each row is a bullet, ≤ 50 words, leading with a backticked file path (with line span where useful). Phrase as an action — *"assign … before await"*, *"name the iM3 hardware verification"* — not as a passive observation. If all three subsections are empty, omit `## To pass` entirely; the verdict alone carries the message.
+Each row is one bullet leading with a backticked file path (with line span where useful), naming the problem in ≤ 50 words, followed by a nested `Fix:` line naming the expected route. A row that names only the problem leaves the author to work out the remedy, so every row, whatever its severity, carries both. Both parts are written in the active tone's register and stay in the one bullet, so a reader that takes a row as a unit — `/narvi`, `/celebrimbor`, `/sirion`, the saved list — still takes the pair together.
+
+The `Fix:` line states three things, in whatever order reads best:
+
+- **Where** — the file, symbol or call site to change, when the row's path alone does not say.
+- **How** — the smallest change that answers the problem: *"`await` the refresh in `retry()`"*, *"extract the 3 repeated lines into a private `_clamp()`"*, *"rename to match `sibling_widget.dart`'s `_onTap`"*.
+- **The check** — for a `Blocker`, the test, command or observation that shows it mended (*"a test for the 401 → refresh → retry path"*). A `Nice to have` names it when one exists. A `Nit` may omit it.
+
+Bounds: the route is ≤ 30 words for a `Blocker` or `Nice to have`, one clause for a `Nit`. Neither bound counts the path. Chinese rendering uses the same ratio as the evidence clause: the route ≤ 60 characters.
+
+Where the fix is a judgment the author owes — a design choice with more than one defensible answer — the route names the options and the one preferred, rather than picking silently: *"Fix: either guard at the call site or make the field non-null; prefer the guard, as `x.dart:40` does."* Where the route is not known — the flaw is clear but the remedy needs context the diff does not carry — say so plainly: *"Fix: unclear from the diff; needs the owner of `sync.dart` to say whether retries are idempotent."* A guessed route is worse than an admitted gap.
+
+A row marked *"pre-existing, separate ticket"* carries a `Fix:` line too, naming the route the ticket would take.
+
+If all three subsections are empty, omit `## To pass` entirely; the verdict alone carries the message.
 
 ## Workflow — write-path (`comment`)
 
