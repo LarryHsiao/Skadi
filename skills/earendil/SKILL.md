@@ -60,7 +60,7 @@ healthy release.
 |---|---|
 | `FLUTTER` | `sdk` (Flutter/Dart vs `environment:`, FVM pin) · `version` (`x.y.z+n`, build above the last tag) · `deps` (lock, `pub get --dry-run`, git/path deps) · `assets` · `codegen` (`*.g.dart`, `l10n`) · `entry` (`lib/main*.dart`, env files named in build scripts) · `obfuscate` · `doctor` |
 | `ANDROID` | `identity` · `sdk` · `version` · `release` (not signed with the debug key) · `key` (key.properties complete — property names are read from the signing block — and keystore exists) · `secrets` (not tracked or unignored) · `minify` (R8, rules file) · `symbols` · `services` (google-services.json package) · `toolchain` (AGP / Gradle / JDK) · `plugins` (plugin minSdk floor) · `doctor` |
-| `IOS` | `identity` · `version` · `signing` · `keychain` · `profile` (manual signing: installed, not expired) · `export` · `services` (GoogleService-Info.plist) · `toolchain` · `pods` · `plist` (usage strings for camera, mic, … — a `⚠️`, since they matter only if the app calls that API) · `strip` · `doctor` |
+| `IOS` | `identity` · `version` · `signing` · `keychain` · `profile` (manual signing: installed, not expired; `➖` under automatic signing) · `export` · `services` (GoogleService-Info.plist) · `toolchain` · `pods` · `plist` (usage strings for camera, mic, … — a `⚠️`, since they matter only if the app calls that API; `➖` when `pubspec.lock` holds none of the eight plugins the check knows) · `strip` · `doctor` |
 
 ## What it cannot see
 

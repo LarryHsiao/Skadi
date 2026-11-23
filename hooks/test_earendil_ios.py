@@ -182,8 +182,10 @@ class ProfileTest(IosDir):
     def profile(self, days):
         return {"Name": "Acme AppStore", "UUID": "u-1", "ExpirationDate": NOW + timedelta(days=days)}
 
-    def test_automatic_signing_yields_no_row(self):
-        self.assertEqual([], ios.profile_rows(self.settings(), [], NOW))
+    def test_automatic_signing_says_there_is_no_profile_to_check(self):
+        rows = ios.profile_rows(self.settings(), [], NOW)
+        self.assertEqual([(NA, "profile")], statuses(rows))
+        self.assertIn("automatic signing", rows[0].text)
 
     def test_installed_profile_with_time_left_passes(self):
         self.assertEqual([(PASS, "profile")], statuses(ios.profile_rows(self.manual(), [self.profile(200)], NOW)))
@@ -261,6 +263,25 @@ class ToolchainTest(unittest.TestCase):
     def test_not_run_is_not_applicable(self):
         self.assertEqual([(NA, "toolchain")], statuses(ios.toolchain_rows(False, "", None, ran=False)))
 
+    RUBY_WARNINGS = (
+        "Ignoring ffi-1.17.0 because its extensions are not built. Try: gem pristine ffi --version 1.17.0\n"
+        "Ignoring bigdecimal-3.1.8 because its extensions are not built. Try: gem pristine bigdecimal --version 3.1.8\n"
+    )
+
+    def test_cocoapods_version_after_ruby_gem_warnings_renders_alone_on_one_line(self):
+        rows = ios.toolchain_rows(True, "Xcode 16.2", self.RUBY_WARNINGS + "1.16.2\n")
+        self.assertEqual("Xcode 16.2 · CocoaPods 1.16.2", rows[0].text)
+
+    def test_pre_release_cocoapods_versions_are_read_not_failed(self):
+        for version in ("1.16.0.rc.1", "1.15.0.beta.1", "1.16.2"):
+            rows = ios.toolchain_rows(True, "Xcode 16.2", self.RUBY_WARNINGS + version + "\r\n")
+            self.assertEqual(f"Xcode 16.2 · CocoaPods {version}", rows[0].text, version)
+
+    def test_warnings_with_no_readable_version_fail_when_a_podfile_exists(self):
+        rows = ios.toolchain_rows(True, "Xcode 16.2", self.RUBY_WARNINGS)
+        self.assertEqual([(FAIL, "toolchain")], statuses(rows))
+        self.assertNotIn("Ignoring", rows[0].text)
+
 
 class PodsTest(IosDir):
     def test_project_without_a_podfile_yields_no_row(self):
@@ -307,9 +328,11 @@ class UsageTest(IosDir):
         write(self.ios, "Runner/Info.plist", info_plist(NSMicrophoneUsageDescription="Records voice notes"))
         self.assertEqual([(PASS, "plist")], statuses(ios.usage_rows(self.ios, self.root)))
 
-    def test_no_relevant_plugin_yields_no_row(self):
+    def test_no_plugin_from_the_table_says_so_instead_of_staying_silent(self):
         self.lock("provider")
-        self.assertEqual([], ios.usage_rows(self.ios, self.root))
+        rows = ios.usage_rows(self.ios, self.root)
+        self.assertEqual([(NA, "plist")], statuses(rows))
+        self.assertIn("usage-string plugin", rows[0].text)
 
 
 class StripTest(IosDir):
@@ -338,7 +361,7 @@ class CheckTest(IosDir):
         from earendil import detect
         rows = ios.check(detect(self.root), commands=False, doctor=None, now=NOW)
         dims = {r.dim for r in rows}
-        self.assertTrue({"identity", "version", "signing", "keychain", "export", "toolchain", "strip", "doctor"} <= dims)
+        self.assertTrue({"identity", "version", "signing", "keychain", "profile", "export", "toolchain", "plist", "strip", "doctor"} <= dims)
 
     def test_project_with_no_xcodeproj_fails_once(self):
         write(self.root, "pubspec.yaml", FLUTTER_PUBSPEC)
