@@ -369,6 +369,7 @@ Always loaded:
 Read when the project calls for it (not auto-loaded; reach for them when the language or the shape of the work is in play):
 
 - OO: `docs/style/oo.md` — when designing or reviewing classes, interfaces, decorators, or domain objects
+- Layered: `docs/style/layered.md` — when implementing or reviewing a feature that shows remote data: UI, Data, Web API integration, and which depends on which
 - Flutter: `docs/style/flutter.md`
 - React: `docs/style/react.md`
 
