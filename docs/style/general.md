@@ -80,7 +80,6 @@ A string whose wording depends on a count — a verb, a noun, an article that ch
 - **A language with one plural form needs no plural block.** Chinese, Japanese and Korean carry one form, so a plain `{count}` reads right there; English and Spanish need `one`/`other`; Russian, Polish, Arabic and others need more categories. The template language may carry `other` alone.
 - **No ASCII apostrophe in a message.** ICU reads `'` as an escape character; write the typographic `’` (U+2019).
 - **Applies at string authorship, wherever it happens.** Whether the key is written by hand, generated, or drafted by a model translating a spec into copy, the same-count-dependent-wording test governs before the string reaches Tolgee (`docs/tools/tolgee.md`) or any other translation layer.
-- **The resolver may not read ICU.** This section assumes a message format that does. Where plurals resolve through i18next's own suffix keys, the count-dependent rule above still holds, but the carrier and the version rules differ — see [`react.md`](react.md).
 
 ## Lists
 
