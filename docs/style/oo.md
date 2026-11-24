@@ -235,7 +235,7 @@ final class JsonUser implements User {
 
 No try/catch in `JsonFields` — that is a decorator's job. The composed `JsonUser` is still a `User`, so it wraps into `SafeUser`, `LoggedUser`, or any other decorator just like the simpler form.
 
-A capability that some domain objects bear and others do not — `Comparable`, `Auditable` — is an interface the concrete `implements`, not a mixin. Mixins yield only at the framework boundary, where the framework's contract bears them: Flutter's `SingleTickerProviderStateMixin`, `AutomaticKeepAliveClientMixin`, and the like.
+A capability that some domain objects bear and others do not — `Comparable`, `Auditable` — is an interface the concrete `implements`, not a mixin. Nothing outside the UI layer takes a mixin: not Data (domain models included), the web API adapter, nor the composition root. Inside the UI layer, a mixin yields only in a class the framework asks you to extend — a `State` — and only for a contract tied to that `State`'s lifecycle: `SingleTickerProviderStateMixin`, `AutomaticKeepAliveClientMixin`, `RestorationMixin`. Prefer the framework's higher-level widget (an implicit animation) first; where a framework type can be held instead (a `ValueNotifier` exposed as a `ValueListenable`), hold it. This guide declares no mixin of its own.
 
 ## No Statics
 
