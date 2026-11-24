@@ -138,6 +138,8 @@ A third line, `Compliance Review: SKIPPED (reason: <one line>)`, replaces the re
 
 **When the dispatch is unavailable, the review is missed — not waived.** A harness restriction, a disabled Agent tool, or a sandbox that forbids subagents does not lower the bar. Do not write `PASS`: no reviewer earned it. Do not write `SKIPPED`: that waives the segment out of the measurement, and is reserved for the case above. Write **no verdict line at all** — then say plainly in the summary that a review was owed, that the dispatch was refused, and why, and ask for the restriction to be lifted. The segment scores as a miss, which is what happened. No new marker is needed: the scanner already reads an absent line as a review never run.
 
+**The reviewer files the PASS or FAIL line first.** Brief the reviewer to end its own report with the literal `Compliance Review: PASS` or `Compliance Review: FAIL`, then carry its verdict into the summary rather than composing one. The pulse credits a segment only when the reviewer's own transcript bears the line (`hooks/pulse-scan.py`, `_segment_complies`) — a verdict the main thread writes alone could be typed unearned. A reviewer files the line only when its brief asks for it: in the two weeks to 2026-11-23, 78 reviewed segments went uncredited for want of that one request.
+
 The `compliance-review-reminder.sh` hook re-injects this review's trigger with every prompt, as `gate-reminder.sh` does for the Free-Form Gate; this section is its specification. Why it fires every turn, and why it names the agent dispatch rather than the verdict line alone, is recorded in `docs/workflow/maintenance.md`.
 
 ## Done Block

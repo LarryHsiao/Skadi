@@ -62,6 +62,21 @@ PY
 )
 check "reminder names the agent dispatch behind the verdict" "$expected_agent" "$actual_agent"
 
+# ── 3b · the reviewer files the verdict itself ──
+# The scorer credits a segment only when the reviewer's own transcript carries
+# the PASS/FAIL line (_segment_complies). A dispatch prompt that does not ask
+# for it leaves the reviewer reporting findings with no marker, and the main
+# thread's own line is then refused as unearned — 78 such segments sat uncredited
+# between 11-10 and 11-23. When the prompt asked, the reviewer filed it every time.
+expected_filed="yes"
+actual_filed=$(python3 - "$hook_out" <<'PY'
+import json, sys
+ctx = json.load(open(sys.argv[1], encoding="utf-8"))["hookSpecificOutput"]["additionalContext"].lower()
+print("yes" if "reviewer" in ctx and "its own report" in ctx else "no")
+PY
+)
+check "reminder asks the reviewer to end its own report with the verdict" "$expected_filed" "$actual_filed"
+
 # ── 4 · the two earlier conditional checks the observed miss involved ──
 expected_checks="sibling:yes manwe:yes"
 actual_checks=$(python3 - "$hook_out" <<'PY'
