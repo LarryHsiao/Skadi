@@ -25,8 +25,8 @@ extension UserMaturity on User {
 
 Every class and object — seam, concrete, decorator, mixin, value type — is a noun. Adjective + noun describes *what a thing is*; verbs and `-er` / `-or` suffixes describe *what something does* and belong on methods, not classes.
 
-- ✅ `User`, `JsonUser`, `ConstUser`, `DtoUser`, `SafeUser`, `LoggedUser`, `ValidatedUser`, `JsonBacked`, `Money`, `Age`.
-- ❌ `UserManager`, `UserValidator`, `UserLogger`, `UserChecker`, `UserHandler`, `UserParser`, `UserBuilder`.
+- **Good:** `User`, `JsonUser`, `ConstUser`, `DtoUser`, `SafeUser`, `LoggedUser`, `ValidatedUser`, `JsonBacked`, `Money`, `Age`.
+- **Bad:** `UserManager`, `UserValidator`, `UserLogger`, `UserChecker`, `UserHandler`, `UserParser`, `UserBuilder`.
 
 **Pure domain objects never use `-er` / `-or` suffixes.** The rule yields at the framework boundary — first-party or third-party — when the framework's own convention bears the suffix and the class participates in that contract:
 
@@ -36,7 +36,7 @@ Every class and object — seam, concrete, decorator, mixin, value type — is a
 
 Outside these seams, the rule holds. If a class cannot be named without a verb, it is probably a method on something else. See [`general.md`](general.md) for the broader rule.
 
-**A read source that yields a collection takes the model's plural — and the near-twin of the singular is intended, not a collision.** When an object's role is to *produce* a list of a domain model — a read seam over `Source<T>` / `SourceAsync<List<Model>>` whose `value()` returns the collection — name it the plural of the model it yields: `VerdandiAccounts` yields `List<VerdandiAccount>`, `Rates` yields `List<Rate>`. The single letter between the source and its model is the design, not an accident: the plural names the **producer**, the singular names the **thing produced**. A reader meets the pair once and holds it; the disambiguating alternatives — `VerdandiAccountList`, `AccountsSource`, `GetAccounts` — each buy clarity the domain did not ask for, trading a noun for a suffix or a verb. Reach for a distinct noun only when the plural genuinely misleads: a source that yields something other than a straight list of the model (a summary, a page, a single composed view — there `VerdandiDailyDashboard` over `VerdandiDashboards`).
+**A read source that yields a list takes the model's plural.** `Users` yields `List<User>`; `Rates` yields `List<Rate>`. The near-twin is intended: the plural names the **producer**, the singular the **thing produced**. Alternatives such as `UserList`, `UsersSource` or `GetUsers` trade the noun for a suffix or a verb. Reach for a distinct noun only when the result is not a straight list of the model — a summary, a page, a composed view.
 
 ## Source as Separate Concrete
 
@@ -185,6 +185,8 @@ For objects whose role *is* action — `UserRepo.fetch(id)`, `SubmitButton.onPre
 
 A test for which side a class falls on: *is its primary purpose to **be** something (answer about itself), or to **do** something (act against the world)?* The first wears no-throw; the second wears throws-allowed.
 
+**Construction is not the seam.** The no-throw guarantee binds the seam's methods — what a caller asks of an object that already exists. A constructor that refuses invalid input, as `ValidatedUser` does, throws before any domain object comes into being: there is no `User` yet to break the promise. Construction-time validation is therefore the throw a domain chain may carry, and it surfaces at the point of composition — the code that assembles the chain is the code that must expect it. Once built and wrapped, the object answers without raising.
+
 ## Mixins — Scaffolding, Not the Seam
 
 A **mixin** is a bundle of methods stitched into a class without inheritance — implementation-bearing, but no parent and no type of its own.
@@ -200,7 +202,7 @@ Refuse them when:
 - The mixin would require state from another mixin — tangled chains are worse than honest inheritance.
 - Only one class would use it — a mixin earns its keep through reuse.
 
-Below, `JsonUser` is refactored to read its map through the mixin. The field becomes public (`json`, not `_json`) because the mixin reads it through the `json` getter — when a mixin is in play, accessibility shifts to expose what it needs.
+Below, the `JsonUser` from *Source as Separate Concrete* reads its map through the mixin instead. The field becomes public (`json`, not `_json`) because the mixin reads it through the `json` getter — when a mixin is in play, accessibility shifts to expose what it needs.
 
 ```dart
 mixin JsonBacked {
@@ -224,17 +226,18 @@ A `static` method or field belongs to the class name, not to an instance. It can
 
 Refuse statics in domain code:
 
-- ❌ `static User parse(Map<String, dynamic> json)` — make it a `JsonUser` constructor.
-- ❌ `static int compare(User a, User b)` — make it a method on `User`, or a free function outside the class.
-- ❌ `static const defaultUser` — make it a `ConstUser` instance the caller composes.
+- `static User parse(Map<String, dynamic> json)` — make it a `JsonUser` constructor.
+- `static int compare(User a, User b)` — make it a method on `User`, or a free function outside the class.
+- `static const defaultUser` — make it a `ConstUser` instance the caller composes.
+
+**Extensions are not a loophole.** An extension method is statically dispatched too — it cannot be overridden, and a decorator cannot wrap it. It earns a place that a static does not because it reaches *through* the seam: `isAdult` calls `age()`, so every decorator layered around `age()` still applies. Two tests admit it: it is computed from the seam's own methods alone, and every concrete should answer it the same way. If a concrete or a decorator would ever need to answer differently, the behavior is not derived — declare it on the interface.
 
 The rule yields only at the framework boundary, where the framework's contract bears the static — Flutter's `Widget.of(context)`, route name constants on a route class, and the like. Outside those seams, a static is a sign the design has slipped into procedural shape: lift it onto the seam, push it into a concrete, or let it stand as a free function with no class wrapping it.
 
 ## Why This Shape
 
+The sections above give each rule its own reason. Taken together, they buy:
+
 - **Callers depend on the concept**, not the source. A method that takes `User` works the same whether the user came from JSON, DTO, or const.
 - **Sources cleave cleanly.** Adding `SqlUser` touches one new file; no existing class needs editing.
-- **Construction stays in the concrete.** Parsing, validation, defaulting — all sit with the source that needs them, never on the seam.
-- **Concerns layer cleanly.** Try/catch, logging, caching, validation — each is a decorator that wraps the seam. The concrete stays focused on its source; the seam stays clean for callers.
 - **Substitution stays cheap.** A test can supply a `ConstUser` wherever production passes a `JsonUser`.
-- **No back doors.** Statics bypass the seam; refusing them keeps every call routed through the interface, where decorators and substitutes can reach.
