@@ -67,3 +67,12 @@ For the wrap-then-ellipse shape on prose, use the line clamp, which needs no `no
 ```
 
 The unprefixed `line-clamp` is the standard property; the `-webkit-` pair is still what carries the rule in browsers that have not caught up, so write both.
+
+## Plurals and Stubbed Translators in i18next
+
+[`general.md`](general.md)'s *ICU Plurals* decides **that** a count-dependent string needs its forms; this is how i18next resolves them, and how a test can hide a miss.
+
+- **Read the resolver before choosing keys.** i18next changed its plural key format in v21.0.0 — `key_one` / `key_other`, chosen by `Intl.PluralRules` — and a release before it resolves a different suffix form (see the [v20 → v21 migration notes](https://www.i18next.com/misc/older-migrations)). A key the resolver cannot find renders as the raw key: visible on screen, silent in a test. Before writing a count key, read the pinned `i18next` version in `package.json` and how an existing count key is looked up; code that picks a suffix by hand is a hint that the resolver does not do it.
+- **A stubbed translator proves logic, not resolution.** Replacing `t` with an identity function keeps logic tests small and hides every key the real resolver would fail to find. Wherever a test leans on the stub, add one test that loads the real locale JSON, resolves through the real i18next, and asserts that no rendered output equals its own key.
+
+Seen once (reported by the vitallink-frontend session, PSG-5462): a confirm dialog showed `form.dialog.uploadChange.content` on i18next 20.6.1 while every unit test passed.
