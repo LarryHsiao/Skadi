@@ -22,7 +22,8 @@ if [[ -z "${HALBARAD_JIRA_FIXTURE_DIR:-}" && "${1:-}" != "cursor" && "${1:-}" !=
   email="$("$SECRET" jira username - 2>/dev/null || true)"
   export HALBARAD_JIRA_URL="${url:-$(from_config JIRA_BASE_URL || true)}"
   export HALBARAD_JIRA_EMAIL="${email:-$(from_config JIRA_EMAIL || true)}"
-  export HALBARAD_JIRA_TOKEN="$("$SECRET" jira password JIRA_API_TOKEN 2>/dev/null || true)"
+  token="$("$SECRET" jira password JIRA_API_TOKEN 2>/dev/null || true)"
+  export HALBARAD_JIRA_TOKEN="$token"
   if [[ -z "$HALBARAD_JIRA_URL" || -z "$HALBARAD_JIRA_EMAIL" || -z "$HALBARAD_JIRA_TOKEN" ]]; then
     echo '{"source":"jira","status":"error","reason":"not configured — Jira url, email or token missing"}'
     exit 2
