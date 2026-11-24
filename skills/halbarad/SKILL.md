@@ -222,5 +222,7 @@ Teams or Jira, and nothing is drafted.
 - Never advance a cursor for a source that failed.
 - Never write the board's Jira row, and never write a Teams row.
 - No built-in timer: to repeat the sweep, wrap `/halbarad` in `/loop` or
-  `/amon-sul`.
+  `/amon-sul`. `/board refresh` also runs it, as the step after its hook
+  returns; the hook alone cannot, so the mail row is filled only by a run of
+  this skill.
 - Reveal no mail body — subject and sender suffice, as in `/gwaihir`.

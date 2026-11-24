@@ -4,7 +4,7 @@ description: Use when the user runs /board, /board add <KEY> [--active], /board 
 purpose: Serves a live situation board of in-progress tickets and app growth in the browser.
 user_invocable: true
 stage: watch
-composes: beleg:dispatch, growth:dispatch
+composes: beleg:dispatch, growth:dispatch, halbarad:dispatch
 ---
 
 # Board
@@ -63,7 +63,7 @@ next poll.
 
 Re-fetches every ticket already on the board (preserving which one is active),
 the metis growth numbers, and the three Attention surfaces (`mrs`, `prs`,
-`jira` — see below; `mail` is not a hook path, it stays out of `refresh`).
+`jira` — see below; `mail` is not a hook path, it stays out of the hook's `refresh` — the `/halbarad` step below fills it).
 Growth is best-effort — a BigQuery hiccup skips it with a note rather than
 failing the sweep. Attention never skips: a fetch failure there is itself a
 successful write (see below), so `refresh` only prints "(skipped)" for an
@@ -76,6 +76,14 @@ app's crash-free number and prints which ones BigQuery couldn't answer (no GA4
 pairing, or the query itself failed). That printed list is yours to act on next
 — see *The Stability tile* below for what to do with it. The hook stops at
 naming the gap; it cannot drive Chrome itself.
+
+**After the hook returns, run `/halbarad`** (the full brief, no argument). The
+hook cannot reach the one Attention surface that needs a model — mail — and
+`/halbarad` is the sole writer of that row, so a `refresh` run through this
+skill is not finished until it has run. It prints its brief and moves its own
+cursors; that is the cost of keeping the mail row fresh. A `refresh` fired by
+bash alone — the server's timer, cron — cannot do this step and leaves the mail
+row as the last `/halbarad` run left it.
 
 ### `/board attention <mrs|prs|jira> [--clear]`
 
@@ -118,8 +126,8 @@ not the manifest's mtime order, so rows don't shuffle on every refresh.
   (`assignee = currentUser() AND updated >= -1d`, all statuses — this reports
   movement, not outstanding work, so a ticket that reached Done today is
   exactly what belongs here).
-- **`mail`** — unread Outlook mail in the last 24h. Not written by
-  `board.sh attention` at all — see below.
+- **`mail`** — Outlook mail worth a look since the last `/halbarad` run. Not
+  written by `board.sh attention` at all — see below.
 
 **A failed fetch is a successful write.** A dead `glab`/`gh` token, an
 unreachable Jira, no network — none of these skip the write. The channel still
@@ -136,21 +144,21 @@ Mail has no hook path. The Outlook connector `/triage` uses
 (`mcp__claude_ai_Microsoft_365__outlook_email_search`, or search `outlook
 email` via ToolSearch if the name differs) needs a model in the loop to call
 it — a bash hook cannot. So there is no `board.sh attention mail` fetch verb,
-and `refresh` never touches it.
+and the hook's `refresh` never touches it.
 
-To populate the mail row: search unread inbox mail from the last 24 hours the
-same way `/triage`'s step 1 does, write the count and a short detail to a
-scratch JSON file (`{"count": 3, "detail": "2 from humans · 1 flagged",
-"url": "https://outlook.office.com/mail/"}`), then persist it the same way
-`stability-write` persists a console scrape:
+`/halbarad` owns the mail row — one writer, one meaning. After each run it
+writes the count of mail worth a look since its cursor
+(`{"count": 3, "detail": "3 worth a look · 17 routine", "url":
+"https://outlook.office.com/mail/"}`) through
 
-    ~/.claude/hooks/board-attention.sh mail --from-json /tmp/mail.json
+    ~/.claude/hooks/board-attention.sh mail --from-json <file>
 
-If the connector is not connected, or its search errors, do **not** write a
-channel at all — run `~/.claude/hooks/board-attention.sh mail --clear`
-instead (idempotent; a no-op if nothing was ever written). The mail row must
-never show a ghost or a stale count from a connector that's gone dark; the
-row is either accurate or absent, never guessed at.
+and, when the Outlook connector is not connected or its search errors, it
+writes no channel at all and runs `~/.claude/hooks/board-attention.sh mail
+--clear` instead (idempotent; a no-op if nothing was ever written). The mail row
+must never show a ghost or a stale count from a connector that's gone dark; the
+row is either accurate or absent, never guessed at. To fill it on demand, run
+`/halbarad`; `/board refresh` runs it for you (see above).
 
 ## The Stability tile
 
