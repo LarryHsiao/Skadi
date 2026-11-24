@@ -122,7 +122,7 @@ When a change adds or edits a user-facing string (an l10n key, a static label) t
 
 When a change introduces or edits translated strings across multiple locales for a new feature, or for privacy-, legal-, or safety-relevant copy, dispatch one read-only reviewer per non-English locale in parallel — each critically checking its locale's new strings for natural phrasing, register consistent with that file's own existing sibling strings, and (for privacy/legal copy) that the claim's meaning survived translation — and fold each verdict (OK, or NEEDS FIX with a suggested correction) into the same report. Skip this for a single-string tweak (one button label, one error message) — the sibling-string check above already covers that case.
 
-When a step builds or edits a UI component's render, also weigh the render itself: invoke `/manwe` directly (the spawned lightweight reviewer above has no render tools) against a spec if one exists — a Henneth wireframe from this session's *Previews* step, a Figma reference, a screenshot — or, absent a spec, against a sibling component's actual layout values, the same discipline as the string check just above but for padding, spacing, sizing, and typography. Fold its verdict into this same report; a `DELTAS` or `DIVERGENT` finding is a debt like any other, fixed before "done" or named as a knowing exception.
+When a step builds or edits a UI component's render, also weigh the render itself: invoke `/manwe` directly (the spawned lightweight reviewer above has no render tools) against a spec if one exists — a Henneth wireframe from this session's *Previews* step, a Figma reference, a screenshot — or, absent a spec, against a sibling component's actual layout values, the same discipline as the string check just above but for padding, spacing, sizing, and typography. Fold its verdict into this same report; a `DELTAS` or `DIVERGENT` finding is a debt like any other, fixed before "done" or named as a knowing exception. A render hidden behind a feature flag or a constant is still a render the change edited: flip the flag locally (and revert it before "done") or render it with the flag mocked, then weigh it. Hidden is not `n/a` — the flip-and-weigh is the only way that render gets seen before it ships.
 
 When a change adds the first read of a dependency-injection binding (a Riverpod provider, or the equivalent in any DI framework) from outside that binding's own definition file, and its default implementation is unsafe to reach (throws, returns a stub, or otherwise signals "not wired") — verify every real entry point that builds the app's actual container overrides it, not just a test-constructed one. A hand-rolled test scope proves the logic reading the binding is correct while staying structurally blind to whether the real app ever wires the dependency: this exact trap let a P0 regression (vitallink-ca PSG-4716 — `appCrashlyticsRepositoryProvider` never overridden in `app_bootstrap.dart`/`main*.dart`) ship past a green 1,465-test suite and two rounds of compliance review, caught only by a separate CI reviewer bot.
 
@@ -154,7 +154,7 @@ Done — size ▰▰▱ medium · ✅ 4 done · ⬜ 1 not done · 🚫 1 blocked
 ✅ Worklog — <sent>
 ⬜ <work waiting on the user's word or deferred by choice, and why>
 🚫 <work that cannot proceed until something changes, and what is needed>
-n/a: <conditional rows that did not apply>
+n/a: <conditional rows that did not apply, each with a one-line reason>
 ```
 
 - **One list in flow order, status on the row.** Each row opens with its mark: ✅ done, ⬜ not done, 🚫 blocked. A row is ✅ only with evidence from this turn beside it; no evidence, no ✅. A row's text follows its outcome — the template shows the ✅ form, so a failed review or worklog is written as such behind ⬜, never copied behind ✅. One row per Acceptance line from the gate.
@@ -171,12 +171,13 @@ n/a: <conditional rows that did not apply>
 | Review `FAIL` with findings still open | ⬜ |
 | Review not run because the dispatch was refused | 🚫, with no verdict line, and ask for the restriction to be lifted |
 | Tests skipped, or not named, in the verification run | ⬜ on the fresh-verification row, naming them — a skipped test proves nothing; an Acceptance line stays ✅ when its own evidence ran, and drops to ⬜ when its only evidence was a skipped test |
+| Conditional check that applied but was not run | ⬜, naming why — never the `n/a` line |
 | Worklog sent | ✅ |
 | Worklog send failed | ⬜, with the reason |
 | Worklog not configured on this machine | the `n/a` line — not a debt |
 | Changes stand uncommitted and no commit was requested | ⬜, waiting for the user's word |
 
-- **Conditional rows appear only when they apply:** the sibling-string check, `/manwe`, the DI entry-point check, `/install` (config changed), the mechanism cache (a `file:line` fact was learned), commit and push (✅ when asked for and landed; ⬜ when asked but not landed, or when changes stand uncommitted and none was requested; the `n/a` line when there is nothing to commit). A conditional row that applies takes its mark by outcome like any other; `/install` is ✅ once it exited 0 and a live root matches the repo. Name the ones that did not apply on the single `n/a` line; never omit them silently.
+- **Conditional rows appear only when they apply:** the sibling-string check, `/manwe`, the DI entry-point check, `/install` (config changed), the mechanism cache (a `file:line` fact was learned), commit and push (✅ when asked for and landed; ⬜ when asked but not landed, or when changes stand uncommitted and none was requested; the `n/a` line when there is nothing to commit). A conditional row that applies takes its mark by outcome like any other; `/install` is ✅ once it exited 0 and a live root matches the repo. Name the ones that did not apply on the single `n/a` line, each with a one-line reason (`/manwe — no render touched`), never a bare name; never omit them silently. A check that applied but was not run is not `n/a`: it is a ⬜ row naming why — a `/manwe` skipped on a flag-hidden render is the case this guards.
 - **Chat only.** Commit messages, PR bodies and tracker posts carry no emoji.
 - **The block sits above the verdict line.** `Compliance Review: PASS`, `FAIL` or `SKIPPED (reason)` stays the literal last line of the report, unchanged, because the pulse reads it. When the review was not run, write no verdict line, per *Compliance Review*.
 
