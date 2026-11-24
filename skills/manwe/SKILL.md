@@ -23,6 +23,26 @@ does — it only looks, and says plainly what does not match.
   page/URL** (shot to a PNG first), or a Henneth wireframe already sitting in
   `~/.skadi/henneth/` from the same session's *Previews* step. Absent a
   spec, Manwë falls back to the sibling comparison below.
+- **A prototype branch the ticket cites is a spec too.** Running it is the
+  truest spec there is. Extract the branch's snapshot into the scratchpad (a
+  `git archive` of the branch, not a checkout — the working tree stays
+  untouched), start it on its own port, and shoot it as the spec. If the copy
+  borrows the project's `node_modules` by symlink, give it its own vite
+  `cacheDir`: a shared `node_modules/.vite` lets the running dev server and the
+  prototype re-optimize each other's deps, and the prototype renders blank
+  (`styled_default is not a function`).
+
+## Before the first shot — a page behind a login
+
+`feanor-shot.sh` drives a headless browser with no session, so an authenticated
+page shoots as its sign-in screen. Check this before the first shot, not after
+a blank verdict. Where a browser tab is already open and signed in (the
+claude-in-chrome extension's tab, when installed), take the target from that
+tab's own capture in place of the headless shot — Manwë still opens no tab of
+its own. With
+no such tab, say plainly that the page cannot be shot headless and ask the user
+for a screenshot of the target — never weigh the sign-in page as though it were
+the target.
 
 ## With a spec
 
@@ -59,6 +79,13 @@ does — it only looks, and says plainly what does not match.
    for the properties a reader expects to match: padding, margin, spacing, sizing,
    typography. This is the same discipline the Compliance Review's sibling-string
    check already applies to user-facing text, generalized to layout.
+   When the target hands text to a **shared component's prop** (`helperText`,
+   `label`, `caption`), the caller's props do not show how that text looks —
+   the component may hardcode its own colour and size (a form helper in a grey
+   tone at 12px, where the sibling used body text in the secondary colour).
+   Read that component's source for the colour, size and typography it applies.
+   Where both pages are open in a browser, compare their computed styles
+   (`getComputedStyle` colour and font-size) rather than judging by eye.
 4. Report `REASONABLE` (the shot looks sound and no compared property diverges) or
    `DIVERGENT` (name each divergent property, target's value beside the sibling's).
 

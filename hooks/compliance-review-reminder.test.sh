@@ -88,6 +88,18 @@ PY
 )
 check "reminder nudges the sibling-string check and the /manwe render weigh" "$expected_checks" "$actual_checks"
 
+# ── 4b · a flag-hidden render still owes /manwe (PSG-5462) ──
+# A render behind a feature flag or constant was declared n/a with no render to
+# weigh; flipping the flag locally caught two deltas the unit tests could not.
+expected_flag="yes"
+actual_flag=$(python3 - "$hook_out" <<'PY'
+import json, sys
+ctx = json.load(open(sys.argv[1], encoding="utf-8"))["hookSpecificOutput"]["additionalContext"].lower()
+print("yes" if "flag" in ctx and "not n/a" in ctx else "no")
+PY
+)
+check "reminder says a flag-hidden render is not n/a" "$expected_flag" "$actual_flag"
+
 # ── 5 · the third conditional check: DI/provider wiring (PSG-4716) ──
 expected_wiring="yes"
 actual_wiring=$(python3 - "$hook_out" <<'PY'
