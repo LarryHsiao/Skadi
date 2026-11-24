@@ -32,7 +32,7 @@ UI  ──►  Data  ◄──  Web API integration
 
 A DTO is the wire's shape, not the domain's. It is born in the web API layer and stays there: the adapter maps `OrderDto` to `Order` before anything crosses into Data, so no DTO type appears in Data or the UI. Merging two endpoints into one `Order` happens in the adapter for the same reason — only the adapter knows the remote shape.
 
-Following [`oo.md`](oo.md), `Order` is an interface. The adapter defines the concrete `DtoOrder` that wraps the transport object and returns it wrapped for the no-throw guarantee — `SafeOrder(DtoOrder(dto))`. Only the `Order` face crosses the seam; Data and the UI never name the concrete or the DTO inside it.
+Following [`oo.md`](oo.md), `Order` is an interface. The adapter defines the concrete `DtoOrder` that wraps the transport object and returns it wrapped for the no-throw guarantee, with a log beneath the fallback so no default fires unheard — `SafeOrder(LoggedOrder(DtoOrder(dto), log))`. Only the `Order` face crosses the seam; Data and the UI never name the concrete or the DTO inside it.
 
 `OrderSource` is a port with its own verb (`fetchOrders`), not a bare producer of a collection, so `oo.md`'s plural-name rule for read sources (`Orders`) does not apply to it.
 

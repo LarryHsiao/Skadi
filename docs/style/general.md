@@ -6,7 +6,7 @@
 
 - **No `-er` suffix** for classes or packages (no `Manager`, `Helper`, `Handler`, `Processor`, etc.). Name things after the domain concept they represent.
 - **Classes and objects are nouns.** If you can't name it without a verb, it's probably a method, not a class.
-- **Methods are verbs.** They do things.
+- **Methods that answer are nouns; methods that act are verbs.** `name()`, `total()`, `speed(actor)` return a value; `save()`, `add(book)` change something. A verb on an answering method — `getTitle()`, `calculateSpeed()` — names work where a thing belongs.
 
 ## Methods
 

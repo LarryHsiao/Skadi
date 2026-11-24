@@ -19,13 +19,13 @@ extension UserMaturity on User {
 }
 ```
 
-> An **abstract class** or a **mixin** will also serve as the seam — the three are mechanically near-equivalent in Dart. Interface is preferred: it bears no implementation surface to surprise the reader, and the seam declares only what callers may ask. Reach for abstract class when the seam needs a shared constructor that enforces invariants; reach for mixin only when no other shape fits — its slack rules (many `with`, no constructor) suit scaffolding better than seams.
+> An **abstract class** or a **mixin** would compile as a seam too, but each invites concretes to `extends` or `with` it — to inherit code, not only the type. The seam is always an interface: a concrete `implements` it and inherits the type alone. Shared code reaches a concrete by composition (*Share by Composing, Not Mixing*), and invariants arrive by decorator (`ValidatedUser`).
 
 ## Names Are Nouns
 
 Every class and object — seam, concrete, decorator, mixin, value type — is a noun. Adjective + noun describes *what a thing is*; verbs and `-er` / `-or` suffixes describe *what something does* and belong on methods, not classes.
 
-- **Good:** `User`, `JsonUser`, `ConstUser`, `DtoUser`, `SafeUser`, `LoggedUser`, `ValidatedUser`, `JsonBacked`, `Money`, `Age`.
+- **Good:** `User`, `JsonUser`, `ConstUser`, `DtoUser`, `SafeUser`, `LoggedUser`, `ValidatedUser`, `JsonFields`, `Money`, `Age`.
 - **Bad:** `UserManager`, `UserValidator`, `UserLogger`, `UserChecker`, `UserHandler`, `UserParser`, `UserBuilder`.
 
 **Pure domain objects never use `-er` / `-or` suffixes.** The rule yields at the framework boundary — first-party or third-party — when the framework's own convention bears the suffix and the class participates in that contract:
@@ -48,12 +48,14 @@ Each construction path is its own concrete class, each implementing the interfac
 
 Each concrete carries only its parsing or wrapping logic. The interface declares what callers may ask; the concrete satisfies each method from its own internal state.
 
-Concretes are immutable: final fields, no setters. New state means a new concrete.
+Concretes are immutable and closed: final fields, no setters, and declared `final class` so nothing extends them. New state means a new concrete; new behavior means a decorator. The rule yields at the framework boundary, where the framework's contract is a base class to extend — Flutter's `StatelessWidget` and the like.
+
+**Constructors only store.** A constructor assigns what it is given — at most wrapped in another object — and never calls it: no check, no parse, no call on an argument. Building a chain therefore cannot fail on a source's content; every such failure surfaces at a method call, inside the wrappers built to handle it. Dart's types already reject what a constructor check would otherwise catch — a null, a wrong type — so what is left to check is a value, and a value is weighed at the call.
 
 The simplest case wraps literal values:
 
 ```dart
-class ConstUser implements User {
+final class ConstUser implements User {
   ConstUser(this._name, this._age);
   final String _name;
   final int _age;
@@ -65,15 +67,21 @@ class ConstUser implements User {
 Richer sources follow the same shape. `JsonUser` parses a map; `DtoUser` wraps a transport object:
 
 ```dart
-class JsonUser implements User {
+final class JsonUser implements User {
   JsonUser(this._json);
   final Map<String, dynamic> _json;
-  @override String name() => _json['name'] as String;
-  @override int age() => _json['age'] as int;
+  @override String name() => _field<String>('name');
+  @override int age() => _field<int>('age');
+
+  T _field<T>(String key) {
+    final value = _json[key];
+    if (value is T) return value;
+    throw FormatException('"$key" is not a $T', _json);
+  }
 }
 ```
 
-The concrete reads its source plainly. Exception handling, logging, caching, and other cross-cutting concerns are layered through **decorators** — see the next section.
+The concrete reads its source plainly: a missing or mistyped field becomes a `FormatException`. Data from outside that does not fit is an exception, not a bug — a bare `as` cast would raise a `TypeError`, which [`dart-official.md`](dart-official.md) reserves for programmatic bugs. Every source keeps this contract, because `FormatException` is the one failure `SafeUser` substitutes for. Exception handling, logging, caching, and other cross-cutting concerns are layered through **decorators** — see the next section.
 
 ## Decorators for Cross-Cutting Concerns
 
@@ -81,10 +89,10 @@ A decorator is a class that **implements the seam *and* takes the seam as a cons
 
 The concrete stays simple — `JsonUser` reads JSON, nothing else. Concerns that do not belong to "reading JSON" do not live there.
 
-**Catch-and-fallback** is its own decorator. Fallback values arrive as named constructor parameters, so the call site decides what "missing" means:
+**Catch-and-fallback** is its own decorator. Fallback values arrive as named constructor parameters, so the call site decides what "missing" means. It catches only `FormatException`, the failure a source reports, so a bug still surfaces as one:
 
 ```dart
-class SafeUser implements User {
+final class SafeUser implements User {
   SafeUser(
     this._inner, {
     String nameFallback = '',
@@ -100,7 +108,7 @@ class SafeUser implements User {
   @override int age() => _safe(() => _inner.age(), _ageFallback);
 
   T _safe<T>(T Function() read, T fallback) {
-    try { return read(); } catch (_) { return fallback; }
+    try { return read(); } on FormatException { return fallback; }
   }
 }
 ```
@@ -108,7 +116,7 @@ class SafeUser implements User {
 **Logging** is its own decorator. It does not handle the error; it records it and re-throws so an outer decorator (or the caller) decides what to do next:
 
 ```dart
-class LoggedUser implements User {
+final class LoggedUser implements User {
   LoggedUser(this._inner, this._log);
   final User _inner;
   final void Function(Object e, StackTrace st) _log;
@@ -122,25 +130,36 @@ class LoggedUser implements User {
 }
 ```
 
-**Validation** is its own decorator. It runs the rules at construction and otherwise passes through; if a rule fails, construction throws and the wrapped object never exists:
+**Validation** is its own decorator. Each call checks the answer the wrapped object gives and throws a `FormatException` when a rule fails; otherwise it passes the answer through:
 
 ```dart
-class ValidatedUser implements User {
-  ValidatedUser(this._inner) {
-    if (_inner.name().isEmpty) {
-      throw ArgumentError('User name must not be empty');
-    }
-    if (_inner.age() < 0 || _inner.age() > 150) {
-      throw ArgumentError('Age out of range');
-    }
-  }
+final class ValidatedUser implements User {
+  ValidatedUser(this._inner);
   final User _inner;
-  @override String name() => _inner.name();
-  @override int age() => _inner.age();
+
+  @override
+  String name() {
+    final name = _inner.name();
+    if (name.isEmpty) {
+      throw const FormatException('User name is empty');
+    }
+    return name;
+  }
+
+  @override
+  int age() {
+    final age = _inner.age();
+    if (age < 0 || age > _maxAge) {
+      throw FormatException('Age $age is out of range');
+    }
+    return age;
+  }
 }
+
+const _maxAge = 150;
 ```
 
-`ValidatedUser` is unlike per-call decorators: it runs once, at construction. Its position in a wrapping chain decides *what it sees* — wrap `JsonUser` directly to validate raw source, wrap `SafeUser(JsonUser(...))` to validate post-fallback values. After construction it is silent.
+The check runs at the call, not at construction: it weighs the answer the caller is about to receive, and the constructor stays a plain store. Place it beneath `SafeUser` — `SafeUser(LoggedUser(ValidatedUser(JsonUser(json)), logger))` — and a rule that fails is handled like a malformed field: logged, then replaced by the call-site default.
 
 **Compose by wrapping. Order matters.**
 
@@ -155,13 +174,13 @@ final user = SafeUser(
 
 Two cautions:
 
-- **Each decorator carries one concern.** Do not fold logging into `SafeUser` for convenience — the moment a caller wants safe-without-log or log-without-safe, the convenience becomes a constraint.
+- **Each decorator carries one concern.** Do not fold logging into `SafeUser` for convenience — the moment a caller wants log-without-safe (a failure recorded, then left to propagate), the convenience becomes a constraint.
 - **Use fallbacks, not flags.** `0` for `age` may mean "newborn" or "missing"; the domain answers `0` either way and does not pretend to know. If the program needs to distinguish parsed from defaulted, surface that through a separate decorator (an audit log, for instance) — never as a method on the seam.
 
 **Derived behavior survives decoration.** Extensions on `User` — `UserMaturity.isAdult` from the opening section — resolve against the static type, so they work the same whether the value is a raw `JsonUser` or three decorators deep. The extension never knows it has been wrapped.
 
 ```dart
-final user = SafeUser(JsonUser(json));
+final user = SafeUser(LoggedUser(JsonUser(json), logger));
 user.isAdult; // resolves on User; works through any layered wrapping
 ```
 
@@ -169,14 +188,17 @@ user.isAdult; // resolves on User; works through any layered wrapping
 
 A domain object — the seam, exposed to a caller — answers without raising. A `User`'s `name()` returns a string; it does not signal failure. The concept this carries: a domain object *is* a thing in the world, and "failing to be" is not part of its identity. Throws are for objects whose role is *action*, not *being* — repositories, controllers, widgets, fetchers, anything whose primary purpose is to do work against the world rather than to expose properties.
 
-This does not mean every concrete is internally guarded. A `JsonUser` may still cast `_json['age'] as int` and let that cast blow up when the source malforms — the concrete stays narrow, reading its source plainly. The no-throw guarantee is enforced one rung higher: **a domain seam crosses to a caller wrapped**, and the wrapper catches and substitutes a type-natural default (`""`, `0`, `[]`, `false`).
+This does not mean every concrete is internally guarded. A `JsonUser` still throws a `FormatException` when the source malforms — the concrete stays narrow, reading its source plainly. The no-throw guarantee is enforced one rung higher: **a domain seam crosses to a caller wrapped**, and the wrapper catches and substitutes a type-natural default (`""`, `0`, `[]`, `false`). It catches what the data causes — a `FormatException` — and never an `Error`: a programming bug still surfaces, because a fallback must not hide one.
 
 ```dart
 // Wrong — bare concrete exposes throws to the caller.
 final user = JsonUser(json);
 
-// Right — the wrapper makes the no-throw guarantee real.
+// Wrong — no throw, but a fallback that fires unheard.
 final user = SafeUser(JsonUser(json));
+
+// Right — no throw, and the log beneath records every fallback.
+final user = SafeUser(LoggedUser(JsonUser(json), logger));
 ```
 
 `SafeUser` defaults to type-natural zeros. When the call site needs a *different* default — `'anonymous'` rather than `''`, `-1` rather than `0` — that is what `SafeUser`'s constructor parameters are for. The decorator's purpose sharpens: not "catch surprises" but "name the call-site default".
@@ -185,40 +207,35 @@ For objects whose role *is* action — `UserRepo.fetch(id)`, `SubmitButton.onPre
 
 A test for which side a class falls on: *is its primary purpose to **be** something (answer about itself), or to **do** something (act against the world)?* The first wears no-throw; the second wears throws-allowed.
 
-**Construction is not the seam.** The no-throw guarantee binds the seam's methods — what a caller asks of an object that already exists. A constructor that refuses invalid input, as `ValidatedUser` does, throws before any domain object comes into being: there is no `User` yet to break the promise. Construction-time validation is therefore the throw a domain chain may carry, and it surfaces at the point of composition — the code that assembles the chain is the code that must expect it. Once built and wrapped, the object answers without raising.
+**A fallback is a quiet failure, so it must not be a silent one.** A defaulted `0` reads exactly like a real `0` — the cost [`universal.md`](universal.md) weighs under *Prefer the failure that is loud and local*. This guide accepts that cost for the reason above, and pays what that rule asks of every quiet option: a detector. `SafeUser` never stands without a `LoggedUser` beneath it, so every fallback that fires leaves a record.
 
-## Mixins — Scaffolding, Not the Seam
+## Share by Composing, Not Mixing
 
-A **mixin** is a bundle of methods stitched into a class without inheritance — implementation-bearing, but no parent and no type of its own.
-
-The seam is the interface. Mixins earn their place one rung lower:
-
-- **Shared scaffolding across concretes.** When `JsonUser`, `JsonInvoice`, and `JsonPokemon` all read a JSON map the same way, lift the boilerplate into a `JsonBacked` mixin and stitch it into each concrete.
-- **Optional capabilities.** A cross-cutting trait that some domain objects bear and others do not — `Comparable`, `Serializable`, `Auditable` — fits a mixin.
-
-Refuse them when:
-
-- The behavior is part of the domain's contract — that belongs on the interface.
-- The mixin would require state from another mixin — tangled chains are worse than honest inheritance.
-- Only one class would use it — a mixin earns its keep through reuse.
-
-Below, the `JsonUser` from *Source as Separate Concrete* reads its map through the mixin instead. The field becomes public (`json`, not `_json`) because the mixin reads it through the `json` getter — when a mixin is in play, accessibility shifts to expose what it needs.
+When `JsonUser`, `JsonInvoice`, and `JsonPokemon` all read a JSON map the same way, the `_field` helper recurs three times — the point at which [`universal.md`](universal.md) says to lift it. Lift it into a small object the concrete keeps private, not into a mixin. A mixin shared across files sees only its host's public members, so the host must expose what the mixin reads — the map turns public to feed it. Composition shares the code and keeps the field private:
 
 ```dart
-mixin JsonBacked {
-  Map<String, dynamic> get json;
-  T read<T>(String key) => json[key] as T;
+final class JsonFields {
+  JsonFields(this._json);
+  final Map<String, dynamic> _json;
+
+  T field<T>(String key) {
+    final value = _json[key];
+    if (value is T) return value;
+    throw FormatException('"$key" is not a $T', _json);
+  }
 }
 
-class JsonUser with JsonBacked implements User {
-  JsonUser(this.json);
-  @override final Map<String, dynamic> json;
-  @override String name() => read<String>('name');
-  @override int age() => read<int>('age');
+final class JsonUser implements User {
+  JsonUser(Map<String, dynamic> json) : _fields = JsonFields(json);
+  final JsonFields _fields;
+  @override String name() => _fields.field<String>('name');
+  @override int age() => _fields.field<int>('age');
 }
 ```
 
-No try/catch in the mixin — that is a decorator's job. The mixin-using `JsonUser` is still a `User`, so it wraps into `SafeUser`, `LoggedUser`, or any other decorator just like the simpler form.
+No try/catch in `JsonFields` — that is a decorator's job. The composed `JsonUser` is still a `User`, so it wraps into `SafeUser`, `LoggedUser`, or any other decorator just like the simpler form.
+
+A capability that some domain objects bear and others do not — `Comparable`, `Auditable` — is an interface the concrete `implements`, not a mixin. Mixins yield only at the framework boundary, where the framework's contract bears them: Flutter's `SingleTickerProviderStateMixin`, `AutomaticKeepAliveClientMixin`, and the like.
 
 ## No Statics
 
