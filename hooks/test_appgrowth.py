@@ -2,6 +2,7 @@
 """Tests for the appgrowth dashboard's pure helpers."""
 
 import importlib.util
+import os
 import subprocess
 import unittest
 from datetime import date
@@ -90,6 +91,18 @@ class RenderResilienceTest(unittest.TestCase):
         page = app.render_page(headline, [], [], date(2026, 6, 10))
         expected = True
         result = "METIS · GROWTH" in page
+        self.assertEqual(expected, result)
+
+    def test_page_and_files_take_their_name_from_the_app(self):
+        with mock.patch.dict(os.environ, {"GROWTH_APP": "snotra"}):
+            spec = importlib.util.spec_from_file_location(
+                "appgrowth_snotra", HERE / "appgrowth.py")
+            named = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(named)
+        headline = {"wau": 0, "wau_prev": 0, "mau": 0, "mau_prev": 0}
+        page = named.render_page(headline, [], [], date(2026, 6, 10))
+        expected = ("snotra-growth.html", True)
+        result = (named.OUT_HTML.name, "SNOTRA · GROWTH" in page)
         self.assertEqual(expected, result)
 
 

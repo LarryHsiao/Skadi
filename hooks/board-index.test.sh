@@ -364,6 +364,69 @@ check "vilya: no address shows a dash, never 'null'" "$expected_dash" "$(vfield 
 check "vilya: pid stays reachable in the row" "$expected_pid" "$(vfield PID)"
 check "vilya: a hostile name or url cannot break out or become a link" "$expected_safe" "$(vfield HOSTILE)"
 
+# ── The growth tile ──
+# A pure function of the growth channel (data in, HTML string out), lifted from
+# its neighbours the same way: from wow() through where renderStrip begins. One
+# app reads as before; two or more lead with the summed total and list the split.
+growth_out=$(node - "$PAGE" <<'JS'
+const fs = require("fs");
+const page = fs.readFileSync(process.argv[2], "utf8");
+
+const start = page.indexOf("function growthTileHtml(");
+const end = page.indexOf("function renderStrip(", start);
+if (start === -1 || end === -1) {
+  console.log("EXTRACT_FAILED");
+  process.exit(0);
+}
+const wowStart = page.indexOf("function wow(");
+const src = page.slice(wowStart, wowStart + page.slice(wowStart).indexOf("\n      }\n") + 9)
+  + "\n" + page.slice(start, end);
+
+const esc = (s) =>
+  String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+const fn = eval(src + "\ngrowthTileHtml;");
+
+const one = { app: "metis", wau: 3, wau_prev: 12, mau: 15, mau_prev: 17,
+              url: "growth-metis.html", partial: false,
+              apps: [{ app: "metis", wau: 3, mau: 15 }] };
+const two = { app: "metis + snotra", wau: 8, wau_prev: 16, mau: 35, mau_prev: 35,
+              url: "growth-metis.html", partial: false,
+              apps: [{ app: "metis", wau: 3 }, { app: "snotra", wau: 5 }] };
+const part = { ...two, wau: 3, wau_prev: 6, mau: 15, partial: true,
+               apps: [{ app: "metis", wau: 3 }, { app: "snotra", wau: null }] };
+const big = { ...two, wau: 1234567, wau_prev: 2469134, mau: 9876543,
+              apps: [{ app: "metis", wau: 1200000 }, { app: "snotra", wau: 34567 }] };
+const evil = { ...two, apps: [{ app: "<b>x</b>", wau: 1 }, { app: "snotra", wau: 2 }] };
+
+const text = (h) => h.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+console.log("ONE " + text(fn(one)));
+console.log("TWO " + text(fn(two)));
+console.log("PART " + text(fn(part)));
+console.log("BIG " + text(fn(big)));
+console.log("EVIL " + (fn(evil).includes("<b>x</b>") ? "RAW" : "escaped"));
+console.log("DOOR " + (fn(two).includes("href=\"growth-metis.html\"") ? "yes" : "no"));
+console.log("NODOOR " + (fn({ ...two, url: null }).includes("<a ") ? "yes" : "no"));
+JS
+)
+
+gfield() { printf '%s\n' "$growth_out" | sed -n "s/^$1 //p"; }
+
+expected_one="Metis growth 3 WAU Enter ↵ MAU 15 · ▼75% wow"
+check "growth tile: one app reads as before" "$expected_one" "$(gfield ONE)"
+
+expected_two="Growth 8 WAU Enter ↵ metis 3 · snotra 5 MAU 35 · ▼50% wow"
+check "growth tile: two apps lead with the total and list the split" "$expected_two" "$(gfield TWO)"
+
+expected_part="Growth 3 WAU Enter ↵ metis 3 · snotra — MAU 15 · partial · ▼50% wow"
+check "growth tile: an app with no numbers shows a dash and marks partial" "$expected_part" "$(gfield PART)"
+
+expected_big="Growth 1,234,567 WAU Enter ↵ metis 1,200,000 · snotra 34,567 MAU 9,876,543 · ▼50% wow"
+check "growth tile: seven-digit counts are grouped, never truncated" "$expected_big" "$(gfield BIG)"
+
+check "growth tile: a hostile app name is escaped" "escaped" "$(gfield EVIL)"
+check "growth tile: the Enter door shows when the channel has a url" "yes" "$(gfield DOOR)"
+check "growth tile: no url, no door link" "no" "$(gfield NODOOR)"
+
 echo ""
 echo "── $pass passed, $fail failed ──"
 [[ "$fail" -eq 0 ]]

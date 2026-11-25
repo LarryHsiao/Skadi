@@ -82,6 +82,9 @@
         text-transform: uppercase;
         color: var(--accent);
       }
+      .wrapall {
+        overflow-wrap: anywhere;
+      }
       .kpi {
         font-size: 1.4rem;
         font-weight: 600;
@@ -863,6 +866,35 @@
         render();
       }
 
+      // The growth tile: one app reads as "<App> growth"; two or more lead with
+      // the summed total and list each app's own number beneath. A dash marks an
+      // app with no numbers (never a zero), and "partial" says the total leaves
+      // it out. Counts are grouped with commas and wrap rather than truncate.
+      function growthTileHtml(growth) {
+        const num = (n) => Number(n).toLocaleString("en-US");
+        const apps = growth.apps || [];
+        const name = growth.app || "metis";
+        const label = apps.length > 1 ? "Growth" : `${name[0].toUpperCase()}${name.slice(1)} growth`;
+        const split = apps.length > 1
+          ? `<div class="muted wrapall">${apps
+              .map((a) => `${esc(a.app)} ${a.wau == null ? "—" : num(a.wau)}`)
+              .join(" · ")}</div>`
+          : "";
+        const door = growth.url
+          ? `<a class="enter" href="${esc(growth.url)}" target="_blank" rel="noopener" style="font-size:0.7rem">Enter ↵</a>`
+          : "";
+        const mau = [`MAU ${num(growth.mau)}`, growth.partial ? "partial" : "", wow(growth.wau, growth.wau_prev)]
+          .filter(Boolean)
+          .join(" · ");
+        return `<div class="tile"><div class="lbl">${esc(label)}</div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:.4rem">
+        <div class="kpi">${num(growth.wau)}<small> WAU</small></div>
+        ${door}
+      </div>
+      ${split}
+      <div class="muted wrapall">${mau}</div></div>`;
+      }
+
       function renderStrip(tickets, growth, sweeps, pulse, stabilityChannels) {
         const blocked = tickets.filter((t) => t.blocked);
         const stir = sweeps.filter((s) => s.verdict === "stirred").length;
@@ -876,12 +908,7 @@
       <div class="muted"${blocked.length ? ' style="color:var(--red)"' : ""}>${blocked.length} blocked${blocked.length ? " · " + esc(blocked[0].id) : ""}</div></div>
     ${
       growth
-        ? `<div class="tile"><div class="lbl">Metis growth</div>
-      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:.4rem">
-        <div class="kpi">${esc(growth.wau)}<small> WAU</small></div>
-        ${growth.url ? `<a class="enter" href="${esc(growth.url)}" target="_blank" rel="noopener" style="font-size:0.7rem">Enter ↵</a>` : ""}
-      </div>
-      <div class="muted">MAU ${esc(growth.mau)} · ${wow(growth.wau, growth.wau_prev)}</div></div>`
+        ? growthTileHtml(growth)
         : `<div class="tile ghost"><div class="lbl">Metis growth</div><div class="kpi">—</div>
       <div class="muted">channel not wired</div></div>`
     }

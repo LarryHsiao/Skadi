@@ -196,7 +196,11 @@ for name in json.load(open(manifest, encoding="utf-8")).get("channels", []):
         print("%s %-10s %-16s AC %-5s %s" % (
             star, d.get("id", ""), d.get("status", ""), pct, (d.get("title") or "")[:48]))
     elif d.get("channel") == "growth":
-        print("  %-10s WAU %s · MAU %s" % (d.get("app", "growth"), d.get("wau"), d.get("mau")))
+        apps = d.get("apps") or []
+        split = " · ".join("%s %s" % (a.get("app"), "—" if a.get("wau") is None else a.get("wau"))
+                           for a in apps) if len(apps) > 1 else ""
+        print("  %-10s WAU %s · MAU %s%s" % (
+            d.get("app", "growth"), d.get("wau"), d.get("mau"), ("  [%s]" % split) if split else ""))
     elif d.get("channel") == "sweep":
         print("  sweep %-10s %-8s %s" % (
             d.get("name", ""), d.get("verdict", ""), (d.get("detail") or "")[:40]))
