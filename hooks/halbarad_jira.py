@@ -10,8 +10,9 @@
 
 A run that finds tickets also keeps its list for the drill-down (`last get jira`).
 
-A ticket is news when it is assigned to the user or one of its comments has ever
-named them, and someone else changed or commented on it after the cursor.
+A ticket is news when it is assigned to the user, was created by them, or one of
+its comments has ever named them, and someone else changed or commented on it
+after the cursor.
 Mentions are read from the comments' ADF `mention` nodes: Jira's own docs offer
 no reliable JQL mention operator (JRACLOUD-27594), so JQL only narrows the
 candidates and the nodes decide.
@@ -128,10 +129,10 @@ def fetch_fixture(fixture_dir, path):
 def search_candidates(now, since):
     minutes = math.ceil((now - since).total_seconds() / 60) + JQL_SLACK_MINUTES
     jql = (f"updated >= -{minutes}m AND (assignee = currentUser() "
-           "OR comment ~ currentUser()) ORDER BY updated DESC")
+           "OR reporter = currentUser() OR comment ~ currentUser()) ORDER BY updated DESC")
     issues, token = [], None
     for _ in range(MAX_PAGES):
-        params = {"jql": jql, "fields": "summary,status,assignee,updated",
+        params = {"jql": jql, "fields": "summary,status,assignee,reporter,updated",
                   "expand": "changelog", "maxResults": PAGE_SIZE}
         if token:
             params["nextPageToken"] = token
@@ -216,13 +217,15 @@ def build_ticket(issue, since, me, done_names, base_url):
     comment_changes, mentions, named_ever = comment_events(key, since, me)
     changes = history_changes(issue, since, me, done_names) + comment_changes
     assigned = (fields.get("assignee") or {}).get("accountId") == me
-    if not changes or not (assigned or named_ever):
+    created_by_me = (fields.get("reporter") or {}).get("accountId") == me
+    if not changes or not (assigned or created_by_me or named_ever):
         return None
     return {
         "key": key, "summary": fields["summary"], "status": fields["status"]["name"],
         "url": f"{base_url.rstrip('/')}/browse/{key}",
         "updated": fields["updated"],
         "assigned": assigned,
+        "created_by_me": created_by_me,
         "reopened": any(change.get("reopened") for change in changes),
         "reassigned_to_me": any(change.get("to_me") for change in changes),
         "changes": sorted(changes, key=lambda change: change["at"]),

@@ -192,6 +192,25 @@ out13f="$(FX="$FXF"; HALBARAD_CURSOR_FILE="$CF13" HALBARAD_NOW="$NOW" HALBARAD_J
 check "a Jira failure in a window exits 4 with an error" "4/error" "$rc/$(jq -r '.status' <<<"$out13f")"
 check "a failed window still leaves the cursor" "jira: $CURSOR" "$(cat "$CF13")"
 
+# ── 14 · a ticket the user created counts as theirs, even when assigned to someone else ──
+FX="$ROOT/fx14"; build_fixture "$FX"
+jq --arg me "$ME" --arg viv "$VIV" '.issues += [
+  {"key":"PSG-6","fields":{"summary":"I filed this","status":{"name":"In Review"},"reporter":{"accountId":$me},"assignee":{"accountId":"someone-else"},"updated":"2026-11-24T11:10:00Z"},
+   "changelog":{"histories":[{"created":"2026-11-24T11:10:00Z","author":{"accountId":$viv,"displayName":"Vivian Yen"},"items":[{"field":"Fix Version"}]}]}},
+  {"key":"PSG-7","fields":{"summary":"I filed it and only I touched it","status":{"name":"In Review"},"reporter":{"accountId":$me},"assignee":{"accountId":"someone-else"},"updated":"2026-11-24T11:20:00Z"},
+   "changelog":{"histories":[{"created":"2026-11-24T11:20:00Z","author":{"accountId":$me,"displayName":"Larry Hsiao"},"items":[{"field":"summary"}]}]}},
+  {"key":"PSG-8","fields":{"summary":"Someone else filed it, someone else owns it","status":{"name":"In Review"},"reporter":{"accountId":"other-reporter"},"assignee":{"accountId":"someone-else"},"updated":"2026-11-24T11:25:00Z"},
+   "changelog":{"histories":[{"created":"2026-11-24T11:25:00Z","author":{"accountId":$viv,"displayName":"Vivian Yen"},"items":[{"field":"Fix Version"}]}]}}]' \
+  "$FX/search.json" >"$FX/search.new" && mv "$FX/search.new" "$FX/search.json"
+for k in PSG-6 PSG-7 PSG-8; do echo '{"comments":[]}' >"$FX/comments-$k.json"; done
+CF14="$ROOT/cursor14.md"; echo "jira: $CURSOR" >"$CF14"
+out14="$(run "$CF14" "$NOW")"
+expected_created='["PSG-1","PSG-6","PSG-3","PSG-2"]'
+check "a ticket the user created and others touched is listed; their own edit or a stranger's ticket is not" \
+  "$expected_created" "$(jq -c '[.tickets[].key]' <<<"$out14")"
+check "the listed ticket says it was created by the user" "true/false" \
+  "$(jq -r '"\(.tickets[1].created_by_me)/\(.tickets[0].created_by_me)"' <<<"$out14")"
+
 echo
 echo "$pass passed, $fail failed"
 [[ $fail -eq 0 ]]
