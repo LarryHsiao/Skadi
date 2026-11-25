@@ -162,40 +162,75 @@ expected="0/null/unknown"
 actual="$rc/$(jq -r '.count' "$d/attention-prs.json")/$(jq -r '.verdict' "$d/attention-prs.json")"
 check "prs auth failure (rc=1) never reads as a false 0 / quiet" "$expected" "$actual"
 
-# ── 12 · jira: API_ERROR sentinel -> null / unknown, exit 0 ──
-d=$(tmpdir)
-fx="$d/fixture"
-mkdir -p "$fx"
-echo 'API_ERROR|field assignee is not valid' >"$fx/jira.out"
-BOARD_DIR="$d" BOARD_ATTENTION_FIXTURE_DIR="$fx" bash "$WRITER" jira >/dev/null 2>&1
-rc=$?
-expected="0/null/unknown"
-actual="$rc/$(jq -r '.count' "$d/attention-jira.json")/$(jq -r '.verdict' "$d/attention-jira.json")"
-check "jira API_ERROR sentinel writes count null / unknown, exit 0" "$expected" "$actual"
+# ── jira: the source is `halbarad-jira.sh window 24`'s JSON (tickets + why) ──
+# tk builds one ticket; window_json folds tickets read from stdin into the brief.
+tk() { # tk <key> <summary> <url> <changes-json> <mentions-json> [reopened] [reassigned_to_me]
+  jq -nc --arg k "$1" --arg s "$2" --arg u "$3" --argjson c "$4" --argjson m "$5" \
+    --argjson r "${6:-false}" --argjson t "${7:-false}" \
+    '{key:$k,summary:$s,status:"In Progress",url:$u,updated:"2026-11-24T10:00:00Z",assigned:false,
+      reopened:$r,reassigned_to_me:$t,changes:$c,mentions:$m}'
+}
+window_json() { jq -sc '{source:"jira",status:"ok",tickets:.}'; }
+BASE="https://jubo.atlassian.net/browse"
+CMT='[{"at":"2026-11-24T10:00:00Z","who":"Chia-Yu","kind":"comment"}]'
+FIXV='[{"at":"2026-11-24T10:00:00Z","who":"Louis","kind":"Fix Version"}]'
+jira_run() { # jira_run <fixture-dir> <board-dir>
+  BOARD_DIR="$2" BOARD_ATTENTION_FIXTURE_DIR="$1" bash "$WRITER" jira >/dev/null 2>&1
+}
 
-# ── 13 · jira: EMPTY sentinel -> count 0 / quiet ──
-d=$(tmpdir)
-fx="$d/fixture"
-mkdir -p "$fx"
-echo 'EMPTY' >"$fx/jira.out"
-BOARD_DIR="$d" BOARD_ATTENTION_FIXTURE_DIR="$fx" bash "$WRITER" jira >/dev/null 2>&1
-expected="0/quiet"
+# ── 12 · jira: an error answer, or one that is not JSON -> null / unknown, exit 0 ──
+d=$(tmpdir); fx="$d/fixture"; mkdir -p "$fx"
+echo '{"source":"jira","status":"error","reason":"timeout"}' >"$fx/jira.out"; echo 4 >"$fx/jira.rc"
+jira_run "$fx" "$d"; rc=$?
+expected="0/null/unknown/none"
+actual="$rc/$(jq -r '.count' "$d/attention-jira.json")/$(jq -r '.verdict' "$d/attention-jira.json")/$(jq -r '.items // "none"' "$d/attention-jira.json")"
+check "jira error answer writes count null / unknown with no items, exit 0" "$expected" "$actual"
+
+d=$(tmpdir); fx="$d/fixture"; mkdir -p "$fx"
+echo 'not json at all' >"$fx/jira.out"
+jira_run "$fx" "$d"
+expected="null/unknown"
 actual="$(jq -r '"\(.count)/\(.verdict)"' "$d/attention-jira.json")"
-check "jira EMPTY sentinel writes count 0 / quiet" "$expected" "$actual"
+check "jira answer that is not JSON reads unknown, never a false 0" "$expected" "$actual"
 
-# ── 14 · jira: populated -> grouped detail, stirred ──
-d=$(tmpdir)
-fx="$d/fixture"
-mkdir -p "$fx"
-cat >"$fx/jira.out" <<'EOF'
-ISSUE|In Progress|M|PSG-1|Fix the thing
-ISSUE|In Progress|M|PSG-2|Fix another thing
-ISSUE|Done|M|PSG-3|Shipped thing
-EOF
-BOARD_DIR="$d" BOARD_ATTENTION_FIXTURE_DIR="$fx" bash "$WRITER" jira >/dev/null 2>&1
-expected="3/2 In Progress · 1 Done/stirred"
+# ── 13 · jira: no tickets -> count 0 / quiet, empty list ──
+d=$(tmpdir); fx="$d/fixture"; mkdir -p "$fx"
+echo '{"source":"jira","status":"ok","tickets":[]}' >"$fx/jira.out"
+jira_run "$fx" "$d"
+expected="0/quiet/0"
+actual="$(jq -r '"\(.count)/\(.verdict)/\(.items | length)"' "$d/attention-jira.json")"
+check "jira with no tickets writes count 0 / quiet and no items" "$expected" "$actual"
+
+# ── 14 · jira: populated -> ranked list (mention/reopened, reassigned, rest), top five ──
+d=$(tmpdir); fx="$d/fixture"; mkdir -p "$fx"
+{
+  tk PSG-4930 "Cap the range" "$BASE/PSG-4930" "$CMT" '[]'
+  tk PSG-4941 "Pin results" "$BASE/PSG-4941" "$FIXV" '[]'
+  tk LTC-4100 "Dual device" "$BASE/LTC-4100" '[{"at":"2026-11-24T09:59:13Z","who":"Yahan Chou","kind":"assignee","to_me":true}]' '[]' false true
+  tk PSG-4971 "Re-run API" "$BASE/PSG-4971" '[{"at":"2026-11-24T07:01:58Z","who":"ShawnYeh","kind":"comment"}]' '[{"at":"2026-11-24T07:01:58Z","who":"ShawnYeh","kind":"mention","quote":"q"}]'
+  tk PSG-9 "Back again" "$BASE/PSG-9" '[{"at":"2026-11-24T08:00:00Z","who":"Vivian","kind":"status","reopened":true}]' '[]' true
+  tk PSG-7 "Seventh" "$BASE/PSG-7" "$CMT" '[]'
+  tk PSG-8 "Eighth" "$BASE/PSG-8" "$CMT" '[]'
+} | window_json >"$fx/jira.out"
+jira_run "$fx" "$d"
+expected="7/1 mention · 1 reopened · 1 reassigned · 4 moved/stirred"
 actual="$(jq -r '"\(.count)/\(.detail)/\(.verdict)"' "$d/attention-jira.json")"
-check "jira groups the detail by status, in order of first appearance" "$expected" "$actual"
+check "jira counts tickets and names each kind in the detail" "$expected" "$actual"
+expected_keys='["PSG-4971","PSG-9","LTC-4100","PSG-4930","PSG-4941"]'
+check "jira lists mention and reopened first, then reassigned, then the rest, five at most" "$expected_keys" \
+  "$(jq -c '[.items[].key]' "$d/attention-jira.json")"
+expected_why='["mention · ShawnYeh","reopened · Vivian","assigned to you · Yahan Chou","comment · Chia-Yu","Fix Version · Louis"]'
+check "jira gives each listed ticket its reason and who" "$expected_why" "$(jq -c '[.items[].why]' "$d/attention-jira.json")"
+expected_tone='["alert","alert","assigned","moved","moved"]'
+check "jira tones each reason for the page" "$expected_tone" "$(jq -c '[.items[].tone]' "$d/attention-jira.json")"
+
+# ── 14b · jira: a title is kept verbatim for the page to escape; a non-https url is dropped ──
+d=$(tmpdir); fx="$d/fixture"; mkdir -p "$fx"
+tk PSG-10 "<b>x</b>" "javascript:alert(1)" "$CMT" '[]' | window_json >"$fx/jira.out"
+jira_run "$fx" "$d"
+expected="<b>x</b>/null"
+actual="$(jq -r '"\(.items[0].summary)/\(.items[0].url)"' "$d/attention-jira.json")"
+check "jira keeps the title as text and drops a url that is not https" "$expected" "$actual"
 
 # ── 15 · mail: a valid --from-json payload writes the channel ──
 d=$(tmpdir)
@@ -250,18 +285,13 @@ expected="50 to review (capped)"
 actual="$(jq -r '.detail' "$d/attention-mrs.json")"
 check "a category sitting on the page cap is marked (capped)" "$expected" "$actual"
 
-# ── 20 · jira: exactly 50 ISSUE lines reads as capped ──
-d=$(tmpdir)
-fx="$d/fixture"
-mkdir -p "$fx"
-: >"$fx/jira.out"
-for i in $(seq 1 50); do
-  echo "ISSUE|In Progress|M|PSG-$i|Item $i" >>"$fx/jira.out"
-done
-BOARD_DIR="$d" BOARD_ATTENTION_FIXTURE_DIR="$fx" bash "$WRITER" jira >/dev/null 2>&1
-expected="50/50 In Progress (capped)"
-actual="$(jq -r '"\(.count)/\(.detail)"' "$d/attention-jira.json")"
-check "jira at exactly maxResults reads as capped, not an exact count" "$expected" "$actual"
+# ── 20 · jira: many tickets -> the true count, five listed ──
+d=$(tmpdir); fx="$d/fixture"; mkdir -p "$fx"
+for i in $(seq 1 60); do tk "PSG-$i" "Item $i" "$BASE/PSG-$i" "$CMT" '[]'; done | window_json >"$fx/jira.out"
+jira_run "$fx" "$d"
+expected="60/60 moved/5"
+actual="$(jq -r '"\(.count)/\(.detail)/\(.items | length)"' "$d/attention-jira.json")"
+check "jira reports the true count and lists only five" "$expected" "$actual"
 
 echo ""
 echo "── $pass passed, $fail failed ──"
