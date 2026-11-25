@@ -9,7 +9,7 @@
 #
 #   mrs   — glab merge requests you're reviewing or authored, via mrs-check.sh
 #   prs   — GitHub PRs you're reviewing or authored, via prs-check.sh
-#   jira  — tickets assigned to you or naming you that someone else touched in the
+#   jira  — tickets assigned to you, created by you, or naming you that someone else touched in the
 #           last 24 hours, via halbarad-jira.sh's read-only `window` verb (it
 #           never moves /halbarad's cursor); the channel lists the top five
 #   mail  — written only by --from-json (see below); no fetch path here, the
@@ -208,9 +208,9 @@ fetch_prs() {
 # All statuses on purpose — this reports MOVEMENT, not outstanding work, so a
 # ticket that reached Done in the last day is exactly what belongs here. Do
 # not "fix" this into statusCategory != Done. The door's JQL is the wide net
-# (assigned or mentioned, updated in the last day); the listed tickets are the
+# (assigned, created by you, or mentioned, updated in the last day); the listed tickets are the
 # narrower ones another person actually touched.
-JIRA_JQL="updated >= -1d AND (assignee = currentUser() OR comment ~ currentUser()) ORDER BY updated DESC"
+JIRA_JQL="updated >= -1d AND (assignee = currentUser() OR reporter = currentUser() OR comment ~ currentUser()) ORDER BY updated DESC"
 JIRA_WINDOW_HOURS=24
 
 fetch_jira() {

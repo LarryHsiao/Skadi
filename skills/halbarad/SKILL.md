@@ -1,6 +1,6 @@
 ---
 name: halbarad
-description: Use when the user runs /halbarad [mail|teams|jira]. One read-only sweep of Outlook, Teams and Jira that prints a single brief of what is new since the last run and wants the user — a ranked NEEDS ME list, then Mail, Teams and Jira sections. Mail and Teams come from /gwaihir unchanged; Jira is its own pass (assigned to the user or mentioning them). Each source keeps its own cursor and a failed source never moves it. Never writes to Outlook, Teams or Jira; acting stays with /triage and /vor.
+description: Use when the user runs /halbarad [mail|teams|jira]. One read-only sweep of Outlook, Teams and Jira that prints a single brief of what is new since the last run and wants the user — a ranked NEEDS ME list, then Mail, Teams and Jira sections. Mail and Teams come from /gwaihir unchanged; Jira is its own pass (assigned to the user, created by them, or mentioning them). Each source keeps its own cursor and a failed source never moves it. Never writes to Outlook, Teams or Jira; acting stays with /triage and /vor.
 purpose: Sweeps Outlook, Teams and Jira into one brief of what is new since the last run.
 user_invocable: true
 stage: intake
@@ -73,11 +73,12 @@ Run `~/.claude/hooks/halbarad-jira.sh` with no arguments. It prints one JSON
 object and handles its own cursor and its own last-list.
 
 - Exit `0`, `status: ok` — read `tickets` (newest first). Each carries `key`,
-  `summary`, `status`, `url`, `assigned`, `reopened`, `reassigned_to_me`,
-  `changes` (others' changes after the cursor: `who`, `local`, `kind`, `from`,
-  `to`) and `mentions` (`who`, `local`, `quote`). A ticket is here because the
-  user is assigned or mentioned **and** someone else touched it after the
-  cursor — the user's own edits never count.
+  `summary`, `status`, `url`, `assigned`, `created_by_me`, `reopened`,
+  `reassigned_to_me`, `changes` (others' changes after the cursor: `who`,
+  `local`, `kind`, `from`, `to`) and `mentions` (`who`, `local`, `quote`). A
+  ticket is here because the user is assigned, created it, or was mentioned
+  **and** someone else touched it after the cursor — the user's own edits never
+  count.
 - Exit `2` or `4`, `status: error` — Jira is silent. Footnote
   `Jira: <reason> — cursor NOT advanced for Jira`. The tool has left the
   cursor where it was.
