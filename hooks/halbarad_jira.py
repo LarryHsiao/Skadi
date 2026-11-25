@@ -332,6 +332,8 @@ def run_last(cursor_path, args):
 
 
 def main(argv):
+    # Ticket text is often CJK; a Windows console defaults to cp1252 and would crash on print.
+    sys.stdout.reconfigure(encoding="utf-8")
     if argv[:1] == ["window"]:
         return run_window(argv[1:])
     cursor_path = os.environ.get("HALBARAD_CURSOR_FILE")

@@ -65,8 +65,11 @@ def run_headline(app, project, dataset, account):
                        ("GROWTH_ACCOUNT", account)):
         if value:
             env[key] = value
+    if not os.path.isfile(appgrowth):
+        raise RuntimeError("cannot run appgrowth: no such file")
     try:
-        done = subprocess.run([appgrowth], capture_output=True, env=env)
+        # Through the interpreter: Windows cannot spawn a .py directly.
+        done = subprocess.run([sys.executable, appgrowth], capture_output=True, env=env)
     except OSError as failure:
         raise RuntimeError(f"cannot run appgrowth: {failure.strerror}")
     if done.returncode != 0:

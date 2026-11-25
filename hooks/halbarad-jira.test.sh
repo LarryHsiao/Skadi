@@ -211,6 +211,22 @@ check "a ticket the user created and others touched is listed; their own edit or
 check "the listed ticket says it was created by the user" "true/false" \
   "$(jq -r '"\(.tickets[1].created_by_me)/\(.tickets[0].created_by_me)"' <<<"$out14")"
 
+# ── 15 · a CJK summary prints under a console that cannot encode it ──
+FX="$ROOT/fx15"; mkdir -p "$FX"
+echo "{\"accountId\":\"$ME\",\"displayName\":\"Larry Hsiao\"}" >"$FX/myself.json"
+echo '[{"name":"In Review","statusCategory":{"key":"indeterminate"}}]' >"$FX/status.json"
+cat >"$FX/search.json" <<EOF
+{"issues":[{"key":"PSG-9","fields":{"summary":"管理者重新查詢","status":{"name":"In Review"},"assignee":{"accountId":"$ME"},"updated":"2026-11-24T11:00:00Z"},
+  "changelog":{"histories":[{"created":"2026-11-24T10:00:00Z","author":{"accountId":"$VIV","displayName":"Vivian Yen"},"items":[{"field":"assignee","to":"$ME"}]}]}}]}
+EOF
+echo '{"comments":[]}' >"$FX/comments-PSG-9.json"
+CF15="$ROOT/cursor15.md"
+echo "jira: $CURSOR" >"$CF15"
+out15="$(PYTHONIOENCODING=cp1252 PYTHONUTF8=0 run "$CF15" "$NOW")"; rc15=$?
+expected_cjk="0/PSG-9/管理者重新查詢"
+check "a CJK summary prints whole under a cp1252 console" "$expected_cjk" \
+  "$rc15/$(jq -r '"\(.tickets[0].key)/\(.tickets[0].summary)"' <<<"$out15" 2>/dev/null)"
+
 echo
 echo "$pass passed, $fail failed"
 [[ $fail -eq 0 ]]

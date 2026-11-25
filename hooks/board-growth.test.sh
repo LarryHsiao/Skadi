@@ -106,6 +106,18 @@ expected_missing="0/3/true/query failed: cannot run appgrowth"
 actual_missing="$rc/$(jq -r '"\(.wau)/\(.partial)/\(.apps[1].note | .[0:34])"' "$d/growth.json" 2>/dev/null)"
 check "a missing appgrowth fails that app alone" "$expected_missing" "$actual_missing"
 
+# ── 10b · appgrowth is launched through the interpreter, not as a bare executable ──
+# A .py with no executable association (Windows) fails to spawn directly.
+d=$(tmpdir)
+printf 'metis\n' >"$d/apps.tsv"
+mkdir -p "$d/home/.claude/hooks"
+printf 'print("%s")\n' "$METIS_LINE" >"$d/home/.claude/hooks/appgrowth.py"
+chmod -x "$d/home/.claude/hooks/appgrowth.py"
+HOME="$d/home" GROWTH_APPS_FILE="$d/apps.tsv" BOARD_DIR="$d" bash "$GROWTH" >/dev/null 2>&1
+expected_run="3/15"
+actual_run="$(jq -r '"\(.wau)/\(.mau)"' "$d/growth.json" 2>/dev/null)"
+check "a non-executable appgrowth.py still runs" "$expected_run" "$actual_run"
+
 # ── 11 · board.sh list shows the split for two apps, and the old line for one ──
 BOARD="$(cd "$(dirname "$GROWTH")" && pwd)/board.sh"
 d=$(tmpdir)
