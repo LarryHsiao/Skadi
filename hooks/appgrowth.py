@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""appgrowth — a metis growth dashboard rendered into the Henneth window.
+"""appgrowth — an app growth dashboard rendered into the Henneth window.
 
 Usage: appgrowth.py
 
-Queries the metis GA4 -> BigQuery export for active users, new users, and the
+Queries an app's GA4 -> BigQuery export for active users, new users, and the
 weekly trend, then renders an HTML dashboard into the Henneth previews folder:
 DAU/WAU/MAU with week- and month-over-month deltas, a 12-week trend chart, and a
 30-day daily sparkline. Reads from BigQuery within the free 1TB/month tier.
 
-Configured for metis; override the project, dataset, and account with the
-GROWTH_PROJECT, GROWTH_DATASET, and GROWTH_ACCOUNT environment variables.
+Configured for metis; override the app name, project, dataset, and account with
+the GROWTH_APP, GROWTH_PROJECT, GROWTH_DATASET, and GROWTH_ACCOUNT environment
+variables. The app name titles the page and names its files (<app>-growth.html).
 """
 
+import html
 import json
 import os
 import subprocess
@@ -23,6 +25,7 @@ from string import Template
 
 from bq_common import QueryFailure, exe
 
+APP = os.environ.get("GROWTH_APP", "metis")
 PROJECT = os.environ.get("GROWTH_PROJECT", "metis-362623")
 DATASET = os.environ.get("GROWTH_DATASET", "analytics_359632826")
 GA_LAG_DAYS = 2            # GA4 daily tables finalize ~2 days late
@@ -30,8 +33,8 @@ TREND_WEEKS = 12
 SPARK_DAYS = 30
 MAX_BYTES = "1000000000"   # 1 GB scan cap (string for the bq flag) — metis is far under this
 HENNETH = Path.home() / ".skadi" / "henneth"
-OUT_HTML = HENNETH / "metis-growth.html"
-OUT_JSON = HENNETH / "metis-growth.json"
+OUT_HTML = HENNETH / f"{APP}-growth.html"
+OUT_JSON = HENNETH / f"{APP}-growth.json"
 
 
 def account():
@@ -204,6 +207,7 @@ def render_page(h, wk, dl, anchor):
     wau_cls, wau_txt = delta(h["wau"], h["wau_prev"])
     mau_cls, mau_txt = delta(h["mau"], h["mau_prev"])
     return PAGE.substitute(
+        app=html.escape(APP), app_up=html.escape(APP.upper()),
         dau=dau_series[-1] if dau_series else 0,
         day=fmt_day(dl[-1]["d"]) if dl else fmt_day(ymd(anchor)),
         wau=h["wau"], wau_cls=wau_cls, wau_txt=wau_txt,
@@ -233,7 +237,7 @@ def main():
     HENNETH.mkdir(parents=True, exist_ok=True)
     OUT_HTML.write_text(render_page(h, wk, dl, anchor), encoding="utf-8")
     OUT_JSON.write_text(json.dumps(
-        {"title": "metis — Growth", "note": "live GA4 → BigQuery", "group": "metis-growth"}),
+        {"title": f"{APP} — Growth", "note": "live GA4 → BigQuery", "group": f"{APP}-growth"}),
         encoding="utf-8")
     print(f"rendered {OUT_HTML}")
     print(f"  WAU {h['wau']} (prev {h['wau_prev']}) · MAU {h['mau']} (prev {h['mau_prev']})")
@@ -241,7 +245,7 @@ def main():
 
 
 PAGE = Template(r"""<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>metis — Growth</title>
+<html lang="en"><head><meta charset="utf-8"><title>$app — Growth</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><text y=%2213%22 font-size=%2214%22>%F0%9F%93%88</text></svg>">
 <style>
   :root{ --bg:#1e1e1e; --panel:#262626; --line:#3a3a3a; --ink:#e6e6e6; --muted:#8a8a8a;
@@ -268,7 +272,7 @@ PAGE = Template(r"""<!DOCTYPE html>
   .read{border-left:3px solid var(--accent);background:#212530;border-radius:0 8px 8px 0;padding:10px 14px;color:#cdd3e6;font-size:12.5px;}
 </style></head><body>
 <div class="wrap">
-  <div class="top"><span>&#9788;</span><h1>METIS · GROWTH</h1>
+  <div class="top"><span>&#9788;</span><h1>$app_up · GROWTH</h1>
     <span class="per">$weeks weeks · through $anchor · GA4 → BigQuery</span></div>
   <p class="sub">Is the app gaining users? Active users, new users, and the trend that answers it.</p>
   <div class="cards">
