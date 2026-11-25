@@ -222,6 +222,30 @@ console.log("NOURL " + (fn([mkItem({ url: null })]).includes("Enter") ? "has-lin
 const withUnknown = fn([mkItem({ surface: "zzz", label: "Unknown surface" }), mkItem({ surface: "mrs", label: "GitLab MRs" })]);
 const unknownSeen = [...withUnknown.matchAll(/class="nm">([^<]*)</g)].map((m) => m[1]);
 console.log("UNKNOWNSURF " + unknownSeen.join(","));
+
+// A row bearing items lists them beneath it: the key links when the item has a
+// url, the title is escaped text, and the reason's tone picks the tag colour.
+// The ticket lines are not rows (class "srow") and carry no "nm" cell.
+const tix = (over) => ({
+  key: "PSG-4971", summary: "Re-run API", url: "https://jubo.atlassian.net/browse/PSG-4971",
+  why: "mention · ShawnYeh", tone: "alert", ...over,
+});
+const five = [tix(), tix({ key: "LTC-4100", why: "assigned to you · Yahan", tone: "assigned" }),
+  tix({ key: "PSG-4930", why: "comment · Chia-Yu", tone: "moved" }), tix({ key: "PSG-4941" }), tix({ key: "PSG-4942" })];
+const jiraRows = fn([mkItem({ surface: "jira", label: "Jira movement", count: 9, items: five })]);
+console.log("TIXROWS " + (jiraRows.match(/class="tkt"/g) || []).length);
+console.log("TIXSROW " + (jiraRows.match(/class="srow"/g) || []).length);
+console.log("TIXLINK " + (jiraRows.includes('href="https://jubo.atlassian.net/browse/PSG-4971"') ? "yes" : "no"));
+console.log("TIXMORE " + (jiraRows.match(/\+(\d+) more/) || [, "none"])[1]);
+console.log("TIXTONES " + [...jiraRows.matchAll(/class="tag ([a-z]+)"/g)].map((m) => m[1]).slice(0, 3).join(","));
+const exact = fn([mkItem({ surface: "jira", count: 5, items: five })]);
+console.log("TIXEXACT " + (exact.includes("more") ? "more" : "no-more"));
+console.log("TIXNONE " + (fn([mkItem({ surface: "jira", count: 0, items: [] })]).includes("tkt") ? "has" : "none"));
+console.log("TIXABSENT " + (fn([mkItem({ surface: "mrs" })]).includes("tkt") ? "has" : "none"));
+const nolink = fn([mkItem({ surface: "jira", count: 1, items: [tix({ url: null })] })]);
+console.log("TIXNOURL " + (nolink.includes("<a class=\"k\"") ? "link" : "plain"));
+const evil = fn([mkItem({ surface: "jira", count: 1, items: [tix({ summary: "<b>x</b>", why: "<i>y</i>" })] })]);
+console.log("TIXEVIL " + (evil.includes("<b>x</b>") || evil.includes("<i>y</i>") ? "RAW" : "escaped"));
 JS
 )
 
@@ -236,6 +260,16 @@ check "an absent channel draws no ghost row" "clean" "$(afield NOGHOST)"
 check "an empty array returns empty string (band + divider vanish)" '""' "$(afield EMPTY)"
 check "no url means no Enter link" "no-link" "$(afield NOURL)"
 check "an unknown surface sorts last but still renders" "GitLab MRs,Unknown surface" "$(afield UNKNOWNSURF)"
+check "a row with items lists one line per ticket" "5" "$(afield TIXROWS)"
+check "ticket lines are not summary rows" "1" "$(afield TIXSROW)"
+check "an item with a url makes its key a link" "yes" "$(afield TIXLINK)"
+check "tickets beyond the listed ones read as +N more" "4" "$(afield TIXMORE)"
+check "each ticket's tone picks its tag class" "alert,assigned,moved" "$(afield TIXTONES)"
+check "no +N more when every ticket is listed" "no-more" "$(afield TIXEXACT)"
+check "an empty items list draws no ticket block" "none" "$(afield TIXNONE)"
+check "a row with no items key draws no ticket block" "none" "$(afield TIXABSENT)"
+check "an item with no url shows its key as plain text" "plain" "$(afield TIXNOURL)"
+check "a hostile title or reason is escaped" "escaped" "$(afield TIXEVIL)"
 
 # ── The Narya band ──
 # Like the attention band, a pure function of its channel (data in, HTML string

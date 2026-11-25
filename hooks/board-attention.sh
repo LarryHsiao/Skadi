@@ -3,13 +3,15 @@
 #
 # Writes one attention-<surface>.json channel — "what awaits me" outside the
 # curated ticket set: open GitLab MRs, open GitHub PRs, Jira tickets that moved
-# in the last day, and (via a separate model-fed path) unread mail. Modeled on
+# or name you in the last day, and (via a separate model-fed path) unread mail. Modeled on
 # board-sweep.sh's shape — one channel type, many files — so a partial failure
 # in one surface can never clobber another's channel.
 #
 #   mrs   — glab merge requests you're reviewing or authored, via mrs-check.sh
 #   prs   — GitHub PRs you're reviewing or authored, via prs-check.sh
-#   jira  — tickets assigned to you that moved in the last day, via jira-daily.sh
+#   jira  — tickets assigned to you or naming you that someone else touched in the
+#           last 24 hours, via halbarad-jira.sh's read-only `window` verb (it
+#           never moves /halbarad's cursor); the channel lists the top five
 #   mail  — written only by --from-json (see below); no fetch path here, the
 #           Outlook connector needs a model in the loop
 #
@@ -35,8 +37,8 @@ BOARD_DIR="${BOARD_DIR:-$HOME/.skadi/board}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SECRET="$HOME/.claude/hooks/secret.sh"
 
-# mrs-check.sh (per_page), prs-check.sh (--limit), and jira-daily.sh
-# (maxResults) each cap a single fetch at this many results per category —
+# mrs-check.sh (per_page) and prs-check.sh (--limit) each cap a single fetch
+# at this many results per category —
 # a count sitting exactly on the cap may be hiding more, so it's reported as
 # such rather than read as an exact number.
 ATTENTION_PAGE_CAP=50
@@ -141,12 +143,12 @@ tally_forge() {
 
 # ── shaper: write the channel, then regenerate the manifest ──
 write_channel() {
-  local surf="$1" label="$2" count="$3" detail="$4" verdict="$5" url="$6" source="$7"
+  local surf="$1" label="$2" count="$3" detail="$4" verdict="$5" url="$6" source="$7" items="${8:-}"
   mkdir -p "$BOARD_DIR"
   python3 - "$BOARD_DIR" "$surf" "$label" "$count" "$detail" "$verdict" "$url" "$source" \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" <<'PY'
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$items" <<'PY'
 import json, os, sys
-board, surf, label, count, detail, verdict, url, source, now = sys.argv[1:10]
+board, surf, label, count, detail, verdict, url, source, now, items = sys.argv[1:11]
 out = {
     "channel": "attention",
     "id": "attention-%s" % surf,
@@ -159,6 +161,8 @@ out = {
     "source": source,
     "updated": now,
 }
+if items:
+    out["items"] = json.loads(items)
 with open(os.path.join(board, "attention-%s.json" % surf), "w", encoding="utf-8") as fh:
     json.dump(out, fh, ensure_ascii=False, indent=2)
 PY
@@ -200,11 +204,14 @@ fetch_prs() {
   if out="$("$SCRIPT_DIR/prs-check.sh" 2>/dev/null)"; then rc=0; else rc=$?; fi
 }
 
-# ── jira: tickets assigned to you that moved in the last day ──
+# ── jira: tickets assigned to you or naming you, touched by someone else ──
 # All statuses on purpose — this reports MOVEMENT, not outstanding work, so a
 # ticket that reached Done in the last day is exactly what belongs here. Do
-# not "fix" this into statusCategory != Done.
-JIRA_JQL="assignee = currentUser() AND updated >= -1d ORDER BY updated DESC"
+# not "fix" this into statusCategory != Done. The door's JQL is the wide net
+# (assigned or mentioned, updated in the last day); the listed tickets are the
+# narrower ones another person actually touched.
+JIRA_JQL="updated >= -1d AND (assignee = currentUser() OR comment ~ currentUser()) ORDER BY updated DESC"
+JIRA_WINDOW_HOURS=24
 
 fetch_jira() {
   if [[ -n "${BOARD_ATTENTION_FIXTURE_DIR:-}" ]]; then
@@ -215,11 +222,10 @@ fetch_jira() {
     fi
     return 0
   fi
-  # jira-daily.sh signals an API failure via an "API_ERROR|…" sentinel in its
-  # output and always exits 0 — its exit code is useless. It can still exit
-  # non-zero on a harder failure (no network at all reaching the curl|python
-  # pipe), which rc below still catches.
-  if out="$("$SCRIPT_DIR/jira-daily.sh" "$JIRA_JQL" 2>/dev/null)"; then rc=0; else rc=$?; fi
+  # `window` is read-only: it moves no cursor and keeps no list, so a board
+  # refresh can never take from what /halbarad has yet to report. Exit 2 (not
+  # configured) and 4 (Jira failed) both land in rc and read as "unknown".
+  if out="$("$SCRIPT_DIR/halbarad-jira.sh" window "$JIRA_WINDOW_HOURS" 2>/dev/null)"; then rc=0; else rc=$?; fi
 }
 
 case "$surface" in
@@ -256,32 +262,22 @@ case "$surface" in
     if [[ -n "$jira_base" ]]; then
       door="$(validate_url "${jira_base%/}/issues/?jql=$(url_encode "$JIRA_JQL")")"
     fi
-    if [[ "$rc" -ne 0 || "$out" == API_ERROR* ]]; then
+    if [[ "$rc" -ne 0 ]] || ! shaped="$(printf '%s' "$out" | python3 "$SCRIPT_DIR/board-jira-items.py")"; then
       write_channel jira "Jira movement" "" "—" "unknown" "" "jira"
-    elif [[ "$out" == "EMPTY" || -z "$out" ]]; then
-      write_channel jira "Jira movement" "0" "—" "quiet" "$door" "jira"
     else
-      count="$(printf '%s\n' "$out" | grep -c '^ISSUE|')"
-      # Group by status in order of first appearance: "3 In Progress · 2 Done".
-      # Trimmable to a bare count if this proves fiddly — an honest fallback.
-      detail="$(printf '%s\n' "$out" | awk -F'|' '
-        /^ISSUE\|/ {
-          if (!($2 in seen)) { order[n++] = $2 }
-          seen[$2]++
-        }
-        END {
-          line = ""
-          for (i = 0; i < n; i++) {
-            s = order[i]
-            if (line != "") line = line " · "
-            line = line seen[s] " " s
-          }
-          print line
-        }')"
-      [[ "$count" -eq $ATTENTION_PAGE_CAP ]] && detail="$detail (capped)"
+      count="$(printf '%s' "$shaped" | jq -r '.count')"
+      detail="$(printf '%s' "$shaped" | jq -r '.detail')"
+      # An item's url reaches an href, so it passes the same https-only check as a door.
+      items="$(printf '%s' "$shaped" | jq -c '.items')"
+      checked="[]"
+      while IFS= read -r url; do
+        checked="$(printf '%s' "$checked" | jq -c --arg u "$(validate_url "$url")" '. + [$u]')"
+      done < <(printf '%s' "$items" | jq -r '.[] | .url // ""')
+      items="$(jq -nc --argjson i "$items" --argjson u "$checked" \
+        '[range(0; $i | length) as $n | $i[$n] + {url: (if $u[$n] == "" then null else $u[$n] end)}]')"
       verdict="quiet"
       [[ "$count" -gt 0 ]] && verdict="stirred"
-      write_channel jira "Jira movement" "$count" "$detail" "$verdict" "$door" "jira"
+      write_channel jira "Jira movement" "$count" "$detail" "$verdict" "$door" "jira" "$items"
     fi
     ;;
   mail)

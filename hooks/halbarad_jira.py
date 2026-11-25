@@ -2,6 +2,7 @@
 """Jira delta + cursor for /halbarad. Read-only: GET requests only.
 
     halbarad-jira.sh                  print the delta as JSON, advance the cursor
+    halbarad-jira.sh window <hours>   print the delta over the last <hours>, touching no state
     halbarad-jira.sh cursor get <s>   print source <s>'s cursor (empty if unset)
     halbarad-jira.sh cursor set <s> <iso>
     halbarad-jira.sh last put <s>     keep stdin as <s>'s list from the latest brief
@@ -249,9 +250,20 @@ def report_failure(reason):
     return EXIT_JIRA_FAILED
 
 
+def clock():
+    if os.environ.get("HALBARAD_NOW"):
+        return parse_ts(os.environ["HALBARAD_NOW"])
+    return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def brief_json(since, now, tickets):
+    return json.dumps({"source": "jira", "status": "ok", "since": iso(since),
+                       "since_local": local_label(since), "now": iso(now),
+                       "now_local": local_label(now), "tickets": tickets}, ensure_ascii=False)
+
+
 def run_delta(cursor_path):
-    now = parse_ts(os.environ["HALBARAD_NOW"]) if os.environ.get("HALBARAD_NOW") \
-        else datetime.now(timezone.utc).replace(microsecond=0)
+    now = clock()
     stored = read_cursors(cursor_path).get("jira")
     try:
         since = parse_ts(stored) if stored else now - FIRST_RUN_WINDOW
@@ -260,14 +272,29 @@ def run_delta(cursor_path):
         return report_failure(str(failure))
     except (KeyError, TypeError, ValueError) as error:
         return report_failure(f"unexpected answer or cursor ({type(error).__name__}: {error})")
-    brief = json.dumps({"source": "jira", "status": "ok", "since": iso(since),
-                        "since_local": local_label(since), "now": iso(now),
-                        "now_local": local_label(now), "tickets": tickets}, ensure_ascii=False)
+    brief = brief_json(since, now, tickets)
     if tickets:
         with open(last_path(cursor_path, "jira"), "w", encoding="utf-8") as handle:
             handle.write(brief)
         write_cursor(cursor_path, "jira", iso(now))
     print(brief)
+    return 0
+
+
+def run_window(args):
+    """The delta over the last <hours>, read-only: no cursor moves, no list is kept."""
+    if len(args) != 1 or not args[0].isdigit() or int(args[0]) < 1:
+        print("usage: window <hours> (a whole number, at least 1)", file=sys.stderr)
+        return 1
+    now = clock()
+    since = now - timedelta(hours=int(args[0]))
+    try:
+        tickets = delta(now, since)
+    except JiraFailure as failure:
+        return report_failure(str(failure))
+    except (KeyError, TypeError, ValueError) as error:
+        return report_failure(f"unexpected answer ({type(error).__name__}: {error})")
+    print(brief_json(since, now, tickets))
     return 0
 
 
@@ -302,6 +329,8 @@ def run_last(cursor_path, args):
 
 
 def main(argv):
+    if argv[:1] == ["window"]:
+        return run_window(argv[1:])
     cursor_path = os.environ.get("HALBARAD_CURSOR_FILE")
     if not cursor_path:
         print("halbarad-jira: HALBARAD_CURSOR_FILE is not set", file=sys.stderr)
@@ -311,7 +340,7 @@ def main(argv):
     if argv[:1] == ["last"]:
         return run_last(cursor_path, argv[1:])
     if argv:
-        print("usage: halbarad-jira.sh [cursor get|set … | last get|put …]", file=sys.stderr)
+        print("usage: halbarad-jira.sh [window <hours> | cursor get|set … | last get|put …]", file=sys.stderr)
         return 1
     return run_delta(cursor_path)
 

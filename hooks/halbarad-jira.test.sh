@@ -170,6 +170,28 @@ CF12="$ROOT/cursor12.md"; echo "jira: not-a-date" >"$CF12"
 out12="$(run "$CF12" "$NOW")"; rc=$?
 check "a corrupt cursor exits 4 with an error" "4/error" "$rc/$(jq -r '.status' <<<"$out12")"
 
+# ── 13 · window <hours>: the same delta over a fixed span, touching no state ──
+FX="$ROOT/fx13"; build_fixture "$FX"
+mkdir -p "$ROOT/w13"; CF13="$ROOT/w13/cursor.md"; echo "jira: $CURSOR" >"$CF13"
+out13="$(run "$CF13" "$NOW" window 4)"; rc=$?
+expected_window="0/ok/2026-11-24T08:00:00Z/[\"PSG-1\",\"PSG-3\",\"PSG-2\"]"
+check "window 4 lists the same tickets as a delta from four hours back" "$expected_window" \
+  "$rc/$(jq -r '"\(.status)/\(.since)/\(.tickets | map(.key) | tojson)"' <<<"$out13")"
+check "window leaves the cursor where it was" "jira: $CURSOR" "$(cat "$CF13")"
+[[ -e "$ROOT/w13/halbarad_last_jira.json" ]] && stored="stored" || stored="none"
+check "window stores no last-list" "none" "$stored"
+out13b="$(run "$CF13" "$NOW" window 2)"
+check "a two-hour window reaches only what changed in it" "[\"PSG-1\",\"PSG-3\"]" \
+  "$(jq -c '[.tickets[].key]' <<<"$out13b")"
+run "$CF13" "$NOW" window nope >/dev/null; rc=$?
+check "a non-numeric window is a usage error" "1" "$rc"
+run "$CF13" "$NOW" window 0 >/dev/null; rc=$?
+check "a zero-hour window is a usage error" "1" "$rc"
+FXF="$ROOT/fx13f"; build_fixture "$FXF"; echo "timeout" >"$FXF/fail"
+out13f="$(FX="$FXF"; HALBARAD_CURSOR_FILE="$CF13" HALBARAD_NOW="$NOW" HALBARAD_JIRA_FIXTURE_DIR="$FXF" bash "$TOOL" window 4 2>/dev/null)"; rc=$?
+check "a Jira failure in a window exits 4 with an error" "4/error" "$rc/$(jq -r '.status' <<<"$out13f")"
+check "a failed window still leaves the cursor" "jira: $CURSOR" "$(cat "$CF13")"
+
 echo
 echo "$pass passed, $fail failed"
 [[ $fail -eq 0 ]]

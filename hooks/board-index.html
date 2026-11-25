@@ -315,6 +315,49 @@
       .attnrows {
         margin-bottom: 0.9rem;
       }
+      /* Tickets listed under an attention row: key (never cut), title (ellipsed),
+         reason tag (never cut). min-width:0 lets the title column shrink. */
+      .tix {
+        display: flex;
+        flex-direction: column;
+        gap: 0.12rem;
+        margin: 0 0 0.2rem 7.6rem;
+        padding-left: 0.6rem;
+        border-left: 2px solid var(--line);
+        font-size: 0.72rem;
+      }
+      .tkt {
+        display: grid;
+        grid-template-columns: 5.6rem minmax(0, 1fr) auto;
+        align-items: baseline;
+        gap: 0.5rem;
+      }
+      .tkt .k {
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.66rem;
+        color: var(--blue);
+        white-space: nowrap;
+      }
+      .tkt .ts {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .tkt .tag {
+        font-size: 0.6rem;
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        padding: 0 0.3rem;
+        white-space: nowrap;
+      }
+      .tkt .tag.alert {
+        border-color: var(--red);
+        color: var(--red);
+      }
+      .tkt .tag.assigned {
+        border-color: var(--blue);
+        color: var(--blue);
+      }
       /* Narya band — one row per standing Flutter daemon. Name columns share the
          row's width and ellipse (identity text); the state word never shrinks. */
       .nrows {
@@ -986,10 +1029,30 @@
       <span class="nm">${esc(it.label)}</span>
       <span><span class="pill ${pill}">${esc(count)}</span></span>
       <span class="dt">${esc(it.detail) || "—"}</span>
-      ${door}</div>`;
+      ${door}</div>${attentionTicketsHtml(it)}`;
           })
           .join("");
         return `<div class="banddiv">attention</div><div class="attnrows">${rows}</div>`;
+      }
+
+      // The tickets listed beneath a row that carries them (the Jira row): the
+      // key (a link when the item has a url), the title ellipsed on one line,
+      // and the reason tagged by tone. A row's count is the true total, so what
+      // the list leaves out reads as "+N more". No items, no block.
+      function attentionTicketsHtml(it) {
+        const items = it.items || [];
+        if (!items.length) return "";
+        const lines = items
+          .map((t) => {
+            const key = t.url
+              ? `<a class="k" href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.key)}</a>`
+              : `<span class="k">${esc(t.key)}</span>`;
+            return `<div class="tkt">${key}<span class="ts">${esc(t.summary)}</span><span class="tag ${esc(t.tone)}">${esc(t.why)}</span></div>`;
+          })
+          .join("");
+        const rest = (it.count || 0) - items.length;
+        const more = rest > 0 ? `<div class="muted more">+${rest} more</div>` : "";
+        return `<div class="tix">${lines}${more}</div>`;
       }
 
       function renderAttention(items) {
