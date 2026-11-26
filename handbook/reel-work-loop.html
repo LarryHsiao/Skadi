@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reel · The small loop</title>
+<style>
+  /* Fallback tokens for opening this file straight off disk; the shared
+     theme linked below redefines them and wins when it loads. */
+  :root {
+    --ink: #2b2419; --bg: #f4ecd9; --panel: #fbf6ea; --line: #cdbfa0;
+    --accent: #7a5a2e; --green: #3f6b3a; --red: #9a3b2e; --blue: #34597a;
+    --th: #ece0c3; --raise: #efe4c9;
+  }
+</style>
+<link rel="stylesheet" href="../previews/henneth/skadi-theme.css">
+<style>
+  body { padding: 24px; }
+  .reel { max-width: 1280px; margin: 0 auto; }
+  .backnav { margin: 0 0 .6rem; }
+  .backnav a { color: var(--accent); text-decoration: none; font-size: .9rem; }
+  .backnav a:hover { text-decoration: underline; }
+  #stage { display: block; width: 100%; height: auto; background: var(--bg);
+           border: 1px solid var(--line); border-radius: 10px; }
+  #stage text { font-family: "Iowan Old Style", "Palatino Linotype", Georgia, "PingFang TC", "Heiti TC", sans-serif; fill: var(--ink); }
+  #stage .mono { font-family: ui-monospace, Menlo, "PingFang TC", monospace; }
+  #stage .t-title { font-size: 30px; font-weight: 700; }
+  #stage .t-sub { font-size: 15px; font-style: italic; fill: var(--accent); }
+  #stage .lg { font-size: 14px; }
+  #stage .link-t { font-size: 14px; fill: var(--accent); text-anchor: end; }
+  #stage .mk-a { fill: var(--accent); }
+  #stage .mk-r { fill: var(--red); }
+  #stage .zone { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
+  #stage .zone.on { stroke: var(--accent); stroke-width: 2.2; }
+  #stage .zone-h { font-size: 17px; font-weight: 700; }
+  #stage .chip-bg { fill: var(--panel); stroke: var(--line); }
+  #stage .chip-t { font-size: 13px; fill: var(--accent); text-anchor: middle; dominant-baseline: central; }
+  #stage [data-st=active] > .chip-bg { fill: var(--accent); stroke: var(--accent); }
+  #stage [data-st=active] > .chip-t { fill: #fbf6ea; font-weight: 700; }
+  #stage [data-st=done] > .chip-bg { fill: #e4eadb; stroke: var(--green); }
+  #stage [data-st=done] > .chip-t { fill: var(--green); }
+  #stage .card-bg { fill: #fffdf7; stroke: var(--line); }
+  #stage .g-line { font-size: 12.5px; }
+  #stage .g-note { font-size: 11.5px; font-style: italic; fill: var(--accent); }
+  #stage .gz { font-size: 18px; }
+  #stage .gz-s { font-size: 15px; }
+  #stage .g-plan { font-size: 12.5px; fill: var(--accent); }
+  #stage .slot { fill: none; stroke: var(--red); stroke-width: 1.5; stroke-dasharray: 3 3; }
+  #stage .seal-bg { fill: var(--red); stroke: #fbf6ea; stroke-width: 1.5; }
+  #stage .seal-t { fill: #fbf6ea; font-size: 15px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+  #stage .wait-t { font-size: 12.5px; font-style: italic; fill: var(--red); text-anchor: end; }
+  #stage .ok-t { font-size: 12.5px; font-style: italic; fill: var(--green); text-anchor: end; }
+  #stage .win { fill: #fffdf7; stroke: var(--line); }
+  #stage .win-bar { fill: var(--th); }
+  #stage .win-t { font-size: 11px; fill: var(--accent); }
+  #stage .phone { fill: #fffaf0; stroke: var(--line); }
+  #stage .ph-row { fill: var(--line); }
+  #stage .ph-dot { fill: var(--th); }
+  #stage .ph-t { font-size: 10px; fill: var(--accent); text-anchor: middle; }
+  #stage .ph-lbl { font-size: 11.5px; text-anchor: middle; }
+  #stage .loop-arc { fill: none; stroke: var(--accent); stroke-width: 2.6; }
+  #stage .lnode { fill: var(--panel); stroke: var(--accent); stroke-width: 2; }
+  #stage .lnode.on { fill: var(--accent); }
+  #stage .lnode.bad { fill: var(--red); stroke: var(--red); }
+  #stage .lnode-t { font-size: 12.5px; }
+  #stage .counter { font-size: 15px; font-weight: 700; text-anchor: middle; }
+  #stage .layer { fill: var(--green); }
+  #stage .layer-t { font-size: 12px; fill: #fbf6ea; text-anchor: middle; dominant-baseline: central; }
+  #stage .base { stroke: var(--accent); stroke-width: 2; }
+  #stage .base-t { font-size: 11px; font-style: italic; fill: var(--accent); text-anchor: middle; }
+  #stage .back-r { fill: none; stroke: var(--red); stroke-width: 2.2; }
+  #stage .back-t { font-size: 12.5px; fill: var(--red); text-anchor: middle; }
+  #stage .regauge { fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-dasharray: 6 4; }
+  #stage .regauge-t { font-size: 11.5px; font-style: italic; fill: var(--accent); text-anchor: middle; }
+  #stage .dot { fill: var(--accent); }
+  #stage .dot.bad { fill: var(--red); }
+  #stage .dot-halo { fill: none; stroke: var(--accent); stroke-width: 2; opacity: .35; }
+  #stage .tick { font-size: 22px; font-weight: 700; fill: var(--green); text-anchor: middle; }
+  #stage .c-h { font-size: 13.5px; font-weight: 700; }
+  #stage .c-t { font-size: 12.5px; }
+  #stage .c-ok { font-size: 13px; font-weight: 700; fill: var(--green); text-anchor: end; }
+  #stage .c-pass { font-size: 12.5px; font-weight: 700; fill: var(--green); }
+  #stage .c-note { font-size: 11px; font-style: italic; fill: var(--accent); }
+  #stage .d-h { font-size: 11px; font-weight: 700; }
+  #stage .d-t { font-size: 10.5px; }
+  #stage .d-na { font-size: 10px; fill: var(--accent); }
+  #stage .cap-bg { fill: var(--raise); stroke: var(--line); }
+  #stage .cap-badge { fill: var(--accent); }
+  #stage .cap-num { fill: #fbf6ea; font-size: 16px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+  #stage .cap-title { font-size: 19px; font-weight: 700; }
+  #stage .cap-line { font-size: 15.5px; }
+
+  .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
+  .ctl button { font: inherit; font-size: .9rem; background: var(--panel); color: var(--ink);
+                border: 1px solid var(--line); border-radius: 6px; padding: .3rem .8rem; cursor: pointer; }
+  .ctl button:hover { border-color: var(--accent); }
+  .ctl button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .bar { flex: 1 1 320px; min-width: 0; display: flex; position: relative; height: 26px; cursor: pointer;
+         border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); }
+  .seg { flex-basis: 0; min-width: 0; border-right: 1px solid var(--line); font-size: .72rem; color: var(--accent);
+         display: flex; align-items: center; justify-content: center; padding: 0 2px;
+         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .seg:last-child { border-right: 0; }
+  .seg.on { background: var(--raise); color: var(--ink); font-weight: 700; }
+  .head { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--red); pointer-events: none; }
+  .clock { font-family: ui-monospace, Menlo, monospace; font-size: .8rem; color: var(--accent); min-width: 6.5em; }
+  .langtoggle { display: inline-flex; gap: 4px; }
+  .ctl .langtoggle button { padding: .3rem .6rem; }
+  .ctl .langtoggle button.active { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+  .foot { font-size: .85rem; color: var(--accent); margin: .6rem 0 0; }
+  .foot a { color: var(--accent); }
+  html.embed body { padding: 0; background: transparent; }
+  html.embed .backnav, html.embed .foot { display: none; }
+  html.capture body { padding: 0; background: var(--bg); }
+  html.capture .reel { max-width: none; }
+  html.capture #stage { width: 1280px; border: 0; border-radius: 0; }
+  html.capture .backnav, html.capture .ctl, html.capture .foot { display: none; }
+  @media (max-width: 640px) { body { padding: 16px; } }
+</style>
+</head>
+<body>
+<main class="reel">
+<div class="backnav"><a href="work-loop.html" data-en="← Chapter I · The Skadi Work Loop">← 第一章 The Skadi Work Loop</a></div>
+<svg id="stage" viewBox="0 0 1280 720" role="img" aria-labelledby="stTitle stDesc">
+  <title id="stTitle" data-en="The small loop: one task, from sizing to “done”">小圈：一個任務，從估量到「done」</title>
+  <desc id="stDesc" data-en="Sizing, acceptance, approval and previews come before the first edit; the implementation loop runs step by step, each step ticked after its check and the product growing one layer, one step failing its check and going back to the code; compliance review, fresh verification and the Done block come before the word done.">估量、驗收、核可、預覽四格在動手之前；施工迴圈一步一步走，每步驗證後打勾、產品長一層，其中一步驗證失敗、回去改 code；合規審查、新鮮驗證、Done 三格在說完成之前。</desc>
+  <defs>
+    <filter id="sh" x="-25%" y="-35%" width="150%" height="180%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1.6" flood-color="#5b4320" flood-opacity=".22"/>
+    </filter>
+    <marker id="arA" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path class="mk-a" d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+    <marker id="arR" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path class="mk-r" d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+  </defs>
+
+  <!-- header -->
+  <text class="t-title" x="48" y="58" data-en="The small loop: one task, from sizing to “done”">小圈：一個任務，從估量到「done」</text>
+  <text class="t-sub" x="48" y="86" data-en="Measured in hours · inside one session; no edit before your word · after Skadi Handbook ch. I, The Work Loop">以小時計 · 一個 session 之內，動手前等你一句話 · 依 Skadi 手冊第一章 The Work Loop</text>
+  <g data-in="intro@0.3">
+    <circle class="seal-bg" cx="1012" cy="50" r="11"/><text class="seal-t" x="1012" y="50.5" style="font-size:11px" data-en="✓">准</text>
+    <text class="lg" x="1029" y="55" data-en="you decide">你拍板</text>
+    <path class="back-r" d="M1110 54.5 A8 8 0 1 1 1124 54.5" marker-end="url(#arR)"/>
+    <text class="lg" x="1140" y="55" data-en="backward arrow">往回走的箭頭</text>
+  </g>
+  <a href="reel-ticket-to-merge.html"><text class="link-t" x="1232" y="86" data-en="↖ The big loop: one requirement, from intake to merge">↖ 回大圈：一項需求，從進來到合併</text></a>
+
+  <!-- the eight stages, aligned to the three zones below -->
+  <g id="rail"></g>
+
+  <!-- zones -->
+  <g data-in="intro@0.4"><rect class="zone" data-zone="left" x="40" y="146" width="340" height="446" rx="10"/>
+    <text class="zone-h" x="56" y="170" data-en="Before the first edit">動手之前</text></g>
+  <g data-in="intro@0.6"><rect class="zone" data-zone="mid" x="400" y="146" width="460" height="446" rx="10"/>
+    <text class="zone-h" x="416" y="170" data-en="Build · every step runs this ring">施工 · 每一步都這樣走</text></g>
+  <g data-in="intro@0.8"><rect class="zone" data-zone="right" x="880" y="146" width="360" height="446" rx="10"/>
+    <text class="zone-h" x="896" y="170" data-en="Before saying done">說 done 之前</text></g>
+
+  <!-- gate card -->
+  <g data-in="intro@1.0">
+    <rect class="card-bg" x="52" y="182" width="316" height="248" rx="8"/>
+  </g>
+  <text class="g-line mono" x="66" y="207" data-in="size@0.3"><tspan>Size </tspan><tspan id="gaugeBars" class="gz">▱▱▱</tspan><tspan id="gaugeRest"></tspan></text>
+  <text class="g-note" x="66" y="229" data-in="size@1.8" data-en="(reach · depth · reversibility)">（觸及 · 深度 · 可撤回）</text>
+  <text class="g-line mono" x="66" y="252" data-in="accept@0.4">Acceptance:</text>
+  <text class="g-line mono" x="66" y="275" data-in="accept@1.0" data-en="- empty list renders a placeholder">- 空清單顯示 placeholder</text>
+  <text class="g-line mono" x="66" y="298" data-in="accept@1.7" data-en="- long names: …, full on long-press">- 超長名稱以 … 截斷，長按看全名</text>
+  <text class="g-line mono" x="66" y="321" data-in="accept@2.8" data-en="Non-goals: sorting stays as it is">Non-goals: 排序邏輯不動</text>
+  <text class="g-line mono" x="66" y="344" data-in="approve@0.4" data-en="Changes: list_view, empty_state, tests">Changes: list_view、empty_state 與測試</text>
+  <text class="g-plan mono" x="66" y="367" data-in="approve@1.2" data-en="Steps: ① empty → ② truncate → ③ press">拆步：① 空狀態 → ② 截斷 → ③ 長按</text>
+  <g transform="translate(340,402)">
+    <circle class="slot" r="16" data-in="intro@2.0" data-out="@approved"/>
+    <g id="sealApprove" style="opacity:0"><circle class="seal-bg" r="16"/><text class="seal-t" data-en="✓">准</text></g>
+  </g>
+  <text class="wait-t" x="316" y="407" data-in="approve@0.6" data-out="@approved" data-en="awaiting your word">等你一句話</text>
+  <text class="ok-t" x="316" y="407" data-in="@approved" data-en="you approved">你拍板了</text>
+
+  <!-- Henneth preview window -->
+  <g data-in="intro@1.2">
+    <rect class="win" x="52" y="440" width="316" height="144" rx="8"/>
+    <rect class="win-bar" x="53" y="441" width="314" height="19" rx="7"/>
+    <rect class="win-bar" x="53" y="452" width="314" height="8"/>
+    <circle cx="66" cy="450.5" r="3.5" fill="#c9806f"/><circle cx="77" cy="450.5" r="3.5" fill="#d8b46a"/><circle cx="88" cy="450.5" r="3.5" fill="#8fae7d"/>
+    <text class="win-t mono" x="102" y="454.5">Henneth</text>
+    <rect class="phone" x="66" y="468" width="86" height="90" rx="8"/>
+    <rect class="phone" x="167" y="468" width="86" height="90" rx="8"/>
+    <rect class="phone" x="268" y="468" width="86" height="90" rx="8"/>
+  </g>
+  <g data-in="preview@0.4" data-rise>
+    <circle class="ph-dot" cx="78" cy="482" r="4"/><rect class="ph-row" x="86" y="479" width="54" height="6" rx="3"/>
+    <circle class="ph-dot" cx="78" cy="496" r="4"/><rect class="ph-row" x="86" y="493" width="42" height="6" rx="3"/>
+    <circle class="ph-dot" cx="78" cy="510" r="4"/><rect class="ph-row" x="86" y="507" width="50" height="6" rx="3"/>
+    <circle class="ph-dot" cx="78" cy="524" r="4"/><rect class="ph-row" x="86" y="521" width="38" height="6" rx="3"/>
+    <circle class="ph-dot" cx="78" cy="538" r="4"/><rect class="ph-row" x="86" y="535" width="48" height="6" rx="3"/>
+    <text class="ph-lbl" x="109" y="576" data-en="populated">有資料</text>
+  </g>
+  <g data-in="preview@0.9" data-rise>
+    <circle cx="210" cy="503" r="13" fill="none" stroke="#cdbfa0" stroke-width="1.5" stroke-dasharray="3 3"/>
+    <text class="ph-t" x="210" y="537" data-en="no data yet">尚無資料</text>
+    <text class="ph-lbl" x="210" y="576" data-en="empty">空狀態</text>
+  </g>
+  <g data-in="preview@1.4" data-rise>
+    <circle class="ph-dot" cx="280" cy="482" r="4"/><rect class="ph-row" x="288" y="479" width="46" height="6" rx="3"/>
+    <circle class="ph-dot" cx="280" cy="496" r="4"/><rect class="ph-row" x="288" y="493" width="50" height="6" rx="3"/>
+    <text class="ph-t" x="346" y="500">…</text>
+    <circle class="ph-dot" cx="280" cy="510" r="4"/><rect class="ph-row" x="288" y="507" width="40" height="6" rx="3"/>
+    <circle class="ph-dot" cx="280" cy="524" r="4"/><rect class="ph-row" x="288" y="521" width="50" height="6" rx="3"/>
+    <text class="ph-t" x="346" y="528">…</text>
+    <circle class="ph-dot" cx="280" cy="538" r="4"/><rect class="ph-row" x="288" y="535" width="44" height="6" rx="3"/>
+    <text class="ph-lbl" x="311" y="576" data-en="overflow">溢出</text>
+  </g>
+
+  <!-- the implementation loop -->
+  <g id="ring" data-in="intro@1.4"></g>
+  <g data-in="intro@1.8">
+    <line class="base" x1="544" y1="434" x2="676" y2="434"/>
+    <text class="base-t" x="610" y="450" data-en="a product that runs">能跑的產品</text>
+  </g>
+  <text id="counter" class="counter" x="610" y="331" data-in="intro@1.8"></text>
+  <g data-in="impl@3.3" data-drop><rect class="layer" x="548" y="404" width="124" height="24" rx="4"/><text class="layer-t" x="610" y="416.5" data-en="① empty state">① 空狀態</text></g>
+  <g data-in="impl@9.1" data-drop><rect class="layer" x="548" y="377" width="124" height="24" rx="4"/><text class="layer-t" x="610" y="389.5" data-en="② truncate …">② 截斷 …</text></g>
+  <g data-in="impl@12.65" data-drop><rect class="layer" x="548" y="350" width="124" height="24" rx="4"/><text class="layer-t" x="610" y="362.5" data-en="③ long-press">③ 長按看全名</text></g>
+  <g data-in="@failFrom" data-out="impl@8.2" data-dim="0.22">
+    <path class="back-r" d="M567.7 463.5 A90 90 0 0 0 652.3 463.5" marker-end="url(#arR)"/>
+    <text class="back-t" x="610" y="524" data-en="check fails → fix the code, not the check">驗證不過 → 回去改程式碼，不改驗證</text>
+  </g>
+  <g data-in="impl@10.2" data-out="impl@12.8" data-dim="0.22">
+    <path class="regauge" d="M598 277 C560 262 470 206 374 204" marker-end="url(#arA)"/>
+    <text class="regauge-t" x="500" y="190" data-en="heavier than gauged? → back to ①">若比預估重 → 回 ① 重估</text>
+  </g>
+  <text class="tick" x="482" y="324" data-in="impl@3.2" data-out="impl@3.9">✓</text>
+  <text class="tick" x="482" y="324" data-in="impl@9.0" data-out="impl@9.7">✓</text>
+  <text class="tick" x="482" y="324" data-in="impl@12.55" data-out="impl@13.4">✓</text>
+  <g id="dot" style="opacity:0">
+    <circle class="dot-halo" r="13"/>
+    <circle class="dot" r="8"/>
+  </g>
+
+  <!-- closing gates -->
+  <g data-in="intro@1.6">
+    <rect class="card-bg" x="892" y="182" width="336" height="112" rx="8"/>
+    <text class="c-h" x="906" y="204" data-en="⑥ Compliance Review · read-only agent">⑥ 合規審查 · 唯讀 agent</text>
+    <rect class="card-bg" x="892" y="302" width="336" height="64" rx="8"/>
+    <text class="c-h" x="906" y="324" data-en="⑦ Fresh verification · same turn">⑦ 新鮮驗證 · 同一回合</text>
+    <rect class="card-bg" x="892" y="374" width="336" height="214" rx="8"/>
+  </g>
+  <text class="c-t" x="906" y="230" data-in="review@0.8" data-en="① Spec: anything extra or missing">① 規格：多做、少做都算</text>
+  <text class="c-ok" x="1212" y="230" data-in="review@1.6">✓</text>
+  <text class="c-t" x="906" y="254" data-in="review@2.0" data-en="② Quality: style guides, conventions">② 品質：style guide、專案慣例</text>
+  <text class="c-ok" x="1212" y="254" data-in="review@2.8">✓</text>
+  <text class="c-pass mono" x="906" y="281" data-in="review@3.6">Compliance Review: PASS</text>
+  <text class="c-note" x="1092" y="281" data-in="review@4.0" data-en="← reviewer’s own line">← 審查者親筆</text>
+  <text class="c-t mono" x="906" y="350" data-in="verify@0.6">analyze ✓</text>
+  <text class="c-t mono" x="994" y="350" data-in="verify@1.2">tests ✓</text>
+  <text class="c-t" x="1062" y="350" data-in="verify@1.9" data-en="evidence per line ✓">驗收逐條對證據 ✓</text>
+  <text class="d-h mono" x="906" y="395" data-in="done@0.4">Done — size <tspan class="gz-s">▰▰▱</tspan> medium ·</text>
+  <text class="d-h mono" x="920" y="410" data-in="done@3.8">✅ 7 done · ⬜ 1 not done · 🚫 0 blocked</text>
+  <text class="d-t mono" x="906" y="425" data-in="done@0.9" data-en="✅ Acceptance 1: empty list — empty_test: passed">✅ Acceptance 1: 空清單 — empty_test: passed</text>
+  <text class="d-t mono" x="906" y="440" data-in="done@1.2" data-en="✅ Acceptance 2: long name — trunc_test: passed">✅ Acceptance 2: 長名稱 — trunc_test: passed</text>
+  <text class="d-t mono" x="906" y="455" data-in="done@1.5" data-en="✅ Sibling string — matches empty-state copy">✅ 相鄰字串 — 與鄰近空狀態文案句型一致</text>
+  <text class="d-t mono" x="906" y="470" data-in="done@1.8" data-en="✅ /manwe — three wireframe states: ALIGNED">✅ /manwe — 對照線框三態：ALIGNED</text>
+  <text class="d-t mono" x="906" y="485" data-in="done@2.1">✅ Compliance Review — PASS</text>
+  <text class="d-t mono" x="906" y="500" data-in="done@2.4">✅ Fresh verification — analyze ✓ · 42 passed</text>
+  <text class="d-t mono" x="906" y="515" data-in="done@2.7">✅ Worklog — sent</text>
+  <text class="d-t mono" x="906" y="530" data-in="done@3.0" data-en="⬜ Commit — not requested; awaiting your word">⬜ Commit — 未要求提交，等你一句話</text>
+  <text class="d-na mono" x="906" y="545" data-in="done@3.4" data-en="n/a: DI — no new binding · /install — no config edit">n/a: DI — 無新 binding · /install — 未動 config</text>
+  <text class="d-na mono" x="939" y="560" data-in="done@3.4" data-en="cache — no new file:line fact learned">cache — 沒學到新的 file:line 事實</text>
+  <text class="c-pass mono" x="906" y="578" data-in="done@4.3">Compliance Review: PASS</text>
+
+  <!-- captions -->
+  <rect class="cap-bg" x="40" y="604" width="1200" height="100" rx="10"/>
+  <g id="captions"></g>
+</svg>
+
+<div class="ctl" aria-label="Playback controls">
+  <button id="prev" type="button" title="Previous stop (←)" data-en="‹ Prev">‹ 上一站</button>
+  <button id="play" type="button" title="Play or pause (space)">⏸ Pause</button>
+  <button id="next" type="button" title="Next stop (→)" data-en="Next ›">下一站 ›</button>
+  <div class="bar" id="bar"><div class="head" id="head"></div></div>
+  <span class="clock" id="clock">0:00</span>
+  <span class="langtoggle"><button type="button" data-lang="en">EN</button><button type="button" data-lang="zh">繁中</button></span>
+</div>
+<p class="foot"><span data-en="The other reel: ">另一支：</span><a href="reel-ticket-to-merge.html" data-en="The big loop: one requirement, from intake to merge ↗">大圈：一項需求，從進來到合併 ↗</a><span data-en=" · Source: Handbook ch. I, The Work Loop, and the Done Block section of CLAUDE.md">　·　依據：Skadi 手冊第一章 The Work Loop、CLAUDE.md 的 Done Block</span></p>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const P = new URLSearchParams(location.search);
+  const CAPTURE = P.has('capture');
+  const EMBED = P.has('embed');
+  if (CAPTURE) document.documentElement.classList.add('capture');
+  if (EMBED) document.documentElement.classList.add('embed');
+  const LANG_KEY = 'skadi-handbook-lang'; // shared with the handbook chapters' own EN / 繁中 toggle
+  const DOC_TITLE = { en: 'Reel · The small loop', zh: '動畫 · 小圈' };
+  const PLAY_LABEL = { en: ['⏸ Pause', '▶ Play'], zh: ['⏸ 暫停', '▶ 播放'] };
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const $ = s => document.querySelector(s);
+  const $$ = s => [...document.querySelectorAll(s)];
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const ramp = (t, a, d = 0.4) => clamp((t - a) / d);
+  const ease = x => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const FADE = 0.4;
+  const SEEK_LEAD = 0.35; // seek lands just inside a scene so its caption is already up
+  function el(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+    if (text != null) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  // a { zh, en } pair carries one text per language
+  const langAttrs = v => ({ 'data-zh': v.zh, 'data-en': v.en });
+  function pickLang() {
+    const asked = P.get('lang');
+    if (asked === 'en' || asked === 'zh') return asked;
+    try { return localStorage.getItem(LANG_KEY) === 'zh' ? 'zh' : 'en'; } catch (e) { return 'en'; }
+  }
+
+  // ---- the story -------------------------------------------------------
+  const SCENES = [
+    { id: 'intro', dur: 3.5, badge: '◆', label: { zh: '序', en: 'Intro' },
+      title: { zh: '小圈：一個任務，從估量到「done」', en: 'The small loop: one task, from sizing to “done”' },
+      lines: {
+        zh: ['大圈裡自己動手的那一段（/working），或你在 session 裡直接交代的任何一件事，都照這一圈走。',
+             '左邊四格在動手之前，中間是施工迴圈，右邊三格在說 done 之前。'],
+        en: ['The hand-worked stretch of the big loop (/working), or anything you hand over in a session, runs this ring.',
+             'Four stages before the first edit on the left, the building loop in the middle, three gates before “done” on the right.'] } },
+    { id: 'size', dur: 4, badge: '1', label: { zh: '估量', en: 'Size' },
+      title: { zh: '估量 · Task Sizing', en: 'Size · Task Sizing' },
+      lines: {
+        zh: ['動手之前先秤三件事：觸及多廣、想得多深、多容易撤回，量成 minimum、medium 或 heavy 三級。',
+             'medium 以上，另附一份拆成 minimum 小步的建議。'],
+        en: ['Before any edit, weigh three things — reach, depth, reversibility — and gauge the task minimum, medium or heavy.',
+             'Medium or heavier also comes with a breakdown into minimum-sized steps.'] } },
+    { id: 'accept', dur: 5, badge: '2', label: { zh: '驗收', en: 'Accept' },
+      title: { zh: '驗收 · Acceptance＋Non-goals', en: 'Accept · Acceptance + Non-goals' },
+      lines: {
+        zh: ['寫下做完會看到什麼——寫結果，不寫動作：「空清單顯示 placeholder」，而非「顯示 placeholder」。',
+             'Non-goals 寫明這次刻意不碰的地方；之後的審查與驗證，都以這幾行為準。'],
+        en: ['Write what done will look like — outcomes, not actions: “the empty list renders the placeholder”, not “render the placeholder”.',
+             'Non-goals name what this turn deliberately leaves alone; review and verification both measure against these lines.'] } },
+    { id: 'approve', dur: 4.5, badge: '3', label: { zh: '核可', en: 'Approve' },
+      title: { zh: '核可 · Change Approval', en: 'Approve · Change Approval' },
+      lines: {
+        zh: ['四欄 gate 貼出後，等你一句話，才動第一個檔。',
+             '以 slash 呼叫的 skill，呼叫本身就是同意；唯讀的回合不需要這道 gate；或說一聲「just do it」，整個 session 都跳過。'],
+        en: ['The four-field gate goes up, and nothing is edited until you give your word.',
+             'A slash-invoked skill is its own approval; read-only turns are exempt; “just do it” stands the gate down for the session.'] } },
+    { id: 'preview', dur: 4.5, badge: '4', label: { zh: '預覽', en: 'Preview' },
+      title: { zh: '預覽 · Previews', en: 'Preview · Previews' },
+      lines: {
+        zh: ['動 UI 先畫線框，三種資料狀態：有資料、空狀態、溢出；UML 一圖一事；產生的計畫另鏡像成 plan-*.html。',
+             '全部投進 Henneth 視窗：先看圖，再寫碼。'],
+        en: ['A UI change gets a wireframe first, in three states: populated, empty, overflow; UML, one diagram per concern; a plan, a plan-*.html mirror.',
+             'All of it lands in the Henneth window: see the picture, then write the code.'] } },
+    { id: 'impl', dur: 15, badge: '5', label: { zh: '施工', en: 'Build' },
+      title: { zh: '施工 · Implementation Loop', en: 'Build · Implementation Loop' },
+      lines: {
+        zh: ['每一步：先命名驗證，寫測試、看它因預期的原因失敗，實作一層，驗證，靜態分析乾淨，才打勾。',
+             '切成層、不切成塊；驗證不過就回去改程式碼，不改驗證。這步若比預估重：停下，回 ① 重估，再等你一句話。'],
+        en: ['Each step: name the check, watch a new test fail for the right reason, build one layer, verify, keep analysis clean — then tick.',
+             'Layers, not slabs; a failed check means fix the code, not the check. A step heavier than gauged: stop, re-gauge, await your word.'] } },
+    { id: 'review', dur: 6, badge: '6', label: { zh: '合規審查', en: 'Review' },
+      title: { zh: '合規審查 · Compliance Review', en: 'Review · Compliance Review' },
+      lines: {
+        zh: ['另派一個唯讀 agent 讀整份 diff：先查規格（多做、少做都算），再查品質（style guide、專案慣例）。',
+             '最後一行由審查者自己寫下：Compliance Review: PASS／FAIL。每個發現都要修掉，或明說為何保留。'],
+        en: ['A separate read-only agent reads the whole diff: spec first (anything extra or missing), then quality (style guides, conventions).',
+             'The reviewer writes the last line itself — Compliance Review: PASS or FAIL. Every finding is fixed or named as a knowing exception.'] } },
+    { id: 'verify', dur: 4.5, badge: '7', label: { zh: '新鮮驗證', en: 'Verify' },
+      title: { zh: '新鮮驗證 · Fresh Verification', en: 'Verify · Fresh Verification' },
+      lines: {
+        zh: ['修完之後在同一回合重跑：靜態分析＋全套測試。三則訊息前的綠燈不算數。',
+             '再逐條走過驗收，每一條旁邊都要擺上這一回合的證據。'],
+        en: ['After the fixes, run it again in the same turn: static analysis and the full test suite. A green run from three messages ago proves nothing.',
+             'Then walk each acceptance line and set this turn’s evidence beside it.'] } },
+    { id: 'done', dur: 6.5, badge: '8', label: { zh: 'Done', en: 'Done' },
+      title: { zh: 'Done · 把完成說清楚', en: 'Done · spoken loud' },
+      lines: {
+        zh: ['Done 區塊一次列清：做完的 ✅、沒做的 ⬜、卡住的 🚫，計數要與列數相符；不適用的寫進 n/a。',
+             '並送出一筆 worklog。最後一行固定是 Compliance Review 的判定：PASS、FAIL 或 SKIPPED——/este 的脈搏就讀這一行。'],
+        en: ['The Done block lists it all — ✅ done, ⬜ not done, 🚫 blocked — counts matching the rows, the non-applicable on the n/a line.',
+             'A worklog entry is sent. The last line is always the review’s verdict — PASS, FAIL or SKIPPED — the line /este reads.'] } },
+  ];
+  let acc = 0;
+  for (const s of SCENES) { s.start = acc; acc += s.dur; }
+  const TOTAL = acc;
+  const S = Object.fromEntries(SCENES.map(s => [s.id, s]));
+  // moments that several elements share; markup and code both name them '@name'
+  const MOMENT = { approved: 'approve@2.3', failFrom: 'impl@6.05' };
+  const T = ref => {
+    const r = String(ref);
+    if (r.startsWith('@')) return T(MOMENT[r.slice(1)]);
+    const [id, off] = r.split('@');
+    return S[id].start + (parseFloat(off) || 0);
+  };
+
+  const CHIPS = [
+    { id: 'size', x: 40, w: 80, label: { zh: '① 估量', en: '① Size' } },
+    { id: 'accept', x: 127, w: 80, label: { zh: '② 驗收', en: '② Accept' } },
+    { id: 'approve', x: 213, w: 80, label: { zh: '③ 核可', en: '③ Approve' } },
+    { id: 'preview', x: 300, w: 80, label: { zh: '④ 預覽', en: '④ Preview' } },
+    { id: 'impl', x: 400, w: 460, label: { zh: '⑤ 施工 · Implementation Loop', en: '⑤ Build · Implementation Loop' } },
+    { id: 'review', x: 880, w: 116, label: { zh: '⑥ 合規審查', en: '⑥ Review' } },
+    { id: 'verify', x: 1002, w: 116, label: { zh: '⑦ 新鮮驗證', en: '⑦ Verify' } },
+    { id: 'done', x: 1124, w: 116, label: { zh: '⑧ Done', en: '⑧ Done' } },
+  ];
+  const ZONES = { left: ['size', 'accept', 'approve', 'preview'], mid: ['impl'], right: ['review', 'verify', 'done'] };
+  const GAUGE = [
+    ['▱▱▱', { zh: '', en: '' }],
+    ['▰▱▱', { zh: ' minimum', en: ' minimum' }],
+    ['▰▰▱', { zh: ' medium — 三個檔案，共用清單元件', en: ' medium — 3 files, shared list' }],
+  ];
+  const STEPS_LEFT = { zh: '3 步', en: '3 steps' };
+
+  // ---- the loop's geometry: five stations clockwise from the top --------
+  const RC = { cx: 610, cy: 384, r: 108 };
+  const NODES = [
+    { th: -90, label: { zh: '命名驗證', en: 'Name the check' }, x: 610, y: 258, anchor: 'middle' },
+    { th: -18, label: { zh: '測試先行，看它失敗', en: 'Failing test first' }, x: 728, y: 355, anchor: 'start' },
+    { th: 54, label: { zh: '實作一層', en: 'Build one layer' }, x: 688, y: 497, anchor: 'start' },
+    { th: 126, label: { zh: '驗證', en: 'Verify' }, x: 532, y: 497, anchor: 'end' },
+    { th: 198, label: { zh: '分析乾淨 ✓', en: 'Analysis ✓' }, x: 492, y: 355, anchor: 'end' },
+  ];
+  const VERIFY_NODE = 3;
+  const onRing = th => {
+    const a = (th * Math.PI) / 180;
+    return { x: RC.cx + RC.r * Math.cos(a), y: RC.cy + RC.r * Math.sin(a) };
+  };
+  // three steps; the second fails its verification once and goes back to the code
+  const KD = [
+    ['impl@0.5', -90], ['impl@1.05', -18], ['impl@1.2', -18], ['impl@1.75', 54], ['impl@1.9', 54],
+    ['impl@2.45', 126], ['impl@2.6', 126], ['impl@3.15', 198], ['impl@3.55', 198], ['impl@4.1', 270],
+    ['impl@4.65', 342], ['impl@4.8', 342], ['impl@5.35', 414], ['impl@5.5', 414], ['@failFrom', 486],
+    ['impl@6.9', 486], ['impl@7.5', 414], ['impl@7.7', 414], ['impl@8.25', 486], ['impl@8.4', 486],
+    ['impl@8.95', 558], ['impl@9.3', 558], ['impl@9.85', 630],
+    ['impl@10.4', 702], ['impl@10.55', 702], ['impl@11.1', 774], ['impl@11.25', 774],
+    ['impl@11.8', 846], ['impl@11.95', 846], ['impl@12.5', 918],
+  ].map(([r, th]) => [T(r), th]);
+  const FAIL = [T('@failFrom'), T('impl@7.6')];
+  function thetaAt(t) {
+    if (t <= KD[0][0]) return KD[0][1];
+    for (let i = 1; i < KD.length; i++) {
+      const [tb, b] = KD[i];
+      if (t > tb) continue;
+      const [ta, a] = KD[i - 1];
+      return a + (b - a) * ease(clamp((t - ta) / (tb - ta || 1)));
+    }
+    return KD[KD.length - 1][1];
+  }
+  function counterText(t, lang) {
+    if (t < T('impl@0.3')) return STEPS_LEFT[lang];
+    if (t < T('impl@4.1')) return 'Step 1 / 3';
+    if (t < T('impl@9.85')) return 'Step 2 / 3';
+    if (t < T('impl@12.6')) return 'Step 3 / 3';
+    return '✓ 3 / 3';
+  }
+
+  // ---- build the generated layers --------------------------------------
+  const rail = $('#rail');
+  CHIPS.forEach((c, i) => {
+    const wrap = el('g', { 'data-in': `intro@${(0.3 + i * 0.1).toFixed(1)}` }, rail);
+    const g = el('g', { 'data-state-of': c.id }, wrap);
+    el('rect', { class: 'chip-bg', x: c.x, y: 102, width: c.w, height: 30, rx: 15 }, g);
+    el('text', { class: 'chip-t', x: c.x + c.w / 2, y: 117.5, ...langAttrs(c.label) }, g, c.label.zh);
+  });
+
+  const ring = $('#ring');
+  NODES.forEach(n => {
+    const p1 = onRing(n.th + 8), p2 = onRing(n.th + 63);
+    el('path', {
+      class: 'loop-arc', 'marker-end': 'url(#arA)',
+      d: `M${p1.x.toFixed(1)} ${p1.y.toFixed(1)} A${RC.r} ${RC.r} 0 0 1 ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`,
+    }, ring);
+  });
+  const nodeEls = NODES.map(n => {
+    const p = onRing(n.th);
+    el('text', { class: 'lnode-t', x: n.x, y: n.y, 'text-anchor': n.anchor, ...langAttrs(n.label) }, ring, n.label.zh);
+    return el('circle', { class: 'lnode', cx: p.x.toFixed(1), cy: p.y.toFixed(1), r: 10 }, ring);
+  });
+
+  const capLayer = $('#captions');
+  for (const s of SCENES) {
+    const g = el('g', { style: 'opacity:0' }, capLayer);
+    el('circle', { class: 'cap-badge', cx: 86, cy: 654, r: 24 }, g);
+    el('text', { class: 'cap-num', x: 86, y: 655 }, g, s.badge);
+    el('text', { class: 'cap-title', x: 126, y: 641, ...langAttrs(s.title) }, g, s.title.zh);
+    s.lines.zh.forEach((zh, i) => {
+      el('text', { class: 'cap-line', x: 126, y: 668 + i * 24, ...langAttrs({ zh, en: s.lines.en[i] }) }, g, zh);
+    });
+    s.capEl = g;
+  }
+
+  // ---- render: every frame is a pure function of t ---------------------
+  const DIM_FROM = T('intro@2.0');
+  const timed = $$('[data-in]').map(e => ({
+    e, tin: T(e.dataset.in), tout: e.dataset.out ? T(e.dataset.out) : Infinity,
+    rise: e.hasAttribute('data-rise'), drop: e.hasAttribute('data-drop'),
+    dim: parseFloat(e.dataset.dim || '0'),
+  }));
+  const stateEls = $$('[data-state-of]');
+  const zoneEls = $$('[data-zone]');
+  const gaugeBars = $('#gaugeBars');
+  const gaugeRest = $('#gaugeRest');
+  const counter = $('#counter');
+  const dot = $('#dot');
+  const dotCore = dot.querySelector('.dot');
+  const sealApprove = $('#sealApprove');
+  const SEAL_T = T('@approved');
+  const sceneIndex = t => { let i = 0; while (i < SCENES.length - 1 && t >= SCENES[i + 1].start) i++; return i; };
+  let lang = pickLang();
+
+  function renderFades(t) {
+    for (const x of timed) {
+      const a = ramp(t, x.tin, FADE) * (1 - ramp(t, x.tout, FADE));
+      const base = x.dim * ramp(t, DIM_FROM, FADE);
+      x.e.style.opacity = (base + (1 - base) * a).toFixed(3);
+      if (x.rise) x.e.style.transform = `translateY(${((1 - ease(a)) * 10).toFixed(2)}px)`;
+      if (x.drop) x.e.style.transform = `translateY(${(-(1 - ease(a)) * 18).toFixed(2)}px)`;
+    }
+    for (const s of SCENES) {
+      const end = s.start + s.dur;
+      s.capEl.style.opacity = (ramp(t, s.start, 0.3) * (1 - ramp(t, end - 0.3, 0.3))).toFixed(3);
+    }
+  }
+
+  function renderStates(t) {
+    for (const e of stateEls) {
+      const s = S[e.dataset.stateOf];
+      const st = t < s.start ? 'todo' : t < s.start + s.dur ? 'active' : 'done';
+      if (e.dataset.st !== st) e.dataset.st = st;
+    }
+    const now = SCENES[sceneIndex(t)].id;
+    for (const z of zoneEls) z.classList.toggle('on', ZONES[z.dataset.zone].includes(now));
+  }
+
+  function renderGate(t) {
+    const [bars, rest] = GAUGE[t < T('size@0.9') ? 0 : t < T('size@1.6') ? 1 : 2];
+    gaugeBars.textContent = bars;
+    gaugeRest.textContent = rest[lang];
+    const a = ramp(t, SEAL_T, 0.3);
+    sealApprove.setAttribute('transform', `scale(${(1 + (1 - ease(a)) * 0.9).toFixed(3)})`);
+    sealApprove.style.opacity = a.toFixed(3);
+  }
+
+  function renderLoop(t) {
+    counter.textContent = counterText(t, lang);
+    const failing = t >= FAIL[0] && t < FAIL[1];
+    const th = thetaAt(t);
+    const p = onRing(th);
+    dot.setAttribute('transform', `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})`);
+    const dotOn = ramp(t, T('impl@0.2'), 0.3) * (1 - ramp(t, T('impl@14.3'), 0.4));
+    dot.style.opacity = dotOn.toFixed(3);
+    dotCore.classList.toggle('bad', failing);
+    nodeEls.forEach((n, i) => {
+      const d = (((th - NODES[i].th) % 360) + 360) % 360;
+      n.classList.toggle('on', dotOn > 0.5 && (d < 6 || d > 354));
+      n.classList.toggle('bad', failing && i === VERIFY_NODE);
+    });
+  }
+
+  function render(t) {
+    renderFades(t);
+    renderStates(t);
+    renderGate(t);
+    renderLoop(t);
+  }
+
+  // ---- playback, language, and controls ---------------------------------
+  const bar = $('#bar'), head = $('#head'), clock = $('#clock'), playBtn = $('#play');
+  const fmt = x => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}`;
+
+  let t = P.has('t') ? clamp(parseFloat(P.get('t')) || 0, 0, TOTAL - 0.001) : 0;
+  let playing = !P.has('t') && !CAPTURE;
+  let last = null, dirty = true;
+
+  const segs = SCENES.map(s => {
+    const d = document.createElement('div');
+    d.className = 'seg';
+    d.style.flexGrow = s.dur;
+    d.dataset.zh = s.label.zh;
+    d.dataset.en = s.label.en;
+    d.addEventListener('click', ev => { ev.stopPropagation(); seek(s.start + SEEK_LEAD); });
+    bar.insertBefore(d, head);
+    return d;
+  });
+
+  function postHeight() {
+    if (EMBED && window.parent !== window) {
+      window.parent.postMessage({ skadiReel: true, height: document.documentElement.scrollHeight }, '*');
+    }
+  }
+  function setLang(next) {
+    lang = next;
+    document.documentElement.lang = next === 'zh' ? 'zh-Hant' : 'en';
+    document.title = DOC_TITLE[next];
+    for (const e of $$('[data-en]')) e.textContent = e.dataset[next];
+    segs.forEach((d, i) => { d.title = SCENES[i].title[next]; });
+    for (const b of $$('.langtoggle button')) b.classList.toggle('active', b.dataset.lang === next);
+    dirty = true;
+    postHeight();
+  }
+  function syncUI() {
+    head.style.left = `${((t / TOTAL) * 100).toFixed(3)}%`;
+    clock.textContent = `${fmt(t)} / ${fmt(TOTAL)}`;
+    const i = sceneIndex(t);
+    segs.forEach((d, k) => d.classList.toggle('on', k === i));
+    playBtn.textContent = PLAY_LABEL[lang][playing ? 0 : 1];
+  }
+  function seek(x) { t = ((x % TOTAL) + TOTAL) % TOTAL; dirty = true; }
+  function step(dir) {
+    const i = sceneIndex(t);
+    if (dir < 0) seek(t - SCENES[i].start > 1.2 ? SCENES[i].start + SEEK_LEAD : SCENES[(i - 1 + SCENES.length) % SCENES.length].start + SEEK_LEAD);
+    else seek(SCENES[(i + 1) % SCENES.length].start + SEEK_LEAD);
+  }
+  playBtn.addEventListener('click', () => { playing = !playing; dirty = true; });
+  $('#prev').addEventListener('click', () => step(-1));
+  $('#next').addEventListener('click', () => step(1));
+  bar.addEventListener('click', ev => {
+    const r = bar.getBoundingClientRect();
+    seek(clamp((ev.clientX - r.left) / r.width) * TOTAL);
+  });
+  for (const b of $$('.langtoggle button')) {
+    b.addEventListener('click', () => {
+      setLang(b.dataset.lang);
+      try { localStorage.setItem(LANG_KEY, b.dataset.lang); } catch (e) { /* storage off: the choice lasts this visit */ }
+    });
+  }
+  document.addEventListener('keydown', ev => {
+    if (ev.target.closest && ev.target.closest('button') && ev.key === ' ') return;
+    if (ev.key === ' ') { ev.preventDefault(); playing = !playing; dirty = true; }
+    else if (ev.key === 'ArrowLeft') step(-1);
+    else if (ev.key === 'ArrowRight') step(1);
+  });
+  addEventListener('load', postHeight);
+  addEventListener('resize', postHeight);
+
+  function frame(ts) {
+    if (playing && last !== null) {
+      t += (ts - last) / 1000;
+      if (t >= TOTAL) t -= TOTAL;
+      dirty = true;
+    }
+    last = ts;
+    if (dirty) { render(t); syncUI(); dirty = false; }
+    requestAnimationFrame(frame);
+  }
+  // the markup carries the zh text; remember it before the first swap
+  for (const e of $$('[data-en]')) if (e.dataset.zh === undefined) e.dataset.zh = e.textContent;
+  setLang(lang);
+  render(t);
+  syncUI();
+  dirty = false;
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

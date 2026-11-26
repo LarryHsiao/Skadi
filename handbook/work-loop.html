@@ -77,6 +77,14 @@
         font-size: 0.85rem;
         color: #6b5d44;
       }
+      /* The reel breaks out of the 920px column so its text stays legible. */
+      .reel-frame {
+        display: block;
+        border: 0;
+        width: min(1280px, calc(100vw - 48px));
+        aspect-ratio: 1280 / 772;
+        margin: 0.4rem 0 0 calc(50% - min(640px, 50vw - 24px));
+      }
     </style>
   </head>
   <body>
@@ -87,6 +95,18 @@
       <p class="sub">
         From the weighing of a task to the word “done” — the free-form cycle,
         with <b>Acceptance</b> now named up front.
+      </p>
+
+      <iframe
+        class="reel-frame"
+        src="reel-work-loop.html?embed=1"
+        title="Animated overview: one task from sizing to done"
+        loading="lazy"
+      ></iframe>
+      <p class="small">
+        The whole loop in under a minute — the controls and an EN / 繁中 toggle
+        sit under the frame.
+        <a href="reel-work-loop.html">Open it full page ↗</a>
       </p>
 
       <!-- 1 -->
@@ -371,5 +391,14 @@ Compliance Review: SKIPPED (reason: &lt;one line&gt;)</pre>
         stage&nbsp;2; the section binds free-form work.
       </p>
     </div>
+    <script>
+      // The reel posts its own height, so the frame never clips its controls.
+      addEventListener("message", (e) => {
+        if (!e.data || !e.data.skadiReel) return;
+        for (const f of document.querySelectorAll("iframe.reel-frame")) {
+          if (f.contentWindow === e.source) f.style.height = `${e.data.height}px`;
+        }
+      });
+    </script>
   </body>
 </html>

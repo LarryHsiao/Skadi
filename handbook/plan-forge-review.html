@@ -51,6 +51,14 @@
         font-size: 0.85rem;
         color: #6b5d44;
       }
+      /* The reel breaks out of the 920px column so its text stays legible. */
+      .reel-frame {
+        display: block;
+        border: 0;
+        width: min(1280px, calc(100vw - 48px));
+        aspect-ratio: 1280 / 772;
+        margin: 0.4rem 0 0 calc(50% - min(640px, 50vw - 24px));
+      }
     </style>
   </head>
   <body>
@@ -61,6 +69,18 @@
       <p class="sub">
         Told from the actors' side — who speaks, to whom, and in what order, as
         a ticket becomes a merged change.
+      </p>
+
+      <iframe
+        class="reel-frame"
+        src="reel-ticket-to-merge.html?embed=1"
+        title="Animated overview: a ticket from intake to merge"
+        loading="lazy"
+      ></iframe>
+      <p class="small">
+        The whole arc in under a minute — the controls and an EN / 繁中 toggle
+        sit under the frame.
+        <a href="reel-ticket-to-merge.html">Open it full page ↗</a>
       </p>
 
       <p class="note">
@@ -520,6 +540,15 @@ graph TD
           labelBoxBorderColor: "#cdbfa0",
           labelTextColor: "#2b2419",
         },
+      });
+    </script>
+    <script>
+      // The reel posts its own height, so the frame never clips its controls.
+      addEventListener("message", (e) => {
+        if (!e.data || !e.data.skadiReel) return;
+        for (const f of document.querySelectorAll("iframe.reel-frame")) {
+          if (f.contentWindow === e.source) f.style.height = `${e.data.height}px`;
+        }
       });
     </script>
   </body>

@@ -130,13 +130,21 @@ situation board.
 | VIII. [The Instruments](handbook/instruments.html) | The statusline row by row, the `/este` and `/fidelity` scorecards, the session's habits |
 | IX. [The Hooks](handbook/hooks.html) | Every script under `hooks/`, grouped by what it serves |
 
+Chapters I and II open with an animated reel, playable in the page with an
+EN / 繁中 toggle: one requirement's road from ticket to merge, and one task's
+loop from sizing to "done". Recorded, they look like this:
+
+![The big loop: a ticket goes from intake through plan, forge and review to merge](assets/reel-ticket-to-merge.gif)
+
+![The small loop: one task goes from sizing through the implementation loop to "done"](assets/reel-work-loop.gif)
+
 ## What's Inside
 
 | Path | Purpose |
 |---|---|
 | `CLAUDE.md` | Global instructions loaded into every conversation |
 | `AGENTS.md` | Runtime-neutral global instructions installed into Codex homes |
-| `assets/` | The repo icon — a pen nib, embedded above |
+| `assets/` | The repo icon — a pen nib, embedded above — and the two handbook reels recorded as GIFs |
 | `settings.json` | Model, permissions, plugins, and hook definitions |
 | `codex/hooks.json` | Native Codex lifecycle-hook definitions |
 | `codex/rules/skadi.rules` | Native Codex command escalation policy |
@@ -150,7 +158,7 @@ situation board.
 | `previews/henneth/skadi-theme.css` | Shared parchment stylesheet copied beside the Henneth preview artifacts |
 | `previews/ithildin-report-*.png` | Two screenshots of a sample `/ithildin` report, shown in handbook chapter VI |
 | `install.sh` | Copy installer (idempotent, safe to re-run) |
-| `handbook/` | The HTML handbook — the cover plus the nine chapters above |
+| `handbook/` | The HTML handbook — the cover, the nine chapters above, and the two animated reels (`reel-*.html`) that open chapters I and II |
 | `handbook.sh` | Open the handbook, served by the situation board — `./handbook.sh` |
 | `tests/` | Python tests for the Jira hooks and the skeleton-rung deriver, plus a guard that no handbook page breaks a line inside Chinese text; the rest ride beside their hooks as `*.test.sh` / `test_*.py` |
 | `CLAUDE.stub.md` | The one-line marker left in `~/.claude/` pointing at whichever profile root holds the live config |
