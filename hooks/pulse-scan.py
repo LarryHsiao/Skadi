@@ -47,9 +47,9 @@ _VERDICT_PREFIX = r"Compliance Review[:：]\s*"
 # actually closed clean, not merely whether the ritual was performed.
 COMPLIANCE_PASS_RE = re.compile(_VERDICT_PREFIX + r"PASS")
 
-# Either verdict a review agent may file. _segment_complies asks two different
-# questions of these two patterns: COMPLIANCE_PASS_RE decides what the segment
-# closed with, this one decides whether a reviewer reported at all.
+# Either verdict a review agent may file. bug-gate asks two different questions
+# of these two patterns: COMPLIANCE_PASS_RE decides what the segment closed with
+# (_segment_closes_pass), this one finds which reviewers filed (_review_times).
 COMPLIANCE_VERDICT_RE = re.compile(_VERDICT_PREFIX + r"(PASS|FAIL)")
 
 JUDGE_BATCH = 20
@@ -151,6 +151,27 @@ def _bash_commands(message):
     ]
 
 
+def _edit_paths(message):
+    """The file each Edit or Write of an assistant turn targeted, '' where the
+    call names none (a Codex patch carries its paths inside the patch text).
+    One entry per call, so _authors can tell a turn that wrote only scratch
+    from one that also touched the work."""
+    if not isinstance(message, dict):
+        return []
+    content = message.get("content")
+    if not isinstance(content, list):
+        return []
+    paths = []
+    for block in content:
+        if not (isinstance(block, dict) and block.get("type") == "tool_use"
+                and block.get("name") in ("Edit", "Write")):
+            continue
+        inp = block.get("input")
+        path = inp.get("file_path") if isinstance(inp, dict) else None
+        paths.append(path if isinstance(path, str) else "")
+    return paths
+
+
 def _codex_tool(name, raw_input):
     """Translate a Codex tool item to the Claude-shaped names used by scorers."""
     haystack = "%s\n%s" % (name or "", raw_input or "")
@@ -250,6 +271,7 @@ def read_turns(path):
                 "text": _turn_text(message),
                 "tools": _tool_names(message) if t == "assistant" else [],
                 "bash_commands": _bash_commands(message) if t == "assistant" else [],
+                "edit_paths": _edit_paths(message) if t == "assistant" else [],
                 "tool_results": _tool_results(message) if t == "user" else [],
                 "model": (message.get("model") or active_model) if t == "assistant" else None,
                 "effort": (d.get("effort") or active_effort) if t == "assistant" else None,
@@ -846,16 +868,36 @@ def _mutates(turn):
 # outside — see _owes_review, which measures what that costs.
 _AUTHORING_BASH_RE = re.compile(r"\bsed\s+-i\b")
 
+# Where a session writes for its own use rather than for the work: its
+# scratchpad and other temp files, Henneth previews, and Claude's per-project
+# auto-memory (<config root>/projects/<project>/memory/ — a repo's own memory/
+# folder is the work, and does not match). None of it reaches a diff. Paths
+# are read with forward slashes, so a Windows path meets the same roots; its
+# temp folder is not listed, since where Claude Code keeps a Windows
+# scratchpad is unverified — such a write still owes a review, the direction
+# that cannot flatter the rate.
+_SCRATCH_PATH_RE = re.compile(
+    r"^/(?:private/)?tmp/|/\.skadi/henneth/|/\.claude[^/]*/projects/[^/]+/memory/")
+
+
+def _is_scratch(path):
+    """Whether a written path lies under a scratch root (_SCRATCH_PATH_RE).
+    An unknown path ('') is not scratch: nothing shows it was."""
+    return bool(path) and bool(_SCRATCH_PATH_RE.search(path.replace("\\", "/")))
+
 
 def _authors(turn):
-    """An assistant turn that wrote file content, rather than merely moving
-    the tree around. _mutates is the broader test — it opens a task segment
-    on any tree-changing action at all, git and mkdir included — and that
-    breadth is right for deciding when work *began*, but wrong for deciding
-    what owes a code review."""
+    """An assistant turn that wrote file content for the work, rather than
+    merely moving the tree around or writing scratch for its own use. _mutates
+    is the broader test — it opens a task segment on any tree-changing action
+    at all, git and mkdir included — and that breadth is right for deciding
+    when work *began*, but wrong for deciding what owes a code review. An
+    Edit or Write counts unless its path lies under a scratch root
+    (_is_scratch); one whose path is unknown counts, since nothing shows it
+    was scratch."""
     if turn["type"] != "assistant":
         return False
-    if any(name in ("Edit", "Write") for name in turn.get("tools", [])):
+    if any(not _is_scratch(path) for path in turn.get("edit_paths", [])):
         return True
     return any(_AUTHORING_BASH_RE.search(call["command"])
                for call in turn.get("bash_commands", []))
@@ -871,12 +913,20 @@ def _owes_review(seg_turns):
     the config for not reviewing commits and directories. plan.accepted keeps
     the same discipline, never billing a run that owed no gauge.
 
-    The test is Edit/Write or `sed -i`. It under-reaches in one direction:
-    a segment that authored only through a shell redirect, or that removed a
-    tracked file with `rm` or `git mv`, is excluded though it arguably owed a
-    review. Measured against the live roots, 17 of the 214 excluded segments
-    bear such a command — 8%. The error lifts the rate rather than lowering
-    it, so it flatters the config and is named here rather than buried."""
+    The test is an Edit/Write outside the scratch roots, or `sed -i` (see
+    _authors). A segment whose only writes landed in the scratchpad, a Henneth
+    preview, or auto-memory is excluded with the rest: none of it reaches a
+    diff. Counting those had put 109 such segments into the rate on
+    2026-11-26, 94 of them scored as misses, and 49 more among the SKIPPED
+    waivers — so this too lifts the rate with no change in conduct.
+
+    It under-reaches in one direction: a segment that authored only through a
+    shell redirect, or that removed a tracked file with `rm` or `git mv`, is
+    excluded though it arguably owed a review. Measured against the live
+    roots before the scratch roots were set aside, 17 of the 214 excluded
+    segments bore such a command — 8%. The error lifts the rate rather than
+    lowering it, so it flatters the config and is named here rather than
+    buried."""
     return any(_authors(t) for t in seg_turns)
 
 
@@ -1047,17 +1097,17 @@ def _segment_turns(seg):
     return [t for _, run, _ in seg for t in run]
 
 
-def _segment_complies(seg, complied_re, review_times):
-    """A segment complies when the verdict marker appears after its last
-    mutating turn AND a Compliance Review agent filed its own verdict within
-    the segment, at or before that marker — review_times being when this
-    session's reviewers reported (see _review_times).
+def _segment_closes_pass(seg, review_times):
+    """bug-gate's question: did this segment close clean? A PASS marker must
+    follow its last mutating turn, AND a Compliance Review agent must have filed
+    its own verdict within the segment, at or before that marker — review_times
+    being when this session's reviewers reported (see _review_times).
 
-    Neither half suffices alone. The marker is no proof: a model could type the
-    closing line unearned. Nor is a bare Agent tool_use, which this check once
-    accepted — an unrelated Explore search satisfies that as readily as a
-    review does, and it credited one segment in five whose session had filed no
-    verdict at all. Only a reviewer that reported counts.
+    rule.compliance-review asked this once and no longer does: it asks only
+    whether a review was done (see _segment_reviewed). A completion is the
+    stronger claim, so both halves stay here. Neither suffices alone — the
+    marker could be typed unearned, and a reviewer alone says nothing of how
+    the segment closed.
 
     The window opens at the segment's start rather than its last edit, because
     CLAUDE.md's order is review, then mend the findings (more mutating turns),
@@ -1072,22 +1122,115 @@ def _segment_complies(seg, complied_re, review_times):
         return False
     post = seg[mutating_indices[-1] + 1:]
     marker = next((t for t in post
-                   if t["type"] == "assistant" and complied_re.search(t["text"])), None)
+                   if t["type"] == "assistant" and COMPLIANCE_PASS_RE.search(t["text"])), None)
     if marker is None:
         return False
     start = next((t["ts"] for t in seg if t["ts"]), "")
     return any(start <= ts <= marker["ts"] for ts in review_times)
 
 
-def _segment_skipped(seg, complied_re, skipped_re, review_times):
+# A brief that asks for a read-only review: both words must stand in it. The
+# dispatch template (docs/workflow/dispatch-templates.md, Review) opens
+# "Review <the diff>…" and says "Read-only — report, do not fix." a few lines
+# on, so the two are matched anywhere in the brief rather than side by side.
+# Across the live roots 572 of 622 subagent briefs read so; the rest were
+# searches, implementers ("You are Narvi's smith…"), and naive-run testers.
+_READ_ONLY_RE = re.compile(r"read[- ]only", re.I)
+_REVIEW_ASK_RE = re.compile(r"\b(?:review|audit)", re.I)
+
+# The external runner a profile may hand subagent work to instead of the Agent
+# tool. codex is the one hooks/subagent-runner.sh knows (write_runner); a new
+# runner adds its command here, or its reviews read as never run.
+_RUNNER_RE = re.compile(r"\bcodex\s+exec\b")
+
+
+def _briefs_review(text):
+    """Whether this brief asks for a read-only review."""
+    return bool(_READ_ONLY_RE.search(text) and _REVIEW_ASK_RE.search(text))
+
+
+def _is_reviewer(rturns, verdict_re, since):
+    """Whether this subagent transcript is a review that was done: it filed a
+    Compliance Review verdict (verdict_re, read as _agent_verdict reads it), or
+    its brief asked for a read-only review and it reported back. The two are
+    taken together so that every review review.verdict counts is a review here
+    too, while a reviewer whose report missed the literal line — 144 segments
+    in the live roots stood so — still counts as a review done. A brief with no
+    report is a dispatch, not a review."""
+    if _agent_verdict(rturns, verdict_re, since) is not None:
+        return True
+    brief = next((t["text"] for t in rturns
+                  if t["type"] == "user" and t["text"].strip()), "")
+    reported = any(t["type"] == "assistant" and t["text"].strip() for t in rturns)
+    return reported and _briefs_review(brief)
+
+
+def _reviewer_starts(turns, verdict_re, since):
+    """When each of this session's reviewers began (see _is_reviewer) — its
+    transcript's first timestamp, which is when it was dispatched. Computed
+    once per session and handed to every segment check, as _review_times is."""
+    starts = []
+    for path in _review_transcripts(turns):
+        rturns = read_turns(path)
+        if _is_reviewer(rturns, verdict_re, since):
+            start = next((t["ts"] for t in rturns if t["ts"]), "")
+            if start:
+                starts.append(start)
+    return starts
+
+
+def _runner_reviewed(seg, i):
+    """Whether seg[i] handed a read-only review to the external runner
+    (_RUNNER_RE) and the call came back without error. Such a review leaves no
+    transcript beside the session — its brief is the command's own text, a
+    heredoc on stdin — so the main thread's Bash call is its only trace. The
+    runner must be the command being run (_check_match, as the verify rows
+    weigh a check): a commit message or a grep that merely names `codex exec`
+    beside the words "read-only review" ran no review."""
+    turn = seg[i]
+    if turn["type"] != "assistant":
+        return False
+    for call in turn.get("bash_commands", []):
+        if _check_match(call["command"], _RUNNER_RE) and _briefs_review(call["command"]):
+            result = _tool_result_for(seg, i, call.get("id"))
+            if result is not None and not result["is_error"]:
+                return True
+    return False
+
+
+def _segment_reviewed(seg, reviewer_starts):
+    """Whether a review was done within this segment: a reviewer (see
+    _is_reviewer) started inside it, or a runner review ran inside it (see
+    _runner_reviewed). rule.compliance-review asks this and nothing more.
+
+    The verdict line's format is not weighed — review.verdict reads the
+    outcome, and a reviewer that wrote "VERDICT: PASS" did the review all the
+    same. The main thread's closing marker is not required either: it still
+    closes segments (_closes_task) and feeds bug-gate, but a review done
+    without it is still a review done. A marker with no reviewer behind it
+    earns nothing, nor does a bare Agent call: an unrelated search satisfied
+    that once, and one credited segment in five had no review anywhere in its
+    session.
+
+    The window runs from the segment's first timestamp to its last, compared as
+    ISO-8601 text; a reviewer that starts later belongs to what comes next."""
+    stamps = [t["ts"] for t in seg if t["ts"]]
+    if not stamps:
+        return False
+    if any(stamps[0] <= start <= stamps[-1] for start in reviewer_starts):
+        return True
+    return any(_runner_reviewed(seg, i) for i in range(len(seg)))
+
+
+def _segment_skipped(seg, skipped_re, reviewer_starts):
     """Whether this segment's Compliance Review was explicitly, reasonedly
     waived rather than silently missed: a SKIPPED marker follows the
-    segment's last mutating turn. No review evidence is required here — unlike
-    _segment_complies, a skip marker's presence *is* the decision being
-    recorded, not a claim that a review happened. A segment that already
-    complies outright is never counted as skipped, even if skip-marker text
-    also happens to appear somewhere in it — complying takes priority."""
-    if _segment_complies(seg, complied_re, review_times):
+    segment's last mutating turn. No review evidence is required here — a
+    skip marker's presence *is* the decision being recorded, not a claim that
+    a review happened. A segment that was reviewed is never counted as
+    skipped, even if skip-marker text also happens to appear somewhere in it —
+    the review done takes priority."""
+    if _segment_reviewed(seg, reviewer_starts):
         return False
     mutating_indices = [k for k, t in enumerate(seg) if _mutates(t)]
     if not mutating_indices:
@@ -1098,17 +1241,19 @@ def _segment_skipped(seg, complied_re, skipped_re, review_times):
 
 def score_post_gate(turns, entry):
     """Like score_freeform_gate, but for gates (Compliance Review) that close
-    a task rather than open it. applied = task segments (see _task_segments)
-    minus any explicitly skipped (see _segment_skipped, entry['skipped']);
-    complied = segments whose close carries both the verdict marker and a
-    review agent's own filed verdict (see _segment_complies). entry['since']
-    (optional, ISO date) drops runs from before the rule existed (see
-    _prompt_runs). entry['skipped'] is optional — omitting it disables
-    skip-detection entirely, identical to behavior before this existed."""
-    complied_re = re.compile(entry["complied"])
+    a task rather than open it. applied = task segments that owe a review (see
+    _task_segments, _owes_review) minus any explicitly skipped (see
+    _segment_skipped, entry['skipped']); complied = segments in which a review
+    was done (see _segment_reviewed). entry['complied'] is the verdict line a
+    reviewer may file — one of the two ways _is_reviewer recognises a reviewer,
+    not a marker the main thread must render. entry['since'] (optional, ISO
+    date) drops runs from before the rule existed (see _prompt_runs).
+    entry['skipped'] is optional — omitting it disables skip-detection
+    entirely."""
+    verdict_re = re.compile(entry["complied"])
     skipped_re = re.compile(entry["skipped"]) if entry.get("skipped") else None
     since = entry.get("since", "")
-    review_times = _review_times(turns, complied_re, since)
+    reviewer_starts = _reviewer_starts(turns, verdict_re, since)
     applied = 0
     complied = 0
     cuts = _new_cuts()
@@ -1116,11 +1261,10 @@ def score_post_gate(turns, entry):
         seg_turns = _segment_turns(seg)
         if not _owes_review(seg_turns):
             continue  # nothing authored — a commit or a mkdir has no diff to weigh
-        if skipped_re is not None and _segment_skipped(seg_turns, complied_re,
-                                                       skipped_re, review_times):
+        if skipped_re is not None and _segment_skipped(seg_turns, skipped_re, reviewer_starts):
             continue  # an explicit, reasoned skip is not silence — excluded from both sides
         applied += 1
-        ok = _segment_complies(seg_turns, complied_re, review_times)
+        ok = _segment_reviewed(seg_turns, reviewer_starts)
         if ok:
             complied += 1
         _bump_run(cuts, seg_turns, ok)
@@ -1136,17 +1280,17 @@ def _skipped_reviews(sessions, entry):
     0 when entry carries no 'skipped' pattern."""
     if not entry.get("skipped"):
         return 0
-    complied_re = re.compile(entry["complied"])
+    verdict_re = re.compile(entry["complied"])
     skipped_re = re.compile(entry["skipped"])
     since = entry.get("since", "")
     waived = 0
     for turns in sessions:
-        review_times = _review_times(turns, complied_re, since)
+        reviewer_starts = _reviewer_starts(turns, verdict_re, since)
         for seg in _task_segments(_prompt_runs(turns, since)):
             seg_turns = _segment_turns(seg)
             if not _owes_review(seg_turns):
                 continue  # same population score_post_gate bills — see _owes_review
-            if _segment_skipped(seg_turns, complied_re, skipped_re, review_times):
+            if _segment_skipped(seg_turns, skipped_re, reviewer_starts):
                 waived += 1
     return waived
 
@@ -1170,7 +1314,7 @@ def _agent_verdict(turns, reviewed_re, since):
     at or after `since`. The last match wins: a reviewer may quote
     the rule or weigh both outcomes before it settles, and the verdict is what
     it settles on. The timestamp is what lets a segment tell a review of its
-    own work from one belonging to a neighbour (see _segment_complies)."""
+    own work from one belonging to a neighbour (see _segment_closes_pass)."""
     verdict = None
     for turn in turns:
         if turn["type"] != "assistant" or turn["ts"][:10] < since:
@@ -1181,7 +1325,8 @@ def _agent_verdict(turns, reviewed_re, since):
 
 
 def _review_times(turns, reviewed_re, since):
-    """When each of this session's Compliance Review agents filed its verdict.
+    """When each of this session's Compliance Review agents filed its verdict —
+    bug-gate's evidence that a segment closed clean (see _segment_closes_pass).
     Computed once per session and handed to every segment check — re-reading
     the subagent transcripts per segment would be quadratic in a long
     session."""
@@ -1338,10 +1483,10 @@ def _unjudged_fails(sessions, entry):
 
 
 def _unreviewed_segments(sessions, entry):
-    """The mutating task segments that closed with no review behind them, split
-    by why: 'skipped' bears an explicit, reasoned SKIPPED marker; 'silent'
-    closed with no verdict at all, or with one no reviewer filed. Reported
-    beneath the review.verdict rate as the work it says nothing about — mirrors
+    """The task segments owing a review that had none done (see
+    _segment_reviewed), split by why: 'skipped' bears an explicit, reasoned
+    SKIPPED marker; 'silent' had no reviewer behind it at all. Reported beneath
+    the review.verdict rate as the work it says nothing about — mirrors
     _abandoned_gates for plan.accepted, since a review never run is no verdict
     on the work. Counted per segment, where the rate itself counts reviews:
     one task may draw several reviews, or none."""
@@ -1350,15 +1495,14 @@ def _unreviewed_segments(sessions, entry):
     since = entry.get("since", "")
     counts = {"skipped": 0, "silent": 0}
     for turns in sessions:
-        review_times = _review_times(turns, reviewed_re, since)
+        reviewer_starts = _reviewer_starts(turns, reviewed_re, since)
         for seg in _task_segments(_prompt_runs(turns, since)):
             seg_turns = _segment_turns(seg)
             if not _owes_review(seg_turns):
                 continue  # same population score_post_gate bills — see _owes_review
-            if _segment_complies(seg_turns, reviewed_re, review_times):
+            if _segment_reviewed(seg_turns, reviewer_starts):
                 continue
-            if skipped_re is not None and _segment_skipped(seg_turns, reviewed_re,
-                                                            skipped_re, review_times):
+            if skipped_re is not None and _segment_skipped(seg_turns, skipped_re, reviewer_starts):
                 counts["skipped"] += 1
             else:
                 counts["silent"] += 1
@@ -1460,7 +1604,7 @@ def _bug_gate_data(turns, since):
             gate_ptr += 1
         gate_ok = (chosen_gate is not None
                    and PLAN_VERDICTS.get(plan_verdicts.get(chosen_gate["key"])) is True)
-        if gate_ok or _segment_complies(seg_turns, COMPLIANCE_PASS_RE, review_times):
+        if gate_ok or _segment_closes_pass(seg_turns, review_times):
             proposed = _request_before(turns, chosen_gate["index"]) if gate_ok else None
             completions.append({"key": key, "summary": proposed or seg[0][0],
                                  "model": _run_model(seg_turns),

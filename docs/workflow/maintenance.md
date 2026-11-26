@@ -298,11 +298,12 @@ always-loaded file carries the rule and not its defence.
   that has held. It pays context on every turn to avoid missing the turn that
   matters.
 - **Why the review reminder names the agent dispatch.** `pulse-rubric.json`'s
-  `rule.compliance-review` credits a segment only when an `Agent` call stands
-  behind the verdict line. A reminder nudging toward the literal marker alone
-  would teach it to be typed unearned — corrupting the very measure it exists
-  to protect. A reminder must never make the metric easier to satisfy than the
-  behaviour it stands for.
+  `rule.compliance-review` credits a segment only when a reviewer ran within
+  it — a subagent briefed for a read-only review, or one handed to the
+  profile's runner — and never on the verdict line alone. A reminder nudging
+  toward the literal marker alone would teach it to be typed unearned —
+  corrupting the very measure it exists to protect. A reminder must never make
+  the metric easier to satisfy than the behaviour it stands for.
 - **Cost, when trimming.** These two hooks are charged per prompt, not per
   task. A clause covering a rare branch does not belong in them; put it in the
   CLAUDE.md section instead, which is charged once per session.

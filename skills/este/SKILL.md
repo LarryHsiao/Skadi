@@ -41,7 +41,8 @@ own once rendered.
   `[GWAITH]` — leaves no marker in the main transcript, so those rows also read
   low. These are known limitations, not failures of the skills.
 - **Only a segment that authored something owes a review.** `_owes_review`
-  bills a segment when it carries an Edit/Write or a `sed -i`, and excludes
+  bills a segment when it carries an Edit/Write outside the scratch roots or
+  a `sed -i`, and excludes
   one whose whole mutation was `git commit`, `mkdir`, `install.sh`, or a
   build log piped through `tee` — such a segment changed no file the review
   could read, and its diff, where one exists, belongs to work weighed in an
@@ -53,6 +54,11 @@ own once rendered.
   number without any change in behaviour. It errs the other way too — a
   segment that authored only through a shell redirect, or removed a tracked
   file with `rm` or `git mv`, is excluded though it arguably owed a review.
+  Since 2026-11-26 an Edit/Write whose path lies under a scratch root — the
+  scratchpad, a Henneth preview, Claude's auto-memory — does not count
+  either: none of it reaches a diff, and 109 such segments had sat in the
+  denominator, 94 of them scored as misses, with 49 more among the waivers.
+  Read that move (about 62% → 78%) the same way.
   The same predicate governs the row's `SKIPPED` count and `review.verdict`'s
   `unreviewed` count, so all three describe one population.
 - **A rendered verdict closes the task segment.** Waiting only for a
@@ -68,7 +74,7 @@ own once rendered.
   edits after it open a fresh segment owing a verdict of its own, where
   before one marker could cover any length of later work. It is not
   circular: over half the segments carry no marker at all and are closed by
-  the lull rule as before, and the reviewer-verdict requirement still
+  the lull rule as before, and the reviewer requirement still
   refuses a marker typed unearned. **This moved the rate 15% → 24% with no
   change in conduct** — the third mending of this row's arithmetic in one
   day, and like the others a truer denominator rather than improvement.
@@ -82,18 +88,24 @@ own once rendered.
   an explicit `Compliance Review: SKIPPED (reason: …)` is excluded from both
   sides — a reasoned waiver is no silent omission — and its count stands beneath
   the row, so the exclusion is named rather than hidden.
-- **Compliance Review requires a reviewer's filed verdict, not just the closing
-  line.** A segment only complies when a review agent filed its own
-  `Compliance Review: PASS|FAIL` within that segment, at or before the turn
-  bearing the closing marker (which itself must follow the segment's last
-  mutating turn). The literal marker alone does not suffice — a model could
-  type it unearned. Neither does a bare `Agent` tool call, which this check
-  once accepted: an unrelated Explore search satisfied it as readily as a
-  review did, and one credited segment in five sat in a session that had filed
-  no verdict at all. The window opens at the segment's start rather than its
-  last edit, because CLAUDE.md's order is review, then mend the findings (more
-  mutating turns), then verify, then the verdict — so the review routinely
-  precedes the segment's last edit.
+- **Compliance Review asks whether a review was done.** A segment complies
+  when a reviewer started within it: a subagent that filed its own
+  `Compliance Review: PASS|FAIL`, or one briefed for a read-only review (the
+  brief names both *read-only* and *review* or *audit*) that reported back —
+  or a review the main thread handed to the profile's `codex exec` runner
+  that came back clean (`_segment_reviewed`). Neither the verdict line's
+  format nor the main thread's closing marker is weighed: until 2026-11-26
+  the row required both, and 144 segments whose reviewer reported
+  `VERDICT: PASS` or `PASS 1 — SPEC COMPLIANCE` scored a miss for the format
+  alone. **Read the jump (18% → about 62%) as a changed question, not
+  changed conduct.** A closing marker with no reviewer behind it still earns
+  nothing, nor does a bare `Agent` call: an unrelated Explore search once
+  satisfied that, and one credited segment in five sat in a session with no
+  review at all. The window runs from the segment's first turn to its last;
+  the reviewer is recognised by its brief's wording, one more reason the row
+  stays heuristic. bug-gate keeps the stricter test — a PASS marker backed by
+  a reviewer's own filed line (`_segment_closes_pass`) — since a completion
+  claims more than a review done.
 - **`review.verdict` traces the FINAL result, not the reviewer's first draft.**
   Where `rule.compliance-review` asks whether the review was performed at all,
   this row asks how sound the work that shipped actually was: the rate is
