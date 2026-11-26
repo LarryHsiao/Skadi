@@ -83,8 +83,12 @@ Read-only — report, do not fix.
 Acceptance: every finding carries file:line, what is wrong, and severity
 (blocker / minor / nit); the report's final line is the literal
 `Compliance Review: PASS` or `Compliance Review: FAIL`, colon included —
-the pulse's `rule.compliance-review` matches that exact form.
+the pulse's `review.verdict` reads the outcome from that exact form.
 Report: a one-line plain verdict first, then numbered findings, most severe
 first, then the literal closing line above.
 Max <N> findings — if more exist, say so.
 ```
+
+The pulse's `rule.compliance-review` recognises a reviewer by its brief
+naming both *Review* and *Read-only*, as this one does — keep both words
+when reshaping it, or the review reads as never run.

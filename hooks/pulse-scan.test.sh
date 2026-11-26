@@ -25,10 +25,12 @@ winpath() {
 }
 
 # A reviewer's own filed verdict, written beside a session fixture where the
-# harness puts one: <session>/subagents/agent-*.jsonl. _segment_complies takes
+# harness puts one: <session>/subagents/agent-*.jsonl. _segment_reviewed takes
 # no bare Agent tool_use as proof that a review happened — an unrelated search
-# satisfies that just as well — so every fixture meant to comply needs one of
-# these, filed inside the segment and at or before its closing marker.
+# satisfies that just as well. A subagent counts as a reviewer when it filed
+# the verdict line, as this helper's does, or when its brief asked for a
+# read-only review and it reported back (see 22e); either way it must start
+# inside the segment it is to credit.
 reviewer_seq=0
 reviewer() { # session-jsonl-path filed-at [PASS|FAIL]
   local stem="${1%.jsonl}"
@@ -957,9 +959,10 @@ PY
 )
 check "trend series carries per-run items for client-side recompute" "$expected_trend" "$actual_trend"
 
-# ── 20 · post-gate scorer: marker checked AFTER the last mutating turn, not before ──
-# A read-only run stands between the two tasks so they land in separate segments —
-# the second task's marker precedes its edit, which must not count.
+# ── 20 · post-gate scorer: a segment does not borrow its neighbour's reviewer ──
+# A read-only run stands between the two tasks so they land in separate segments.
+# The second task renders a marker before its edit and has no reviewer of its
+# own; the first task's reviewer started outside its window, so it scores a miss.
 d=$(tmpdir)
 cat >"$d/postgate.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-16T10:00:00Z","message":{"content":"fix the widget"}}
@@ -983,7 +986,7 @@ a, c, _ = m.score_post_gate(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
-check "post-gate scorer checks marker after the last mutation, not before" "$expected_postgate" "$actual_postgate"
+check "post-gate scorer: a segment does not borrow its neighbour's reviewer" "$expected_postgate" "$actual_postgate"
 
 # ── 21 · post-gate scorer: the marker alone doesn't comply — a review must back it ──
 d=$(tmpdir)
@@ -1026,10 +1029,11 @@ PY
 )
 check "post-gate scorer: an Agent call before a later fix-edit still complies" "$expected_postgate_reviewfix" "$actual_postgate_reviewfix"
 
-# ── 22b · an Agent call that filed no verdict is no review ──
-# The old check took any Agent tool_use as proof, and an unrelated Explore
-# search satisfied it — one credited segment in five had no filed verdict
-# anywhere in its session. The subagent here reports on a search, not a review.
+# ── 22b · an Agent briefed for a search is no review ──
+# An older check took any Agent tool_use as proof, and an unrelated Explore
+# search satisfied it — one credited segment in five had no review anywhere in
+# its session. The subagent here was briefed for a search and filed no verdict,
+# so the main thread's marker stands on nothing.
 d=$(tmpdir)
 cat >"$d/postgate-otheragent.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-18T17:00:00Z","message":{"content":"fix the widget"}}
@@ -1039,6 +1043,7 @@ cat >"$d/postgate-otheragent.jsonl" <<'JSON'
 JSON
 mkdir -p "$d/postgate-otheragent/subagents"
 cat >"$d/postgate-otheragent/subagents/agent-search.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-18T17:00:09Z","message":{"content":"Search lib/ for the call sites of parse() and list them."}}
 {"type":"assistant","timestamp":"2026-07-18T17:00:10Z","message":{"content":[{"type":"text","text":"Found three call sites under lib/."}]}}
 JSON
 expected_otheragent="1/0"
@@ -1050,11 +1055,11 @@ a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
 print("%d/%d" % (a, c))
 PY
 )
-check "post-gate scorer: an Agent that filed no verdict is no review" "$expected_otheragent" "$actual_otheragent"
+check "post-gate scorer: an Agent briefed for a search is no review" "$expected_otheragent" "$actual_otheragent"
 
-# ── 22c · a review filed after the closing marker cannot back it ──
-# The verdict must rest on a review already in hand; one that reports later
-# belongs to the next task, not this one.
+# ── 22c · a reviewer that starts after the segment's last turn cannot credit it ──
+# The review must belong to this task; one that starts after the task's last
+# turn belongs to whatever comes next, not to this one.
 d=$(tmpdir)
 cat >"$d/postgate-late.jsonl" <<'JSON'
 {"type":"user","timestamp":"2026-07-18T18:00:00Z","message":{"content":"fix the widget"}}
@@ -1071,7 +1076,7 @@ a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
 print("%d/%d" % (a, c))
 PY
 )
-check "post-gate scorer: a review filed after the marker does not back it" "$expected_late" "$actual_late"
+check "post-gate scorer: a reviewer starting after the segment does not credit it" "$expected_late" "$actual_late"
 
 # ── 22d · the bug gate's own verdict patterns tolerate the full-width colon ──
 # bug-gate is the one call site that cannot inherit the rubric's i18n-aware
@@ -1086,6 +1091,125 @@ print("pass:%s verdict:%s" % ("yes" if m.COMPLIANCE_PASS_RE.search(line) else "n
 PY
 )
 check "bug-gate constants match a full-width colon, as the rubric's do" "$expected_fullwidth_const" "$actual_fullwidth_const"
+
+# ── 22e · the row asks whether the review was done. A reviewer briefed for a
+#          read-only review that reported back credits the segment, though it
+#          never wrote the literal verdict line and the main thread rendered no
+#          closing marker. Across the live roots 144 segments stood exactly so,
+#          their reviewers reporting "VERDICT: PASS" or "PASS 1 — SPEC
+#          COMPLIANCE", and each scored a miss for the format alone ──
+d=$(tmpdir)
+cat >"$d/briefed.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-19T10:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-19T10:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-19T10:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-19T10:00:15Z","message":{"content":[{"type":"text","text":"Reviewed; two nits mended. Done."}]}}
+JSON
+mkdir -p "$d/briefed/subagents"
+cat >"$d/briefed/subagents/agent-r.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-19T10:00:09Z","message":{"content":"Review the uncommitted diff against the spec. Read-only — report, do not fix."}}
+{"type":"assistant","timestamp":"2026-07-19T10:00:12Z","message":{"content":[{"type":"text","text":"VERDICT: PASS — two nits, none blocking."}]}}
+JSON
+expected_briefed="1/1"
+actual_briefed=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/briefed.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: a briefed read-only reviewer credits the segment without the literal line" "$expected_briefed" "$actual_briefed"
+
+# ── 22f · a briefed reviewer that never reported back did no review — a brief
+#          alone is a dispatch, not a review done ──
+d=$(tmpdir)
+cat >"$d/briefed-silent.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-19T11:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-19T11:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-19T11:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-19T11:00:15Z","message":{"content":[{"type":"text","text":"Done."}]}}
+JSON
+mkdir -p "$d/briefed-silent/subagents"
+cat >"$d/briefed-silent/subagents/agent-r.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-19T11:00:09Z","message":{"content":"Review the uncommitted diff against the spec. Read-only — report, do not fix."}}
+JSON
+expected_briefed_silent="1/0"
+actual_briefed_silent=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/briefed-silent.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: a briefed reviewer that never reported back is no review" "$expected_briefed_silent" "$actual_briefed_silent"
+
+# ── 22g · a review handed to the profile's external runner counts too. A work
+#          profile runs its subagents through `codex exec`, so no transcript
+#          lands beside the session; the review stands in the main thread as a
+#          Bash call whose brief asks for a read-only review ──
+d=$(tmpdir)
+cat >"$d/runner.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-19T12:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-19T12:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-19T12:00:08Z","message":{"content":[{"type":"tool_use","id":"b1","name":"Bash","input":{"command":"codex exec --sandbox workspace-write -m gpt-5.6-terra - <<'EOF'\nReview the uncommitted diff against the spec. Read-only — report, do not fix.\nEOF"}}]}}
+{"type":"user","timestamp":"2026-07-19T12:00:30Z","message":{"content":[{"type":"tool_result","tool_use_id":"b1","content":"PASS 1 — spec complete. PASS 2 — quality sound."}]}}
+{"type":"assistant","timestamp":"2026-07-19T12:00:35Z","message":{"content":[{"type":"text","text":"Reviewed. Done."}]}}
+JSON
+expected_runner="1/1"
+actual_runner=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/runner.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: a read-only review through codex exec credits the segment" "$expected_runner" "$actual_runner"
+
+# ── 22h · a runner review whose call errored did no review ──
+d=$(tmpdir)
+cat >"$d/runner-error.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-19T13:00:00Z","message":{"content":"fix the widget"}}
+{"type":"assistant","timestamp":"2026-07-19T13:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-19T13:00:08Z","message":{"content":[{"type":"tool_use","id":"b1","name":"Bash","input":{"command":"codex exec --sandbox workspace-write -m gpt-5.6-terra - <<'EOF'\nReview the uncommitted diff against the spec. Read-only — report, do not fix.\nEOF"}}]}}
+{"type":"user","timestamp":"2026-07-19T13:00:10Z","message":{"content":[{"type":"tool_result","tool_use_id":"b1","is_error":true,"content":"Exit code 1\ncodex: model not found"}]}}
+{"type":"assistant","timestamp":"2026-07-19T13:00:15Z","message":{"content":[{"type":"text","text":"The runner failed. Done."}]}}
+JSON
+expected_runner_error="1/0"
+actual_runner_error=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/runner-error.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: a runner review that errored is no review" "$expected_runner_error" "$actual_runner_error"
+
+# ── 22i · a command that merely mentions `codex exec` is no runner review. The
+#          runner must be the command being run — the same command-position
+#          test the verify rows use — so a commit message naming it, beside the
+#          words "read-only review", reviews nothing ──
+d=$(tmpdir)
+cat >"$d/runner-mention.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-07-19T14:00:00Z","message":{"content":"fix the widget and commit"}}
+{"type":"assistant","timestamp":"2026-07-19T14:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
+{"type":"assistant","timestamp":"2026-07-19T14:00:08Z","message":{"content":[{"type":"tool_use","id":"b1","name":"Bash","input":{"command":"git commit -m \"note: codex exec now runs the read-only review\""}}]}}
+{"type":"user","timestamp":"2026-07-19T14:00:10Z","message":{"content":[{"type":"tool_result","tool_use_id":"b1","content":"[master abc123] note"}]}}
+{"type":"assistant","timestamp":"2026-07-19T14:00:15Z","message":{"content":[{"type":"text","text":"Committed. Done."}]}}
+JSON
+expected_runner_mention="1/0"
+actual_runner_mention=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/runner-mention.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "post-gate scorer: a command that only mentions codex exec is no runner review" "$expected_runner_mention" "$actual_runner_mention"
 
 # ── 23 · a <task-notification> harness turn is not a prompt — it opens no run ──
 d=$(tmpdir)
@@ -1227,16 +1351,15 @@ PY
 check "post-gate scorer: a read-only run splits two task segments" "$expected_segment_split" "$actual_segment_split"
 
 # ── 25b · post-gate scorer: a full-width colon (a plausible slip when writing
-#          Chinese) still counts as the marker, not a silent miss ──
+#          Chinese) in a SKIPPED marker still waives the segment. The closing
+#          marker no longer decides compliance, but the waiver still reads it ──
 d=$(tmpdir)
 cat >"$d/fullwidth-colon.jsonl" <<'JSON'
-{"type":"user","timestamp":"2026-07-18T13:00:00Z","message":{"content":"fix the widget"}}
+{"type":"user","timestamp":"2026-07-18T13:00:00Z","message":{"content":"bump the version"}}
 {"type":"assistant","timestamp":"2026-07-18T13:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"t1","name":"Edit","input":{}}]}}
-{"type":"assistant","timestamp":"2026-07-18T13:00:08Z","message":{"content":[{"type":"tool_use","id":"a1","name":"Agent","input":{}}]}}
-{"type":"assistant","timestamp":"2026-07-18T13:00:12Z","message":{"content":[{"type":"text","text":"Reviewed and verified.\nCompliance Review：PASS"}]}}
+{"type":"assistant","timestamp":"2026-07-18T13:00:12Z","message":{"content":[{"type":"text","text":"Bumped.\nCompliance Review：SKIPPED (reason: a version bump touching no logic)"}]}}
 JSON
-reviewer "$d/fullwidth-colon.jsonl" "2026-07-18T13:00:08Z"
-expected_fullwidth="1/1"
+expected_fullwidth="0/0"
 actual_fullwidth=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/fullwidth-colon.jsonl" <<'PY'
 import importlib.util as u, sys, json
 spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
@@ -1246,7 +1369,7 @@ a, c, _ = m.score_post_gate(turns, entry)
 print("%d/%d" % (a, c))
 PY
 )
-check "post-gate scorer: a full-width colon after the marker still complies" "$expected_fullwidth" "$actual_fullwidth"
+check "post-gate scorer: a full-width colon in a SKIPPED marker still waives the segment" "$expected_fullwidth" "$actual_fullwidth"
 
 # ── 25c · post-gate scorer: an explicitly SKIPPED segment is excluded from
 #          both applied and complied — not penalized, not credited — and no
@@ -2319,8 +2442,8 @@ check "review-verdict: an unbacked verdict is no review — excluded, counted si
 # ── 58 · the live rubric's review.verdict entry is wired end to end, and its
 #         patterns tolerate the full-width colon a Chinese verdict line may bear ──
 # Two reviewers behind one segment — a heavy task's per-step audits — one clean,
-# one not. The segment itself closes silent, so it lands in the excluded count
-# while its two reviews still score. review.verdict now warms a mend-judge
+# one not. The segment renders no closing marker, yet a review was done, so it
+# lands in neither excluded bucket while its two reviews still score. review.verdict now warms a mend-judge
 # pass too (the FAIL falls inside this segment) — PULSE_JUDGE_CMD points at a
 # script that does not exist, so that pass answers nothing and the FAIL stays
 # unjudged, same as this test always expected.
@@ -2338,7 +2461,7 @@ JSON
 cat >"$d/verdict-live/subagents/agent-b2.jsonl" <<'JSON'
 {"type":"assistant","timestamp":"2026-07-23T10:00:15Z","message":{"content":[{"type":"text","text":"Compliance Review: FAIL"}]}}
 JSON
-expected_live="ok|2|1|50|silent:1 skipped:0"
+expected_live="ok|2|1|50|silent:0 skipped:0"
 actual_live=$(PULSE_DIR="$d/pulse" PULSE_JUDGE_CMD="$d/nothing-here.sh" python3 - "$SCAN" "$RUBRIC" "$d/verdict-live.jsonl" <<'PY'
 import importlib.util as u, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
@@ -2844,7 +2967,7 @@ check "verify.test: the check's own result is found by id, not by position among
 #          A segment whose whole mutation is `git commit` / `mkdir` / `tee`
 #          has no diff for a review to read and is excluded from both sides;
 #          one bearing an Edit is billed and, unreviewed, scores a miss.
-#          Both segments here fail the marker check, so a scorer that ignored
+#          Neither segment has a reviewer, so a scorer that ignored
 #          _owes_review would read 2/0 rather than 1/0 ──
 d=$(tmpdir)
 cat >"$d/owes-review.jsonl" <<'JSON'
@@ -2915,9 +3038,9 @@ check "_owes_review also governs the SKIPPED count and review.verdict's unreview
 #          back to back with no read-only run between them: the first is
 #          reviewed properly, the second is not. Bounded by the marker they
 #          are two segments, 1/2 — task one credited, task two exposed.
-#          Without that boundary they fold into one segment whose marker no
-#          longer follows the last edit, scoring 0/1: the compliant task's
-#          credit is destroyed AND the delinquent task is hidden inside it ──
+#          Without that boundary they fold into one segment that the first
+#          task's reviewer credits whole, scoring 1/1: the delinquent task is
+#          hidden inside it ──
 d=$(tmpdir)
 mkdir -p "$d/marker-bound/subagents"
 cat >"$d/marker-bound.jsonl" <<'JSON'
@@ -2942,7 +3065,7 @@ a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
 print("%d/%d" % (a, c))
 PY
 )
-check "a Compliance Review verdict closes the segment: back-to-back tasks score 1 of 2, not 0 of 1" "$expected_bound" "$actual_bound"
+check "a Compliance Review verdict closes the segment: back-to-back tasks score 1 of 2, not 1 of 1" "$expected_bound" "$actual_bound"
 
 # ── 70h · the closer must be RENDERED, not merely named. A turn quoting the
 #          marker inside backticks while discussing the rule (23 of 438
@@ -2999,6 +3122,84 @@ print("applied=%d|complied=%d|skipped=%d" % (a, c, m._skipped_reviews([turns], e
 PY
 )
 check "SKIPPED closes a task too: the waiver stays excluded instead of becoming the next task's miss" "$expected_skipcloser" "$actual_skipcloser"
+
+# ── 70j · a segment whose only write lands in the scratchpad owes no review:
+#          a diagnostic script under the session's temp folder reaches no
+#          diff, so no review could weigh it ──
+d=$(tmpdir)
+cat >"$d/scratch-only.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-10T12:00:00Z","message":{"content":"measure the pulse's precision"}}
+{"type":"assistant","timestamp":"2026-08-10T12:00:05Z","message":{"content":[{"type":"text","text":"Writing a diagnostic."},{"type":"tool_use","id":"w1","name":"Write","input":{"file_path":"/private/tmp/claude-501/-Users-u-skadi/s1/scratchpad/diag.py","content":"print(1)"}}]}}
+{"type":"assistant","timestamp":"2026-08-10T12:00:15Z","message":{"content":[{"type":"text","text":"Measured."}]}}
+JSON
+expected_scratch="0/0"
+actual_scratch=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/scratch-only.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "rule.compliance-review: a scratchpad-only write owes no review" "$expected_scratch" "$actual_scratch"
+
+# ── 70k · a Henneth preview and an auto-memory note are scratch too, and a
+#          Windows path, written with backslashes, reads as the same root ──
+d=$(tmpdir)
+cat >"$d/preview-memory.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-10T13:00:00Z","message":{"content":"sketch the plan and note it"}}
+{"type":"assistant","timestamp":"2026-08-10T13:00:05Z","message":{"content":[{"type":"text","text":"Sketching."},{"type":"tool_use","id":"w1","name":"Write","input":{"file_path":"C:\\Users\\u\\.skadi\\henneth\\plan-x.html","content":"x"}}]}}
+{"type":"assistant","timestamp":"2026-08-10T13:00:08Z","message":{"content":[{"type":"tool_use","id":"w2","name":"Write","input":{"file_path":"/Users/u/.claude-personal/projects/-Users-u-proj/memory/note.md","content":"x"}}]}}
+{"type":"assistant","timestamp":"2026-08-10T13:00:15Z","message":{"content":[{"type":"text","text":"Sketched and noted."}]}}
+JSON
+expected_preview="0/0"
+actual_preview=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/preview-memory.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "rule.compliance-review: a Henneth preview (Windows path) and an auto-memory note owe no review" "$expected_preview" "$actual_preview"
+
+# ── 70l · scratch beside a real edit still owes a review: one file of the
+#          work is enough ──
+d=$(tmpdir)
+cat >"$d/scratch-and-repo.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-10T14:00:00Z","message":{"content":"fix the parser and keep a probe"}}
+{"type":"assistant","timestamp":"2026-08-10T14:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"w1","name":"Write","input":{"file_path":"/private/tmp/claude-501/x/scratchpad/probe.py","content":"x"}},{"type":"tool_use","id":"e1","name":"Edit","input":{"file_path":"/Users/u/proj/lib/parser.py","old_string":"a","new_string":"b"}}]}}
+{"type":"assistant","timestamp":"2026-08-10T14:00:15Z","message":{"content":[{"type":"text","text":"Fixed."}]}}
+JSON
+expected_mixed="1/0"
+actual_mixed=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/scratch-and-repo.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "rule.compliance-review: scratch beside a repo edit still owes a review" "$expected_mixed" "$actual_mixed"
+
+# ── 70m · a repo folder that happens to be named memory/ is the work, not
+#          Claude's auto-memory — only <config root>/projects/<p>/memory/ is ──
+d=$(tmpdir)
+cat >"$d/repo-memory.jsonl" <<'JSON'
+{"type":"user","timestamp":"2026-08-10T15:00:00Z","message":{"content":"tune the pool allocator"}}
+{"type":"assistant","timestamp":"2026-08-10T15:00:05Z","message":{"content":[{"type":"text","text":"Editing."},{"type":"tool_use","id":"e1","name":"Edit","input":{"file_path":"/Users/u/proj/src/memory/pool.c","old_string":"a","new_string":"b"}}]}}
+{"type":"assistant","timestamp":"2026-08-10T15:00:15Z","message":{"content":[{"type":"text","text":"Tuned."}]}}
+JSON
+expected_repomem="1/0"
+actual_repomem=$(python3 - "$SCAN" "$COMPLIANCE_ENTRY" "$d/repo-memory.jsonl" <<'PY'
+import importlib.util as u, sys, json
+spec = u.spec_from_file_location("p", sys.argv[1]); m = u.module_from_spec(spec); spec.loader.exec_module(m)
+entry = json.load(open(sys.argv[2], encoding="utf-8"))
+a, c, _ = m.score_post_gate(m.read_turns(sys.argv[3]), entry)
+print("%d/%d" % (a, c))
+PY
+)
+check "rule.compliance-review: a repo's own memory/ folder still owes a review" "$expected_repomem" "$actual_repomem"
 
 # ── 71 · both rows wired into apply_rubric end to end with the live rubric —
 #         real JSON, real kind dispatch, real segment fold, unmeasured surfaced ──

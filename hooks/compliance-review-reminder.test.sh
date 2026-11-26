@@ -50,9 +50,10 @@ PY
 check "reminder carries the scorer's PASS/FAIL and SKIPPED tokens" "$expected_tokens" "$actual_tokens"
 
 # ── 3 · the reminder demands the agent, not merely the marker ──
-# The rubric only credits a segment when an Agent call stands behind the
-# verdict. A reminder nudging toward the literal line alone would teach the
-# marker to be typed unearned, making the metric worse than no reminder at all.
+# The rubric only credits a segment when a reviewer ran within it, never on
+# the verdict line alone. A reminder nudging toward the literal line alone would
+# teach the marker to be typed unearned, making the metric worse than no
+# reminder at all.
 expected_agent="yes"
 actual_agent=$(python3 - "$hook_out" <<'PY'
 import json, sys
@@ -63,10 +64,9 @@ PY
 check "reminder names the agent dispatch behind the verdict" "$expected_agent" "$actual_agent"
 
 # ── 3b · the reviewer files the verdict itself ──
-# The scorer credits a segment only when the reviewer's own transcript carries
-# the PASS/FAIL line (_segment_complies). A dispatch prompt that does not ask
-# for it leaves the reviewer reporting findings with no marker, and the main
-# thread's own line is then refused as unearned — 78 such segments sat uncredited
+# review.verdict reads a review's outcome only from the reviewer's own PASS/FAIL
+# line. A dispatch prompt that does not ask for it leaves the reviewer reporting
+# findings with no marker, and the outcome goes unread — 78 such segments stood
 # between 11-10 and 11-23. When the prompt asked, the reviewer filed it every time.
 expected_filed="yes"
 actual_filed=$(python3 - "$hook_out" <<'PY'
