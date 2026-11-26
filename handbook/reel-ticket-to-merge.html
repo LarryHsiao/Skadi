@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reel · The big loop</title>
+<style>
+  /* Fallback tokens for opening this file straight off disk; the shared
+     theme linked below redefines them and wins when it loads. */
+  :root {
+    --ink: #2b2419; --bg: #f4ecd9; --panel: #fbf6ea; --line: #cdbfa0;
+    --accent: #7a5a2e; --green: #3f6b3a; --red: #9a3b2e; --blue: #34597a;
+    --th: #ece0c3; --raise: #efe4c9;
+  }
+</style>
+<link rel="stylesheet" href="../previews/henneth/skadi-theme.css">
+<style>
+  body { padding: 24px; }
+  .reel { max-width: 1280px; margin: 0 auto; }
+  .backnav { margin: 0 0 .6rem; }
+  .backnav a { color: var(--accent); text-decoration: none; font-size: .9rem; }
+  .backnav a:hover { text-decoration: underline; }
+  #stage { display: block; width: 100%; height: auto; background: var(--bg);
+           border: 1px solid var(--line); border-radius: 10px; }
+  #stage text { font-family: "Iowan Old Style", "Palatino Linotype", Georgia, "PingFang TC", "Heiti TC", sans-serif; fill: var(--ink); }
+  #stage .mono { font-family: ui-monospace, Menlo, "PingFang TC", monospace; }
+  #stage .t-title { font-size: 30px; font-weight: 700; }
+  #stage .t-sub { font-size: 15px; font-style: italic; fill: var(--accent); }
+  #stage .lg { font-size: 14px; }
+  #stage .lg-dash { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 4; }
+  #stage .rule { stroke: var(--line); }
+  #stage .stop-panel { stop-color: var(--panel); }
+  #stage .road { fill: none; stroke: #dbc9a2; stroke-width: 12; stroke-linecap: round; }
+  #stage .road-mid { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 2 8; stroke-linecap: round; opacity: .5; }
+  #stage .detour { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 7 5; }
+  #stage .node { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; }
+  #stage [data-st=active] > .node { fill: #fff6df; stroke-width: 2.5; stroke-dasharray: none; }
+  #stage .node-t { font-size: 13px; font-weight: 700; text-anchor: middle; }
+  #stage .opt-t { font-size: 11px; font-style: italic; fill: var(--accent); text-anchor: middle; }
+  #stage .ring { fill: none; stroke: var(--red); stroke-width: 3.2; }
+  #stage [data-st=active] > .ring { stroke-width: 4.6; }
+  #stage .mk-r { fill: var(--red); }
+  #stage .mk-b { fill: var(--blue); }
+  #stage .ring-lbl { font-size: 11.5px; fill: var(--red); text-anchor: middle; }
+  #stage .disc { fill: var(--panel); stroke: var(--line); stroke-width: 2; }
+  #stage .halo { fill: none; stroke: var(--accent); stroke-width: 2.5; opacity: 0; }
+  #stage .num { font-size: 18px; font-weight: 700; fill: var(--accent); text-anchor: middle; dominant-baseline: central; }
+  #stage .chk { font-size: 20px; font-weight: 700; fill: #fbf6ea; text-anchor: middle; dominant-baseline: central; display: none; }
+  #stage [data-st=active] > .disc { stroke: var(--accent); stroke-width: 3.5; fill: #fff6df; }
+  #stage [data-st=done] > .disc { fill: var(--green); stroke: var(--green); }
+  #stage [data-st=done] > .num { display: none; }
+  #stage [data-st=done] > .chk { display: inline; }
+  #stage .st-name { font-size: 19px; font-weight: 700; text-anchor: middle; }
+  #stage .st-sub { font-size: 12.5px; fill: var(--blue); text-anchor: middle; }
+  #stage .st-sub.plain { fill: var(--accent); font-style: italic; }
+  #stage .slot { fill: none; stroke: var(--red); stroke-width: 1.5; stroke-dasharray: 3 3; }
+  #stage .seal-bg { fill: var(--red); stroke: #fbf6ea; stroke-width: 1.5; }
+  #stage .seal-t { fill: #fbf6ea; font-size: 15px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+  #stage .tk-bg { fill: #fffaf0; stroke: var(--accent); stroke-width: 1.6; }
+  #stage .tk-stub { fill: var(--th); }
+  #stage .tk-t { font-size: 12px; font-weight: 700; fill: var(--accent); text-anchor: middle; dominant-baseline: central; }
+  #stage .stamp rect { fill: var(--green); }
+  #stage .stamp text { fill: #fbf6ea; font-size: 10.5px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+  #stage .panel-bg { fill: var(--panel); stroke: var(--line); }
+  #stage .panel-h { font-size: 17px; font-weight: 700; }
+  #stage .panel-s { font-size: 12.5px; font-style: italic; fill: var(--accent); }
+  #stage .card .bg { fill: #fffdf7; stroke: var(--line); }
+  #stage .card.verdict .bg { stroke: var(--red); stroke-width: 1.6; }
+  #stage .card.opt .bg { stroke-dasharray: 4 3; }
+  #stage .av-h { fill: var(--red); }
+  #stage .av-s { fill: var(--blue); }
+  #stage .av-t { fill: #fbf6ea; font-size: 11px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+  html[lang="en"] #stage .av-t.h { font-size: 8.5px; }
+  #stage .tok { font-size: 13px; font-weight: 700; fill: var(--blue); }
+  #stage .card.human .tok { fill: var(--red); }
+  #stage .who { font-size: 12px; fill: var(--accent); }
+  #stage .gloss { font-size: 12.5px; }
+  #stage .tag rect { fill: var(--th); }
+  #stage .tag text { font-size: 9.5px; fill: var(--accent); text-anchor: middle; }
+  #stage .fp-bg { fill: #fffdf7; stroke: var(--accent); stroke-width: 1.2; }
+  #stage .fp-t { font-size: 12px; }
+  #stage .box { fill: var(--panel); stroke: var(--line); }
+  #stage .box-on { fill: var(--green); }
+  #stage .box-t { font-size: 10px; fill: var(--accent); text-anchor: middle; dominant-baseline: central; }
+  #stage .box-on-t { font-size: 11px; fill: #fbf6ea; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+  #stage .link-chip { fill: var(--panel); stroke: var(--accent); stroke-width: 1.2; }
+  #stage .link-t { font-size: 12.5px; fill: var(--accent); text-anchor: middle; }
+  #stage .link-hi { fill: none; stroke: var(--accent); stroke-width: 2.6; }
+  #stage .band-bg { fill: var(--raise); stroke: var(--line); }
+  #stage .band-k { font-size: 15px; font-weight: 700; fill: var(--blue); }
+  #stage .band-t { font-size: 14px; }
+  #stage .drop { stroke: var(--blue); stroke-width: 1.2; stroke-dasharray: 2 4; }
+  #stage .flow { stroke: var(--blue); stroke-width: 1.4; }
+  #stage .pill { fill: var(--panel); stroke: var(--blue); stroke-width: 1.2; }
+  #stage .pill-on { fill: var(--blue); }
+  #stage .pill-t { font-size: 12.5px; fill: var(--blue); text-anchor: middle; dominant-baseline: central; }
+  #stage .pill-on-t { font-size: 12.5px; fill: #fbf6ea; text-anchor: middle; dominant-baseline: central; }
+  #stage .chip { fill: var(--panel); stroke: var(--line); }
+  #stage .chip-t { font-size: 13px; fill: var(--accent); text-anchor: middle; dominant-baseline: central; }
+  #stage .chip-go { fill: var(--green); }
+  #stage .chip-q { fill: var(--accent); }
+  #stage .chip-on-t { font-size: 13px; fill: #fbf6ea; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+  #stage .state-t { font-size: 13.5px; font-style: italic; }
+  #stage .cap-bg { fill: var(--raise); stroke: var(--line); }
+  #stage .cap-badge { fill: var(--accent); }
+  #stage .cap-num { fill: #fbf6ea; font-size: 16px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+  #stage .cap-title { font-size: 19px; font-weight: 700; }
+  #stage .cap-line { font-size: 15.5px; }
+
+  .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
+  .ctl button { font: inherit; font-size: .9rem; background: var(--panel); color: var(--ink);
+                border: 1px solid var(--line); border-radius: 6px; padding: .3rem .8rem; cursor: pointer; }
+  .ctl button:hover { border-color: var(--accent); }
+  .ctl button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .bar { flex: 1 1 320px; min-width: 0; display: flex; position: relative; height: 26px; cursor: pointer;
+         border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); }
+  .seg { flex-basis: 0; min-width: 0; border-right: 1px solid var(--line); font-size: .72rem; color: var(--accent);
+         display: flex; align-items: center; justify-content: center; padding: 0 2px;
+         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .seg:last-child { border-right: 0; }
+  .seg.on { background: var(--raise); color: var(--ink); font-weight: 700; }
+  .head { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--red); pointer-events: none; }
+  .clock { font-family: ui-monospace, Menlo, monospace; font-size: .8rem; color: var(--accent); min-width: 6.5em; }
+  .langtoggle { display: inline-flex; gap: 4px; }
+  .ctl .langtoggle button { padding: .3rem .6rem; }
+  .ctl .langtoggle button.active { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+  .foot { font-size: .85rem; color: var(--accent); margin: .6rem 0 0; }
+  .foot a { color: var(--accent); }
+  html.embed body { padding: 0; background: transparent; }
+  html.embed .backnav, html.embed .foot { display: none; }
+  html.capture body { padding: 0; background: var(--bg); }
+  html.capture .reel { max-width: none; }
+  html.capture #stage { width: 1280px; border: 0; border-radius: 0; }
+  html.capture .backnav, html.capture .ctl, html.capture .foot { display: none; }
+  @media (max-width: 640px) { body { padding: 16px; } }
+</style>
+</head>
+<body>
+<main class="reel">
+<div class="backnav"><a href="plan-forge-review.html" data-en="← Chapter II · Plan · Forge · Review">← 第二章 Plan · Forge · Review</a></div>
+<svg id="stage" viewBox="0 0 1280 720" role="img" aria-labelledby="stTitle stDesc">
+  <title id="stTitle" data-en="The big loop: one requirement, from intake to merge">大圈：一項需求，從進來到合併</title>
+  <desc id="stDesc" data-en="Intake, plan, an optional skeleton, forge, review, merge and close, then the autopilot. The red seals mark the places you decide; the right-hand panel is the record left on the ticket and the PR.">進料、規劃、骨架（可選）、鍛造、審查、合併、結案，最後是自動駕駛。紅色印記是你拍板的位置，右側是 ticket 與 PR 上留下的紀錄。</desc>
+  <defs>
+    <filter id="sh" x="-25%" y="-35%" width="150%" height="180%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1.6" flood-color="#5b4320" flood-opacity=".22"/>
+    </filter>
+    <marker id="arR" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path class="mk-r" d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+    <marker id="arB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path class="mk-b" d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+    <clipPath id="threadClip"><rect x="880" y="156" width="360" height="432"/></clipPath>
+    <linearGradient id="fadeTop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" class="stop-panel"/>
+      <stop offset="1" class="stop-panel" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- header -->
+  <text class="t-title" x="48" y="58" data-en="The big loop: one requirement, from intake to merge">大圈：一項需求，從進來到合併</text>
+  <text class="t-sub" x="48" y="86" data-en="Measured in days · skills relay the work; you decide at three seals at most · after Skadi Handbook ch. II, Plan · Forge · Review">以天計 · 多個 skill 接力，你最多在三處拍板 · 依 Skadi 手冊第二章 Plan · Forge · Review</text>
+  <g data-in="intro@0.3">
+    <circle class="seal-bg" cx="908" cy="50" r="11"/><text class="seal-t" x="908" y="50.5" style="font-size:11px" data-en="✓">准</text>
+    <text class="lg" x="925" y="55" data-en="you decide">你拍板</text>
+    <circle class="av-s" cx="1016" cy="50" r="11"/><text class="av-t" x="1016" y="50.5" style="font-size:9px">Er</text>
+    <text class="lg" x="1033" y="55" data-en="skill relay">skill 接力</text>
+    <circle class="ring" cx="1118" cy="50" r="9" style="stroke-width:2.5"/>
+    <text class="lg" x="1134" y="55" data-en="backward ring">往回走的紅環</text>
+    <line class="lg-dash" x1="897" y1="80" x2="921" y2="80"/>
+    <text class="lg" x="925" y="85" data-en="dashed = optional">虛線＝可選</text>
+  </g>
+
+  <!-- road -->
+  <path class="road" d="M80 300 H458" data-r0="intro@0.2" data-rd="0.8"/>
+  <path class="road" d="M582 300 H805" data-r0="intro@1.3" data-rd="0.5"/>
+  <g data-in="intro@1.6">
+    <path class="road-mid" d="M80 300 H458"/>
+    <path class="road-mid" d="M582 300 H805"/>
+  </g>
+
+  <!-- optional skeleton detour -->
+  <g data-in="intro@1.7">
+    <path id="detour" class="detour" d="M246 286 C256 236 266 200 292 200 C318 200 328 236 339 286"/>
+    <g data-state-of="skel">
+      <rect class="node" x="259" y="187" width="66" height="26" rx="6"/>
+      <text class="node-t" x="292" y="205" data-en="Skeleton">骨架</text>
+    </g>
+    <text class="opt-t" x="292" y="180" data-en="optional">可選</text>
+  </g>
+
+  <!-- review ring -->
+  <g data-in="intro@1.2">
+    <g data-state-of="review">
+      <path class="ring" d="M458 300 A62 62 0 0 1 582 300" marker-end="url(#arR)"/>
+      <path class="ring" d="M582 300 A62 62 0 0 1 458 300" marker-end="url(#arR)"/>
+    </g>
+    <text class="ring-lbl mono" x="520" y="268">Mithrandir</text>
+    <text class="ring-lbl mono" x="520" y="341">Narvi</text>
+  </g>
+
+  <!-- stations -->
+  <g transform="translate(80,300)"><g data-in="intro@0.5" data-rise><g class="st" data-state-of="intake">
+    <circle class="halo" r="37"/><circle class="disc" r="30"/><text class="num">0</text><text class="chk">✓</text></g></g></g>
+  <g transform="translate(220,300)"><g data-in="intro@0.7" data-rise><g class="st" data-state-of="plan">
+    <circle class="halo" r="37"/><circle class="disc" r="30"/><text class="num">1</text><text class="chk">✓</text></g></g></g>
+  <g transform="translate(365,300)"><g data-in="intro@0.9" data-rise><g class="st" data-state-of="forge">
+    <circle class="halo" r="37"/><circle class="disc" r="30"/><text class="num">2</text><text class="chk">✓</text></g></g></g>
+  <g transform="translate(520,300)"><g data-in="intro@1.3" data-rise><g class="st" data-state-of="review">
+    <circle class="halo" r="22"/><circle class="disc" r="16"/><text class="num" style="font-size:14px">3</text><text class="chk" style="font-size:14px">✓</text></g></g></g>
+  <g transform="translate(675,300)"><g data-in="intro@1.5" data-rise><g class="st" data-state-of="merge">
+    <circle class="halo" r="37"/><circle class="disc" r="30"/><text class="num">4</text><text class="chk">✓</text></g></g></g>
+  <g transform="translate(805,300)"><g data-in="intro@1.7" data-rise><g class="st" data-state-of="close">
+    <circle class="halo" r="37"/><circle class="disc" r="30"/><text class="num">5</text><text class="chk">✓</text></g></g></g>
+
+  <g data-in="intro@1.0">
+    <text class="st-name" x="80" y="232" data-en="Intake">進料</text>
+    <text class="st-name" x="220" y="232" data-en="Plan">規劃</text>
+    <text class="st-name" x="365" y="232" data-en="Forge">鍛造</text>
+    <text class="st-name" x="520" y="208" data-en="Review">審查</text>
+    <text class="st-name" x="675" y="232" data-en="Merge">合併</text>
+    <text class="st-name" x="805" y="232" data-en="Close">結案</text>
+  </g>
+  <g data-in="intro@1.5">
+    <text class="st-sub plain" x="80" y="352" data-en="you open a ticket">你開 ticket</text>
+    <text class="st-sub mono" x="80" y="369">spec→/rumil</text>
+    <text class="st-sub mono" x="220" y="352">/council</text>
+    <text class="st-sub mono" x="220" y="369">/glorfindel</text>
+    <text class="st-sub mono" x="365" y="352">/celebrimbor</text>
+    <text class="st-sub mono" x="365" y="369">/aule</text>
+    <text class="st-sub mono" x="520" y="388" data-en="/mandos: right code?">/mandos 量「做對了沒」</text>
+    <text class="st-sub plain" x="675" y="352" data-en="you press merge">你按 merge</text>
+    <text class="st-sub mono" x="675" y="369" data-en="local: /celebrant">本地：/celebrant</text>
+    <text class="st-sub mono" x="805" y="352">/aule</text>
+    <text class="st-sub mono" x="805" y="369">[METTA]</text>
+  </g>
+
+  <!-- human seals: a dashed slot waits until the verdict stamps it -->
+  <g transform="translate(192,262)">
+    <circle class="slot" r="16" data-in="@slots" data-out="@planVerdict"/>
+    <g class="seal" id="sealPlan" style="opacity:0"><circle class="seal-bg" r="16"/><text class="seal-t" data-en="✓">准</text></g>
+  </g>
+  <g transform="translate(339,186)">
+    <circle class="slot" r="12" data-in="@slots" data-out="@skelVerdict"/>
+    <g class="seal" id="sealSkel" style="opacity:0"><circle class="seal-bg" r="12"/><text class="seal-t" style="font-size:12px" data-en="✓">准</text></g>
+  </g>
+  <g transform="translate(647,262)">
+    <circle class="slot" r="16" data-in="@slots" data-out="@mergeVerdict"/>
+    <g class="seal" id="sealMerge" style="opacity:0"><circle class="seal-bg" r="16"/><text class="seal-t" data-en="✓">併</text></g>
+  </g>
+
+  <!-- forge detail -->
+  <g data-in="forge@0.5" data-out="forge@7.6">
+    <rect class="fp-bg" x="284" y="392" width="162" height="94" rx="8" filter="url(#sh)"/>
+    <text class="fp-t" x="296" y="413">Steps</text>
+    <rect class="box" x="342" y="402" width="16" height="16" rx="3"/><text class="box-t" x="350" y="410.5">1</text>
+    <rect class="box" x="363" y="402" width="16" height="16" rx="3"/><text class="box-t" x="371" y="410.5">2</text>
+    <rect class="box" x="384" y="402" width="16" height="16" rx="3"/><text class="box-t" x="392" y="410.5">3</text>
+    <g data-in="forge@1.2"><rect class="box-on" x="342" y="402" width="16" height="16" rx="3"/><text class="box-on-t" x="350" y="410.5">✓</text></g>
+    <g data-in="forge@1.8"><rect class="box-on" x="363" y="402" width="16" height="16" rx="3"/><text class="box-on-t" x="371" y="410.5">✓</text></g>
+    <g data-in="forge@2.4"><rect class="box-on" x="384" y="402" width="16" height="16" rx="3"/><text class="box-on-t" x="392" y="410.5">✓</text></g>
+    <text class="fp-t mono" x="296" y="434" data-in="forge@3.0">toolchain ✓</text>
+    <text class="fp-t mono" x="296" y="455" data-in="forge@3.8">/mithrandir ✓</text>
+    <text class="fp-t mono" x="296" y="476" data-in="forge@5.0">draft PR → [GWAITH]</text>
+  </g>
+
+  <!-- the hand-work door into the small loop -->
+  <a href="reel-work-loop.html">
+    <g data-in="intro@2.2" data-out="auto@0">
+      <rect class="link-chip" x="258" y="496" width="214" height="26" rx="13"/>
+      <text class="link-t" x="365" y="513" data-en="by hand: /working → small loop ↗">手工門 /working → 小圈 ↗</text>
+      <rect class="link-hi" x="256" y="494" width="218" height="30" rx="15" data-in="forge@5.8" data-out="forge@8"/>
+    </g>
+  </a>
+
+  <!-- autopilot band -->
+  <g data-in="auto@0.2">
+    <rect class="band-bg" x="50" y="424" width="800" height="164" rx="10"/>
+    <line class="drop" x1="220" y1="440" x2="220" y2="378"/>
+    <line class="drop" x1="365" y1="440" x2="365" y2="378"/>
+    <line class="drop" x1="805" y1="440" x2="805" y2="378"/>
+    <text class="band-k mono" x="66" y="458">/anduin</text>
+    <line class="flow" x1="270" y1="452" x2="331" y2="452" marker-end="url(#arB)"/>
+    <line class="flow" x1="397" y1="452" x2="771" y2="452" marker-end="url(#arB)"/>
+    <rect class="pill" x="170" y="440" width="100" height="24" rx="12"/><text class="pill-t mono" x="220" y="452.5">/glorfindel</text>
+    <rect class="pill" x="333" y="440" width="64" height="24" rx="12"/><text class="pill-t mono" x="365" y="452.5">/aule</text>
+    <rect class="pill" x="773" y="440" width="64" height="24" rx="12"/><text class="pill-t mono" x="805" y="452.5">/aule</text>
+    <g data-in="auto@1.2"><rect class="pill-on" x="170" y="440" width="100" height="24" rx="12"/><text class="pill-on-t mono" x="220" y="452.5">/glorfindel</text></g>
+    <g data-in="auto@2.6"><rect class="pill-on" x="333" y="440" width="64" height="24" rx="12"/><text class="pill-on-t mono" x="365" y="452.5">/aule</text></g>
+    <g data-in="auto@4.6"><rect class="pill-on" x="773" y="440" width="64" height="24" rx="12"/><text class="pill-on-t mono" x="805" y="452.5">/aule</text></g>
+    <text class="band-k mono" x="66" y="508">/rhovanion</text>
+    <text class="band-t" x="178" y="508" data-en="every project in the pipeline list: probe for movement, run /anduin only if it stirred">pipeline 清單裡每個專案：先看有沒有動靜，有才跑一趟 /anduin</text>
+    <text class="band-k mono" x="66" y="559">/amon-sul</text>
+    <rect class="chip" x="178" y="541" width="50" height="26" rx="6"/><text class="chip-t" x="203" y="554.5">5′</text>
+    <rect class="chip" x="236" y="541" width="50" height="26" rx="6"/><text class="chip-t" x="261" y="554.5">10′</text>
+    <rect class="chip" x="294" y="541" width="50" height="26" rx="6"/><text class="chip-t" x="319" y="554.5">20′</text>
+    <rect class="chip" x="352" y="541" width="50" height="26" rx="6"/><text class="chip-t" x="377" y="554.5">30′</text>
+    <rect class="chip" x="410" y="541" width="50" height="26" rx="6"/><text class="chip-t" x="435" y="554.5">60′</text>
+    <g data-in="@stirred" data-out="@quiet"><rect class="chip-go" x="178" y="541" width="50" height="26" rx="6"/><text class="chip-on-t" x="203" y="554.5">5′</text></g>
+    <g data-in="@quiet"><rect class="chip-q" x="236" y="541" width="50" height="26" rx="6"/><text class="chip-on-t" x="261" y="554.5">10′</text></g>
+    <g data-in="auto@7.6"><rect class="chip-q" x="294" y="541" width="50" height="26" rx="6"/><text class="chip-on-t" x="319" y="554.5">20′</text></g>
+    <g data-in="auto@8.2"><rect class="chip-q" x="352" y="541" width="50" height="26" rx="6"/><text class="chip-on-t" x="377" y="554.5">30′</text></g>
+    <g data-in="auto@8.8"><rect class="chip-q" x="410" y="541" width="50" height="26" rx="6"/><text class="chip-on-t" x="435" y="554.5">60′</text></g>
+    <text class="state-t" x="476" y="559" data-in="@stirred" data-out="@quiet" data-en="STIRRED: the road moved, ride again in 5 min">STIRRED：路上有動靜，5 分鐘後再巡</text>
+    <text class="state-t" x="476" y="559" data-in="@quiet" data-en="QUIET: a still road, the wait keeps growing">QUIET：一直安靜，巡的間隔越拉越長</text>
+  </g>
+
+  <!-- record panel -->
+  <g data-in="intro@0.8">
+    <rect class="panel-bg" x="880" y="108" width="360" height="484" rx="10"/>
+    <text class="panel-h" x="900" y="139" data-en="Record">紀錄</text>
+    <text class="panel-s" x="972" y="139" data-en="ticket thread + PR notes">ticket 討論串＋PR 留言</text>
+    <line class="rule" x1="892" y1="151" x2="1228" y2="151"/>
+  </g>
+  <g clip-path="url(#threadClip)"><g id="threadScroll"></g></g>
+  <rect data-in="intro@0.8" x="881" y="152" width="358" height="18" fill="url(#fadeTop)"/>
+
+  <!-- tokens ride above the road -->
+  <g id="tok42" style="opacity:0" filter="url(#sh)">
+    <rect class="tk-bg" x="-24" y="-15" width="48" height="30" rx="4"/>
+    <rect class="tk-stub" x="-23" y="-14" width="9" height="28" rx="2"/>
+    <text class="tk-t mono" x="4" y="0.5">#42</text>
+    <g transform="translate(0,-26) rotate(-8)">
+      <g class="stamp" data-in="close@1.6"><rect x="-27" y="-9" width="54" height="18" rx="4"/><text x="0" y="0.5">merged</text></g>
+    </g>
+  </g>
+  <g id="autoToks"></g>
+
+  <!-- captions -->
+  <rect class="cap-bg" x="40" y="604" width="1200" height="100" rx="10"/>
+  <g id="captions"></g>
+</svg>
+
+<div class="ctl" aria-label="Playback controls">
+  <button id="prev" type="button" title="Previous stop (←)" data-en="‹ Prev">‹ 上一站</button>
+  <button id="play" type="button" title="Play or pause (space)">⏸ Pause</button>
+  <button id="next" type="button" title="Next stop (→)" data-en="Next ›">下一站 ›</button>
+  <div class="bar" id="bar"><div class="head" id="head"></div></div>
+  <span class="clock" id="clock">0:00</span>
+  <span class="langtoggle"><button type="button" data-lang="en">EN</button><button type="button" data-lang="zh">繁中</button></span>
+</div>
+<p class="foot"><span data-en="The other reel: ">另一支：</span><a href="reel-work-loop.html" data-en="The small loop: one task, from sizing to “done” ↗">小圈：一個任務，從估量到「done」↗</a><span data-en=" · Source: Handbook ch. II, Plan · Forge · Review, and ch. VI, The Fellowship of Skills">　·　依據：Skadi 手冊第二章 Plan · Forge · Review、第六章 The Fellowship of Skills</span></p>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const P = new URLSearchParams(location.search);
+  const CAPTURE = P.has('capture');
+  const EMBED = P.has('embed');
+  if (CAPTURE) document.documentElement.classList.add('capture');
+  if (EMBED) document.documentElement.classList.add('embed');
+  const LANG_KEY = 'skadi-handbook-lang'; // shared with the handbook chapters' own EN / 繁中 toggle
+  const DOC_TITLE = { en: 'Reel · The big loop', zh: '動畫 · 大圈' };
+  const PLAY_LABEL = { en: ['⏸ Pause', '▶ Play'], zh: ['⏸ 暫停', '▶ 播放'] };
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const $ = s => document.querySelector(s);
+  const $$ = s => [...document.querySelectorAll(s)];
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const ramp = (t, a, d = 0.4) => clamp((t - a) / d);
+  const ease = x => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const FADE = 0.4;
+  const SEEK_LEAD = 0.35; // seek lands just inside a scene so its caption is already up
+  function el(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+    if (text != null) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  // a string is the same in both languages; a { zh, en } pair carries one text per language
+  const firstText = v => (typeof v === 'string' ? v : v.zh);
+  const langAttrs = v => (typeof v === 'string' ? {} : { 'data-zh': v.zh, 'data-en': v.en });
+  function pickLang() {
+    const asked = P.get('lang');
+    if (asked === 'en' || asked === 'zh') return asked;
+    try { return localStorage.getItem(LANG_KEY) === 'zh' ? 'zh' : 'en'; } catch (e) { return 'en'; }
+  }
+
+  // ---- the story -------------------------------------------------------
+  const SCENES = [
+    { id: 'intro', dur: 3.5, badge: '◆', label: { zh: '序', en: 'Intro' },
+      title: { zh: '大圈：一項需求，從進來到合併', en: 'The big loop: one requirement, from intake to merge' },
+      lines: {
+        zh: ['多數路段由 skill 接力，你最多在三處拍板——紅色印記就是你的位置。',
+             '每一步都留在 ticket 或 PR 的討論串上：討論串就是全部紀錄。'],
+        en: ['Skills relay most of the road; you decide at three seals at most — the red marks are your places.',
+             'Every step is written on the ticket thread or the PR: the thread is the whole record.'] } },
+    { id: 'intake', dur: 4, badge: '0', label: { zh: '進料', en: 'Intake' },
+      title: { zh: '進料', en: 'Intake' },
+      lines: {
+        zh: ['你在 Jira 或 YouTrack 開一張 ticket，寫下需求。',
+             '若需求是一份產品 spec（Outline＋Figma），先由 /rumil 拆成工程計畫，疑問當場問你。'],
+        en: ['You open a ticket on Jira or YouTrack and write the requirement down.',
+             'If it arrives as a product spec (Outline + Figma), /rumil first turns it into an engineering plan, asking you its questions on the spot.'] } },
+    { id: 'plan', dur: 9, badge: '1', label: { zh: '規劃', en: 'Plan' },
+      title: { zh: '規劃 · /council', en: 'Plan · /council' },
+      lines: {
+        zh: ['Erestor 讀 ticket 與程式碼，貼出 [COUNSEL v1]；發問走 [CEIST] → [PEDO]，計畫不動；要改寫就下 [ENVINYA]。',
+             '五輪內沒有裁決就煞車。最後由你下 [FORTH] 核准，或 [NAY] 放棄；/glorfindel 能一次掃整個專案。'],
+        en: ['Erestor reads the ticket and the code and posts [COUNSEL v1]. [CEIST] draws a [PEDO] and leaves the plan; [ENVINYA] redrafts it.',
+             'Five rounds with no verdict and the council brakes. You close it: [FORTH] approves, [NAY] abandons. /glorfindel sweeps a whole project.'] } },
+    { id: 'skel', dur: 5, badge: '1b', label: { zh: '骨架', en: 'Skeleton' },
+      title: { zh: '骨架（可選）', en: 'Skeleton (optional)' },
+      lines: {
+        zh: ['YouTrack 必走；Jira 加 --skeleton 才走：先刻出檔案樹與 stub 簽名，附一張圖。',
+             '骨架要你再下一次 [FORTH]，鍛造才開始。'],
+        en: ['Always on YouTrack; on Jira only with --skeleton: the file tree and stub signatures are carved first, with a diagram.',
+             'The skeleton needs a second [FORTH] from you before the forge starts.'] } },
+    { id: 'forge', dur: 8, badge: '2', label: { zh: '鍛造', en: 'Forge' },
+      title: { zh: '鍛造 · /celebrimbor', en: 'Forge · /celebrimbor' },
+      lines: {
+        zh: ['在獨立 worktree 切分支，smith 照計畫的 Steps 實作；toolchain 全綠、/mithrandir 審過才放行，最多修兩輪。',
+             '接著開 draft PR、在 ticket 貼 [GWAITH]。/aule 會批次送件；想自己動手，走 /working——那就是小圈。'],
+        en: ['The smith implements the plan’s Steps on a branch in an isolated worktree; the toolchain and /mithrandir must pass, two mends at most.',
+             'Then a draft PR opens and [GWAITH] goes on the ticket. /aule sends approved plans in batches; to work by hand, take /working — the small loop.'] } },
+    { id: 'review', dur: 9, badge: '3', label: { zh: '審查', en: 'Review' },
+      title: { zh: '審查 · /mithrandir ⇄ /narvi', en: 'Review · /mithrandir ⇄ /narvi' },
+      lines: {
+        zh: ['Mithrandir 判 Merge／Hold／Refuse；有意見，Narvi 逐則修改、每則一個 commit，push 前先自我評量，再請 Mithrandir bless。',
+             '紅環是全系統唯一不經人手、自己往回走的箭頭，Blocker 未解就停。/mandos 另量「做對了沒」：Covered／Missing／Scope-crept。'],
+        en: ['Mithrandir rules Merge / Hold / Refuse; Narvi answers each comment with one commit, weighs itself before pushing, then asks for a bless.',
+             'The red ring is the only backward arrow with no human in between; a Blocker stops it. /mandos weighs fit: Covered / Missing / Scope-crept.'] } },
+    { id: 'merge', dur: 4, badge: '4', label: { zh: '合併', en: 'Merge' },
+      title: { zh: '合併', en: 'Merge' },
+      lines: {
+        zh: ['合併由你按下。',
+             '本地分支則交給 /celebrant：先過 /argonath，--no-ff 合併、推上去，再刪分支。'],
+        en: ['You press merge.',
+             'For a local branch, /celebrant does it: /argonath first, then a --no-ff merge, a push, and the branch swept away.'] } },
+    { id: 'close', dur: 4, badge: '5', label: { zh: '結案', en: 'Close' },
+      title: { zh: '結案 · /aule', en: 'Close · /aule' },
+      lines: {
+        zh: ['Aulë 看到 PR 已合併，把 ticket 移到 merged，貼上 [METTA]。',
+             '這項需求的路，到此走完。'],
+        en: ['Aulë sees the PR merged, moves the ticket to merged and posts [METTA].',
+             'The road for this requirement ends here.'] } },
+    { id: 'auto', dur: 10, badge: '∞', label: { zh: '自動駕駛', en: 'Autopilot' },
+      title: { zh: '自動駕駛 · /anduin · /amon-sul', en: 'Autopilot · /anduin · /amon-sul' },
+      lines: {
+        zh: ['/anduin 一趟跑完 /glorfindel → /aule；/rhovanion 先看每個專案有沒有動靜，有才跑。',
+             '/amon-sul 守望：路上有動靜，5 分鐘後再巡；一直安靜，就拉長到 10、20、30、60 分鐘。印記處仍等你拍板。'],
+        en: ['/anduin runs /glorfindel → /aule in one pass; /rhovanion probes every project for movement and rides only those that stirred.',
+             '/amon-sul keeps watch: 5 minutes after a stir, then 10, 20, 30, 60 as the road stays quiet. The seals still wait for you.'] } },
+  ];
+  let acc = 0;
+  for (const s of SCENES) { s.start = acc; acc += s.dur; }
+  const TOTAL = acc;
+  const S = Object.fromEntries(SCENES.map(s => [s.id, s]));
+  // moments that several elements share; markup and code both name them '@name'
+  const MOMENT = {
+    slots: 'intro@2.0',
+    planVerdict: 'plan@6.8', skelVerdict: 'skel@2.8', mergeVerdict: 'merge@1.4',
+    stirred: 'auto@0.8', quiet: 'auto@7.0',
+  };
+  const T = ref => {
+    const r = String(ref);
+    if (r.startsWith('@')) return T(MOMENT[r.slice(1)]);
+    const [id, off] = r.split('@');
+    return S[id].start + (parseFloat(off) || 0);
+  };
+
+  // h = you, v = your verdict, opt = optional road
+  const YOU = { zh: '你', en: 'you' };
+  const CARDS = [
+    { at: 'intake@0.5', h: 1, av: YOU, tok: { zh: '開票', en: 'new ticket' }, who: YOU, gloss: { zh: 'DEMO-42：匯出報表要能依日期篩選', en: 'DEMO-42: filter the export by date' }, tag: 'ticket' },
+    { at: 'plan@1.0', av: 'Er', tok: '[COUNSEL v1]', who: 'Erestor', gloss: { zh: '草擬計畫：目標、Steps 1–4、驗收', en: 'drafts the plan: goal, steps, acceptance' }, tag: 'ticket' },
+    { at: 'plan@3.0', h: 1, av: YOU, tok: '[ENVINYA]', who: YOU, gloss: { zh: '先做 API，UI 下一張再做', en: 'API first; the UI in the next ticket' }, tag: 'ticket' },
+    { at: 'plan@4.8', av: 'Er', tok: '[COUNSEL v2]', who: 'Erestor', gloss: { zh: '依意見改寫計畫', en: 'redrafts the plan to match' }, tag: 'ticket' },
+    { at: '@planVerdict', h: 1, v: 1, av: YOU, tok: '[FORTH]', who: YOU, gloss: { zh: '核准，計畫定案', en: 'approved; the plan stands' }, tag: 'ticket' },
+    { at: 'skel@1.4', opt: 1, av: 'Ce', tok: '[SKELETON]', who: 'Celebrimbor', gloss: { zh: '檔案樹、stub 簽名、一張圖', en: 'file tree, stub signatures, a diagram' }, tag: 'ticket' },
+    { at: '@skelVerdict', opt: 1, h: 1, v: 1, av: YOU, tok: '[FORTH]', who: YOU, gloss: { zh: '骨架核准（第二道）', en: 'skeleton approved (second gate)' }, tag: 'ticket' },
+    { at: 'forge@5.2', av: 'Ce', tok: '[GWAITH]', who: 'Celebrimbor', gloss: { zh: 'draft PR !128 已開，ticket 換狀態', en: 'draft PR !128 opened; ticket moves on' }, tag: 'ticket' },
+    { at: 'review@1.6', av: 'Mi', tok: 'Hold', who: 'Mithrandir', gloss: { zh: '2 則待修：命名、少一個測試', en: '2 to fix: a name, a missing test' }, tag: 'PR' },
+    { at: 'review@3.6', av: 'Na', tok: '2 commits', who: 'Narvi', gloss: { zh: '每則一個 commit，自我評量後 push', en: 'one commit per comment, weighed, pushed' }, tag: 'PR' },
+    { at: 'review@5.8', av: 'Mi', tok: 'bless', who: 'Mithrandir', gloss: { zh: 'All resolve，可以合併', en: 'All resolve; ready to merge' }, tag: 'PR' },
+    { at: 'review@7.3', opt: 1, av: 'Ma', tok: '[DOOM]', who: 'Mandos', gloss: { zh: 'Covered：做的正是 ticket 要的', en: 'Covered: the deed matches the ticket' }, tag: 'ticket' },
+    { at: '@mergeVerdict', h: 1, v: 1, av: YOU, tok: 'merge', who: YOU, gloss: { zh: '合併 PR !128', en: 'merges PR !128' }, tag: 'PR' },
+    { at: 'close@1.2', av: 'Au', tok: '[METTA]', who: 'Aulë', gloss: { zh: 'PR 已合併 → ticket 移入 merged', en: 'PR merged → ticket moved to merged' }, tag: 'ticket' },
+  ];
+
+  // ---- geometry --------------------------------------------------------
+  const Y = 300;
+  const RING = { cx: 520, cy: 300, r: 62 };
+  const X = { intake: 80, plan: 220, forge: 365, merge: 675, close: 805 };
+  const pt = id => ({ x: X[id], y: Y });
+  const ringPt = th => {
+    const a = (th * Math.PI) / 180;
+    return { x: RING.cx + RING.r * Math.cos(a), y: RING.cy + RING.r * Math.sin(a) };
+  };
+  const toXY = p => ('th' in p ? ringPt(p.th) : p);
+  function posAt(t, keys) {
+    if (t <= keys[0][0]) return toXY(keys[0][1]);
+    for (let i = 1; i < keys.length; i++) {
+      const [tb, pb] = keys[i];
+      if (t > tb) continue;
+      const [ta, pa] = keys[i - 1];
+      const u = ease(clamp((t - ta) / (tb - ta || 1)));
+      if ('th' in pa && 'th' in pb) return ringPt(pa.th + (pb.th - pa.th) * u);
+      const A = toXY(pa), B = toXY(pb);
+      return { x: A.x + (B.x - A.x) * u, y: A.y + (B.y - A.y) * u };
+    }
+    return toXY(keys[keys.length - 1][1]);
+  }
+  const place = (g, p) => g.setAttribute('transform', `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})`);
+
+  // the ticket goes clockwise round the ring: Mithrandir at the top, Narvi at the bottom
+  const K42 = [
+    [T('intake@0.3'), pt('intake')],
+    [T('plan@0'), pt('intake')], [T('plan@0.8'), pt('plan')],
+    [T('forge@0'), pt('plan')], [T('forge@0.8'), pt('forge')],
+    [T('review@0'), pt('forge')], [T('review@0.8'), { th: 180 }],
+    [T('review@1.5'), { th: 270 }],
+    [T('review@2.4'), { th: 270 }], [T('review@3.4'), { th: 450 }],
+    [T('review@4.4'), { th: 450 }], [T('review@5.4'), { th: 630 }],
+    [T('review@6.2'), { th: 630 }], [T('review@6.8'), { th: 720 }],
+    [T('merge@0'), { th: 720 }], [T('merge@0.8'), pt('merge')],
+    [T('close@0'), pt('merge')], [T('close@0.8'), pt('close')],
+  ];
+
+  // ---- build the generated layers --------------------------------------
+  const thread = $('#threadScroll');
+  const PITCH = 54, MAXV = 8, CX = 892, CY0 = 162, CW = 336, CH = 48;
+  CARDS.forEach((c, k) => {
+    const pos = el('g', { transform: `translate(${CX},${CY0 + k * PITCH})` }, thread);
+    const cls = 'card' + (c.h ? ' human' : '') + (c.v ? ' verdict' : '') + (c.opt ? ' opt' : '');
+    const g = el('g', { class: cls, 'data-in': c.at, 'data-rise': '' }, pos);
+    el('rect', { class: 'bg', width: CW, height: CH, rx: 6 }, g);
+    el('circle', { class: c.h ? 'av-h' : 'av-s', cx: 22, cy: 24, r: 13 }, g);
+    el('text', { class: c.h ? 'av-t h' : 'av-t', x: 22, y: 24.5, ...langAttrs(c.av) }, g, firstText(c.av));
+    const l1 = el('text', { x: 44, y: 20 }, g);
+    el('tspan', { class: 'mono tok', ...langAttrs(c.tok) }, l1, firstText(c.tok));
+    el('tspan', { class: 'who', dx: 8, ...langAttrs(c.who) }, l1, firstText(c.who));
+    el('text', { class: 'gloss', x: 44, y: 38, ...langAttrs(c.gloss) }, g, firstText(c.gloss));
+    const tg = el('g', { class: 'tag', transform: `translate(${CW - 46},7)` }, g);
+    el('rect', { width: 40, height: 15, rx: 7.5 }, tg);
+    el('text', { class: 'mono', x: 20, y: 11 }, tg, c.tag);
+  });
+
+  const capLayer = $('#captions');
+  for (const s of SCENES) {
+    const g = el('g', { style: 'opacity:0' }, capLayer);
+    el('circle', { class: 'cap-badge', cx: 86, cy: 654, r: 24 }, g);
+    el('text', { class: 'cap-num', x: 86, y: 655 }, g, s.badge);
+    el('text', { class: 'cap-title', x: 126, y: 641, ...langAttrs(s.title) }, g, s.title.zh);
+    s.lines.zh.forEach((zh, i) => {
+      el('text', { class: 'cap-line', x: 126, y: 668 + i * 24, ...langAttrs({ zh, en: s.lines.en[i] }) }, g, zh);
+    });
+    s.capEl = g;
+  }
+
+  const autoLayer = $('#autoToks');
+  const AUTO = ['#43', '#44', '#45'].map((label, i) => {
+    const b = T('@stirred') + i * 0.8;
+    const g = el('g', { filter: 'url(#sh)', style: 'opacity:0' }, autoLayer);
+    el('rect', { class: 'tk-bg', x: -21, y: -13, width: 42, height: 26, rx: 4 }, g);
+    el('text', { class: 'tk-t mono', x: 0, y: 0.5 }, g, label);
+    return {
+      g, b,
+      keys: [[b, pt('intake')], [b + 0.5, pt('plan')], [b + 1.1, pt('plan')], [b + 1.6, pt('forge')],
+             [b + 1.9, { th: 180 }], [b + 2.6, { th: 360 }], [b + 3.0, pt('merge')], [b + 3.6, pt('merge')],
+             [b + 4.0, pt('close')]],
+      waits: [[b + 0.5, b + 1.1, 'plan'], [b + 3.0, b + 3.6, 'merge']],
+    };
+  });
+
+  // ---- render: every frame is a pure function of t ---------------------
+  const timed = $$('[data-in]').map(e => ({
+    e, tin: T(e.dataset.in), tout: e.dataset.out ? T(e.dataset.out) : Infinity,
+    rise: e.hasAttribute('data-rise'),
+  }));
+  const stateEls = $$('[data-state-of]');
+  const halos = $$('.st').map(st => ({ st, h: st.querySelector('.halo') }));
+  const roads = $$('.road').map(e => {
+    const len = e.getTotalLength();
+    e.style.strokeDasharray = len;
+    return { e, len, t0: T(e.dataset.r0), d: parseFloat(e.dataset.rd) };
+  });
+  const detour = $('#detour');
+  const tok42 = $('#tok42');
+  const seals = [
+    { g: $('#sealPlan'), t: T('@planVerdict'), id: 'plan' },
+    { g: $('#sealSkel'), t: T('@skelVerdict'), id: 'skel' },
+    { g: $('#sealMerge'), t: T('@mergeVerdict'), id: 'merge' },
+  ];
+  const cardTimes = CARDS.map(c => T(c.at));
+
+  function sealPulse(t, id) {
+    let p = 0;
+    for (const a of AUTO) {
+      for (const [w0, w1, wid] of a.waits) {
+        if (wid === id && t > w0 && t < w1) p = Math.max(p, Math.sin((Math.PI * (t - w0)) / (w1 - w0)));
+      }
+    }
+    return p * 0.18;
+  }
+
+  function renderFades(t) {
+    for (const x of timed) {
+      const a = ramp(t, x.tin, FADE) * (1 - ramp(t, x.tout, FADE));
+      x.e.style.opacity = a.toFixed(3);
+      if (x.rise) x.e.style.transform = `translateY(${((1 - ease(a)) * 10).toFixed(2)}px)`;
+    }
+    for (const s of SCENES) {
+      const end = s.start + s.dur;
+      s.capEl.style.opacity = (ramp(t, s.start, 0.3) * (1 - ramp(t, end - 0.3, 0.3))).toFixed(3);
+    }
+  }
+
+  function renderStations(t) {
+    for (const e of stateEls) {
+      const s = S[e.dataset.stateOf];
+      const st = t < s.start ? 'todo' : t < s.start + s.dur ? 'active' : 'done';
+      if (e.dataset.st !== st) e.dataset.st = st;
+    }
+    const pulse = 0.45 + 0.3 * Math.sin(t * 4.2);
+    for (const { st, h } of halos) h.style.opacity = st.dataset.st === 'active' ? pulse.toFixed(3) : '0';
+    for (const r of roads) r.e.style.strokeDashoffset = (r.len * (1 - ease(ramp(t, r.t0, r.d)))).toFixed(1);
+    const inSkel = t >= S.skel.start && t < S.skel.start + S.skel.dur;
+    detour.style.strokeDashoffset = inSkel ? (-(t - S.skel.start) * 28).toFixed(1) : '0';
+  }
+
+  function renderSeals(t) {
+    for (const s of seals) {
+      const a = ramp(t, s.t, 0.3);
+      const sc = 1 + (1 - ease(a)) * 0.9 + sealPulse(t, s.id);
+      s.g.setAttribute('transform', `scale(${sc.toFixed(3)})`);
+      s.g.style.opacity = a.toFixed(3);
+    }
+  }
+
+  function renderRecord(t) {
+    let n = 0;
+    for (const tin of cardTimes) n += ramp(t, tin, 0.45);
+    thread.setAttribute('transform', `translate(0,${(-Math.max(0, n - MAXV) * PITCH).toFixed(1)})`);
+  }
+
+  function renderTokens(t) {
+    tok42.style.opacity = (ramp(t, T('intake@0.3'), 0.35) * (1 - ramp(t, T('auto@0.2'), 0.4))).toFixed(3);
+    place(tok42, posAt(t, K42));
+    for (const a of AUTO) {
+      const o = ramp(t, a.b - 0.25, 0.25) * (1 - ramp(t, a.b + 4.0, 0.35));
+      a.g.style.opacity = o.toFixed(3);
+      if (o > 0) place(a.g, posAt(t, a.keys));
+    }
+  }
+
+  function render(t) {
+    renderFades(t);
+    renderStations(t);
+    renderSeals(t);
+    renderRecord(t);
+    renderTokens(t);
+  }
+
+  // ---- playback, language, and controls ---------------------------------
+  const bar = $('#bar'), head = $('#head'), clock = $('#clock'), playBtn = $('#play');
+  const fmt = x => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}`;
+  const sceneIndex = t => { let i = 0; while (i < SCENES.length - 1 && t >= SCENES[i + 1].start) i++; return i; };
+
+  let t = P.has('t') ? clamp(parseFloat(P.get('t')) || 0, 0, TOTAL - 0.001) : 0;
+  let playing = !P.has('t') && !CAPTURE;
+  let last = null, dirty = true;
+  let lang = pickLang();
+
+  const segs = SCENES.map(s => {
+    const d = document.createElement('div');
+    d.className = 'seg';
+    d.style.flexGrow = s.dur;
+    d.dataset.zh = s.label.zh;
+    d.dataset.en = s.label.en;
+    d.addEventListener('click', ev => { ev.stopPropagation(); seek(s.start + SEEK_LEAD); });
+    bar.insertBefore(d, head);
+    return d;
+  });
+
+  function postHeight() {
+    if (EMBED && window.parent !== window) {
+      window.parent.postMessage({ skadiReel: true, height: document.documentElement.scrollHeight }, '*');
+    }
+  }
+  function setLang(next) {
+    lang = next;
+    document.documentElement.lang = next === 'zh' ? 'zh-Hant' : 'en';
+    document.title = DOC_TITLE[next];
+    for (const e of $$('[data-en]')) e.textContent = e.dataset[next];
+    segs.forEach((d, i) => { d.title = SCENES[i].title[next]; });
+    for (const b of $$('.langtoggle button')) b.classList.toggle('active', b.dataset.lang === next);
+    dirty = true;
+    postHeight();
+  }
+  function syncUI() {
+    head.style.left = `${((t / TOTAL) * 100).toFixed(3)}%`;
+    clock.textContent = `${fmt(t)} / ${fmt(TOTAL)}`;
+    const i = sceneIndex(t);
+    segs.forEach((d, k) => d.classList.toggle('on', k === i));
+    playBtn.textContent = PLAY_LABEL[lang][playing ? 0 : 1];
+  }
+  function seek(x) { t = ((x % TOTAL) + TOTAL) % TOTAL; dirty = true; }
+  function step(dir) {
+    const i = sceneIndex(t);
+    if (dir < 0) seek(t - SCENES[i].start > 1.2 ? SCENES[i].start + SEEK_LEAD : SCENES[(i - 1 + SCENES.length) % SCENES.length].start + SEEK_LEAD);
+    else seek(SCENES[(i + 1) % SCENES.length].start + SEEK_LEAD);
+  }
+  playBtn.addEventListener('click', () => { playing = !playing; dirty = true; });
+  $('#prev').addEventListener('click', () => step(-1));
+  $('#next').addEventListener('click', () => step(1));
+  bar.addEventListener('click', ev => {
+    const r = bar.getBoundingClientRect();
+    seek(clamp((ev.clientX - r.left) / r.width) * TOTAL);
+  });
+  for (const b of $$('.langtoggle button')) {
+    b.addEventListener('click', () => {
+      setLang(b.dataset.lang);
+      try { localStorage.setItem(LANG_KEY, b.dataset.lang); } catch (e) { /* storage off: the choice lasts this visit */ }
+    });
+  }
+  document.addEventListener('keydown', ev => {
+    if (ev.target.closest && ev.target.closest('button') && ev.key === ' ') return;
+    if (ev.key === ' ') { ev.preventDefault(); playing = !playing; dirty = true; }
+    else if (ev.key === 'ArrowLeft') step(-1);
+    else if (ev.key === 'ArrowRight') step(1);
+  });
+  addEventListener('load', postHeight);
+  addEventListener('resize', postHeight);
+
+  function frame(ts) {
+    if (playing && last !== null) {
+      t += (ts - last) / 1000;
+      if (t >= TOTAL) t -= TOTAL;
+      dirty = true;
+    }
+    last = ts;
+    if (dirty) { render(t); syncUI(); dirty = false; }
+    requestAnimationFrame(frame);
+  }
+  // the markup carries the zh text; remember it before the first swap
+  for (const e of $$('[data-en]')) if (e.dataset.zh === undefined) e.dataset.zh = e.textContent;
+  setLang(lang);
+  render(t);
+  syncUI();
+  dirty = false;
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
